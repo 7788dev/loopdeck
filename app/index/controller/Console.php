@@ -271,63 +271,6 @@ class Console
         }
     }
 
-    public function tieba($act = "", $uid = "")
-    {
-        return response('Not Found', 404);
-
-        /* 百度贴吧功能已停用
-        switch ($act) {
-            case "add" :
-                return view("console/tieba/add");
-                break;
-            case "list" :
-                return view("console/tieba/list", ["list" => Accounts::getMyList("tieba")]);
-                break;
-            case "info" :
-                return view("console/tieba/info", ["data" => Accounts::findByUserId($uid)]);
-                break;
-        }
-        */
-    }
-    
-    public function iqiyi($act = "", $uid = "")
-    {
-        return response('Not Found', 404);
-
-        /* 爱奇艺功能已停用
-        switch ($act) {
-            case "add" :
-                return view("console/iqiyi/add");
-                break;
-            case "list" :
-                return view("console/iqiyi/list", ["list" => Accounts::getMyList("iqiyi")]);
-                break;
-            case "info" :
-                return view("console/iqiyi/info", ["data" => Accounts::findByUserId($uid)]);
-                break;
-        }
-        */
-    }
-
-    public function mihoyo($act = "", $uid = "")
-    {
-        return response('Not Found', 404);
-
-        /* 米游社功能已停用
-        switch ($act) {
-            case "add" :
-                return view("console/mihoyo/add");
-                break;
-            case "list" :
-                return view("console/mihoyo/list", ["list" => Accounts::getMyList("mihoyo")]);
-                break;
-            case "info" :
-                return view("console/mihoyo/info", ["data" => Accounts::findByUserId($uid)]);
-                break;
-        }
-        */
-    }
-
     public function heybox($act = "", $uid = "")
     {
         switch ($act) {
@@ -369,34 +312,6 @@ class Console
                 ]);
                 break;
         }
-    }
-
-    public function tool($act = "")
-    {
-        return response('Not Found', 404);
-
-        /* Free 功能区已停用
-        switch ($act) {
-            case "analyse" :
-                return view("console/tool/video_analyse");
-                break;
-        }
-        */
-    }
-   
-    
-    
-    public function wz($act = "")
-    {
-        return response('Not Found', 404);
-
-        /* Free 功能区已停用
-        switch ($act) {
-            case "wangzhe" :
-                return view("console/wz/wangzhe");
-                break;
-        }
-        */
     }
 
     public function qrcode($act = "")

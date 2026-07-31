@@ -68,9 +68,6 @@ class Task extends Common
     public function taskApi($job, $account)
     {
         $jobType = (string)($job['type'] ?? '');
-        if (in_array($jobType, ['tieba', 'mihoyo'], true)) {
-            return false;
-        }
 
         if ($jobType === 'bilibili') {
             $task = (string)($job['do'] ?? '');
@@ -101,10 +98,6 @@ class Task extends Common
                 break;
             case 'sport':
                 $execute_url = get_Domain() . "cron/sport/{$job['do']}?user_id={$job['user_id']}&login_token={$account_info['login_token']}&app_token={$account_info['app_token']}" . $job_config . "&" . $account_data . "&runkey=" . RUN_KEY;
-                break;
-            // 百度贴吧和米游社功能已停用。
-            case 'iqiyi':
-                $execute_url = get_Domain() . "cron/iqiyi/{$job['do']}?user_id={$job['user_id']}&P00001={$account_info['P00001']}&P00003={$account_info['P00003']}" . $job_config . "&runkey=" . RUN_KEY;
                 break;
             case 'heybox':
                 $execute_url = get_Domain() . "cron/heybox/{$job['do']}?user_id={$job['user_id']}&pkey={$account_info['pkey']}" . "&runkey=" . RUN_KEY;

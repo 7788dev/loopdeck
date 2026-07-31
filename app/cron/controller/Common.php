@@ -40,11 +40,9 @@ class Common
         $name = match ($type) {
             'netease' => '网易云音乐',
             'bilibili' => '哔哩哔哩',
-            'iqiyi' => '爱奇艺',
             'qq' => 'QQ',
             'sport' => '小米运动',
-            'tieba' => '百度贴吧',
-            'mihoyo' => '米游社',
+            'heybox' => '小黑盒',
         };
         Accounts::where('user_id', '=', $user_id)->update(['state' => 0]);
         Jobs::where('user_id', '=', $user_id)

@@ -6,6 +6,7 @@ use app\index\model\Accounts;
 use app\index\model\Jobs;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
+use app\service\BilibiliTaskExecutor;
 use bilibili\Bilibili as BilibiliClient;
 use netease\Qrcode;
 use think\exception\ValidateException;

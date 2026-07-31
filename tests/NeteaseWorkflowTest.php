@@ -73,6 +73,52 @@ final class WorkflowTransport implements TransportInterface
         if (str_contains($url, '/point/signed/get')) {
             return ['code' => 200, 'data' => ['signed' => true]];
         }
+        if (str_contains($url, '/vipnewcenter/app/level/growhpoint/basic')) {
+            return [
+                'code' => 200,
+                'data' => ['userLevel' => ['growthPoint' => 100, 'normal' => true]],
+            ];
+        }
+        if (str_contains($url, '/vip-center-bff/task/sign')) {
+            return ['code' => 200];
+        }
+        if (str_contains($url, '/vipnewcenter/app/level/user/checkin/history/detail')) {
+            return ['code' => 200, 'data' => ['signed' => true]];
+        }
+        if (str_contains($url, '/vipnewcenter/app/minidesk/music/sign/pc')) {
+            return ['code' => 200, 'data' => ['text' => '黑胶乐签']];
+        }
+        if (str_contains($url, '/vipnewcenter/app/user/sign/info')) {
+            return ['code' => 200, 'data' => []];
+        }
+        if (str_contains($url, '/vipmusic/newrecord/weekflow')) {
+            return ['code' => 200, 'data' => []];
+        }
+        if (str_contains($url, '/vipnewcenter/app/level/task/list')) {
+            return [
+                'code' => 200,
+                'data' => [
+                    'taskList' => [[
+                        'taskItems' => [['unGetIds' => 'completed_1']],
+                    ]],
+                ],
+            ];
+        }
+        if (str_contains($url, '/middle/vip/mission/user/progress/list')) {
+            return [
+                'code' => 200,
+                'data' => [['historyUnObtainRewardWorth' => 3, 'children' => []]],
+            ];
+        }
+        if (str_contains($url, '/vipnewcenter/app/level/task/reward/getall')) {
+            return ['code' => 200, 'data' => ['received' => true]];
+        }
+        if (str_contains($url, '/vipnewcenter/app/level/task/reward/get')) {
+            return ['code' => 200, 'data' => ['received' => true]];
+        }
+        if (str_contains($url, '/vipnewcenter/app/level/growth/details')) {
+            return ['code' => 200, 'data' => []];
+        }
         if (str_contains($url, '/yunbei/task/visit/mall')) {
             return ['code' => 200];
         }
@@ -176,6 +222,10 @@ $results = [
         ],
     ]),
     'yunbei_task' => $netease->yunbei_task(),
+    'vip_growth_task' => $netease->vip_growth_task(),
+    'vip_growthpoint_details' => $netease->vip_growthpoint_details(10, 5),
+    'vip_sign_history' => $netease->vip_sign_history(1),
+    'vip_sign_info' => $netease->vip_sign_info(),
     'musician_task' => $netease->musician_task(),
     'listen' => $netease->listen(),
 ];
@@ -195,8 +245,35 @@ workflowCheck(
     'Listening workflows did not use EAPI weblog reporting'
 );
 workflowCheck(
+    count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/weapi/vip-center-bff/task/sign'))) === 1,
+    'Black Vinyl LeQian did not use the upstream WEAPI sign endpoint'
+);
+workflowCheck(
+    count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/eapi/vipnewcenter/app/level/user/checkin/history/detail'))) === 1,
+    'Black Vinyl LeQian did not verify the EAPI check-in detail'
+);
+workflowCheck(
+    count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/xeapi/middle/vip/mission/user/progress/list'))) >= 1,
+    'VIP growth task did not query the v1 XEAPI task list'
+);
+workflowCheck(
+    count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/xeapi/vipnewcenter/app/level/task/reward/getall'))) === 1,
+    'VIP growth task did not use the XEAPI reward claim endpoint'
+);
+workflowCheck(
+    count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/weapi/vipnewcenter/app/level/task/reward/get'))) === 1,
+    'VIP growth task did not claim legacy task rewards'
+);
+workflowCheck(
     count(array_filter($urls, static fn(string $url): bool => str_contains($url, '127.0.0.1:3010'))) === 0,
     'A workflow still called the Node bridge'
 );
+
+$schedulerSource = file_get_contents(dirname(__DIR__) . '/app/cron/controller/Task.php');
+$taskModelSource = file_get_contents(dirname(__DIR__) . '/app/index/model/Tasks.php');
+$installSql = file_get_contents(dirname(__DIR__) . '/app/install/install.sql');
+workflowCheck(str_contains($schedulerSource, "'vip_growth_task'"), 'Unified scheduler is missing the VIP growth task');
+workflowCheck(str_contains($taskModelSource, "'execute_name' => 'vip_growth_task'"), 'Existing installs cannot sync the VIP growth task');
+workflowCheck(str_contains($installSql, "'vip_growth_task'"), 'Fresh installs are missing the VIP growth task');
 
 echo "Netease project workflow tests passed\n";

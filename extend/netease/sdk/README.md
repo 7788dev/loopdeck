@@ -18,6 +18,12 @@ and persistent protocol state. The existing `netease\Netease` class is the
 project-specific compatibility facade and sends all NetEase requests through
 this SDK.
 
+VIP growth coverage in the compatibility facade follows the upstream 4.39.0
+modules: growth summary/details, legacy and v1 task lists, targeted/all reward
+claims, Black Vinyl LeQian sign/detail/history/info, and the Black Vinyl time
+machine. `vip_growth_task()` combines the non-destructive daily actions into the
+project scheduler.
+
 Basic use:
 
 ```php

@@ -1153,20 +1153,235 @@ class Netease
         return $this->makeResult($count ? 200 : 201, $count ? '音乐人云豆奖励领取成功，共' . $count . '项' : '音乐人云豆奖励领取失败');
     }
 
+    /**
+     * Complete the currently automatable VIP growth actions.
+     *
+     * Black Vinyl LeQian is part of this workflow. Actions that change the
+     * user's library, such as liking VIP songs, are intentionally excluded.
+     */
+    public function vip_growth_task()
+    {
+        $before = $this->vip_growthpoint();
+        $userLevel = $before['data']['userLevel'] ?? null;
+        if ((int)($before['code'] ?? 0) !== 200 || !is_array($userLevel)) {
+            return $this->makeResult(201, (string)($before['message'] ?? '未检测到有效的网易云黑胶会员'));
+        }
+        $active = !array_key_exists('normal', $userLevel) || !empty($userLevel['normal']);
+        $expireTime = (int)($userLevel['expireTime'] ?? 0);
+        if (!$active || ($expireTime > 0 && $expireTime < (int)round(microtime(true) * 1000))) {
+            return $this->makeResult(201, '网易云黑胶会员已过期，无法执行VIP成长任务');
+        }
+
+        $messages = [];
+        $success = true;
+        $beforePoint = (int)($userLevel['growthPoint'] ?? 0);
+
+        $sign = $this->vip_sign();
+        $messages[] = (string)($sign['message'] ?? '黑胶乐签执行失败');
+        if (empty($sign['signed'])) {
+            $success = false;
+        }
+
+        $timeMachine = $this->vip_timemachine();
+        if ((int)($timeMachine['code'] ?? 0) === 200) {
+            $messages[] = '黑胶时光机浏览完成';
+        } else {
+            $messages[] = '黑胶时光机浏览失败';
+            $success = false;
+        }
+
+        $listen = $this->listen_vip_songs();
+        $messages[] = (string)($listen['message'] ?? 'VIP歌曲听歌上报失败');
+        if ((int)($listen['code'] ?? 0) !== 200) {
+            $success = false;
+        }
+
+        $legacyTasks = $this->get_vip_tasks();
+        $unclaimedIds = $this->vipUnclaimedTaskIds($legacyTasks);
+        if ($unclaimedIds) {
+            $claim = $this->vip_growthpoint_get($unclaimedIds);
+            if ((int)($claim['code'] ?? 0) === 200) {
+                $messages[] = '已领取完成任务的成长值';
+            } else {
+                $messages[] = (string)($claim['message'] ?? '成长值领取失败');
+                $success = false;
+            }
+        }
+
+        $newTasks = $this->vip_tasks_v1();
+        $unclaimedWorth = $this->vipUnclaimedWorth($newTasks);
+        $remainingWorth = $unclaimedWorth;
+        $claimedWorth = 0;
+        $claimAll = $this->vip_growthpoint_getall();
+        if ((int)($claimAll['code'] ?? 0) === 200) {
+            $remainingWorth = $this->vipUnclaimedWorth($this->vip_tasks_v1());
+            $claimedWorth = max(0, $unclaimedWorth - $remainingWorth);
+            if ($unclaimedWorth > 0) {
+                $messages[] = $remainingWorth === 0
+                    ? '已领取' . $claimedWorth . '成长值奖励'
+                    : '成长值领取已提交，剩余待领取' . $remainingWorth;
+            } else {
+                $messages[] = '当前没有遗漏的成长值奖励';
+            }
+        } elseif ($unclaimedWorth > 0) {
+            $messages[] = (string)($claimAll['message'] ?? '一键领取成长值失败');
+            $success = false;
+        }
+
+        $after = $this->vip_growthpoint();
+        $afterPoint = (int)($after['data']['userLevel']['growthPoint'] ?? $beforePoint);
+        $delta = max(0, $afterPoint - $beforePoint);
+        $messages[] = '当前成长值' . $afterPoint . ($delta > 0 ? '，本次+' . $delta : '');
+
+        return $this->makeResult($success ? 200 : 201, implode('；', array_unique($messages)), [
+            'signed' => !empty($sign['signed']),
+            'listened' => (int)($listen['data']['reported'] ?? 0),
+            'unclaimed_worth_before' => $unclaimedWorth,
+            'claimed_worth' => $claimedWorth,
+            'unclaimed_worth_after' => $remainingWorth,
+            'growth_before' => $beforePoint,
+            'growth_after' => $afterPoint,
+            'growth_delta' => $delta,
+        ]);
+    }
+
+    public function vip_growthpoint()
+    {
+        return $this->decodeBody($this->requestApi('/api/vipnewcenter/app/level/growhpoint/basic', [], 'weapi'));
+    }
+
+    public function vip_growthpoint_details($limit = 20, $offset = 0)
+    {
+        return $this->decodeBody($this->requestApi('/api/vipnewcenter/app/level/growth/details', [
+            'limit' => max(1, (int)$limit),
+            'offset' => max(0, (int)$offset),
+        ], 'weapi'));
+    }
+
     public function get_vip_tasks()
     {
         return $this->decodeBody($this->requestApi('/api/vipnewcenter/app/level/task/list', [], 'weapi'));
     }
 
+    public function vip_tasks_v1($userId = null)
+    {
+        return $this->decodeBody($this->requestApi('/api/middle/vip/mission/user/progress/list', [
+            'taskType' => 'app_vip_task_center',
+            'userId' => (string)($userId ?? $this->userId),
+        ], 'xeapi'));
+    }
+
+    public function vip_growthpoint_get($taskIds)
+    {
+        if (is_array($taskIds)) {
+            $taskIds = implode(',', array_values(array_filter(array_map('strval', $taskIds), 'strlen')));
+        }
+        return $this->decodeBody($this->requestApi('/api/vipnewcenter/app/level/task/reward/get', [
+            'taskIds' => (string)$taskIds,
+        ], 'weapi'));
+    }
+
+    public function vip_growthpoint_getall()
+    {
+        return $this->decodeBody($this->requestApi('/api/vipnewcenter/app/level/task/reward/getall', [], 'xeapi'));
+    }
+
+    public function vip_sign()
+    {
+        $taskSign = $this->decodeBody($this->requestApi('/api/vip-center-bff/task/sign', [], 'weapi'));
+        $checkinDetail = $this->vip_sign_detail();
+        $signed = (int)($taskSign['code'] ?? 0) === 200
+            && (int)($checkinDetail['code'] ?? 0) === 200;
+
+        return [
+            'code' => 200,
+            'taskSign' => $taskSign,
+            'checkinDetail' => $checkinDetail,
+            'signed' => $signed,
+            'message' => $signed ? '黑胶乐签打卡成功' : '黑胶乐签打卡失败',
+        ];
+    }
+
+    public function vip_sign_detail($timestamp = null)
+    {
+        return $this->decodeBody($this->requestApi('/api/vipnewcenter/app/level/user/checkin/history/detail', [
+            'signDayTime' => $timestamp === null ? (int)round(microtime(true) * 1000) : (int)$timestamp,
+            'type' => 1,
+        ], 'eapi'));
+    }
+
+    public function vip_sign_history($type = 0)
+    {
+        return $this->decodeBody($this->requestApi('/api/vipnewcenter/app/minidesk/music/sign/pc', [
+            'type' => (string)$type,
+        ], 'eapi'));
+    }
+
+    public function vip_sign_info()
+    {
+        return $this->decodeBody($this->requestApi('/api/vipnewcenter/app/user/sign/info', [], 'weapi'));
+    }
+
+    public function vip_timemachine($startTime = null, $endTime = null, $limit = 60)
+    {
+        $data = [];
+        if ($startTime !== null && $endTime !== null) {
+            $data = [
+                'startTime' => $startTime,
+                'endTime' => $endTime,
+                'type' => 1,
+                'limit' => max(1, (int)$limit),
+            ];
+        }
+        return $this->decodeBody($this->requestApi('/api/vipmusic/newrecord/weekflow', $data, 'weapi'));
+    }
+
     public function listen_vip_songs()
     {
         $result = [];
+        $reported = 0;
         foreach ([205342, 174944, 416700305] as $songId) {
             $detail = $this->decodeBody($this->get_songs_detail($songId));
             $duration = (int)ceil(($detail['songs'][0]['dt'] ?? 240000) / 1000);
             $result[$songId] = $this->scrobbleSong($songId, 0, $duration);
+            if ($result[$songId]) {
+                $reported++;
+            }
         }
-        return ['code' => 200, 'data' => $result];
+        return $this->makeResult(
+            $reported === 3 ? 200 : 201,
+            $reported === 3 ? 'VIP歌曲听歌上报完成，共3首' : 'VIP歌曲听歌上报完成' . $reported . '/3首',
+            ['reported' => $reported, 'songs' => $result]
+        );
+    }
+
+    protected function vipUnclaimedTaskIds(array $tasks): array
+    {
+        $ids = [];
+        foreach ($tasks['data']['taskList'] ?? [] as $group) {
+            foreach ($group['taskItems'] ?? [] as $task) {
+                $value = $task['unGetIds'] ?? null;
+                $values = is_array($value) ? $value : preg_split('/\s*,\s*/', (string)$value, -1, PREG_SPLIT_NO_EMPTY);
+                foreach ($values ?: [] as $id) {
+                    if ((string)$id !== '') {
+                        $ids[] = (string)$id;
+                    }
+                }
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    protected function vipUnclaimedWorth(array $tasks): int
+    {
+        $worth = 0;
+        foreach ($tasks['data'] ?? [] as $task) {
+            $worth += max(0, (int)($task['historyUnObtainRewardWorth'] ?? 0));
+            foreach ($task['children'] ?? [] as $child) {
+                $worth += max(0, (int)($child['historyUnObtainRewardWorth'] ?? 0));
+            }
+        }
+        return $worth;
     }
 
     public function yunbei_tasks()

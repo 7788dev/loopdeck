@@ -251,7 +251,11 @@ class Console
                 return view("console/netease/list", ["list" => Accounts::getMyList("netease")]);
                 break;
             case "info" :
-                return view("console/netease/info", ["data" => Accounts::findByUserId($user_id)]);
+                $account = Accounts::findByUserId($user_id);
+                if ($account) {
+                    Jobs::refreshJob('netease', $user_id);
+                }
+                return view("console/netease/info", ["data" => $account]);
                 break;
         }
     }

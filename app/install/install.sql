@@ -167,6 +167,7 @@ INSERT INTO `cloud_tasks` (`id`, `type`, `name`, `describe`, `icon`, `execute_na
                                                                                                                                                                  (16, 'bilibili', '每日分享', '分享视频（主站任务）', 'si si-paper-plane', 'shareaid', NULL, '86400', 0, 1, 1, '2022-01-01 00:00:00', 3),
                                                                                                                                                                  (17, 'bilibili', '每日投币', '投币视频（主站任务）', 'si si-badge', 'coinadd', NULL, '86400', 1, 1, 1, '2022-01-01 00:00:00', 4),
                                                                                                                                                                  (18, 'netease', '云贝任务', '完成云贝中心多项任务', 'si si-fire', 'yunbei_task', NULL, '86400', 0, 1, 1, '2022-01-01 00:00:00', 6),
+                                                                                                                                                                 (19, 'netease', 'VIP成长任务', '黑胶乐签、VIP听歌与成长值领取', 'si si-diamond', 'vip_growth_task', NULL, '86400', 0, 1, 0, '2026-07-31 00:00:00', 7),
                                                                                                                                                                  (34,'heybox', '每日签到', '小黑盒APP每日签到任务', 'si si-rocket', 'sign', NULL, '86400', 0, 1, 1, '2022-01-01 00:00:00', 1);
 
 CREATE TABLE `cloud_task_logs` (

@@ -24,6 +24,7 @@ class Task extends Common
         'evaluate',
         'daka_new',
         'yunbei_task',
+        'vip_growth_task',
     ];
 
     public function index()

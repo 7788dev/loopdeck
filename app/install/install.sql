@@ -315,3 +315,4 @@ ALTER TABLE `cloud_users`
 ALTER TABLE `cloud_weblist`
     MODIFY `web_id` int(11) NOT NULL AUTO_INCREMENT COMMENT '站点编号';
 COMMIT;
+SET AUTOCOMMIT = 1;

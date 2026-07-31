@@ -63,6 +63,10 @@ class Index
             );
             $connection->set_charset('utf8mb4');
             $this->importSchema($connection);
+            // install.sql wraps schema creation in a transaction. Re-enable
+            // autocommit before inserting the site, runtime config and admin
+            // rows so InnoDB installations persist them on connection close.
+            $connection->autocommit(true);
             $this->createRuntimeConfig($connection);
             $this->createSite($connection);
             $this->createAdministrator($connection, $input);

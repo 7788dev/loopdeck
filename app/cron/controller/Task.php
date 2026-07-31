@@ -51,7 +51,14 @@ class Task extends Common
         }
 
         $lockName = sprintf('cron-task-%d-%d.lock', $workerCount, $workerIndex);
-        $lockHandle = @fopen(runtime_path() . $lockName, 'c+');
+        $runtimeDirectory = runtime_path();
+        if (!is_dir($runtimeDirectory)
+            && !@mkdir($runtimeDirectory, 0775, true)
+            && !is_dir($runtimeDirectory)) {
+            return resultJson(-1003, '无法创建任务调度目录');
+        }
+
+        $lockHandle = @fopen($runtimeDirectory . $lockName, 'c+');
         if (!is_resource($lockHandle)) {
             return resultJson(-1003, '无法创建任务调度锁');
         }

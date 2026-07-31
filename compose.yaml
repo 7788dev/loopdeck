@@ -2,13 +2,11 @@ name: loopdeck
 
 services:
   app:
-    build:
-      context: .
     image: "${APP_IMAGE:-ghcr.io/7788dev/loopdeck:latest}"
+    pull_policy: always
     restart: unless-stopped
-    init: true
     ports:
-      - "${APP_PORT:-8001}:80"
+      - "${APP_PORT:-8001}:8080"
     environment:
       APP_DEBUG: "${APP_DEBUG:-false}"
       TZ: "${TZ:-Asia/Shanghai}"
@@ -20,13 +18,19 @@ services:
     healthcheck:
       test:
         - CMD
-        - php
-        - -r
-        - "$$body = @file_get_contents('http://127.0.0.1/'); exit($$body === false ? 1 : 0);"
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - http://127.0.0.1:8080/healthcheck
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   db:
     image: mysql:8.4

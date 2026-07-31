@@ -1,63 +1,54 @@
-FROM php:8.2-apache-bookworm AS php-extensions
+# syntax=docker/dockerfile:1.7
 
-# Debian package revisions follow the pinned Bookworm base image security updates.
-# hadolint ignore=DL3008
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        libfreetype6-dev \
-        libicu-dev \
-        libjpeg62-turbo-dev \
-        libonig-dev \
-        libpng-dev \
-        libzip-dev \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" \
+FROM serversideup/php:8.2-fpm-nginx-alpine@sha256:57919c0ed10e91318b87c518f4a2e25e98a259086d440955f692b095734c0508 AS runtime
+
+ENV TZ=Asia/Shanghai \
+    PHP_DATE_TIMEZONE=Asia/Shanghai \
+    PHP_MAX_EXECUTION_TIME=300 \
+    PHP_MEMORY_LIMIT=256M \
+    PHP_POST_MAX_SIZE=20M \
+    PHP_UPLOAD_MAX_FILE_SIZE=20M \
+    PHP_OPCACHE_ENABLE=1 \
+    PHP_OPCACHE_VALIDATE_TIMESTAMPS=0 \
+    PHP_REALPATH_CACHE_TTL=600 \
+    NGINX_CLIENT_MAX_BODY_SIZE=20M \
+    SHOW_WELCOME_MESSAGE=false
+
+USER 0
+
+# The base image removes transient build packages after extension installation.
+# hadolint ignore=DL3018
+RUN apk add --no-cache tzdata \
+    && install-php-extensions \
         bcmath \
         gd \
         intl \
-        mbstring \
         mysqli \
-        opcache \
-        pdo_mysql \
-        zip \
-    && rm -rf /var/lib/apt/lists/*
-
-FROM php:8.2-apache-bookworm AS runtime
-
-ENV TZ=Asia/Shanghai
-
-# Keep only the shared libraries required by the compiled PHP extensions.
-# hadolint ignore=DL3008
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        libfreetype6 \
-        libicu72 \
-        libjpeg62-turbo \
-        libonig5 \
-        libpng16-16 \
-        libzip4 \
-    && a2enmod rewrite \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=php-extensions /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
-COPY --from=php-extensions /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
+    && rm -rf /tmp/* /var/cache/apk/*
 
 WORKDIR /var/www/html
 
-COPY . /var/www/html
-COPY docker/apache-vhost.conf /etc/apache2/sites-available/000-default.conf
-COPY docker/php.ini /usr/local/etc/php/conf.d/loopdeck.ini
-COPY docker/entrypoint.sh /usr/local/bin/loopdeck-entrypoint
+COPY --chown=82:82 . /var/www/html
+COPY --chown=root:root --chmod=0755 docker/entrypoint.sh /etc/entrypoint.d/50-loopdeck.sh
+COPY --chown=root:root --chmod=0644 docker/nginx-security.conf /etc/nginx/server-opts.d/loopdeck-security.conf
+COPY --chown=root:root --chmod=0644 docker/php.ini /usr/local/etc/php/conf.d/zz-loopdeck.ini
 
 RUN cp -a /var/www/html/config /opt/loopdeck-config \
-    && sed -i 's/\r$//' /usr/local/bin/loopdeck-entrypoint \
-    && chmod 0755 /usr/local/bin/loopdeck-entrypoint
+    && mkdir -p \
+        /var/lib/loopdeck/config \
+        /var/lib/loopdeck/runtime \
+        /var/lib/loopdeck/sessions \
+        /var/lib/loopdeck/uploads \
+        /var/www/html/runtime \
+        /var/www/html/public/static/uploads \
+    && cp -a /opt/loopdeck-config/. /var/lib/loopdeck/config/ \
+    && chown -R 82:82 /opt/loopdeck-config /var/lib/loopdeck /var/www/html/runtime /var/www/html/public/static/uploads
 
+# Fail the remote build immediately if a required runtime extension is absent.
 # The single-quoted script is intentionally evaluated by PHP, not the shell.
 # hadolint ignore=SC2016
-RUN php -r '$required = ["curl", "fileinfo", "gd", "intl", "json", "mbstring", "mysqli", "openssl", "pdo_mysql", "sodium", "zip"]; foreach ($required as $extension) { if (!extension_loaded($extension)) { fwrite(STDERR, "Missing PHP extension: {$extension}\n"); exit(1); } }'
+RUN php -r '$required = ["bcmath", "curl", "fileinfo", "gd", "intl", "json", "mbstring", "mysqli", "openssl", "pdo_mysql", "sodium", "zip"]; foreach ($required as $extension) { if (!extension_loaded($extension)) { fwrite(STDERR, "Missing PHP extension: {$extension}\n"); exit(1); } }'
 
-EXPOSE 80
+USER 82:82
 
-ENTRYPOINT ["loopdeck-entrypoint"]
-CMD ["apache2-foreground"]
+EXPOSE 8080

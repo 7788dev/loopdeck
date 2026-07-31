@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-app_root=/var/www/html
+app_root=${APP_BASE_DIR:-/var/www/html}
 data_root=/var/lib/loopdeck
 
 mkdir -p \
@@ -30,7 +30,3 @@ link_directory() {
 link_directory "$app_root/config" "$data_root/config"
 link_directory "$app_root/runtime" "$data_root/runtime"
 link_directory "$app_root/public/static/uploads" "$data_root/uploads"
-
-chown -R www-data:www-data "$data_root"
-
-exec docker-php-entrypoint "$@"

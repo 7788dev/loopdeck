@@ -1,6 +1,6 @@
 # Docker 部署
 
-项目提供 PHP 8.2 + Apache 与 MySQL 8.4 的 Docker Compose 配置。数据库、安装配置、运行缓存、登录会话和上传文件均使用命名卷持久化。
+项目提供 PHP 8.2 + Nginx/PHP-FPM（Alpine）与 MySQL 8.4 的 Docker Compose 配置。应用容器默认以非 root 用户运行，并启用 OPcache。数据库、安装配置、运行缓存、登录会话和上传文件均使用命名卷持久化。
 
 GitHub Actions 会在 `main` 分支和 `v*` 版本标签更新时构建 `linux/amd64`、`linux/arm64` 镜像，并发布到 `ghcr.io/7788dev/loopdeck`。Pull Request 只验证镜像能否构建，不会发布。
 
@@ -20,19 +20,11 @@ GitHub Actions 会在 `main` 分支和 `v*` 版本标签更新时构建 `linux/a
 
 2. 修改 `.env` 中的 `MYSQL_PASSWORD` 与 `MYSQL_ROOT_PASSWORD`。两个密码应不同，且不要提交 `.env`。
 
-3. 选择一种启动方式。
-
-   拉取 GitHub Container Registry 中的镜像：
+3. 拉取 GitHub Container Registry 中的镜像并启动。Compose 配置没有本地构建入口：
 
    ```bash
    docker compose pull app
    docker compose up --no-build --wait --wait-timeout 180
-   ```
-
-   或构建当前目录中的源码：
-
-   ```bash
-   docker compose up --build --wait --wait-timeout 180
    ```
 
 4. 打开 `http://127.0.0.1:8001` 完成网页安装。安装页数据库参数填写：
@@ -56,8 +48,9 @@ docker compose ps
 # 查看应用日志
 docker compose logs -f app
 
-# 重新构建并启动
-docker compose up --build --wait --wait-timeout 180
+# 拉取最新远端镜像并启动
+docker compose pull app
+docker compose up --no-build --wait --wait-timeout 180
 
 # 停止服务，保留数据
 docker compose down

@@ -1,5 +1,9 @@
 .git
+.github/
 .env
+.env.example
+.gitignore
+.dockerignore
 config/Db.php
 runtime/
 public/static/uploads/
@@ -10,3 +14,8 @@ extend/alipay/log/
 *.log
 Thumbs.db
 .DS_Store
+Dockerfile
+compose.yaml
+DOCKER.md
+docker/apache-vhost.conf
+搭建教程.txt

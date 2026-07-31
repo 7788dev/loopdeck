@@ -258,17 +258,8 @@ class Console
 
     public function sport($act = "", $uid = "")
     {
-        switch ($act) {
-            case "add" :
-                return view("console/sport/add");
-                break;
-            case "list" :
-                return view("console/sport/list", ["list" => Accounts::getMyList("sport")]);
-                break;
-            case "info" :
-                return view("console/sport/info", ["data" => Accounts::findByUserId($uid)]);
-                break;
-        }
+        // Compatibility guard for deployments that still allow controller auto-routing.
+        return response('Not Found', 404);
     }
 
     public function heybox($act = "", $uid = "")

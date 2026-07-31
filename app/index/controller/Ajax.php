@@ -10,9 +10,7 @@ use app\index\model\Pays;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
-use app\index\validate\Sport;
 use netease\Qrcode;
-use sport\Step;
 use think\exception\ValidateException;
 use think\facade\Request;
 use think\facade\Session;
@@ -29,53 +27,8 @@ class Ajax extends Common
 	}
 	public function sport($act = null)
 	{
-		switch ($act) {
-			case "add":
-				$_var_29 = new Step();
-				$_var_30 = Request::post();
-				if (Tasks::checkTaskPower("step") && empty(Session::get("user.vip_start"))) {
-					return resultJson(-1, "您需要开通VIP会员才可以使用该功能");
-				} else {
-					$_var_31 = $_var_29->login($_var_30["username"], $_var_30["password"]);
-					$_var_32 = @json_decode($_var_31["body"], true);
-					if (@$_var_32["result"] == "ok") {
-						$_var_30 = ["user_id" => $_var_32["token_info"]["user_id"], "username" => $_var_30["username"], "password" => $_var_30["password"], "nickname" => $_var_32["thirdparty_info"]["nickname"], "login_token" => $_var_32["token_info"]["login_token"], "app_token" => $_var_32["token_info"]["app_token"]];
-						if (Accounts::where("user_id", "=", $_var_30["user_id"])->where("uid", "<>", Session::get("user.uid"))->find()) {
-							return resultJson(-1, "系统已存在该账号，无法继续添加");
-						} else {
-							return Accounts::add("sport", $_var_30["user_id"], $_var_30);
-						}
-					} else {
-						return resultJson(0, "登录失败，请检查账号密码是否正确");
-					}
-				}
-				break;
-			case "step":
-				$_var_30 = Request::post();
-				try {
-					validate(Sport::class)->check($_var_30);
-				} catch (ValidateException $_var_33) {
-					return resultJson(-1, $_var_33->getMessage());
-				}
-				$_var_34 = Accounts::where("user_id", "=", $_var_30["user_id"])->where("type", "=", "sport")->find();
-				$_var_35 = unserialize($_var_34["data"]);
-				$_var_36 = ["username" => $_var_35["username"], "password" => $_var_35["password"], "step_start" => (float) $_var_30["step_start"], "step_stop" => (float) $_var_30["step_stop"]];
-				$_var_36 = serialize($_var_36);
-				if (Jobs::where("type", "=", "sport")->where("user_id", "=", $_var_30["user_id"])->where("uid", "=", Session::get("user.uid"))->update(["data" => $_var_36])) {
-					return resultJson(1, "修改成功");
-				} else {
-					return resultJson(0, "修改失败");
-				}
-				break;
-			case "delete":
-				$_var_37 = Request::post("user_id");
-				if (Accounts::delByUserId($_var_37) && Jobs::delJob("sport", $_var_37) && TaskLogs::deleteLogs("sport", $_var_37)) {
-					return resultJson(1, "删除成功");
-				} else {
-					return resultJson(0, "删除失败");
-				}
-				break;
-		}
+		// Compatibility guard for deployments that still allow controller auto-routing.
+		return response('Not Found', 404);
 	}
 	public function heybox($act = null)
 	{

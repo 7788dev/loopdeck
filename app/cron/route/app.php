@@ -13,12 +13,11 @@ use think\facade\Route;
 // 监控运行
 Route::rule('netease/:do', 'netease/execute');
 Route::rule('bilibili/:do', 'bilibili/execute');
-Route::rule('sport/:do', 'sport/execute');
 Route::rule('heybox/:do', 'heybox/execute');
 
 $retiredFeatureNotFound = static function () {
     return response('Not Found', 404);
 };
-foreach (['iqiyi', 'tieba', 'mihoyo'] as $feature) {
+foreach (['iqiyi', 'tieba', 'mihoyo', 'sport'] as $feature) {
     Route::any("{$feature}/[:do]", $retiredFeatureNotFound);
 }

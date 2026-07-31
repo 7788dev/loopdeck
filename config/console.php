@@ -7,6 +7,5 @@ return [
     'commands' => [
         'netease' => 'app\command\Netease', // 网易云音乐
         'bilibili' => 'app\command\Bilibili', // 哔哩哔哩
-        'sport' => 'app\command\Sport', // 运动
     ],
 ];

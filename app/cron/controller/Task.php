@@ -96,9 +96,6 @@ class Task extends Common
             case 'netease':
                 $execute_url = get_Domain() . "cron/netease/{$job['do']}?user_id={$job['user_id']}&csrf={$account_info['csrf']}&musicu={$account_info['musicu']}" . $job_config . "&runkey=" . RUN_KEY;
                 break;
-            case 'sport':
-                $execute_url = get_Domain() . "cron/sport/{$job['do']}?user_id={$job['user_id']}&login_token={$account_info['login_token']}&app_token={$account_info['app_token']}" . $job_config . "&" . $account_data . "&runkey=" . RUN_KEY;
-                break;
             case 'heybox':
                 $execute_url = get_Domain() . "cron/heybox/{$job['do']}?user_id={$job['user_id']}&pkey={$account_info['pkey']}" . "&runkey=" . RUN_KEY;
                 break;

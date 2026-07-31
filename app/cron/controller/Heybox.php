@@ -84,7 +84,7 @@ class Heybox extends Common
         try {
             $job_data = unserialize($job['data']);
         } catch (Exception $e) {
-            TaskLogs::operateExecuteLog('sport', $user_id, $do, '获取功能配置失败，请重新添加账号'); // 写入运行日志
+            TaskLogs::operateExecuteLog('heybox', $user_id, $do, '获取功能配置失败，请重新添加账号'); // 写入运行日志
             Jobs::where(['user_id' => $user_id, 'do' => $do])-> update(['state' => 0]);
             return false;
         }

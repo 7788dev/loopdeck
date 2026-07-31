@@ -69,6 +69,13 @@ elif [ "$php_workers" -gt 64 ]; then
     php_workers=64
 fi
 
+php_memory_mb=$((app_memory_mb / (php_workers + 1)))
+if [ "$php_memory_mb" -lt 128 ]; then
+    php_memory_mb=128
+elif [ "$php_memory_mb" -gt 256 ]; then
+    php_memory_mb=256
+fi
+
 scheduler_workers=$cpu_count
 if [ "$scheduler_workers" -lt 1 ]; then
     scheduler_workers=1
@@ -125,6 +132,7 @@ set_env DB_MEMORY_LIMIT "${db_memory_mb}m"
 set_env DB_MEMORY_SWAP_LIMIT "${db_swap_mb}m"
 set_env DB_CPU_LIMIT "$db_cpu"
 set_env PHP_FPM_PM_MAX_CHILDREN "$php_workers"
+set_env PHP_MEMORY_LIMIT "${php_memory_mb}M"
 set_env SCHEDULER_BATCH_SIZE "$scheduler_batch"
 set_env SCHEDULER_WORKERS "$scheduler_workers"
 set_env MYSQL_MAX_CONNECTIONS "$mysql_connections"
@@ -134,4 +142,4 @@ set_env MYSQL_TMP_TABLE_SIZE "${tmp_table_mb}M"
 chmod 600 "$env_file"
 
 echo "Auto-tuned LoopDeck for ${cpu_count} CPU(s), ${memory_mb} MB RAM"
-echo "  app=${app_memory_mb} MB, db=${db_memory_mb} MB, php_workers=${php_workers}, scheduler=${scheduler_workers}x${scheduler_batch}"
+echo "  app=${app_memory_mb} MB, db=${db_memory_mb} MB, php=${php_workers}x${php_memory_mb} MB, scheduler=${scheduler_workers}x${scheduler_batch}"

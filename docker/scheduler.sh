@@ -43,7 +43,7 @@ run_worker() {
         --header "X-Cron-Key: $cron_key" \
         --output /dev/null \
         "$url"; then
-        echo "$(date -Iseconds) scheduler worker ${worker}/${workers} failed" >&2
+        echo "$(date '+%Y-%m-%dT%H:%M:%S%z') scheduler worker ${worker}/${workers} failed" >&2
     fi
 }
 

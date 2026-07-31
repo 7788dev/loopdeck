@@ -79,7 +79,7 @@ class Epic
             CURLOPT_MAXREDIRS => 4,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_USERAGENT => 'OneTool/clean EpicCatalogClient',
+            CURLOPT_USERAGENT => 'TwoTool/clean EpicCatalogClient',
             CURLOPT_HTTPHEADER => array_merge(['Accept: application/json'], $headers),
         ]);
         if ($cookie !== '') {

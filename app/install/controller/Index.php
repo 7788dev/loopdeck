@@ -111,7 +111,7 @@ class Index
         );
         $qq = '10000';
         $mail = 'admin@localhost';
-        $webname = 'OneTool';
+        $webname = 'TwoTool';
         $title = '你的私人助手';
         $start = date('Y-m-d');
         $end = '2099-12-31';

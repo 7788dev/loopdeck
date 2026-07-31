@@ -128,7 +128,7 @@ class BlackBox
             CURLOPT_TIMEOUT => 20,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (Linux; Android 12) OneTool/clean',
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (Linux; Android 12) TwoTool/clean',
             CURLOPT_HTTPHEADER => array_merge([
                 'Accept: application/json',
                 'Referer: https://api.xiaoheihe.cn/',

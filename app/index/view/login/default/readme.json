@@ -1,8 +1,8 @@
 {
   "id": "default",
   "name": "默认登录模板",
-  "description": "OneTool默认模板",
+  "description": "TwoTool默认模板",
   "author": "官方",
-  "demoSite": "t.onetool.cc",
+  "demoSite": "",
   "img" : "/static/media/photos/default_login.jpg"
 }

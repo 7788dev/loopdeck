@@ -75,7 +75,7 @@ if (!function_exists('get_qqname')) {
     function get_qqname($qq): string
     {
         $qq = preg_replace('/\D+/', '', (string)$qq);
-        return $qq === '' ? 'OneTool 用户' : 'QQ' . $qq;
+        return $qq === '' ? 'TwoTool 用户' : 'QQ' . $qq;
     }
 }
 
@@ -117,7 +117,7 @@ if (!function_exists('get_curl')) {
             CURLOPT_TIMEOUT => $timeout,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_USERAGENT => 'OneTool/2.0 (+local repaired build)',
+            CURLOPT_USERAGENT => 'TwoTool/2.0 (+local repaired build)',
         ]);
         if ($data !== null) {
             curl_setopt($handle, CURLOPT_POST, true);
@@ -168,7 +168,7 @@ if (!function_exists('send_mail')) {
                 ? PHPMailer::ENCRYPTION_SMTPS
                 : PHPMailer::ENCRYPTION_STARTTLS;
             $mail->CharSet = 'UTF-8';
-            $mail->setFrom($username, (string)config('web.webname', 'OneTool'));
+            $mail->setFrom($username, (string)config('web.webname', 'TwoTool'));
             $mail->addAddress($to);
             $mail->isHTML(true);
             $mail->Subject = $subject;
@@ -183,7 +183,7 @@ if (!function_exists('send_mail')) {
 if (!function_exists('get_mail_tempale')) {
     function get_mail_tempale(int $type, $user, $parameter = null): string
     {
-        $site = htmlspecialchars((string)config('web.webname', 'OneTool'), ENT_QUOTES, 'UTF-8');
+        $site = htmlspecialchars((string)config('web.webname', 'TwoTool'), ENT_QUOTES, 'UTF-8');
         $nickname = htmlspecialchars(
             is_array($user) ? (string)($user['nickname'] ?? '用户') : (string)$user,
             ENT_QUOTES,

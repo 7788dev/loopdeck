@@ -136,11 +136,11 @@ CREATE TABLE `cloud_pays` (
 
 CREATE TABLE `cloud_tasks` (
                                `id` int(11) NOT NULL,
-                               `type` varchar(255) DEFAULT NULL,
+                               `type` varchar(64) DEFAULT NULL,
                                `name` varchar(255) DEFAULT NULL,
                                `describe` varchar(255) DEFAULT NULL,
                                `icon` varchar(255) DEFAULT NULL,
-                               `execute_name` varchar(255) DEFAULT NULL,
+                               `execute_name` varchar(64) DEFAULT NULL,
                                `execute_url` varchar(255) DEFAULT NULL,
                                `execute_rate` varchar(255) DEFAULT 86400,
                                `more` int(11) DEFAULT NULL,

@@ -1,6 +1,4 @@
-FROM php:8.2-apache-bookworm
-
-ENV TZ=Asia/Shanghai
+FROM php:8.2-apache-bookworm AS php-extensions
 
 # Debian package revisions follow the pinned Bookworm base image security updates.
 # hadolint ignore=DL3008
@@ -22,8 +20,27 @@ RUN apt-get update \
         opcache \
         pdo_mysql \
         zip \
+    && rm -rf /var/lib/apt/lists/*
+
+FROM php:8.2-apache-bookworm AS runtime
+
+ENV TZ=Asia/Shanghai
+
+# Keep only the shared libraries required by the compiled PHP extensions.
+# hadolint ignore=DL3008
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libfreetype6 \
+        libicu72 \
+        libjpeg62-turbo \
+        libonig5 \
+        libpng16-16 \
+        libzip4 \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=php-extensions /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
+COPY --from=php-extensions /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
 
 WORKDIR /var/www/html
 

@@ -12,9 +12,9 @@ CREATE TABLE `cloud_accounts` (
                                   `timing` varchar(255) DEFAULT NULL,
                                   `cooling` varchar(255) DEFAULT NULL,
                                   `addtime` datetime DEFAULT NULL,
-                                  `state` int(11) DEFAULT '1',
+                                  `state` tinyint NOT NULL DEFAULT '1',
                                   `zid` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `cloud_captcha` (
                                  `id` int(11) NOT NULL,
@@ -24,12 +24,12 @@ CREATE TABLE `cloud_captcha` (
                                  `time` varchar(255) NOT NULL COMMENT '添加时间',
                                  `ip` varchar(20) NOT NULL COMMENT 'ip地址',
                                  `status` int(11) NOT NULL DEFAULT '0' COMMENT '状态'
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `cloud_configs` (
                                  `k` varchar(255) NOT NULL DEFAULT '',
                                  `v` text
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `cloud_configs` (`k`, `v`) VALUES
                                            ('vip_price_1', '1'),
@@ -62,12 +62,12 @@ INSERT INTO `cloud_configs` (`k`, `v`) VALUES
 
 CREATE TABLE `cloud_info` (
                               `sysid` int(11) NOT NULL,
-                              `last` varchar(225) DEFAULT NULL,
-                              `times` int(150) NOT NULL DEFAULT '0'
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+                              `last` datetime DEFAULT NULL,
+                              `times` bigint unsigned NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `cloud_info`(`sysid`, `last`) VALUES
-    ('100', '0000-00-00 00:00:00');
+    ('100', NULL);
 
 CREATE TABLE `cloud_jobs` (
                               `id` int(11) NOT NULL,
@@ -76,11 +76,11 @@ CREATE TABLE `cloud_jobs` (
                               `user_id` varchar(255) DEFAULT NULL,
                               `do` varchar(255) DEFAULT NULL,
                               `data` text,
-                              `state` int(11) DEFAULT '0',
-                              `nextExecute` varchar(255) DEFAULT NULL,
-                              `lastExecute` varchar(255) DEFAULT NULL,
+                              `state` tinyint NOT NULL DEFAULT '0',
+                              `nextExecute` bigint unsigned NOT NULL DEFAULT '0',
+                              `lastExecute` datetime DEFAULT NULL,
                               `zid` int(11) NOT NULL DEFAULT '1'
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `cloud_kms` (
                              `id` int(11) NOT NULL,
@@ -142,13 +142,13 @@ CREATE TABLE `cloud_tasks` (
                                `icon` varchar(255) DEFAULT NULL,
                                `execute_name` varchar(64) DEFAULT NULL,
                                `execute_url` varchar(255) DEFAULT NULL,
-                               `execute_rate` varchar(255) DEFAULT 86400,
+                               `execute_rate` int unsigned NOT NULL DEFAULT 86400,
                                `more` int(11) DEFAULT NULL,
                                `state` int(11) DEFAULT '1',
                                `vip` int(11) DEFAULT NULL,
                                `time` varchar(255) DEFAULT NULL,
                                `order` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO `cloud_tasks` (`id`, `type`, `name`, `describe`, `icon`, `execute_name`, `execute_url`, `execute_rate`, `more`, `state`, `vip`, `time`, `order`) VALUES
                                                                                                                                                                  (1, 'netease', '每日签到', '网页和安卓签到得云贝', 'si si-music-tone-alt', 'sign', NULL, '86400', 0, 1, 1, '2022-01-01 00:00:00', 1),
                                                                                                                                                                  (2, 'netease', '每日登录', '升级必备任务', 'si si-flag', 'login_work', NULL, '86400', 0, 1, 1, '2022-01-01 00:00:00', 2),
@@ -177,7 +177,7 @@ CREATE TABLE `cloud_task_logs` (
                                    `do` text,
                                    `response` text,
                                    `addtime` datetime NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `cloud_users` (
                                `uid` int(11) NOT NULL,
@@ -198,8 +198,8 @@ CREATE TABLE `cloud_users` (
                                `login_city` varchar(255) DEFAULT NULL,
                                `login_time` varchar(255) DEFAULT NULL,
                                `sid` text,
-                               `state` int(11) NOT NULL DEFAULT '1'
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+                               `state` tinyint NOT NULL DEFAULT '1'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `cloud_weblist` (
                                  `web_id` int(11) NOT NULL COMMENT '站点编号',
@@ -225,11 +225,15 @@ CREATE TABLE `cloud_weblist` (
                                  `status` int(11) NOT NULL DEFAULT '1' COMMENT '运营状态',
                                  `prefix` varchar(225) DEFAULT NULL COMMENT '表',
                                  `web_key` varchar(255) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 ALTER TABLE `cloud_accounts`
-    ADD PRIMARY KEY (`id`);
+    ADD PRIMARY KEY (`id`),
+    ADD UNIQUE KEY `udx_accounts_identity` (`uid`,`type`(32),`user_id`(128)),
+    ADD KEY `idx_accounts_user` (`uid`,`type`(32),`state`,`id`),
+    ADD KEY `idx_accounts_lookup` (`type`(32),`user_id`(128),`state`),
+    ADD KEY `idx_accounts_site` (`zid`,`id`);
 
 ALTER TABLE `cloud_captcha`
     ADD PRIMARY KEY (`id`);
@@ -241,7 +245,11 @@ ALTER TABLE `cloud_info`
     ADD PRIMARY KEY (`sysid`);
 
 ALTER TABLE `cloud_jobs`
-    ADD PRIMARY KEY (`id`);
+    ADD PRIMARY KEY (`id`),
+    ADD UNIQUE KEY `udx_jobs_identity` (`uid`,`type`(32),`user_id`(128),`do`(64)),
+    ADD KEY `idx_jobs_due` (`type`(32),`state`,`nextExecute`,`id`),
+    ADD KEY `idx_jobs_account` (`uid`,`type`(32),`user_id`(128),`state`),
+    ADD KEY `idx_jobs_lookup` (`type`(32),`user_id`(128),`do`(64),`state`);
 
 ALTER TABLE `cloud_kms`
     ADD PRIMARY KEY (`id`);
@@ -260,13 +268,21 @@ ALTER TABLE `cloud_tasks`
     ADD UNIQUE KEY `udx_type_execute_name` (`type`,`execute_name`);
 
 ALTER TABLE `cloud_task_logs`
-    ADD PRIMARY KEY (`id`);
+    ADD PRIMARY KEY (`id`),
+    ADD KEY `idx_task_logs_account` (`type`(32),`user_id`(128),`addtime`,`id`),
+    ADD KEY `idx_task_logs_retention` (`addtime`,`id`);
 
 ALTER TABLE `cloud_users`
-    ADD PRIMARY KEY (`uid`);
+    ADD PRIMARY KEY (`uid`),
+    ADD UNIQUE KEY `udx_users_username` (`username`),
+    ADD KEY `idx_users_site_state` (`web_id`,`state`,`uid`),
+    ADD KEY `idx_users_qq` (`qq`(64)),
+    ADD KEY `idx_users_mail` (`mail`(128));
 
 ALTER TABLE `cloud_weblist`
-    ADD PRIMARY KEY (`web_id`);
+    ADD PRIMARY KEY (`web_id`),
+    ADD KEY `idx_weblist_domain` (`domain`(128)),
+    ADD KEY `idx_weblist_domain2` (`domain2`(128));
 
 
 ALTER TABLE `cloud_accounts`

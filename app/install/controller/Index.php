@@ -139,7 +139,10 @@ class Index
             . 'ON DUPLICATE KEY UPDATE `v` = VALUES(`v`)'
         );
         $key = 'cronkey';
-        $value = bin2hex(random_bytes(24));
+        $configuredKey = trim((string)getenv('CRON_KEY'));
+        $value = preg_match('/^[A-Za-z0-9._~-]{32,128}$/', $configuredKey)
+            ? $configuredKey
+            : bin2hex(random_bytes(24));
         $statement->bind_param('ss', $key, $value);
         $statement->execute();
     }
@@ -153,7 +156,7 @@ class Index
             . 'VALUES (1, 1, ?, ?, ?, ?, ?, 6, ?, ?, 1, 100, ?)'
         );
         $username = trim((string)$input['install-admin-username']);
-        $password = md5((string)$input['install-admin-password']);
+        $password = password_hash((string)$input['install-admin-password'], PASSWORD_DEFAULT);
         $qq = preg_replace('/\D+/', '', (string)$input['install-admin-qq']);
         $nickname = get_qqname($qq);
         $mail = $qq . '@qq.com';

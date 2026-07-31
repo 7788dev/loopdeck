@@ -18,4 +18,21 @@ Dockerfile
 compose.yaml
 DOCKER.md
 docker/apache-vhost.conf
+docker/deploy.sh
+docker/tune-env.sh
 搭建教程.txt
+
+# Font Awesome development sources are not used at runtime. Keep only the
+# minified stylesheet and modern webfont formats to reduce the image context.
+public/static/tubiao/fontawesome-free-5.15.4-web/js/
+public/static/tubiao/fontawesome-free-5.15.4-web/less/
+public/static/tubiao/fontawesome-free-5.15.4-web/metadata/
+public/static/tubiao/fontawesome-free-5.15.4-web/scss/
+public/static/tubiao/fontawesome-free-5.15.4-web/sprites/
+public/static/tubiao/fontawesome-free-5.15.4-web/svgs/
+public/static/tubiao/fontawesome-free-5.15.4-web/attribution.js
+public/static/tubiao/fontawesome-free-5.15.4-web/css/*
+!public/static/tubiao/fontawesome-free-5.15.4-web/css/all.min.css
+public/static/tubiao/fontawesome-free-5.15.4-web/webfonts/*.eot
+public/static/tubiao/fontawesome-free-5.15.4-web/webfonts/*.svg
+public/static/tubiao/fontawesome-free-5.15.4-web/webfonts/*.ttf

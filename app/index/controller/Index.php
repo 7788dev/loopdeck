@@ -29,6 +29,14 @@ class Index extends Common
         return View::fetch('index/index');
     }
 
+    public function healthcheck()
+    {
+        return response('ok', 200, [
+            'Content-Type' => 'text/plain; charset=utf-8',
+            'Cache-Control' => 'no-store',
+        ]);
+    }
+
     public function qrcode()
     {
         $name = trim((string)Request::get('name', ''));

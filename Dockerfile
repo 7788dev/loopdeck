@@ -5,7 +5,10 @@ FROM serversideup/php:8.2-fpm-nginx-alpine@sha256:57919c0ed10e91318b87c518f4a2e2
 ENV TZ=Asia/Shanghai \
     PHP_DATE_TIMEZONE=Asia/Shanghai \
     PHP_MAX_EXECUTION_TIME=300 \
-    PHP_MEMORY_LIMIT=256M \
+    PHP_MEMORY_LIMIT=192M \
+    PHP_FPM_PM_CONTROL=ondemand \
+    PHP_FPM_PM_MAX_CHILDREN=4 \
+    PHP_FPM_PM_PROCESS_IDLE_TIMEOUT=10s \
     PHP_POST_MAX_SIZE=20M \
     PHP_UPLOAD_MAX_FILE_SIZE=20M \
     PHP_OPCACHE_ENABLE=1 \
@@ -30,6 +33,7 @@ WORKDIR /var/www/html
 
 COPY --chown=82:82 . /var/www/html
 COPY --chown=root:root --chmod=0755 docker/entrypoint.sh /etc/entrypoint.d/50-loopdeck.sh
+COPY --chown=root:root --chmod=0755 docker/scheduler.sh /usr/local/bin/loopdeck-scheduler
 COPY --chown=root:root --chmod=0644 docker/nginx-security.conf /etc/nginx/server-opts.d/loopdeck-security.conf
 COPY --chown=root:root --chmod=0644 docker/php.ini /usr/local/etc/php/conf.d/zz-loopdeck.ini
 

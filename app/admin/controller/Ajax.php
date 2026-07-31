@@ -269,7 +269,7 @@ class Ajax extends Common
                                 //验证失败 输出错误信息
                                 return resultJson(-1, $e->getMessage());
                             }
-                           $up['password'] = md5($data['password']);
+                           $up['password'] = password_hash((string)$data['password'], PASSWORD_DEFAULT);
                         }
                         if ($data['vip_start'] == '') {
                             $up['vip_start'] = NULL;

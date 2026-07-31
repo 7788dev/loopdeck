@@ -14,7 +14,7 @@ class Install extends Validate
         'install-db-password|数据库密码' => 'max:255',
         'install-admin-qq|联系 QQ' => 'require|number|length:5,15',
         'install-admin-username|管理员用户名' => 'require|alphaDash|length:5,25',
-        'install-admin-password|管理员密码' => 'require|alphaNum|length:6,64',
+        'install-admin-password|管理员密码' => 'require|length:6,64',
         'install-admin-password-confirm|确认密码'
             => 'require|confirm:install-admin-password',
     ];

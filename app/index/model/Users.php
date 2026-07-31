@@ -77,7 +77,7 @@ class Users extends Model
             $ret = $self->create([
                 'web_id' => WEB_ID,
                 'username' => $data['username'],
-                'password' => md5($data['password']),
+                'password' => self::hashLoginPassword((string)$data['password']),
                 'qq' => $data['qq'],
                 'mail' => $data['qq'] . '@qq.com',
                 'nickname' => get_qqname($data['qq']),
@@ -183,7 +183,7 @@ class Users extends Model
         } elseif ($data['token'] != $token || !isset($token) || !isset($data['token'])) {
             return resultJson(-1, 'Token错误');
         } else {
-            $new_pass = md5($data['repass']);
+            $new_pass = self::hashLoginPassword((string)$data['repass']);
             if (Users::where('uid', '=', $row['uid'])->update([
                 'password' => $new_pass
             ])) {
@@ -223,13 +223,21 @@ class Users extends Model
             return resultJson(-1, '用户名不存在');
         } elseif ($row['state'] !== 1) {
             return resultJson(-1, '该账号已被封禁');
-        } elseif (md5($data['password']) !== $row['password']) {
+        } elseif (!self::verifyLoginPassword((string)$data['password'], (string)$row['password'])) {
             return resultJson(-1, '密码错误');
         } elseif ($row['web_id'] !== WEB_ID) {
             $site = Weblist::where('web_id', '=', $row['web_id'])->find();
             return resultJson(-1001, '该账号不属于当前站点，正在跳转到' . $site['domain'] . '进行登录', ['url' => $site['domain']]);
         } else {
-            $sign = md5($row['uid'] . $row['username'] . $row['password'] . time() . real_ip());
+            $storedPassword = (string)$row['password'];
+            if (!self::isModernPasswordHash($storedPassword)) {
+                $storedPassword = self::hashLoginPassword((string)$data['password']);
+                $self->where('uid', $row['uid'])->update(['password' => $storedPassword]);
+            } elseif (password_needs_rehash($storedPassword, PASSWORD_DEFAULT)) {
+                $storedPassword = self::hashLoginPassword((string)$data['password']);
+                $self->where('uid', $row['uid'])->update(['password' => $storedPassword]);
+            }
+            $sign = md5($row['uid'] . $row['username'] . $storedPassword . time() . real_ip());
             $self->where('uid', $row['uid'])
                 ->update([
                     'sid' => $sign,
@@ -264,10 +272,10 @@ class Users extends Model
         }
         $self = new static();
         $row = $self->where('uid', '=', $uid)->find();
-        if (md5($data['outpass']) != $row['password']) {
+        if (!self::verifyLoginPassword((string)$data['outpass'], (string)$row['password'])) {
             return resultJson(-1, '原密码错误');
         } else {
-            $newPass = md5($data['repass']);
+            $newPass = self::hashLoginPassword((string)$data['repass']);
             if (Users::where('uid', '=', Session::get('user.uid'))->update(['password' => $newPass])) {
                 Session::delete('user');
                 return resultJson(1, '修改成功，请重新登录');
@@ -299,6 +307,26 @@ class Users extends Model
     {
         Session::delete("user");
         return resultJson(1, '退出登录成功');
+    }
+
+    private static function hashLoginPassword(string $password): string
+    {
+        return password_hash($password, PASSWORD_DEFAULT);
+    }
+
+    private static function verifyLoginPassword(string $password, string $storedPassword): bool
+    {
+        if (self::isModernPasswordHash($storedPassword)) {
+            return password_verify($password, $storedPassword);
+        }
+
+        return hash_equals($storedPassword, md5($password));
+    }
+
+    private static function isModernPasswordHash(string $storedPassword): bool
+    {
+        return str_starts_with($storedPassword, '$2y$')
+            || str_starts_with($storedPassword, '$argon2');
     }
 
     /**

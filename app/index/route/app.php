@@ -10,6 +10,8 @@
 // +----------------------------------------------------------------------
 use think\facade\Route;
 
+Route::get('healthcheck', 'index/healthcheck');
+
 Route::group('console', function () {
     Route::rule('netease/[:act]/[:user_id]', 'console/netease');
     Route::rule('bilibili/[:act]/[:mid]', 'console/bilibili');

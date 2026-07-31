@@ -1,5 +1,11 @@
 name: loopdeck
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${LOG_MAX_SIZE:-10m}"
+    max-file: "${LOG_MAX_FILES:-3}"
+
 services:
   app:
     image: "${APP_IMAGE:-ghcr.io/7788dev/loopdeck:latest}"
@@ -10,6 +16,17 @@ services:
     environment:
       APP_DEBUG: "${APP_DEBUG:-false}"
       TZ: "${TZ:-Asia/Shanghai}"
+      CRON_KEY: "${CRON_KEY:?Set CRON_KEY in .env}"
+      PHP_FPM_PM_CONTROL: "${PHP_FPM_PM_CONTROL:-ondemand}"
+      PHP_FPM_PM_MAX_CHILDREN: "${PHP_FPM_PM_MAX_CHILDREN:-4}"
+      PHP_FPM_PM_PROCESS_IDLE_TIMEOUT: "${PHP_FPM_PM_PROCESS_IDLE_TIMEOUT:-10s}"
+      PHP_MEMORY_LIMIT: "${PHP_MEMORY_LIMIT:-192M}"
+      SCHEDULER_BATCH_SIZE: "${SCHEDULER_BATCH_SIZE:-50}"
+      SCHEDULER_TIME_BUDGET_SECONDS: "${SCHEDULER_TIME_BUDGET_SECONDS:-50}"
+      SCHEDULER_JITTER_SECONDS: "${SCHEDULER_JITTER_SECONDS:-120}"
+      SCHEDULER_RETRY_JITTER_SECONDS: "${SCHEDULER_RETRY_JITTER_SECONDS:-60}"
+      TASK_LOG_RETENTION_DAYS: "${TASK_LOG_RETENTION_DAYS:-30}"
+      TASK_LOG_PRUNE_BATCH_SIZE: "${TASK_LOG_PRUNE_BATCH_SIZE:-5000}"
     volumes:
       - app_data:/var/lib/loopdeck
     depends_on:
@@ -23,14 +40,46 @@ services:
         - --silent
         - --show-error
         - http://127.0.0.1:8080/healthcheck
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 10
-      start_period: 20s
+      retries: 5
+      start_period: 30s
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: "${APP_MEMORY_LIMIT:-448m}"
+    memswap_limit: "${APP_MEMORY_SWAP_LIMIT:-512m}"
+    cpus: "${APP_CPU_LIMIT:-1.50}"
+    pids_limit: 128
+    logging: *default-logging
+
+  scheduler:
+    image: "${APP_IMAGE:-ghcr.io/7788dev/loopdeck:latest}"
+    pull_policy: always
+    restart: unless-stopped
+    entrypoint:
+      - /usr/local/bin/loopdeck-scheduler
+    environment:
+      CRON_KEY: "${CRON_KEY:?Set CRON_KEY in .env}"
+      SCHEDULER_INTERVAL_SECONDS: "${SCHEDULER_INTERVAL_SECONDS:-60}"
+      SCHEDULER_WORKERS: "${SCHEDULER_WORKERS:-2}"
+      SCHEDULER_URL: "http://app:8080/cron/task"
+    depends_on:
+      app:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,noexec,nosuid,nodev
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: "${SCHEDULER_MEMORY_LIMIT:-32m}"
+    memswap_limit: "${SCHEDULER_MEMORY_LIMIT:-32m}"
+    cpus: "${SCHEDULER_CPU_LIMIT:-0.10}"
+    pids_limit: 32
+    logging: *default-logging
 
   db:
     image: mysql:8.4
@@ -44,16 +93,33 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
+      - --skip-name-resolve
+      - --performance-schema=OFF
+      - --mysqlx=0
+      - "--max-connections=${MYSQL_MAX_CONNECTIONS:-50}"
+      - "--innodb-buffer-pool-size=${MYSQL_INNODB_BUFFER_POOL_SIZE:-128M}"
+      - "--innodb-log-buffer-size=${MYSQL_INNODB_LOG_BUFFER_SIZE:-16M}"
+      - "--key-buffer-size=${MYSQL_KEY_BUFFER_SIZE:-16M}"
+      - "--tmp-table-size=${MYSQL_TMP_TABLE_SIZE:-32M}"
+      - "--max-heap-table-size=${MYSQL_TMP_TABLE_SIZE:-32M}"
+      - "--table-open-cache=${MYSQL_TABLE_OPEN_CACHE:-256}"
+      - "--thread-cache-size=${MYSQL_THREAD_CACHE_SIZE:-8}"
+      - --max-allowed-packet=32M
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
       test:
         - CMD-SHELL
         - "mysqladmin ping -h 127.0.0.1 -u root --password=\"$${MYSQL_ROOT_PASSWORD}\" --silent"
-      interval: 5s
+      interval: 30s
       timeout: 5s
-      retries: 20
+      retries: 5
       start_period: 30s
+    mem_limit: "${DB_MEMORY_LIMIT:-640m}"
+    memswap_limit: "${DB_MEMORY_SWAP_LIMIT:-768m}"
+    cpus: "${DB_CPU_LIMIT:-1.25}"
+    pids_limit: 160
+    logging: *default-logging
 
 volumes:
   app_data:

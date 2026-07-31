@@ -27,15 +27,31 @@ class Task extends Common
         'vip_growth_task',
     ];
 
+    private array $userCache = [];
+    private array $taskCache = [];
+    private array $accountCache = [];
+    private array $globalConfigCache = [];
+    private array $suppressedAccounts = [];
+
     public function index()
     {
-        $cronKey = (string)Request::get('cronkey', '');
+        $cronKey = trim((string)Request::header('x-cron-key', ''));
+        if ($cronKey === '') {
+            $cronKey = trim((string)Request::get('cronkey', ''));
+        }
         $expectedKey = (string)config('sys.cronkey');
         if ($cronKey === '' || $expectedKey === '' || !hash_equals($expectedKey, $cronKey)) {
             return resultJson(-1000, 'CronKey Access Denied!');
         }
 
-        $lockHandle = @fopen(runtime_path() . 'cron-task.lock', 'c+');
+        $workerCount = max(1, min(16, (int)Request::get('workers', 1)));
+        $workerIndex = (int)Request::get('worker', 0);
+        if ($workerIndex < 0 || $workerIndex >= $workerCount) {
+            return resultJson(-1004, 'Invalid scheduler worker');
+        }
+
+        $lockName = sprintf('cron-task-%d-%d.lock', $workerCount, $workerIndex);
+        $lockHandle = @fopen(runtime_path() . $lockName, 'c+');
         if (!is_resource($lockHandle)) {
             return resultJson(-1003, '无法创建任务调度锁');
         }
@@ -46,7 +62,11 @@ class Task extends Common
 
         set_time_limit(0);
         $summary = [
+            'worker' => $workerIndex,
+            'workers' => $workerCount,
             'selected' => 0,
+            'processed' => 0,
+            'deferred' => 0,
             'attempted' => 0,
             'succeeded' => 0,
             'failed' => 0,
@@ -56,13 +76,25 @@ class Task extends Common
         ];
 
         try {
-            $limit = max(1, min(100, (int)config('sys.interval')));
-            $jobs = $this->dueJobs($limit);
+            $configuredLimit = (int)config('sys.interval');
+            $limit = $this->envInt('SCHEDULER_BATCH_SIZE', $configuredLimit ?: 50, 1, 500);
+            $timeBudget = $this->envInt('SCHEDULER_TIME_BUDGET_SECONDS', 50, 0, 300);
+            $deadline = $timeBudget > 0 ? hrtime(true) + ($timeBudget * 1_000_000_000) : 0;
+            $jobs = $this->dueJobs($limit, $workerIndex, $workerCount);
             $summary['selected'] = count($jobs);
 
             foreach ($jobs as $job) {
+                if ($summary['processed'] > 0 && $deadline > 0 && hrtime(true) >= $deadline) {
+                    break;
+                }
+
                 $this->runJob($job, $summary);
+                $summary['processed']++;
             }
+
+            $summary['deferred'] = $summary['selected'] - $summary['processed'];
+            $this->recordAttempts($summary['attempted']);
+            $this->pruneLogsIfDue();
 
             $message = $summary['selected'] === 0 ? '没有要执行的任务' : '任务调度完成';
             return resultJson(1000, $message, $summary);
@@ -72,19 +104,31 @@ class Task extends Common
         }
     }
 
-    private function dueJobs(int $limit): array
+    private function dueJobs(int $limit, int $workerIndex, int $workerCount): array
     {
         $jobs = [];
         $taskMap = [
             'netease' => self::NETEASE_TASKS,
             'bilibili' => BilibiliTaskExecutor::TASKS,
         ];
+        $now = time();
 
         foreach ($taskMap as $type => $tasks) {
-            $rows = Jobs::where('type', $type)
+            $query = Jobs::where('type', $type)
                 ->where('state', 1)
-                ->where('nextExecute', '<=', time())
-                ->whereIn('do', $tasks)
+                ->where('nextExecute', '<=', $now)
+                ->whereIn('do', $tasks);
+            if ($workerCount > 1) {
+                // Keep every task for the same third-party account on one
+                // worker while distributing different accounts evenly.
+                $query->whereRaw(sprintf(
+                    "MOD(CRC32(CONCAT(`type`, '#', `user_id`)), %d) = %d",
+                    $workerCount,
+                    $workerIndex
+                ));
+            }
+            $rows = $query
+                ->field('id,uid,type,user_id,do,data,nextExecute')
                 ->order('nextExecute', 'asc')
                 ->order('id', 'asc')
                 ->limit($limit)
@@ -109,6 +153,7 @@ class Task extends Common
         $type = (string)($job['type'] ?? '');
         $userId = trim((string)($job['user_id'] ?? ''));
         $taskName = trim((string)($job['do'] ?? ''));
+        $accountKey = $this->accountKey($type, $uid, $userId);
 
         try {
             if ($jobId <= 0 || $uid <= 0 || $userId === '' || !$this->supports($type, $taskName)) {
@@ -116,16 +161,14 @@ class Task extends Common
                 $summary['disabled']++;
                 return;
             }
+            if (isset($this->suppressedAccounts[$accountKey])) {
+                $summary['disabled']++;
+                return;
+            }
 
-            $user = Users::where('uid', $uid)->find();
-            $task = Tasks::where('type', $type)
-                ->where('execute_name', $taskName)
-                ->where('state', 1)
-                ->find();
-            $account = Accounts::where('type', $type)
-                ->where('user_id', $userId)
-                ->where('uid', $uid)
-                ->find();
+            $user = $this->user($uid);
+            $task = $this->task($type, $taskName);
+            $account = $this->account($type, $uid, $userId);
 
             if (!$user || !$task || !$account) {
                 $this->disableJob($jobId, $type, $userId, $taskName, '用户、账号或任务数据不存在，任务已停用');
@@ -135,6 +178,7 @@ class Task extends Common
             if ((int)$account['state'] !== 1) {
                 Jobs::where('id', $jobId)->update(['state' => -1]);
                 $this->writeLog($type, $userId, $taskName, '账号已停用，请重新登录后执行');
+                $this->suppressedAccounts[$accountKey] = true;
                 $summary['disabled']++;
                 return;
             }
@@ -168,14 +212,12 @@ class Task extends Common
                     ? $this->executeNetease($taskName, $userId, $accountData, $jobConfig)
                     : $this->executeBilibili($taskName, $accountData, $jobConfig);
             } catch (Throwable $exception) {
-                $this->recordAttempt();
                 $this->retryJob($jobId);
                 $this->writeLog($type, $userId, $taskName, '任务执行异常，已安排稍后重试');
                 $summary['failed']++;
                 return;
             }
 
-            $this->recordAttempt();
             $this->writeLog($type, $userId, $taskName, $result['message']);
             if ($result['account_invalid']) {
                 $this->invalidateAccount($type, $uid, $userId);
@@ -186,7 +228,7 @@ class Task extends Common
 
             Jobs::where('id', $jobId)->update([
                 'lastExecute' => date('Y-m-d H:i:s'),
-                'nextExecute' => $this->nextExecuteAt($account, $task),
+                'nextExecute' => $this->nextExecuteAt($account, $task, $jobId),
             ]);
             $summary[$result['success'] ? 'succeeded' : 'failed']++;
         } catch (Throwable $exception) {
@@ -240,15 +282,59 @@ class Task extends Common
         ];
     }
 
+    private function user(int $uid)
+    {
+        if (!array_key_exists($uid, $this->userCache)) {
+            $this->userCache[$uid] = Users::where('uid', $uid)->find() ?: null;
+        }
+
+        return $this->userCache[$uid];
+    }
+
+    private function task(string $type, string $taskName)
+    {
+        $key = $type . '|' . $taskName;
+        if (!array_key_exists($key, $this->taskCache)) {
+            $this->taskCache[$key] = Tasks::where('type', $type)
+                ->where('execute_name', $taskName)
+                ->where('state', 1)
+                ->find() ?: null;
+        }
+
+        return $this->taskCache[$key];
+    }
+
+    private function account(string $type, int $uid, string $userId)
+    {
+        $key = $this->accountKey($type, $uid, $userId);
+        if (!array_key_exists($key, $this->accountCache)) {
+            $this->accountCache[$key] = Accounts::where('type', $type)
+                ->where('user_id', $userId)
+                ->where('uid', $uid)
+                ->find() ?: null;
+        }
+
+        return $this->accountCache[$key];
+    }
+
     private function bilibiliGlobalConfig(int $uid, string $userId): ?array
     {
-        $payload = Jobs::where('type', 'bilibili')
-            ->where('uid', $uid)
-            ->where('user_id', $userId)
-            ->where('do', 'globalroom')
-            ->value('data');
+        $key = $this->accountKey('bilibili', $uid, $userId);
+        if (!array_key_exists($key, $this->globalConfigCache)) {
+            $payload = Jobs::where('type', 'bilibili')
+                ->where('uid', $uid)
+                ->where('user_id', $userId)
+                ->where('do', 'globalroom')
+                ->value('data');
+            $this->globalConfigCache[$key] = $this->decodeArray(is_string($payload) ? $payload : '');
+        }
 
-        return $this->decodeArray(is_string($payload) ? $payload : '');
+        return $this->globalConfigCache[$key];
+    }
+
+    private function accountKey(string $type, int $uid, string $userId): string
+    {
+        return $type . '|' . $uid . '|' . $userId;
     }
 
     private function decodeArray(string $payload): ?array
@@ -272,12 +358,13 @@ class Task extends Common
         return $expiresAt === false || $expiresAt < time();
     }
 
-    private function nextExecuteAt($account, $task): int
+    private function nextExecuteAt($account, $task, int $jobId): int
     {
         if (!empty($account['timing'])) {
             $next = strtotime((string)$account['timing'] . ' +1 day');
             if ($next !== false) {
-                return $next;
+                $jitter = $this->envInt('SCHEDULER_JITTER_SECONDS', 120, 0, 900);
+                return $next + $this->stableJitter($jobId, $jitter);
             }
         }
 
@@ -287,10 +374,20 @@ class Task extends Common
     private function retryJob(int $jobId): void
     {
         $cooldown = max(60, (int)(config('sys.reExecute_time') ?: 300));
+        $jitter = $this->envInt('SCHEDULER_RETRY_JITTER_SECONDS', 60, 0, 300);
         Jobs::where('id', $jobId)->update([
             'lastExecute' => date('Y-m-d H:i:s'),
-            'nextExecute' => time() + $cooldown,
+            'nextExecute' => time() + $cooldown + $this->stableJitter($jobId + intdiv(time(), 60), $jitter),
         ]);
+    }
+
+    private function stableJitter(int $seed, int $maximum): int
+    {
+        if ($maximum <= 0) {
+            return 0;
+        }
+
+        return (int)sprintf('%u', crc32((string)$seed)) % ($maximum + 1);
     }
 
     private function disableJob(int $jobId, string $type, string $userId, string $task, string $message): void
@@ -308,6 +405,7 @@ class Task extends Common
             ->where('uid', $uid)
             ->where('user_id', $userId)
             ->update(['state' => 0]);
+        $this->suppressedAccounts[$this->accountKey($type, $uid, $userId)] = true;
         $this->writeLog($type, $userId, '系统提示', '会员过期，请开通会员后再试');
     }
 
@@ -321,16 +419,80 @@ class Task extends Common
             ->where('uid', $uid)
             ->where('user_id', $userId)
             ->update(['state' => -1]);
+        $key = $this->accountKey($type, $uid, $userId);
+        $this->suppressedAccounts[$key] = true;
+        $this->accountCache[$key] = null;
     }
 
-    private function recordAttempt(): void
+    private function recordAttempts(int $attempts): void
     {
-        try {
-            Info::where('sysid', 100)->inc('times', 1)->update();
-            Info::where('sysid', 100)->update(['last' => date('Y-m-d H:i:s')]);
-        } catch (Throwable $exception) {
-            // Execution statistics must not prevent the task schedule from advancing.
+        if ($attempts <= 0) {
+            return;
         }
+
+        try {
+            Info::where('sysid', 100)
+                ->inc('times', $attempts)
+                ->update(['last' => date('Y-m-d H:i:s')]);
+        } catch (Throwable $exception) {
+            // Statistics must not prevent the task schedule from advancing.
+        }
+    }
+
+    private function pruneLogsIfDue(): void
+    {
+        $retentionDays = $this->envInt('TASK_LOG_RETENTION_DAYS', 30, 0, 3650);
+        if ($retentionDays === 0) {
+            return;
+        }
+
+        $stamp = runtime_path() . 'task-log-prune.stamp';
+        clearstatcache(true, $stamp);
+        if (is_file($stamp) && (int)filemtime($stamp) > time() - 86400) {
+            return;
+        }
+
+        $lock = @fopen(runtime_path() . 'task-log-prune.lock', 'c+');
+        if (!is_resource($lock) || !flock($lock, LOCK_EX | LOCK_NB)) {
+            if (is_resource($lock)) {
+                fclose($lock);
+            }
+            return;
+        }
+
+        try {
+            clearstatcache(true, $stamp);
+            if (is_file($stamp) && (int)filemtime($stamp) > time() - 86400) {
+                return;
+            }
+
+            $cutoff = date('Y-m-d H:i:s', time() - ($retentionDays * 86400));
+            $batchSize = $this->envInt('TASK_LOG_PRUNE_BATCH_SIZE', 5000, 100, 20000);
+            for ($batch = 0; $batch < 20; $batch++) {
+                $deleted = (int)TaskLogs::where('addtime', '<', $cutoff)
+                    ->limit($batchSize)
+                    ->delete();
+                if ($deleted < $batchSize) {
+                    break;
+                }
+            }
+            @touch($stamp);
+        } catch (Throwable $exception) {
+            @touch($stamp);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    private function envInt(string $name, int $default, int $minimum, int $maximum): int
+    {
+        $value = getenv($name);
+        if ($value === false || $value === '' || filter_var($value, FILTER_VALIDATE_INT) === false) {
+            return max($minimum, min($maximum, $default));
+        }
+
+        return max($minimum, min($maximum, (int)$value));
     }
 
     private function writeLog(string $type, string $userId, string $task, string $message): void

@@ -1,0 +1,56 @@
+name: loopdeck
+
+services:
+  app:
+    build:
+      context: .
+    image: "${APP_IMAGE:-ghcr.io/7788dev/loopdeck:latest}"
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${APP_PORT:-8001}:80"
+    environment:
+      APP_DEBUG: "${APP_DEBUG:-false}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - app_data:/var/lib/loopdeck
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - php
+        - -r
+        - "$$body = @file_get_contents('http://127.0.0.1/'); exit($$body === false ? 1 : 0);"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-loopdeck}"
+      MYSQL_USER: "${MYSQL_USER:-loopdeck}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "mysqladmin ping -h 127.0.0.1 -u root --password=\"$${MYSQL_ROOT_PASSWORD}\" --silent"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+volumes:
+  app_data:
+  db_data:

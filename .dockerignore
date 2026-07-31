@@ -1,0 +1,12 @@
+.git
+.env
+config/Db.php
+runtime/
+public/static/uploads/
+extend/alipay/log/
+.security-quarantine/
+.idea/
+.vscode/
+*.log
+Thumbs.db
+.DS_Store

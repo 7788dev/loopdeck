@@ -1,0 +1,74 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-md-6">
+        <div class="block block-rounded h-100 mb-0">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">账号密码添加（请使用小米运动账号登录）</h3>
+            </div>
+            <div class="block-content">
+                <form onsubmit="return false;" id="login-form">
+                    <div class="mb-4">
+                        <label class="form-label" for="login-username">账号</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                              <i class="far fa-user"></i>
+                            </span>
+                            <input type="text" class="form-control" id="login-username" name="login-username" placeholder="请输入手机号/邮箱">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="login-password">密码</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                              <i class="far fa-surprise"></i>
+                            </span>
+                            <input type="password" class="form-control" id="login-password" name="login-password" placeholder="请输入密码">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <button type="submit" class="btn btn-alt-primary" onclick="ajax_sport_login();">
+                            <i class="fa fa-arrow-right opacity-50 me-1"></i> 登录
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mt-1">
+        <div class="alert alert-info d-flex align-items-center justify-content-between" role="alert">
+            <p class="mb-0">
+                登录成功后若登录小米运动APP，请在登录后重新添加一次账号，避免功能无法正常运行
+            </p>
+            <i class="fa fa-fw fa-info ms-2"></i>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_sport_login()
+    {
+        var username = x.getval('#login-username', '请先输入手机号！');
+        if (!username) return;
+        var password = x.getval('#login-password', '请先输入密码！');
+        if (!password) return;
+        x.ajax('/index/ajax/sport/add', {
+            username: username,
+            password: password,
+        }, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    // x.pjax('{:url("/index/console/sport/list")}');
+                    window.location.href = '{:url("/index/console/sport/list")}';
+                }, 1000)
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+</script>
+{/block}
+

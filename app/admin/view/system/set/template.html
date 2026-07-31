@@ -1,0 +1,139 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<div class="content">
+    <div class="my-0 text-center">
+        <h2 class="fw-bold mb-4">
+            模板随心搭
+        </h2>
+        <h3 class="fs-base fw-medium text-muted mb-0">
+            你 目 前 有 <b style="color: rgba(39,54,215,0.6);font-weight: bold">{$num}</b> 个 模 板 ！
+        </h3>
+    </div>
+    <form onsubmit="return false;" id="template-form">
+        <div class="row">
+            <h2 class="content-heading">首页模板</h2>
+            {foreach $index_data as $key => $v}
+            <div class="col-md-6 col-xl-4">
+                <div class="block block-rounded">
+                    <div class="block-content p-0 overflow-hidden">
+                        <a class="img-link" href="#">
+                            <img class="img-fluid rounded-top" src="{$v.img}" alt="">
+                        </a>
+                    </div>
+                    <div class="block-content border-bottom">
+                        <h4 class="fs-5 mb-4">{$v.name}</h4>
+                        <p class="text-muted">
+                            <i class="fa fa-map-pin me-1"></i> {$v.description}
+                        </p>
+                    </div>
+                    <div class="block-content border-bottom">
+                        <div class="row">
+                            <div class="col-6">
+                                <p>
+                                    <i class="si si-user opacity-50 me-1"></i>
+                                    <strong> {$v.author} </strong>
+                                </p>
+                            </div>
+                            <div class="col-6">
+                                <p>
+                                    <i class="si si-badge opacity-50 me-1"></i>
+                                    <strong> {$v.demoSite} </strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="block-content block-content-full">
+                        <div class="row g-sm">
+                            <div class="col-12">
+                               <input name="index_template" onclick="ajax_set_template(this)" class="btn btn-sm btn-primary w-100" value="{$v.id}" readonly>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {/foreach}
+
+            <h2 class="content-heading">登录注册模板</h2>
+            {foreach $login_data as $key => $v}
+            <div class="col-md-6 col-xl-4">
+                <div class="block block-rounded">
+                    <div class="block-content p-0 overflow-hidden">
+                        <a class="img-link" href="#">
+                            <img class="img-fluid rounded-top" src="{$v.img}" alt="">
+                        </a>
+                    </div>
+                    <div class="block-content border-bottom">
+                        <h4 class="fs-5 mb-2">{$v.name}</h4>
+                        <p class="text-muted">
+                            <i class="fa fa-map-pin me-1"></i> {$v.description}
+                        </p>
+                    </div>
+                    <div class="block-content border-bottom">
+                        <div class="row">
+                            <div class="col-6">
+                                <p>
+                                    <i class="si si-user opacity-50 me-1"></i>
+                                    <strong> {$v.author} </strong>
+                                </p>
+                            </div>
+                            <div class="col-6">
+                                <p>
+                                    <i class="si si-badge opacity-50 me-1"></i>
+                                    <strong> {$v.demoSite} </strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="block-content block-content-full">
+                        <div class="row g-sm">
+                            <div class="col-12">
+                                <input name="login_template" onclick="ajax_set_template(this)" class="btn btn-sm btn-primary w-100" value="{$v.id}" readonly>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {/foreach}
+        </div>
+    </form>
+</div>
+{/block}
+{block name="foot"}
+{if condition="$start neq 1"}
+<script>
+    layer.open({
+        content: '您还没有初始化模板切换功能，功能无法正常使用！',
+        btn: '初 始 化',
+        shadeClose: false,
+        closeBtn: 0,
+        move: false,
+        yes: function(i){
+            x.ajax('/admin/ajax/set/template_start',null,function (data){
+                if (data.code == 1) {
+                    x.notify(data.message, 'success');
+                    setTimeout(function () {
+                        location.reload();
+                    }, 1000)
+                } else {
+                    x.notify(data.message, 'warning');
+                }
+            });
+        },
+    });
+</script>
+{/if}
+<script>
+    function ajax_set_template(_this) {
+        var name = $(_this).prop('name');
+        var value = $(_this).prop('value');
+        x.ajax('/admin/ajax/set/info', name + '=' + value, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+</script>
+{/block}

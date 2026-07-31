@@ -1,0 +1,46 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-md-8">
+        <div class="block block-rounded">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">导入米游社登录 Cookie</h3>
+            </div>
+            <div class="block-content">
+                <div class="alert alert-info">
+                    已移除旧版账号密码和第三方验证码登录。请从已登录的米游社网页复制 Cookie，通常需包含
+                    <code>ltuid_v2</code>、<code>ltoken_v2</code> 和 <code>cookie_token_v2</code>。
+                </div>
+                <form onsubmit="return false;">
+                    <div class="mb-4">
+                        <label class="form-label" for="mihoyo-cookie">Cookie</label>
+                        <textarea class="form-control" id="mihoyo-cookie" rows="6" autocomplete="off"></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <button type="button" class="btn btn-alt-primary" onclick="addMihoyoAccount();">
+                            <i class="fa fa-check opacity-50 me-1"></i> 验证并保存
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+function addMihoyoAccount() {
+    const cookie = x.getval('#mihoyo-cookie', '请先输入 Cookie');
+    if (!cookie) return;
+    x.ajax('/index/ajax/mihoyo/add', {cookie: cookie}, function (data) {
+        x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+        if (data.code === 1) {
+            setTimeout(function () {
+                window.location.href = '{:url("/index/console/mihoyo/list")}';
+            }, 800);
+        }
+    });
+}
+</script>
+{/block}

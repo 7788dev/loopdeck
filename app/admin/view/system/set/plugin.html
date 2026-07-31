@@ -1,0 +1,114 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title">功能插件设置</h3>
+    </div>
+    <div class="block-content block-content-full">
+        <div class="table-responsive">
+            <table class="table table-striped table-borderless table-vcenter">
+                <thead>
+                <tr>
+                    <th>网易云代理</th>
+                    <th>Secret</th>
+                    <th>Order No.</th>
+                    <th style="width: 120px;">启用</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr>
+                    <td>
+                        <span class="fw-semibold text-primary">可选代理转发</span>
+                        <div class="text-muted fs-sm">留空即可使用本机网络直连网易云。</div>
+                    </td>
+                    <td>
+                        <input type="text" class="form-control" id="netease_proxy_secret"
+                               value="{:config('sys.netease_proxy_secret')}" autocomplete="off">
+                    </td>
+                    <td>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="netease_proxy_orderno"
+                                   value="{:config('sys.netease_proxy_orderno')}" autocomplete="off">
+                            <button type="button" class="btn btn-alt-primary" onclick="ajax_edit_proxy();">保存</button>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" name="is_netease_proxy"
+                                   onclick="ajax_edit_config(this)"
+                                   {if condition="config('sys.is_netease_proxy') eq 1"}checked{/if}>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="table-responsive mt-4">
+            <table class="table table-striped table-borderless table-vcenter">
+                <thead>
+                <tr>
+                    <th>网易云小工具</th>
+                    <th>同账号每日次数</th>
+                    <th style="width: 120px;">启用</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr>
+                    <td>
+                        <span class="fw-semibold text-primary">听歌任务工具</span>
+                        <div class="text-muted fs-sm">限制同一账号每天可提交的次数。</div>
+                    </td>
+                    <td>
+                        <div class="input-group">
+                            <input type="number" min="1" class="form-control" id="netease_tool_limit"
+                                   value="{:config('sys.netease_tool_limit')}">
+                            <button type="button" class="btn btn-alt-primary"
+                                    onclick="ajax_edit_netease_tool();">保存</button>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" name="is_netease_tool"
+                                   onclick="ajax_edit_config(this)"
+                                   {if condition="config('sys.is_netease_tool') eq 1"}checked{/if}>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_edit_config(element) {
+        var key = $(element).prop('name');
+        var value = $(element).prop('checked') ? 1 : 0;
+        x.ajax('/admin/ajax/set/config', key + '=' + value, function (data) {
+            x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+        });
+    }
+
+    function ajax_edit_proxy() {
+        x.ajax('/admin/ajax/set/config', {
+            netease_proxy_secret: x.getval('#netease_proxy_secret'),
+            netease_proxy_orderno: x.getval('#netease_proxy_orderno')
+        }, function (data) {
+            x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+        });
+    }
+
+    function ajax_edit_netease_tool() {
+        var limit = x.getval('#netease_tool_limit', '请输入限制次数');
+        if (!limit || !$.isNumeric(limit) || Number(limit) < 1) {
+            return x.notify('请输入大于 0 的数字', 'warning');
+        }
+        x.ajax('/admin/ajax/set/config', {netease_tool_limit: limit}, function (data) {
+            x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+        });
+    }
+</script>
+{/block}

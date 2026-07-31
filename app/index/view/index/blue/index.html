@@ -1,0 +1,335 @@
+<!doctype html>
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title>{:config('web.webname')} - {:config('web.title')}</title>
+    <meta content="{:config('web.keywords')}" name="keywords">
+    <meta content="{:config('web.description')}" name="description">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- CSS here -->
+    <link rel="stylesheet" href="/static/template/index/blue/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/template/index/blue/css/owl.carousel.min.css">
+    <link rel="stylesheet" href="/static/template/index/blue/css/animate.min.css">
+    <link rel="stylesheet" href="/static/template/index/blue/css/magnific-popup.css">
+    <link rel="stylesheet" href="/static/template/index/blue/css/fontawesome-all.min.css">
+    <link rel="stylesheet" href="/static/template/index/blue/css/themify-icons.css">
+    <link rel="stylesheet" href="/static/template/index/blue/css/meanmenu.css">
+    <link rel="stylesheet" href="/static/template/index/blue/css/slick.css">
+    <link rel="stylesheet" href="/static/template/index/blue/css/default.css">
+    <link rel="stylesheet" href="/static/template/index/blue/css/style.css">
+    <link rel="stylesheet" href="/static/template/index/blue/css/responsive.css">
+    <link rel="stylesheet" href="http://at.alicdn.com/t/font_2164568_m9f8h4rb9hb.css">
+</head>
+<body>
+
+<header>
+
+    <div id="header-sticky" class="header-area header-area-white transparent-header pt-10 pb-10">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-xl-2 col-lg-2 col-md-4 col-10 d-flex align-items-center">
+                    <div class="logo">
+                        <a style="text-decoration:none;color: #fff;font-size: 25px; href=" "=""> <i
+                            style="font-size: 30px;" class="iconfont icon-yun"></i> {:config('web.webname')} </a>
+                    </div>
+                </div>
+                <div class="col-xl-10 col-lg-10 col-md-7 col-8 d-none d-md-block">
+                    <div class="header-btn f-right d-none d-sm-none d-md-block d-md-none d-lg-block">
+                        <a href="{:url('login/login')}" class="btn btn-white"><i class="fal fa-lock-alt"></i>登录</a>
+                    </div>
+                    <div class="main-menu colormenu d-block">
+                        <nav id="mobile-menu">
+                            <ul>
+                                <li><a href="/">首页</a></li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+                <div class="col-2 col-md-1">
+                    <div class="side-menu-icon bar-two d-lg-none text-end">
+                        <button class="side-toggle"><i class="far fa-bars"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div class="fix">
+    <div class="side-info">
+        <button class="side-info-close"><i class="fal fa-times"></i></button>
+        <div class="side-info-content">
+            <div class="mobile-menu"></div>
+        </div>
+    </div>
+</div>
+<div class="offcanvas-overlay"></div>
+<main>
+    <div class="slider_2" data-background="/static/template/index/blue/img/home2bg.png" style="background-image: url("/static/template/index/blue/img/home2bg.png");">
+    <div class="slider_2_shapes">
+        <img class="h2_shape4" src="/static/template/index/blue/img/home_2_shape4.png" alt="">
+        <img class="h2_sh_1 d-none d-sm-block" src="/static/template/index/blue/img/bordershape.png" alt="">
+        <img class="h2_sh_2 d-none d-sm-block" src="/static/template/index/blue/img/home2shape2.png" alt="">
+        <img class="h2_sh_3 d-none d-sm-block" src="/static/template/index/blue/img/h2shap3.png" alt="">
+        <img class="h2_sh_4 d-none d-sm-block" src="/static/template/index/blue/img/h2shape2.png" alt="">
+        <img class="h2_sh_5 d-none d-sm-block" src="/static/template/index/blue/img/home_2_shape.png" alt="">
+        <img class="h2_sh_6 d-none d-sm-block" src="/static/template/index/blue/img/home_2_shape7.png" alt="">
+        <img class="h2_sh_7 d-none d-sm-block" src="/static/template/index/blue/img/border2shape.png" alt="">
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="col-xl-6 col-lg-6 col-md-6">
+                <div class="slider_2__content">
+                    <h2 class="home2_title hero-title">{:config('web.webname')}</h2>
+                    <p>{:config('web.title')}</p>
+                    {if condition="!session('user')"}
+                    <a class="tp_white_border" href="{:url('login/login')}">立即登录</a>
+                    {else /}
+                    <a class="tp_white_border" href="{:url('index/console/')}">用户中心</a>
+                    {/if}
+                </div>
+            </div>
+            <div class="col-xl-6 col-lg-6 col-md-6">
+                <div class="slider_2_image">
+                    <div class="home2_shapes">
+                        <img class="h2_love" src="/static/template/index/blue/img/loveshape.png" alt="loveShape">
+                    </div>
+                    <img class="H2_iphonex d-sm-none d-md-block d-none d-sm-block w-45"
+                         src="/static/template/index/blue/img/vevtorobject.png" alt="iphoneX">
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <div class="fetures2 pt-115 pb-90">
+        <div class="container">
+            <div class="section_title_wrapper mb-60 text-center fetures2">
+                <h2 class="section-title">{:config('web.webname')}简介</h2>
+            </div>
+            <div class="row">
+                <div class="col-xl-3 col-lg-3 col-md-6">
+                    <div class="featurebox2 mb-30  wow  fadeInUp" data-wow-duration="2s" data-wow-delay=".2s">
+                        <div class="featurebox2__img">
+                            <i style="font-size: 30px;" class="fas fa-user-edit white-color"></i>
+                        </div>
+                        <div class="featurebox2__content">
+                            <h3 class="fea-title">注册登陆账号</h3>
+                            <p>在注册账号时请填写常用的联系QQ。 <br> 注册成功后自动跳转到平台。</p>
+                            <a class="fea-link" href="javascript:">第一步<i class="fal fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-3 col-lg-3 col-md-6">
+                    <div class="featurebox2 mb-30  wow  fadeInUp" data-wow-duration="2s" data-wow-delay=".2s">
+                        <div class="featurebox2__img gradientorange">
+                            <i style="font-size: 30px;" class="fas fa-user-clock white-color"></i>
+                        </div>
+                        <div class="featurebox2__content">
+                            <h3 class="fea-title">添加账号</h3>
+                            <p>登录后，网站上方菜单中 <br> 添加一个账号。</p>
+                            <a class="fea-link" href="javascript:">第二步<i class="fal fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-3 col-lg-3 col-md-6">
+                    <div class="featurebox2 mb-30  wow  fadeInUp" data-wow-duration="2s" data-wow-delay=".2s">
+                        <div class="featurebox2__img gradientbrwon">
+                            <i style="font-size: 30px;" class="fas fa-user-check white-color"></i>
+                        </div>
+                        <div class="featurebox2__content">
+                            <h3 class="fea-title">添加账号成功</h3>
+                            <p>成功后将跳转至该账号的功能设置页面 <br> 按照需求开关与设置功能。</p>
+                            <a class="fea-link" href="javascript:">第三步<i class="fal fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-3 col-lg-3 col-md-6">
+                    <div class="featurebox2 mb-30  wow  fadeInUp" data-wow-duration="2s" data-wow-delay=".2s">
+                        <div class="featurebox2__img gradientgreen">
+                            <i style="font-size: 30px;" class="fas fa-user-cog white-color"></i>
+                        </div>
+                        <div class="featurebox2__content">
+                            <h3 class="fea-title">管理账号</h3>
+                            <p>如果账号状态失效 <br>请及时更新账号防止功能不运行。</p>
+                            <a class="fea-link" href="javascript:">成功使用<i class="fal fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="APPDownload" class="purches-area pt-75">
+        <div class="container">
+            <div class="row">
+                <div class="col-xl-6 col-lg-6 col-md-6">
+                    <div class="section_title_wrapper purches">
+                        <h2 class="section-title purches_heading">{:config('web.webname')}</h2>
+                        <p>提供快速专业的等级加速服务</p>
+                        <div class="row g-0 pt-20">
+                            <div class="col-xl-4 col-md-4 col-md-4 col-sm-4">
+                                <div class="purches_btn">
+                                    <a href="#"><i class="fas fa-user"></i></a>
+                                    <div class="purches_text">
+                                        <h6>用户登录</h6>
+                                        <a href="{:url('login/login')}">点击登录</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-xl-4 col-md-4 col-md-4 col-sm-4">
+                                <div class="purches_btn btn_outline">
+                                    <a href="#"><i class="fas fa-plus"></i></a>
+                                    <div class="purches_text purches2">
+                                        <h6>用户注册</h6>
+                                        <a href="{:url('login/reg')}">点击注册</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-6 col-lg-6 col-md-6">
+                    <div class="pay_image d-sm-none d-md-block d-none d-sm-block">
+                        <img src="/static/template/index/blue/img/pay.png" alt="pay_image">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="experience_area">
+        <div class="container">
+            <div class="section_title_wrapper text-center mb-70 mt-50">
+                <h2 class="section-title">品牌优势</h2>
+            </div>
+            <div class="row">
+                <div class="col-xl-4 col-lg-4 col-md-6">
+                    <div class="service">
+                        <div class="service__icon">
+                            <i style="font-size: 30px;" class="fas fa-shield-alt blue-color pt-20"></i>
+                        </div>
+                        <div class="service__content">
+                            <h4>智能运行技术</h4>
+                            <p>采用动态执行方案 <br> 高度模拟真人执行任务</p>
+
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-4 col-lg-4 col-md-6">
+                    <div class="service">
+                        <div class="service__icon">
+                            <i style="font-size: 30px;" class="fas fa-cloud blue-color pt-20"></i>
+                        </div>
+                        <div class="service__content">
+                            <h4>账号安全技术</h4>
+                            <p>本地部署运行 <br> 账号数据由你自己掌控</p>
+
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-4 col-lg-4 col-md-6">
+                    <div class="service">
+                        <div class="service__icon">
+                            <i style="font-size: 30px;" class="fab fa-google-drive blue-color pt-20"></i>
+                        </div>
+                        <div class="service__content">
+                            <h4>杜绝重复技术</h4>
+                            <p>彻底杜绝重复执行任务 <br> 对每条动态的运行均做记录</p>
+
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-4 col-lg-4 col-md-6">
+                    <div class="service">
+                        <div class="service__icon">
+                            <i style="font-size: 30px;" class="fas fa-medal blue-color pt-20"></i>
+                        </div>
+                        <div class="service__content">
+                            <h4>精准监控技术</h4>
+                            <p>不断调优的监控执行算法 <br> 确保准确执行 失效邮件提醒</p>
+
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-4 col-lg-4 col-md-6">
+                    <div class="service">
+                        <div class="service__icon">
+                            <i style="font-size: 30px;" class="fas fa-bolt blue-color pt-20"></i>
+                        </div>
+                        <div class="service__content">
+                            <h4>分布系统架构</h4>
+                            <p>采用分布式服务器架构 <br> 更好地确保任务24小时稳定</p>
+
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-4 col-lg-4 col-md-6">
+                    <div class="service">
+                        <div class="service__icon">
+                            <i style="font-size: 30px;" class="fas fa-chess-queen blue-color pt-20"></i>
+                        </div>
+                        <div class="service__content">
+                            <h4>原创代练程序</h4>
+                            <p>自研OneTool程序 <br>时刻保持稳定更新</p>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="padding-remove footertext-hover">
+        <div class="footer_bottom pb-15">
+            <div class="container tp-border">
+                <div class="row align-items-center">
+                    <div class="col-xl-6 col-lg-6 col-md-6">
+                        <div class="copyright_text pt-20">
+                            <p>Copyright © 2022 · {:config('web.webname')}</p>
+                        </div>
+                    </div>
+                    <div class="col-xl-6 col-lg-6 col-md-6">
+                        <div class="footer_social f-right">
+                            <a href="http://beian.miit.gov.cn" target="_blank" style="text-decoration:none;">
+                                <span>备案号：{:config('web.icp')}</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    var _hmt = _hmt || [];
+    (function () {
+        var hm = document.createElement("script");
+        hm.src = "https://hm.baidu.com/hm.js?0ec74604a49b4f3d3a315e8d8d1dbc0b";
+        var s = document.getElementsByTagName("script")[0];
+        s.parentNode.insertBefore(hm, s);
+    })();
+</script>
+<script src="/static/template/index/blue/js/modernizr-3.5.0.min.js"></script>
+<script src="/static/template/index/blue/js/jquery-1.12.4.min.js"></script>
+<script src="/static/template/index/blue/js/popper.min.js"></script>
+<script src="/static/template/index/blue/js/bootstrap.min.js"></script>
+<script src="/static/template/index/blue/js/owl.carousel.min.js"></script>
+<script src="/static/template/index/blue/js/isotope.pkgd.min.js"></script>
+<script src="/static/template/index/blue/js/one-page-nav-min.js"></script>
+<script src="/static/template/index/blue/js/slick.min.js"></script>
+<script src="/static/template/index/blue/js/jquery.meanmenu.min.js"></script>
+<script src="/static/template/index/blue/js/ajax-form.js"></script>
+<script src="/static/template/index/blue/js/wow.min.js"></script>
+<script src="/static/template/index/blue/js/jquery.scrollup.min.js"></script>
+<script src="/static/template/index/blue/js/imagesloaded.pkgd.min.js"></script>
+<script src="/static/template/index/blue/js/jquery.magnific-popup.min.js"></script>
+<script src="/static/template/index/blue/js/plugins.js"></script>
+<script src="/static/template/index/blue/js/main.js"></script>
+
+</body>
+</html>

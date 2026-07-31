@@ -1,0 +1,137 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title">网站信息配置</h3>
+        <div class="block-options">
+            <button type="submit" class="btn btn-sm btn-alt-primary" onclick="ajax_edit_info();">
+                <i class="fa fa-save opacity-50 me-1"></i> 保存
+            </button>
+        </div>
+    </div>
+    <div class="block-content">
+        <form onsubmit="return false;" id="info-form">
+            <div class="row items-push">
+                <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label">网站名称</label>
+                        <input class="form-control form-control-lg" id="webname" name="webname"
+                               placeholder="输入你的网站名称"
+                               type="text" value="{:config('web.webname')}">
+                        <div class="text-muted fs-xs">网站名称建议4-6个文字，太长会造成前台显示问题</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label">网站标题</label>
+                        <input class="form-control form-control-lg" id="title" name="title"
+                               placeholder="输入你的网站标题"
+                               type="text" value="{:config('web.title')}">
+                        <div class="text-muted fs-xs">此项为搜索SEO优化作用，说明 <a class="lan dl" href="http://www.chinaz.com/web/2014/0513/351260.shtml" target="_blank">点击查看</a>，系统会自动在标题前加入 （您的网站名称 _ ）前缀信息</div>
+                    </div>
+                </div>
+                    <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label">网站关键字</label>
+                        <textarea class="form-control form-control-lg" id="keywords" name="keywords" placeholder="输入你的网站关键字" type="text" rows="4">{:config('web.keywords')}</textarea>
+                        <div class="text-muted fs-xs">此项为搜索SEO优化作用，说明 <a class="lan dl" href="http://www.chinaz.com/web/2014/0106/334280.shtml" target="_blank">点击查看</a></div>
+                    </div>
+                    </div>
+                <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label">网站描述</label>
+                        <textarea class="form-control form-control-lg" id="description" name="description" placeholder="输入你的网站描述" type="text" rows="4">{:config('web.description')}</textarea>
+                        <div class="text-muted fs-xs">此项为搜索SEO优化作用，说明 <a class="lan dl" href="http://www.chinaz.com/web/2014/0106/334280.shtml" target="_blank">点击查看</a>
+                    </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label">网站域名</label>
+                        <input class="form-control form-control-lg" id="domain" name="domain"
+                               placeholder="输入你的网站域名"
+                               type="text" value="{:config('web.domain')}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label">网站备用域名</label>
+                        <input class="form-control form-control-lg" id="domain2" name="domain2"
+                               placeholder="输入你的网站备用域名"
+                               type="text" value="{:config('web.domain2')}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label">站长QQ</label>
+                        <input class="form-control form-control-lg" id="user_qq" name="user_qq"
+                               placeholder="输入站长QQ"
+                               type="text" value="{:config('web.user_qq')}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label">备案号</label>
+                        <input class="form-control form-control-lg" id="icp" name="icp"
+                               placeholder="输入备案号"
+                               type="text" value="{:config('web.icp')}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label">首页背景图片地址</label>
+                        <input class="form-control form-control-lg" id="index_bg" name="index_bg"
+                               placeholder="输入首页背景图片地址"
+                               type="text" value="{:config('web.index_bg')}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label" for="index_mode">首页显示模式</label>
+                        <select class="form-select" id="index_mode" name="index_mode" onchange="selChange(this)">
+                            <option value="1">默认显示首页</option>
+                            <option value="2"{if config('web.index_mode') == 2}selected{/if}>直接跳转登录页面</option>
+                            <option value="3"{if config('web.index_mode') == 3}selected{/if}>显示其他指定网址</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-12" id="index-url" style="display: none">
+                    <div class="mb-4">
+                        <label class="form-label">首页网址，带http(s)</label>
+                        <input class="form-control form-control-lg" id="index_url" name="index_url"
+                               placeholder="输入首页网址"
+                               type="text" value="{:config('web.index_url')}">
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_edit_info() {
+        x.ajax('/admin/ajax/set/info', $('#info-form').serialize(), function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+
+    function selChange(_this)
+    {
+        if ($(_this).prop("value") == 3) {
+            $('#index-url').show();
+        } else {
+            $('#index-url').hide();
+        }
+    }
+
+    {if config('web.index_mode') == 3}
+        $('#index-url').show();
+    {/if}
+</script>
+{/block}

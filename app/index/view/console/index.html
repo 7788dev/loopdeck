@@ -1,0 +1,248 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<style>
+    #notice p {
+        display:inline;
+    }
+</style>
+<div class="block block-rounded bg-gd-dusk mb-2">
+    <div class="block-content bg-white-5">
+        <div class="py-4 text-center">
+            <h1 class="h2 fw-bold text-white mb-2">{:config('web.webname')}</h1>
+            <h2 class="h5 fw-medium text-white-75">{:config('web.title')}</h2>
+        </div>
+    </div>
+</div>
+<div class="row g-sm mb-1">
+    <div class="col-4 col-md-4 col-xl-2">
+        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/shop/vip')}">
+            <div class="block-content ribbon ribbon-bookmark ribbon-danger ribbon-left">
+                <div class="ribbon-box opacity-75">Hot !</div>
+                <p class="my-3">
+                    <i class="fa fa-chess-queen fa-2x"></i>
+                </p>
+                <p class="fw-semibold fs-sm">会员开通</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-4 col-md-4 col-xl-2">
+        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/shop/agent')}">
+            <div class="block-content">
+                <p class="my-3">
+                    <i class="fa fa-graduation-cap fa-2x"></i>
+                </p>
+                <p class="fw-semibold fs-sm">代理开通</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-4 col-md-4 col-xl-2">
+        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/shop/money')}">
+            <div class="block-content ribbon ribbon-bookmark ribbon-primary ribbon-left">
+                <p class="my-3">
+                    <i class="fa fa-wallet fa-2x"></i>
+                </p>
+                <p class="fw-semibold fs-sm">充值余额</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-4 col-md-4 col-xl-2">
+        {php}
+        $loca = 'http://wpa.qq.com/msgrd?v=3&uin=' . config('web.user_qq') . '&site=qq&menu=yes';
+        $http_agent = strtolower($_SERVER['HTTP_USER_AGENT']);
+        if(strpos($http_agent,'windows nt')){
+            $loca = 'tencent://ContactInfo/?subcmd=ViewInfo&puin=0&uin=' . config('web.user_qq');
+        }elseif(strpos($http_agent,'iphone')){
+            $loca = 'mqq://im/chat?chat_type=wpa&uin=' . config('web.user_qq') . '&version=1&src_type=web';
+        } elseif(strpos($http_agent,'android')){
+            $loca = 'mqq://card/show_pslcard?src_type=internal&version=1&uin=' . config('web.user_qq') . '&card_type=person&source=sharecard';
+        }
+        {/php}
+        <a class="block block-rounded block-link-shadow text-center" href="{$loca}">
+            <div class="block-content">
+                <p class="my-3">
+                    <i class="fab fa-github-alt fa-2x"></i>
+                </p>
+                <p class="fw-semibold fs-sm">联系客服</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-4 col-md-4 col-xl-2">
+        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/user/faq')}">
+            <div class="block-content">
+                <p class="my-3">
+                    <i class="fa fa-hands-helping fa-2x"></i>
+                </p>
+                <p class="fw-semibold fs-sm">帮助中心</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-4 col-md-4 col-xl-2">
+        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/user/profile')}">
+            <div class="block-content">
+                <p class="my-3">
+                    <i class="fa fa-id-card fa-2x"></i>
+                </p>
+                <p class="fw-semibold fs-sm">个人资料</p>
+            </div>
+        </a>
+    </div>
+</div>
+<div class="row">
+    <div class="col-lg-8 mb-2">
+        <div class="block block-rounded mb-0">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">公告通知</h3>
+            </div>
+            <div class="block-content block-content-full" data-toggle="slimscroll" data-height="259px">
+                <div class="fw-medium fs-sm">
+                    {php}
+                    $empty = '<div class="col-12">
+                    <div class="block block-rounded">
+                        <div class="block-content text-center">
+                            <i class="si si-disc fa-2x"></i><br>
+                            <p class="text-muted fs-sm">
+                                暂时还没有公告哦
+                            </p>
+                        </div>
+                    </div>
+                </div>';
+                    {/php}
+                    {volist name="$notice" id="arr" empty="$empty"}
+                    {php}
+                    if ($arr['alert'] == 1) {
+                    $alert = $arr['content'];
+                    }
+                    {/php}
+                    <div class="border-start border-4 rounded-2 border-primary mb-2">
+                        <div class="rounded p-2 text-pulse-light" id="notice">
+                            <p class="m-1">{:htmlspecialchars_decode($arr.content)}</p>
+                            <br/>
+                            <p class="m-2 text-muted">{:date("Y-m-d H:i", $arr.addtime)}</p>
+                        </div>
+                    </div>
+                    {/volist}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <a class="block block-rounded block-link-shadow text-center h-100 mb-0" href="#">
+            <div class="block-content bg-gd-dusk">
+                <div class="push">
+                    <img class="img-avatar img-avatar-thumb" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100" alt="">
+                </div>
+                <div class="pull-x pull-b py-2 bg-black-25">
+                    <div class="fw-semibold mb-1 text-white">
+                        <i class="fa fa-star text-white-75 ms-1"></i> {:session('user.nickname')}
+                        <span class="fs-xs">UID: {:session('user.uid')}</span>
+                    </div>
+                    {if session('user.vip_start')}
+                    <div class="fs-sm text-white-75">VIP会员 - {:session('user.vip_end')}</div>
+                    {else /}
+                    <div class="fs-sm text-white-75">普通用户</div>
+                    {/if}
+                    <div class="fs-sm text-white-75">共有 {:session('user.quota')} 个配额 | 已使用 ： {$quota_used} 个</div>
+                </div>
+            </div>
+            <div class="block-content">
+                <div class="row items-push text-center">
+                    <div class="col-6">
+                        <div class="mb-1"><i class="si si-user fa-2x"></i></div>
+                        <div class="fs-sm fw-medium text-muted">{$agent}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mb-1"><i class="si si-wallet fa-2x"></i></div>
+                        <div class="fs-sm fw-medium text-muted">{:session('user.money')} 元</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+<div class="row g-sm mt-2">
+    <div class="col-6 col-xl-3">
+        <a class="block block-rounded block-link-pop text-end" href="javascript:void(0)">
+            <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
+                <div class="d-none d-sm-block">
+                    <i class="si si-bar-chart fa-2x text-primary-light"></i>
+                </div>
+                <div class="text-end">
+                    <div class="fs-3 fw-semibold text-primary">{$user_count}</div>
+                    <div class="fs-sm fw-semibold text-uppercase text-muted">用户数量</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-xl-3">
+        <a class="block block-rounded block-link-pop text-end" href="javascript:void(0)">
+            <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
+                <div class="d-none d-sm-block">
+                    <i class="si si-trophy fa-2x text-earth-light"></i>
+                </div>
+                <div class="text-end">
+                    <div class="fs-3 fw-semibold text-earth">{$account_count}</div>
+                    <div class="fs-sm fw-semibold text-uppercase text-muted">托管账号</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-xl-3">
+        <a class="block block-rounded block-link-pop text-end" href="javascript:void(0)">
+            <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
+                <div class="d-none d-sm-block">
+                    <i class="si si-bar-chart fa-2x text-elegance-light"></i>
+                </div>
+                <div class="text-end">
+                    <div class="fs-3 fw-semibold text-elegance">{$job_count}</div>
+                    <div class="fs-sm fw-semibold text-uppercase text-muted">添加任务</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-xl-3">
+        <a class="block block-rounded block-link-pop text-end" href="javascript:void(0)">
+            <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
+                <div class="d-none d-sm-block">
+                    <i class="si si-fire fa-2x text-corporate-light"></i>
+                </div>
+                <div class="text-end">
+                    <div class="fs-3 fw-semibold text-pulse">{$execute_count}</div>
+                    <div class="fs-sm fw-semibold text-uppercase text-muted">运行次数</div>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    $(function () {
+        jQuery(function(){Codebase.helpers('jq-slimscroll');});
+    })
+    {if condition="isset($alert)"}
+    if (getCookie('alert_msg') !== '0') {
+        layer.alert('{:htmlspecialchars_decode($alert)}', {
+            time: 10*1000
+            ,success: function(layero, index){
+                var timeNum = this.time/1000, setText = function(start){
+                    layer.title((start ? timeNum : --timeNum) + ' 秒后关闭', index);
+                };
+                setText(!0);
+                this.timer = setInterval(setText, 1000);
+                if(timeNum <= 0) clearInterval(this.timer);
+            }
+            ,end: function(){
+                clearInterval(this.timer);
+            }
+            ,btn: ['确定', '不再显示']
+            ,area: ['30%', '30%']
+            ,btn2: function () {
+                setCookie('alert_msg', 0)
+            }
+
+        });
+    }
+    {/if}
+</script>
+{/block}

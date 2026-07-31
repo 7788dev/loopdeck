@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>{:config('web.webname')} - {:config('web.title')}</title>
+    <meta content="{:config('web.keywords')}" name="keywords">
+    <meta content="{:config('web.description')}" name="description">
+    <link href="/favicon.ico" rel="shortcut icon">
+    <link rel="stylesheet" href="/static/template/Oneui/css/oneui.min.css">
+    <link rel="stylesheet" href="/static/template/Oneui/css/jquery-confirm.min.css">
+</head>
+<body>
+<div id="page-loader" class="show"></div>
+<div id="page-container">
+    <main id="main-container">
+        <div class="bg-image" style="background-image: url('/static/template/Oneui/image/photo28@2x.jpg');">
+            <div class="row no-gutters bg-primary-dark-op">
+                <div class="hero-static col-lg-4 d-none d-lg-flex flex-column justify-content-center">
+                    <div class="p-4 p-xl-5 flex-grow-1 d-flex align-items-center">
+                        <div class="w-100">
+                            <a class="link-fx font-w600 font-size-h2 text-white" href="javascript:void(0)">
+                                {:config('web.webname')}
+                            </a>
+                            <p class="text-white-75 mr-xl-8 mt-2" id="hitokoto_text">
+                                :ID 获取中...
+                            </p>
+                            <span class="text-white-75" id="hitokoto_from">:ID 获取中...</span>
+                        </div>
+                    </div>
+                    <div class="p-4 p-xl-5 d-xl-flex justify-content-between align-items-center font-size-sm">
+                        <p class="font-w500 text-white-50 mb-0">
+                            Copyright &copy; <span data-toggle="year-copy"></span> <strong>{:config('web.webname')}</strong>
+                        </p>
+                    </div>
+                </div>
+                <div class="hero-static col-lg-8 d-flex flex-column align-items-center bg-white">
+                    <div class="p-3 w-100 d-lg-none text-center">
+                        <a class="link-fx font-w600 font-size-h3 text-dark" href="javascript:void(0)">
+                            {:config('web.webname')}
+                        </a>
+                    </div>
+                    <div class="p-4 w-100 flex-grow-1 d-flex align-items-center">
+                        <div class="w-100">
+                            <div class="text-center mb-5">
+                                <p class="mb-3">
+                                    <i class="fa fa-2x fa-circle-notch text-primary-light"></i>
+                                </p>
+                                <h1 class="font-w700 mb-2">
+                                    重置密码
+                                </h1>
+                                <h2 class="font-size-base text-muted">
+                                    「 <span id="jinrishici-sentence"></span>」
+                                </h2>
+                            </div>
+                            <div class="row no-gutters justify-content-center">
+                                <div class="col-sm-8 col-xl-4">
+                                    <form onsubmit="return false;">
+                                        <div class="form-group">
+                                            <input type="password" placeholder="输入你的新密码" class="form-control form-control-lg form-control-alt py-4" id="password" name="password" />
+                                        </div>
+                                        <div class="form-group">
+                                            <input type="password" placeholder="请确认你的密码" class="form-control form-control-lg form-control-alt py-4" id="repass" name="repass" />
+                                        </div>
+                                        <div class="form-group text-center mb-0">
+                                            <button type="submit" onclick="ajax_user_reset();" class="btn btn-lg btn-alt-primary">
+                                                <i class="fa fa-fw fa-sign-in-alt mr-1 opacity-50"></i> 确认重置
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="px-4 py-3 w-100 d-lg-none d-flex flex-column flex-sm-row justify-content-between font-size-sm text-center text-sm-left">
+                                <p class="font-w500 text-black-50 py-2 mb-0">
+                                    Copyright &copy; <span data-toggle="year-copy"></span> <strong>{:config('web.webname')}</strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="/static/template/Oneui/js/oneui.core.min.js"></script>
+<script src="/static/template/Oneui/js/oneui.app.min.js"></script>
+<script src="https://sdk.jinrishici.com/v2/browser/jinrishici.js" charset="utf-8"></script>
+<script src="/static/js/codebase.app.min-5.0.js"></script>
+<script src="/static/js/lib/jquery.min.js"></script>
+<script src="/static/js/plugins/jquery-validation/jquery.validate.min.js"></script>
+<script src="/static/js/plugins/bootstrap-notify/bootstrap-notify.min.js"></script>
+<script src="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-0-M/nprogress/0.2.0/nprogress.min.js"></script>
+<script src="/static/js/app.min.js"></script>
+<script src="/static/js/layer.js"></script>
+<script>
+    function ajax_user_reset() {
+        var password = x.getval('#password', '请输入新密码');
+        if (!password) return;
+        var repass = x.getval('#repass', '请确认新密码');
+        if (!repass) return;
+        x.ajax('/index/LoginAjax/reset', {
+            password: password,
+            repass: repass,
+            mail:"{$mail}",
+            token:"{$_GET['token']}",
+        }, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    window.location.href = "{:url('console/index')}";
+                }, 1000);
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        });
+    }
+</script>
+<script>
+    fetch('https://v1.hitokoto.cn')
+      .then(response => response.json())
+      .then(data => {
+        const text = document.getElementById('hitokoto_text')
+        text.innerText = data.hitokoto
+        const from = document.getElementById('hitokoto_from')
+        var author = !!data.from ? data.from : "无名氏";
+        from.innerText = "—— " + (data.from_who || '') + "「" + author + "」"
+      })
+      .catch(console.error)
+</script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="row items-push">
+    <div class="col-md-12">
+        <div class="block block-rounded h-100 mb-0">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">
+                    <i class="si si-handbag fa-fw me-1 text-muted"></i>
+                    购买会员
+                </h3>
+            </div>
+            <div class="block-content block-content-full">
+                <p class="mb-1">
+                    <strong>平台付费会员专享特权</strong>
+                </p>
+                <p class="mb-1 fs-sm">1、支持多种账户登录方式，进一步保护您的账号安全，所有用户信息我们均采用加密协议传输，让用户隐私得到保障，用得放心。</p>
+                <p class="mb-1 fs-sm">2、24小时自动签到，密码使用加密，更安全，更稳定，我们选用了全国优质服务器，保证客户的每天代挂稳定进行，全力助客户快速升级。</p>
+                <p class="mb-1 fs-sm">3、平台所有功能全部可用，使用VIP服务器，快人一步，以同步更新最快最新协议，保证项目处于全网最全，加速签到项目应有尽有。</p>
+                <p class="mb-1 fs-sm">4、一次性开通3个月及以上即可成为包季会员，更低的价格，让您体验到最实惠的会员价格，稳定、快速、安全一直是我们不懈的追求 ！。</p>
+                <p class="mb-1 fs-sm">5、专享官方协议，彻底解决状态经常失效问题，让任务运行不间断，分布式服务器全天24H秒级全能挂机，执行所有加速代练任务，快速稳定。</p>
+                <p class="mb-1 fs-sm text-flat">注：系统24小时自动处理订单，支付后自动为您开通VIP会员，无需等待。</p>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-6 col-xl-3">
+        <a class="block block-link-pop block-rounded block-bordered text-center" href="javascript:select_payment(1)">
+            <div class="block-header">
+                <h3 class="block-title">包月VIP</h3>
+            </div>
+            <div class="block-content bg-body-light">
+                <div class="h1 fw-bold mb-2">￥{:config('sys.vip_price_1')}</div>
+                <div class="fw-medium text-muted mb-4">每 1 月</div>
+            </div>
+            <div class="block-content">
+                <p>
+                    <svg t="1642757922976" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4157" width="200" height="200"><path d="M202.134 122.241H820.71V889.27H202.134z" fill="#FFFFFF" p-id="4158"></path><path d="M820.71 889.269H202.135l59.79 116.098 504.935-1.843 53.852-114.255zM268.68 23.343h482.822l71.666 98.898H202.134l66.546-98.898z" fill="#4C66AF" p-id="4159"></path><path d="M805.968 400.918a242.64 242.64 0 0 1-293.42 27.233c-170.564-97.26-303.657-13.719-303.657-13.719v198.002s194.52-61.427 332.733 35.833 271.306-35.833 271.306-35.833z" fill="#EA5D5C" p-id="4160"></path><path d="M826.444 85.794L770.34 15.562A40.952 40.952 0 0 0 738.398 0.205H285.88a40.952 40.952 0 0 0-31.942 15.357l-56.104 70.232a61.428 61.428 0 0 0-13.514 38.29v778.084a61.428 61.428 0 0 0 8.395 31.124l40.952 70.232A40.952 40.952 0 0 0 269.09 1024h485.688a40.952 40.952 0 0 0 35.424-20.476l40.951-70.232a61.428 61.428 0 0 0 8.396-31.124V124.084a61.428 61.428 0 0 0-13.105-38.29zM225.271 867.769V634.753a238.954 238.954 0 0 1 237.111 5.529 365.29 365.29 0 0 0 184.284 58.765 233.63 233.63 0 0 0 150.907-55.285V867.77H224.248zM798.597 156.23v224.007c-81.904 88.455-185.307 94.189-315.33 17.2a277.449 277.449 0 0 0-257.996-15.562V156.64h573.326zM225.27 427.332a239.159 239.159 0 0 1 237.111 5.529 365.29 365.29 0 0 0 184.284 58.765 233.63 233.63 0 0 0 150.907-55.284v151.316c-81.904 88.456-185.307 94.19-315.329 17.2a277.449 277.449 0 0 0-257.996-15.561V427.332zM286.7 41.157h452.108l56.104 70.232a20.476 20.476 0 0 1 2.252 3.89h-569.64a20.476 20.476 0 0 1 2.253-3.89z m468.694 941.891H269.295l-40.952-70.232a20.476 20.476 0 0 1-1.638-4.095h571.073a20.476 20.476 0 0 1-1.638 4.095z" fill="#3F4651" p-id="4161"></path></svg>
+
+                </p>
+                <strong>1个月快乐</strong>
+            </div>
+            <div class="block-content block-content-full">
+              <span class="btn btn-primary">
+                <i class="fa fa-arrow-up opacity-50 me-1"></i> 购买
+              </span>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <a class="block block-link-pop block-rounded block-bordered text-center" href="javascript:select_payment(2)">
+            <div class="block-header">
+                <h3 class="block-title">包季VIP</h3>
+            </div>
+            <div class="block-content bg-body-light">
+                <div class="h1 fw-bold mb-2">￥{:config('sys.vip_price_2')}</div>
+                <div class="fw-medium text-muted mb-4">每 3 月</div>
+            </div>
+            <div class="block-content">
+                <p>
+                    <svg t="1642757922976" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4157" width="200" height="200"><path d="M202.134 122.241H820.71V889.27H202.134z" fill="#FFFFFF" p-id="4158"></path><path d="M820.71 889.269H202.135l59.79 116.098 504.935-1.843 53.852-114.255zM268.68 23.343h482.822l71.666 98.898H202.134l66.546-98.898z" fill="#4C66AF" p-id="4159"></path><path d="M805.968 400.918a242.64 242.64 0 0 1-293.42 27.233c-170.564-97.26-303.657-13.719-303.657-13.719v198.002s194.52-61.427 332.733 35.833 271.306-35.833 271.306-35.833z" fill="#EA5D5C" p-id="4160"></path><path d="M826.444 85.794L770.34 15.562A40.952 40.952 0 0 0 738.398 0.205H285.88a40.952 40.952 0 0 0-31.942 15.357l-56.104 70.232a61.428 61.428 0 0 0-13.514 38.29v778.084a61.428 61.428 0 0 0 8.395 31.124l40.952 70.232A40.952 40.952 0 0 0 269.09 1024h485.688a40.952 40.952 0 0 0 35.424-20.476l40.951-70.232a61.428 61.428 0 0 0 8.396-31.124V124.084a61.428 61.428 0 0 0-13.105-38.29zM225.271 867.769V634.753a238.954 238.954 0 0 1 237.111 5.529 365.29 365.29 0 0 0 184.284 58.765 233.63 233.63 0 0 0 150.907-55.285V867.77H224.248zM798.597 156.23v224.007c-81.904 88.455-185.307 94.189-315.33 17.2a277.449 277.449 0 0 0-257.996-15.562V156.64h573.326zM225.27 427.332a239.159 239.159 0 0 1 237.111 5.529 365.29 365.29 0 0 0 184.284 58.765 233.63 233.63 0 0 0 150.907-55.284v151.316c-81.904 88.456-185.307 94.19-315.329 17.2a277.449 277.449 0 0 0-257.996-15.561V427.332zM286.7 41.157h452.108l56.104 70.232a20.476 20.476 0 0 1 2.252 3.89h-569.64a20.476 20.476 0 0 1 2.253-3.89z m468.694 941.891H269.295l-40.952-70.232a20.476 20.476 0 0 1-1.638-4.095h571.073a20.476 20.476 0 0 1-1.638 4.095z" fill="#3F4651" p-id="4161"></path></svg>
+                </p>
+                <strong>3个月快乐</strong>
+            </div>
+            <div class="block-content block-content-full">
+              <span class="btn btn-primary">
+                <i class="fa fa-arrow-up opacity-50 me-1"></i> 购买
+              </span>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <a class="block block-link-pop block-rounded block-bordered text-center" href="javascript:select_payment(3)">
+            <div class="block-header">
+                <h3 class="block-title"><i class="fa fa-check"></i> 包季VIP</h3>
+            </div>
+            <div class="block-content bg-body-light">
+                <div class="h1 fw-bold text-primary mb-2">￥{:config('sys.vip_price_3')}</div>
+                <div class="fw-medium text-muted mb-4">每 6 月</div>
+            </div>
+            <div class="block-content">
+                <p>
+                    <svg t="1642757922976" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4157" width="200" height="200"><path d="M202.134 122.241H820.71V889.27H202.134z" fill="#FFFFFF" p-id="4158"></path><path d="M820.71 889.269H202.135l59.79 116.098 504.935-1.843 53.852-114.255zM268.68 23.343h482.822l71.666 98.898H202.134l66.546-98.898z" fill="#4C66AF" p-id="4159"></path><path d="M805.968 400.918a242.64 242.64 0 0 1-293.42 27.233c-170.564-97.26-303.657-13.719-303.657-13.719v198.002s194.52-61.427 332.733 35.833 271.306-35.833 271.306-35.833z" fill="#EA5D5C" p-id="4160"></path><path d="M826.444 85.794L770.34 15.562A40.952 40.952 0 0 0 738.398 0.205H285.88a40.952 40.952 0 0 0-31.942 15.357l-56.104 70.232a61.428 61.428 0 0 0-13.514 38.29v778.084a61.428 61.428 0 0 0 8.395 31.124l40.952 70.232A40.952 40.952 0 0 0 269.09 1024h485.688a40.952 40.952 0 0 0 35.424-20.476l40.951-70.232a61.428 61.428 0 0 0 8.396-31.124V124.084a61.428 61.428 0 0 0-13.105-38.29zM225.271 867.769V634.753a238.954 238.954 0 0 1 237.111 5.529 365.29 365.29 0 0 0 184.284 58.765 233.63 233.63 0 0 0 150.907-55.285V867.77H224.248zM798.597 156.23v224.007c-81.904 88.455-185.307 94.189-315.33 17.2a277.449 277.449 0 0 0-257.996-15.562V156.64h573.326zM225.27 427.332a239.159 239.159 0 0 1 237.111 5.529 365.29 365.29 0 0 0 184.284 58.765 233.63 233.63 0 0 0 150.907-55.284v151.316c-81.904 88.456-185.307 94.19-315.329 17.2a277.449 277.449 0 0 0-257.996-15.561V427.332zM286.7 41.157h452.108l56.104 70.232a20.476 20.476 0 0 1 2.252 3.89h-569.64a20.476 20.476 0 0 1 2.253-3.89z m468.694 941.891H269.295l-40.952-70.232a20.476 20.476 0 0 1-1.638-4.095h571.073a20.476 20.476 0 0 1-1.638 4.095z" fill="#3F4651" p-id="4161"></path></svg>
+                </p>
+                <strong>6个月快乐</strong>
+            </div>
+            <div class="block-content block-content-full">
+              <span class="btn btn-primary">
+                <i class="fa fa-arrow-up opacity-50 me-1"></i> 购买
+              </span>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <a class="block block-link-pop block-rounded block-bordered text-center" href="javascript:select_payment(4)">
+            <div class="block-header">
+                <h3 class="block-title">年费VIP</h3>
+            </div>
+            <div class="block-content bg-body-light">
+                <div class="h1 fw-bold mb-2">￥{:config('sys.vip_price_4')}</div>
+                <div class="fw-medium text-muted mb-4">每 12 月</div>
+            </div>
+            <div class="block-content">
+                <p>
+                    <svg t="1642757922976" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4157" width="200" height="200"><path d="M202.134 122.241H820.71V889.27H202.134z" fill="#FFFFFF" p-id="4158"></path><path d="M820.71 889.269H202.135l59.79 116.098 504.935-1.843 53.852-114.255zM268.68 23.343h482.822l71.666 98.898H202.134l66.546-98.898z" fill="#4C66AF" p-id="4159"></path><path d="M805.968 400.918a242.64 242.64 0 0 1-293.42 27.233c-170.564-97.26-303.657-13.719-303.657-13.719v198.002s194.52-61.427 332.733 35.833 271.306-35.833 271.306-35.833z" fill="#EA5D5C" p-id="4160"></path><path d="M826.444 85.794L770.34 15.562A40.952 40.952 0 0 0 738.398 0.205H285.88a40.952 40.952 0 0 0-31.942 15.357l-56.104 70.232a61.428 61.428 0 0 0-13.514 38.29v778.084a61.428 61.428 0 0 0 8.395 31.124l40.952 70.232A40.952 40.952 0 0 0 269.09 1024h485.688a40.952 40.952 0 0 0 35.424-20.476l40.951-70.232a61.428 61.428 0 0 0 8.396-31.124V124.084a61.428 61.428 0 0 0-13.105-38.29zM225.271 867.769V634.753a238.954 238.954 0 0 1 237.111 5.529 365.29 365.29 0 0 0 184.284 58.765 233.63 233.63 0 0 0 150.907-55.285V867.77H224.248zM798.597 156.23v224.007c-81.904 88.455-185.307 94.189-315.33 17.2a277.449 277.449 0 0 0-257.996-15.562V156.64h573.326zM225.27 427.332a239.159 239.159 0 0 1 237.111 5.529 365.29 365.29 0 0 0 184.284 58.765 233.63 233.63 0 0 0 150.907-55.284v151.316c-81.904 88.456-185.307 94.19-315.329 17.2a277.449 277.449 0 0 0-257.996-15.561V427.332zM286.7 41.157h452.108l56.104 70.232a20.476 20.476 0 0 1 2.252 3.89h-569.64a20.476 20.476 0 0 1 2.253-3.89z m468.694 941.891H269.295l-40.952-70.232a20.476 20.476 0 0 1-1.638-4.095h571.073a20.476 20.476 0 0 1-1.638 4.095z" fill="#3F4651" p-id="4161"></path></svg>
+                </p>
+                <strong>12个月快乐</strong>
+            </div>
+            <div class="block-content block-content-full">
+              <span class="btn btn-primary">
+                <i class="fa fa-arrow-up opacity-50 me-1"></i> 购买
+              </span>
+            </div>
+        </a>
+    </div>
+</div>
+<div class="content-content p-2" id="payment-selector" style="display: none">
+    <div class="text-center fw-semibold fs-sm">请选择支付方式</div>
+    <div class="btn-group btn-group-sm my-2" role="group">
+        {if condition="config('sys.is_qqpay')"}
+        <input type="radio" class="btn-check" name="qqpay" id="qqpay" onclick="ajax_shop_vip('qqpay');">
+        <label class="btn btn-alt-info" for="qqpay">QQ支付</label>
+        {/if}
+        {if condition="config('sys.is_wxpay')"}
+        <input type="radio" class="btn-check" name="wxpay" id="wxpay" onclick="ajax_shop_vip('wxpay');">
+        <label class="btn btn-alt-info" for="wxpay">微信支付</label>
+        {/if}
+        {if condition="config('sys.is_alipay')"}
+        <input type="radio" class="btn-check" name="alipay" id="alipay" onclick="ajax_shop_vip('alipay');">
+        <label class="btn btn-alt-info" for="alipay">支付宝支付</label>
+        {/if}
+        <input type="radio" class="btn-check" name="ypay" id="ypay" onclick="ajax_shop_vip('ypay');">
+        <label class="btn btn-alt-info" for="ypay">余额支付</label>
+    </div>
+    <input type="hidden" id="shopid">
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function select_payment(shopid) {
+        $('#shopid').val(shopid);
+        layer.open({
+            type: 1,
+            shade: false,
+            title: false,
+            content: $('#payment-selector'),
+            cancel: function(){
+                x.notify('交易取消', 'warning');
+            },
+        });
+    }
+
+    function ajax_shop_vip(pay_type)
+    {
+        const shopid = x.getval('#shopid');
+        x.ajax('/index/ajax/shop/buy', {shop: 'vip', shopid: shopid, pay_type: pay_type}, function (data) {
+            if (data.code == 1) {
+                layer.closeAll();
+                layer.confirm(data.message, {
+                    btn: ['确定', '取消'],
+                    closeBtn: 0,
+                }, function () {
+                    window.location.href = data.data.success;
+                })
+            } else {
+                x.notify(data.message, 'warning');
+                layer.closeAll();
+            }
+        })
+    }
+</script>
+{/block}

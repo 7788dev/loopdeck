@@ -1,0 +1,1 @@
+(function hitokoto(){var hitokoto="无名小卒，还是名扬天下。";var dom=document.querySelector('#hitokoto');Array.isArray(dom)?dom[0].innerText=hitokoto:dom.innerText=hitokoto;})()

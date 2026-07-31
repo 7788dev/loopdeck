@@ -1,0 +1,57 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<style>
+    th, td {
+        white-space: nowrap;
+    }
+</style>
+
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title">{$webTitle} <small>删除分站前请先更新站点数据</small></h3>
+        <button type="button" class="btn btn-sm btn-alt-info me-1 mb-1" onclick="ajax_add_site();">
+            <i class="fa fa-plus opacity-50 me-1"></i>添加分站
+        </button>
+    </div>
+    <div class="block-content block-content-full">
+        <table class="table table-bordered table-striped table-vcenter js-dataTable-responsive" id="sitesList">
+        </table>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="/static/js/plugins/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
+
+<script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
+
+<script src="/static/js/admin_sitesList_datatables.js"></script>
+
+<script>
+    function ajax_add_site() {
+        layer.open({
+            title: "添加分站",
+            btn: ['添加', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            area: ['50%', '50%'],
+            content: '<form id="add-form"><div class="row"><div class="col-lg-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="user_id" name="user_id" placeholder="."><label class="form-label" for="uid">开通UID</label></div></div><div class="col-lg-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="domain" name="domain" placeholder="."><label class="form-label" for="domain">网站域名</label></div></div></div><div class="row"><div class="col-lg-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="webname" name="webname" placeholder="."><label class="form-label" for="webname">网站名称</label></div></div><div class="col-lg-6"><div class="form-floating mb-4"><input type="number" class="form-control" id="user_qq" name="user_qq" placeholder="."><label class="form-label" for="user_qq">站长QQ</label></div></div></div><div class="row"><div class="col-lg-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="mail" name="mail" placeholder="."><label class="form-label" for="mail">联系邮箱</label></div></div><div class="col-lg-6"><div class="form-floating mb-4"><input type="date" class="form-control" id="end_time" name="end_time" placeholder="."><label class="form-label" for="end_time">到期时间</label></div></div></div></form>',
+            yes: function (index, dom) {
+                x.ajax('/admin/ajax/data/add/site', $('#add-form').serialize(), function (data) {
+                    if (data.code == 1) {
+                        var table = $("#sitesList").DataTable();
+                        table.ajax.reload();
+                        layer.closeAll();
+                        layer.msg(data.message);
+                    } else {
+                        layer.msg(data.message);
+                    }
+                })
+            },
+        });
+    }
+</script>
+{/block}

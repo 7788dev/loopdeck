@@ -1,0 +1,138 @@
+<!Doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1.0" name="viewport">
+    <title>OneTool - 程序安装</title>
+    <meta content="{:config('web.description')}" name="description">
+    <link href="/favicon.ico" rel="shortcut icon">
+    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800&display=swap" rel="stylesheet">
+    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
+</head>
+<body>
+<div id="page-container" class="main-content-boxed">
+    <main id="main-container">
+        <div class="bg-body-light hero-bubbles">
+            <span class="hero-bubble hero-bubble-lg bg-primary" style="top: 20%; left: 10%;"></span>
+            <span class="hero-bubble bg-success" style="top: 20%; left: 80%;"></span>
+            <span class="hero-bubble hero-bubble-sm bg-corporate" style="top: 40%; left: 25%;"></span>
+            <span class="hero-bubble hero-bubble-lg bg-pulse" style="top: 30%; left: 90%;"></span>
+            <span class="hero-bubble bg-danger" style="top: 40%; left: 20%;"></span>
+            <span class="hero-bubble bg-warning" style="top: 60%; left: 25%;"></span>
+            <span class="hero-bubble bg-info" style="top: 60%; left: 80%;"></span>
+            <span class="hero-bubble hero-bubble-lg bg-flat" style="top: 75%; left: 70%;"></span>
+            <span class="hero-bubble hero-bubble-lg bg-earth" style="top: 75%; left: 10%;"></span>
+            <span class="hero-bubble bg-elegance" style="top: 90%; left: 90%;"></span>
+            <div class="row g-0 justify-content-center position-relative">
+                <div class="hero-static col-lg-7">
+                    <div class="content content-full overflow-hidden">
+                        <div class="py-5 text-center">
+                            <a class="link-fx fw-bold" href="index.html">
+                                <i class="fa fa-fire"></i>
+                                <span class="fs-4 text-body-color">One</span><span class="fs-4">Tool</span>
+                            </a>
+                            <h1 class="h3 fw-bold mt-5 mb-2">欢迎来到 OneTool 安装界面</h1>
+                            <h2 class="fs-base fw-medium text-muted mb-0">本地安装过程不会连接任何授权服务器</h2>
+                        </div>
+                        <form class="js-validation-installation" onsubmit="return false;" id="install-form">
+                            <div class="block block-rounded block-fx-shadow">
+                                <div class="block-content">
+                                    <h2 class="content-heading pt-3">数据库配置</h2>
+                                    <div class="row items-push">
+                                        <div class="col-lg-4">
+                                            <p class="text-muted">
+                                                请正确填写数据库各项配置信息，以确保程序能够成功安装。
+                                            </p>
+                                        </div>
+                                        <div class="col-lg-6 offset-lg-1">
+                                            <div class="mb-4">
+                                                <label class="form-label" for="install-db-hostname">数据库地址</label>
+                                                <input type="text" class="form-control form-control-lg" id="install-db-hostname" name="install-db-hostname" placeholder="请输入您的数据库地址" value="127.0.0.1">
+                                            </div>
+                                            <div class="mb-4">
+                                                <label class="form-label" for="install-db-hostport">数据库端口</label>
+                                                <input type="text" class="form-control form-control-lg" id="install-db-hostport" name="install-db-hostport" placeholder="请输入您的数据库端口" value="3306">
+                                            </div>
+                                            <div class="mb-4">
+                                                <label class="form-label" for="install-db-database">数据库名称</label>
+                                                <input type="text" class="form-control form-control-lg" id="install-db-database" name="install-db-database" placeholder="请输入您的数据库名称">
+                                            </div>
+                                            <div class="mb-4">
+                                                <label class="form-label" for="install-db-username">数据库用户名</label>
+                                                <input type="text" class="form-control form-control-lg" id="install-db-username" name="install-db-username" placeholder="请输入您的数据库用户名">
+                                            </div>
+                                            <div class="mb-4">
+                                                <label class="form-label" for="install-db-password">数据库密码</label>
+                                                <input type="password" class="form-control form-control-lg" id="install-db-password" name="install-db-password" placeholder="请输入您的数据库密码">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="block-content">
+                                    <h2 class="content-heading pt-3">管理员账号配置</h2>
+                                    <div class="row items-push">
+                                        <div class="col-lg-4">
+                                            <p class="text-muted">
+                                                请输入你的联系QQ和账号密码来创建管理员账户。
+                                            </p>
+                                        </div>
+                                        <div class="col-lg-6 offset-lg-1">
+                                            <div class="mb-4">
+                                                <label class="form-label" for="install-admin-qq">联系QQ</label>
+                                                <input type="number" class="form-control form-control-lg" id="install-admin-qq" name="install-admin-qq">
+                                            </div>
+                                            <div class="mb-4">
+                                                <label class="form-label" for="install-admin-username">用户名</label>
+                                                <input type="text" class="form-control form-control-lg" id="install-admin-username" name="install-admin-username">
+                                            </div>
+                                            <div class="mb-4">
+                                                <label class="form-label" for="install-admin-password">密码</label>
+                                                <input type="password" class="form-control form-control-lg" id="install-admin-password" name="install-admin-password">
+                                            </div>
+                                            <div class="mb-4">
+                                                <label class="form-label" for="install-admin-password-confirm">确认密码</label>
+                                                <input type="password" class="form-control form-control-lg" id="install-admin-password-confirm" name="install-admin-password-confirm">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="block-content">
+                                    <div class="row mb-4">
+                                        <div class="col-lg-6 offset-lg-5">
+                                            <button type="submit" class="btn btn-primary mb-2" onclick="install();">
+                                                <i class="fa fa-arrow-right opacity-50 me-1"></i> 安装
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="/static/js/codebase.app.min-5.0.js"></script>
+<script src="/static/js/lib/jquery.min.js"></script>
+<script src="/static/js/plugins/bootstrap-notify/bootstrap-notify.min.js"></script>
+<script src="/static/js/app.min.js"></script>
+<script src="/static/js/layer.js"></script>
+<script>
+    function install() {
+        x.ajax('/install/index/install', $('#install-form').serialize(), function (data) {
+            if (data.code == 0) {
+                layer.confirm("安装程序成功，点击确认跳转", {
+                    btn: '确认',
+                    closeBtn: 0,
+                    btnAlign: "c",
+                    yes: function (b) {
+                        window.location.href = "/index/index";
+                    }
+                })
+            } else {
+                x.notify(data.message, 'warning', 'center');
+            }
+        });
+    }
+</script>

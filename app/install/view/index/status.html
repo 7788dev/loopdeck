@@ -1,0 +1,89 @@
+<!Doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1.0" name="viewport">
+    <title>OneTool - 程序安装</title>
+    <meta content="{:config('web.description')}" name="description">
+    <link href="/favicon.ico" rel="shortcut icon">
+    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800&display=swap" rel="stylesheet">
+    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
+</head>
+<body>
+<div id="page-container" class="main-content-boxed">
+    <main id="main-container">
+        <div class="bg-body-light">
+            <div class="row g-0 justify-content-center">
+                <div class="hero-static col-lg-7">
+                    <div class="content content-full overflow-hidden">
+                        <div class="py-5 text-center">
+                            <a class="link-fx fw-bold" href="index.html">
+                                <i class="fa fa-fire"></i>
+                                <span class="fs-4 text-body-color">One</span><span class="fs-4">Tool</span>
+                            </a>
+                            <h1 class="h2 fw-bold mt-5 mb-2">环境检测</h1>
+                            <h2 class="fs-base fw-medium text-muted mb-0">检测系统环境是否支持该程序运行</h2>
+                        </div>
+                        <div class="row g-0 d-flex justify-content-center">
+                            <div class="col-md-10 col-xl-7">
+                                <div class="d-flex justify-content-start">
+                                    <a class="btn btn-alt-primary" href="javascript:window.location.href='about:blank';window.close();">
+                                        <i class="fa fa-fw fa-arrow-left opacity-50 me-1"></i> 我不装了
+                                    </a>
+                                </div>
+                                <hr>
+                                {php}
+                                function checkfunc($f, $m = false)
+                                {
+                                    if (function_exists($f)) {
+                                        return '<span class="badge rounded-pill bg-success">正常</span>';
+                                    } else {
+                                        if ($m == false) {
+                                            return '<span class="badge rounded-pill bg-warning">不支持</span>';
+                                        } else {
+                                            return '<span class="badge rounded-pill bg-danger">不支持</span>';
+                                        }
+                                    }
+                                }
+                                {/php}
+                                <div class="alert alert-secondary d-flex align-items-center justify-content-between mb-3" role="alert">
+                                    <div class="flex-fill me-2">
+                                        <p class="mb-0">请阅读以下内容并尝试修改环境配置，确认无误后刷新网页即可正常安装</p>
+                                    </div>
+                                    <div class="flex-shrink-0">
+                                        <i class="fa fa-fw fa-2x fa-bug"></i>
+                                    </div>
+                                </div>
+                                {if condition="version_compare(PHP_VERSION, '8.0.0', '<')"}
+                                <div class="alert alert-warning d-flex align-items-center justify-content-between mb-3" role="alert">
+                                    <div class="flex-fill me-2">
+                                        <p class="mb-0">请使用PHP8.0版本运行此程序！</p>
+                                    </div>
+                                    <div class="flex-shrink-0">
+                                        <i class="fa fa-fw fa-2x fa-exclamation-triangle"></i>
+                                    </div>
+                                </div>
+                                {/if}
+                                <ul class="list-group push">
+                                    <li class="list-group-item d-flex justify-content-between align-items-center fw-semibold">
+                                        curl_exec 函数
+                                        {:checkfunc('curl_exec', true)}
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center fw-semibold">
+                                        file_get_contents 函数
+                                        {:checkfunc('file_get_contents', true)}
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="/static/js/codebase.app.min-5.0.js"></script>
+<script src="/static/js/lib/jquery.min.js"></script>
+<script src="/static/js/plugins/bootstrap-notify/bootstrap-notify.min.js"></script>
+<script src="/static/js/app.min.js"></script>
+<script src="/static/js/layer.js"></script>

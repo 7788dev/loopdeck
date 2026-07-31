@@ -1,0 +1,104 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-md-6">
+        <div class="block block-rounded h-100 mb-0">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">账号添加 （请使用米游社账号登录）</h3>
+            </div>
+            <div class="block-content">
+                <form onsubmit="return false;" id="login-form">
+                    <div class="mb-4">
+                        <label class="form-label" for="login-username">账号</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                              <i class="far fa-user"></i>
+                            </span>
+                            <input type="text" class="form-control" id="login-username" name="login-username" placeholder="请输入账号">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="login-password">密码</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                              <i class="far fa-surprise"></i>
+                            </span>
+                            <input type="password" class="form-control" id="login-password" name="login-password" placeholder="请输入密码">
+                        </div>
+                    </div>
+
+                    <div class="mb-4" id="captcha-container" style="display: none">
+                        <label class="form-label" for="login-password">人机验证</label>
+                        <div id="captcha">
+                            <input type="hidden" id="login-key">
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <button type="submit" class="btn btn-alt-primary" id="login">
+                            <i class="fa fa-arrow-right opacity-50 me-1"></i> 登录
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    var handler = function (captchaObj) {
+        captchaObj.onReady(function () {}).onSuccess(function () {
+            var result = captchaObj.getValidate();
+            var username = x.getval('#login-username', '请先输入账号！');
+            var password = x.getval('#login-password', '请先输入密码！');
+            var key = x.getval('#login-key', '参数错误！');
+            if (!result) {
+                return x.notify('请先完成人机验证', 'warning');
+            }
+            var result_data ={
+                username: username,
+                password: password,
+                key: key,
+                geetest_challenge: result.geetest_challenge,
+                geetest_validate: result.geetest_validate,
+                geetest_seccode: result.geetest_seccode,
+            }
+            x.ajax('/index/test/login2', result_data, function (data) {
+                if(data.code == 1) {
+                    x.notify(data.message, 'success');
+                    setTimeout(function () {
+                        window.location.href = "{:url(\"/index/console/mihoyo/list\")}";
+                    }, 1000)
+                } else {
+                    x.notify(data.message, 'warning');
+                }
+            });
+        });
+        $('#login').click(function () {
+            var username = x.getval('#login-username', '请先输入账号！');
+            if (!username) return;
+            var password = x.getval('#login-password', '请先输入密码！');
+            if (!password) return;
+            var key = x.getval('#login-key', '参数错误！');
+            if (!key) return;
+            captchaObj.verify();
+        });
+    };
+
+    x.ajax('/index/test/getGeetest?t=' + (new Date()).getTime(), undefined , function (data) {
+        initGeetest({
+            gt: data.gt,
+            challenge: data.challenge,
+            offline: false, // 表示用户后台检测极验服务器是否宕机
+            new_captcha: true, // 用于宕机时表示是新验证码的宕机
+            product: "bind", // 产品形式，包括：float，popup
+            width: "auto",
+            https: true
+        }, handler);
+        $('#login-key').val(data.mmt_key);
+    });
+</script>
+{/block}
+

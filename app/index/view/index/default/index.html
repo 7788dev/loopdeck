@@ -1,0 +1,376 @@
+<!Doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1.0" name="viewport">
+    <title>{:config('web.webname')} - {:config('web.title')}</title>
+    <meta content="{:config('web.keywords')}" name="keywords">
+    <meta content="{:config('web.description')}" name="description">
+    <link href="/favicon.ico" rel="shortcut icon">
+    <!--    <link href="/static/media/favicons/favicon-192x192.png" rel="icon" sizes="192x192" type="image/png">-->
+    <!--    <link href="/static/media/favicons/apple-touch-icon-180x180.png" rel="apple-touch-icon" sizes="180x180">-->
+    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800&display=swap" rel="stylesheet">
+    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
+</head>
+<body>
+<div class="sidebar-dark side-scroll page-header-fixed page-header-glass main-content-boxed" id="page-container">
+    <nav id="sidebar">
+        <div class="sidebar-content">
+            <div class="content-header justify-content-lg-center bg-black-10">
+                <div>
+                    <span class="smini-visible fw-bold tracking-wide fs-lg">
+                      o<span class="text-primary">t</span>
+                    </span>
+                    <a class="link-fx fw-bold tracking-wide mx-auto" href="index.html">
+                      <span class="smini-hidden">
+                        <i class="fa fa-fire text-primary"></i>
+                        <span class="fs-4 text-dual">{:config('web.webname')}</span>
+                      </span>
+                    </a>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-alt-danger d-lg-none" data-action="sidebar_close" data-toggle="layout"
+                            type="button">
+                        <i class="fa fa-fw fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="js-sidebar-scroll">
+                <div class="content-side content-side-full">
+                    <ul class="nav-main">
+                        <li class="nav-main-item">
+                            <a class="nav-main-link active" href="index.html">
+                                <i class="nav-main-link-icon fa fa-home"></i>
+                                <span class="nav-main-link-name">首页</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <header id="page-header">
+        <div class="content-header">
+            <div class="space-x-1">
+                <a class="link-fx fw-bold" href="index.html">
+                    <i class="fa fa-rocket text-primary"></i>
+                    <span class="fs-4 text-dual">{:config('web.webname')}</span>
+                </a>
+            </div>
+            <div class="d-flex align-items-center space-x-2">
+                <ul class="nav-main nav-main-horizontal nav-main-hover d-none d-lg-block">
+                    <li class="nav-main-item">
+                        <a class="nav-main-link active" href="#home">
+                            <i class="nav-main-link-icon fa fa-home"></i>
+                            <span class="nav-main-link-name">首页</span>
+                        </a>
+                    </li>
+                </ul>
+                <div class="dropdown d-inline-block">
+                    <button aria-expanded="false" aria-haspopup="true" class="btn btn-sm btn-alt-secondary"
+                            data-bs-auto-close="outside" data-bs-toggle="dropdown" id="page-header-themes-dropdown"
+                            type="button">
+                        <i class="fa fa-paint-brush"></i>
+                    </button>
+                    <div aria-labelledby="page-header-themes-dropdown" class="dropdown-menu dropdown-menu-end">
+                        <h6 class="dropdown-header text-center">界面颜色</h6>
+                        <div class="row g-0 text-center">
+                            <div class="col-4 mb-1">
+                                <a class="text-default" data-theme="default" data-toggle="theme"
+                                   href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                            <div class="col-4 mb-1">
+                                <a class="text-elegance" data-theme="/static/css/themes/elegance.min-5.0.css"
+                                   data-toggle="theme" href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                            <div class="col-4 mb-1">
+                                <a class="text-pulse" data-theme="/static/css/themes/pulse.min-5.0.css"
+                                   data-toggle="theme" href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                            <div class="col-4 mb-1">
+                                <a class="text-flat" data-theme="/static/css/themes/flat.min-5.0.css"
+                                   data-toggle="theme" href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                            <div class="col-4 mb-1">
+                                <a class="text-corporate" data-theme="/static/css/themes/corporate.min-5.0.css"
+                                   data-toggle="theme" href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                            <div class="col-4 mb-1">
+                                <a class="text-earth" data-theme="/static/css/themes/earth.min-5.0.css"
+                                   data-toggle="theme" href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="overlay-header bg-primary" id="page-header-loader">
+            <div class="content-header">
+                <div class="w-100 text-center">
+                    <i class="far fa-sun fa-spin text-white"></i>
+                </div>
+            </div>
+        </div>
+    </header>
+    <main id="main-container">
+
+        <div class="bg-body-extra-light overflow-hidden bg-image" id="#home"
+             style="background-image: url('{:config('web.index_bg')}');">
+            <div class="hero">
+                <div class="hero-inner">
+                    <div class="content content-full text-center">
+                        <h1 class="display-3 fw-bold text-white mb-2">
+                            {:config('web.webname')}
+                        </h1>
+                        <h4 class="fw-medium text-white-50 mb-5">
+                            {:config('web.title')}
+                        </h4>
+                        {if condition="!session('user')"}
+                        <a class="btn btn-lg btn-alt-info fw-semibold me-1 mb-2 fs-sm" href="{:url('login/login')}">
+                            <i class="si si-login opacity-50 me-1"></i> 登 录
+                        </a>
+                        <a class="btn btn-lg btn-primary fw-semibold mb-2 fs-sm" href="{:url('login/reg')}">
+                            <i class="si si-energy opacity-50 me-1"></i> 注 册
+                        </a>
+                        {else /}
+                        <a class="btn btn-sm btn-alt-primary py-2 px-3" href="{:url('index/console/')}">
+                            <i class="fa fa-arrow-right opacity-50 me-1"></i> 用 户 中 心
+                        </a>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-body-extra-light" id="#features">
+            <div class="content content-full pt-7">
+                <div class="py-5 text-center">
+                    <div class="position-relative">
+                        <span class="text-back">01</span>
+                        <h2 class="fw-bold mb-2 text-center">
+                            我们的 <span class="text-primary">特色</span>
+                        </h2>
+                        <h3 class="h4 fw-medium text-muted text-center mb-5">
+                            提供快速专业的服务
+                        </h3>
+                    </div>
+                    <div class="position-relative">
+                        <div class="content content-full">
+                            <div class="row g-0 justify-content-center text-center py-5">
+                                <div class="col-xl-4">
+                                    <div class="w-100 py-4">
+                                        <div class="rounded p-1 mb-4">
+                                            <div class="d-inline-block bg-corporate-lighter rounded p-4">
+                                                <i class="fa fa-cubes fa-2x text-corporate"></i>
+                                            </div>
+                                        </div>
+                                        <h3 class="h4 fw-bold mb-1">
+                                            高效云端
+                                        </h3>
+                                        <p class="fw-medium text-muted mb-0 mt-1">
+                                            同步更新项目最新接口<br>
+                                            比外包的云任务平台更安全更稳定<br>
+                                            彻底杜绝重复签到 重复运行<br>
+                                            高度模拟真人执行任务
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="col-xl-4">
+                                    <div class="w-100 py-4">
+                                        <div class="rounded p-1 mb-4">
+                                            <div class="d-inline-block bg-pulse-lighter rounded p-4">
+                                                <i class="fa fa-code fa-2x text-pulse"></i>
+                                            </div>
+                                        </div>
+                                        <h3 class="h4 fw-bold mb-1">
+                                            原创程序
+                                        </h3>
+                                        <p class="fw-medium text-muted mb-0">
+                                            用户界面简单易懂人性化<br>
+                                            自研开发程序 稳定更新 <br>
+                                            实时反馈程序问题 快速修复<br>
+                                            本地部署，账号数据由你自己掌控
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="col-xl-4">
+                                    <div class="w-100 py-4">
+                                        <div class="rounded p-1 mb-4">
+                                            <div class="d-inline-block bg-elegance-lighter rounded p-4">
+                                                <i class="fa fa-rocket fa-2x text-elegance"></i>
+                                            </div>
+                                        </div>
+                                        <h3 class="h4 fw-bold mb-1">
+                                            分布式架构
+                                        </h3>
+                                        <p class="fw-medium text-muted mb-0">
+                                            分布式系统架构 分布式监控系统<br>
+                                            24小时不间断 完美放手托管<br>
+                                            服务器秒级切换 轻松离线挂机<br>
+                                            故障不影响整体运行 确保24小时稳定
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-body-light">
+            <div class="content content-full">
+                <div class="pt-7 pb-5">
+                    <div class="position-relative">
+                        <span class="text-back">02</span>
+                        <h2 class="fw-bold text-center mb-2">
+                            高品质 <span class="text-primary">设计</span>
+                        </h2>
+                        <h3 class="h4 fw-medium text-muted text-center mb-5">
+                            这不仅关乎数量，更重要的是质量。
+                        </h3>
+                    </div>
+                    <div class="row g-6 py-2">
+                        <div class="col-md-4 py-3">
+                            <h4 class="fw-bold mb-2">
+                                <i class="fa fa-heart text-pulse me-1"></i>
+                                稳定实时
+                            </h4>
+                            <p class="fw-medium text-muted mb-0">
+                                消息队列分发机制，单独实时监控系统，多通道智能路由技术，功能一键开启无等待
+                            </p>
+                        </div>
+                        <div class="col-md-4 py-3">
+                            <h4 class="fw-bold mb-2">
+                                <i class="fa fa-compress text-corporate me-1"></i>
+                                简单好用
+                            </h4>
+                            <p class="fw-medium text-muted mb-0">
+                                10秒申请账号，1分钟完成功能设置，完善的数据统计，全自助操作后台
+                            </p>
+                        </div>
+                        <div class="col-md-4 py-3">
+                            <h4 class="fw-bold mb-2">
+                                <i class="far fa-circle text-gray me-1"></i>
+                                专业团队
+                            </h4>
+                            <p class="fw-medium text-muted mb-0">
+                                原创程序，比外包的云任务平台更安全更稳定，持续不断的维护和增加更多功能
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-body-extra-light">
+            <div class="content content-full">
+                <div class="pt-7 pb-5">
+                    <div class="position-relative">
+                        <span class="text-back">03</span>
+                        <h2 class="fw-bold text-center mb-2">
+                            TA们都在使用 <span class="text-primary">{:config('web.webname')}</span>
+                        </h2>
+                        <h3 class="h4 fw-medium text-muted text-center mb-5">
+                            极致的享受
+                        </h3>
+                    </div>
+                    <div class="row">
+                        {volist name="users" id="vo"}
+                        <div class="col-md-6 col-xl-3">
+                            <a class="block block-rounded block-link-shadow" href="javascript:void(0)">
+                                <div class="block-content block-content-full text-center">
+                                    <div class="p-3 mb-2">
+                                        <img src="//q4.qlogo.cn/headimg_dl?dst_uin={$vo.qq}&spec=100"
+                                             class="img-avatar">
+                                    </div>
+                                    <p class="fs-lg fw-semibold mb-0">
+                                        {$vo.nickname}
+                                    </p>
+                                </div>
+                            </a>
+                        </div>
+                        {/volist}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-image" id="#about" style="background-image: url('/static/media/photos/photo26@2x.jpg');">
+            <div class="bg-black-75">
+                <div class="content content-top text-center">
+                    <div class="py-7">
+                        <h1 class="fw-bold text-white mb-2">运营 {$timeCount} 天</h1>
+                        <h2 class="h4 fw-normal text-white-75">我们正在为 {$userCount} 位 用户提供服务</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-body-light">
+            <div class="content content-full">
+                <div class="py-5 text-center">
+                    <h3 class="fw-bold mb-2">坚持你的梦想</h3>
+                    <h4 class="fw-normal text-muted mb-4">永远相信美好的事情 即将发生</h4>
+                    <a class="btn btn-alt-primary" href="{:url('login/login')}">加入我们</a>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="bg-body-extra-light" id="page-footer">
+        <div class="content content-full">
+            <div class="row g-0 fs-sm border-top pt-3">
+                <div class="col-sm-6 order-sm-2 py-1 text-center text-sm-end">
+                    &copy; <span data-toggle="year-copy"></span> <a class="fw-semibold" href="#" target="_blank">{:config('web.webname')}</a>
+                    <!--                    Crafted with <i class="fa fa-heart text-danger"></i> by <a class="fw-semibold" href="#" target="_blank">God-Team</a>-->
+
+                </div>
+                <div class="col-sm-6 order-sm-1 py-1 text-center text-sm-start">
+                    <a href="https://beian.miit.gov.cn/" target="_blank" class="text-muted fw-semibold">{:config('web.icp')}</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</div>
+<script src="/static/js/codebase.app.min-5.0.js"></script>
+<script>
+    (function () {
+        var bp = document.createElement('script');
+        var curProtocol = window.location.protocol.split(':')[0];
+        if (curProtocol === 'https') {
+            bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
+        } else {
+            bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+        }
+        var s = document.getElementsByTagName("script")[0];
+        s.parentNode.insertBefore(bp, s);
+    })();
+    var _hmt = _hmt || [];
+    (function () {
+        var hm = document.createElement("script");
+        hm.src = "https://hm.baidu.com/hm.js?40b758abd81264c7adc13c09d695584c";
+        var s = document.getElementsByTagName("script")[0];
+        s.parentNode.insertBefore(hm, s);
+    })();
+    (function () {
+        var src = "https://jspassport.ssl.qhimg.com/11.0.1.js?d182b3f28525f2db83acfaaf6e696dba";
+        document.write('<script src="' + src + '" id="sozz"><\/script>');
+    })();
+</script>
+</body>
+</html>

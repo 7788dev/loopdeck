@@ -1,0 +1,80 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title">{$webTitle}</h3>
+        <div class="mb-0">
+            <button type="submit" class="btn btn-sm btn-alt-primary" onclick="ajax_edit_config();">
+                <i class="fa fa-save opacity-50 me-1"></i> 保存
+            </button>
+        </div>
+    </div>
+    <div class="block-content">
+        <form id="mail-form" onsubmit="return false;">
+            <div class="row push">
+                <div class="col-lg-4">
+                    <p class="text-muted">
+                        你可以在这里配置邮箱信息，找回密码需要
+                    </p>
+                </div>
+                <div class="col-lg-8 col-xl-5">
+                    <div class="mb-4">
+                        <label class="form-label">失效提醒</label>
+                        <select class="form-select" id="mail_invalid" name="mail_invalid" default="{:config('sys.mail_invalid')}">
+                            <option value="0">关闭</option>
+                            <option value="1" {if condition="config('sys.mail_invalid') eq 1" }selected  {/if}>开启</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="mail_smtp">SMTP服务器</label>
+                        <input class="form-control" id="mail_smtp" name="mail_smtp" placeholder="SMTP服务器"
+                               type="text" value="{:config('sys.mail_smtp')}">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="mail_port">发信端口</label>
+                        <input class="form-control" id="mail_port" name="mail_port" placeholder="发信端口"
+                               type="text" value="{:config('sys.mail_port')}">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="mail_name">发信邮箱</label>
+                        <input class="form-control" id="mail_name" name="mail_name" placeholder="发信邮箱"
+                               type="text" value="{:config('sys.mail_name')}">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="mail_pwd">发信密码</label>
+                        <input class="form-control" id="mail_pwd" name="mail_pwd" placeholder="发信密码"
+                               type="text" value="{:config('sys.mail_pwd')}">
+                    </div>
+                    <button type="submit" class="btn btn-primary" onclick="ajax_testSendMail();">
+                   <i class="fa fa-paper-plane opacity-50 me-1"></i> 测试发信
+                  </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_edit_config() {
+        x.ajax('/admin/ajax/set/config', $('#mail-form').serialize(), function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+    
+    function ajax_testSendMail() {
+        x.ajax('/admin/ajax/set/testSendMail', $('#mail-form').serialize(), function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+</script>
+{/block}

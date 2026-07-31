@@ -1,0 +1,86 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-md-6">
+        <div class="block block-rounded h-100 mb-0">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">扫码添加</h3>
+                <div class="block-options">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="ajax_iqiyi_qrlogin();">扫码完成，点击验证</button>
+                </div>
+            </div>
+            <div class="block-content text-center">
+                <div class="alert alert-primary d-flex align-items-center" role="alert">
+                    <i class="si si-magic-wand me-2"></i>
+                    <p class="mb-0" id="qr-alert">点击图片即可获取二维码</p>
+                </div>
+                <div class="block" id="qr-img" token="">
+                    <p class="mt-4">
+                        <i class="si si-camera fa-4x text-muted"></i>
+                    </p>
+                </div>
+            </div>
+            {if condition="isMobile()"}
+            <hr>
+            <div class="block-content block-content-full block-content-sm text-center" onclick="mloginurl()">
+                <button type="button" class="btn btn-alt-primary me-1 fs-xs">跳转到爱奇艺APP登录</button>
+            </div>
+            {/if}
+        </div>
+    </div>
+    <div class="col-md-6 mt-1">
+        <div class="alert alert-info d-flex align-items-center justify-content-between" role="alert">
+            <p class="mb-0">
+                登录成功后若是网页版爱奇艺，请在登录后重新添加一次账号，避免功能无法正常运行
+            </p>
+            <i class="fa fa-fw fa-info ms-2"></i>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    $('#qr-img').click(function () {
+        x.ajax('/index/ajax/iqiyi/getQrimg',null ,function (data) {
+            if (data.code == 1) {
+                $('#qr-img').attr('token', data.data.token);
+                $('#qr-img').html('<img src="data:image/png;base64,'+ data.data.qrimg +'" height="145px;">');
+            }
+        })
+        Codebase.block('state_normal', '#qr-img');
+    });
+
+    function ajax_iqiyi_qrlogin() {
+        var token = $('#qr-img').attr('token');
+        if (!token) return x.notify('请先获取二维码');
+        x.ajax('/index/ajax/iqiyi/qrLogin', {
+            token: token,
+        }, function (data) {
+            if(data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    window.location.href = "{:url(\"/index/console/iqiyi/list\")}";
+                }, 1000)
+            } else if (data.code == 800) {
+                $('#qr-img').click();
+            } else {
+                x.notify(data.message, 'warning')
+                $('#qr-alert').html(data.message);
+            }
+        })
+    }
+
+    function mloginurl() {
+        var token = $('#qr-img').attr('token');
+        if (!token) return x.notify('请先获取二维码');
+        window.location.href='iqiyi://mobile/register_business/qyclient?pluginParams=%257B%2522biz_id%2522%253A%2522103%2522%252C%2522biz_plugin%2522%253A%2522%2522%252C%2522biz_params%2522%253A%257B%2522biz_sub_id%2522%253A69%252C%2522kAuthorizeType%2522%253A1%252C%2522biz_params%2522%253A%2522Code_type%253D0%2526agenttype%253D252%2526token%253D'+token+'%2522%257D%257D';
+    }
+
+    $(function(){
+        Codebase.block('state_loading', '#qr-img');
+    });
+
+</script>
+{/block}
+

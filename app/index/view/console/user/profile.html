@@ -1,0 +1,148 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-12">
+        <div class="content">
+            <div class="block block-rounded">
+                <div class="block-header block-header-default">
+                    <h3 class="block-title">
+                        <i class="fa fa-user-circle me-1 text-muted"></i> 个人资料
+                    </h3>
+                </div>
+                <div class="block-content">
+                    <form id="edit-profile" onsubmit="return false;">
+                        <div class="row items-push">
+                            <div class="col-lg-3">
+                                <p class="text-muted">
+                                    你可以在这里修改你的用户信息
+                                </p>
+                            </div>
+                            <div class="col-lg-7 offset-lg-1">
+                                <div class="mb-4">
+                                    <label class="form-label">用户名</label>
+                                    <input class="form-control form-control-lg" id="username" name="username"
+                                           placeholder="Enter your username.." readonly=""
+                                           type="text" value="{:session('user.username')}">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label">昵称</label>
+                                    <input class="form-control form-control-lg" id="nickname" name="nickname"
+                                           placeholder="Enter your NICKNAME.." type="text"
+                                           value="{:session('user.nickname')}">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label">QQ</label>
+                                    <input class="form-control form-control-lg" id="qq" name="qq"
+                                           placeholder="Enter your QQ.." type="number"
+                                           value="{:session('user.qq')}">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label">邮箱</label>
+                                    <input class="form-control form-control-lg" id="mail" name="mail"
+                                           placeholder="Enter your mail.." type="email"
+                                           value="{:session('user.mail')}">
+                                </div>
+                                <div class="mb-4">
+                                    <button class="btn btn-alt-primary" onclick="ajax_edit_profile();" type="submit">
+                                        更新
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="block block-rounded">
+                <div class="block-header block-header-default">
+                    <h3 class="block-title">
+                        <i class="fa fa-asterisk me-1 text-muted"></i> 修改密码
+                    </h3>
+                </div>
+                <div class="block-content">
+                    <form id="change_PassWord" onsubmit="return false;">
+                        <div class="row items-push">
+                            <div class="col-lg-3">
+                                <p class="text-muted">
+                                    你可以在这里修改登录密码
+                                </p>
+                            </div>
+                            <div class="col-lg-7 offset-lg-1">
+                                <div class="mb-4">
+                                    <label class="form-label">当前密码</label>
+                                    <input class="form-control form-control-lg" id="outpass" name="outpass"
+                                           type="text">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label">新密码</label>
+                                    <input class="form-control form-control-lg" id="password" name="password"
+                                           type="text">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label">确认新密码</label>
+                                    <input class="form-control form-control-lg" id="repass" name="repass"
+                                           type="text">
+                                </div>
+                                <div class="mb-4">
+                                    <button class="btn btn-alt-primary" onclick="ajax_change_PassWord();" type="submit">
+                                        修改
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_edit_profile() {
+        var nickname = x.getval('#nickname', '请先输入昵称！');
+        if (!nickname) return;
+        var qq = x.getval('#qq', '请先输入QQ！');
+        if (!qq) return;
+        var mail = x.getval('#mail', '请先输入邮箱！');
+        if (!mail) return;
+        x.ajax('/index/ajax/user/profile', {
+            nickname: nickname,
+            qq: qq,
+            mail:mail,
+        }, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+
+    function ajax_change_PassWord() {
+        var outpass = x.getval('#outpass', '请输入旧登录密码!');
+        if (!outpass) return;
+        var password = x.getval('#password', '请设置新的登录密码!');
+        if (!password) return;
+        var repass = x.getval('#repass', '请再输入一次新密码!');
+        if (!repass) return;
+        if (password != repass) {
+            x.notify("两次新密码输入不一致!", 'warning');
+            return false;
+        }
+        x.ajax('/index/ajax/user/passWord', {
+            outpass: outpass,
+            password: password,
+            repass: repass,
+        }, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+
+</script>
+{/block}

@@ -1,0 +1,73 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title">{$webTitle}  <span class="text-danger">[ 单位（元） ]</span></h3>
+        <div class="mb-0">
+            <button type="submit" class="btn btn-sm btn-alt-primary" onclick="ajax_edit_config();">
+                <i class="fa fa-save opacity-50 me-1"></i> 保存
+            </button>
+        </div>
+    </div>
+    <div class="block-content">
+        <form onsubmit="return false;" id="agent-form">
+            <div class="row mb-4">
+                <div class="col-6">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="agent_price_1" name="agent_price_1" value="{:config('sys.agent_price_1')}" placeholder="银牌代理价格">
+                        <label class="form-label" for="agent_price_1">银牌代理价格：</label>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="agent_give_z_1" name="agent_give_z_1" value="{:config('sys.agent_give_z_1')}" placeholder="银牌代理折扣">
+                        <label class="form-label" for="agent_give_z_1">银牌提卡折扣：</label>
+                    </div>
+                </div>
+            </div>
+            <div class="row mb-4">
+                <div class="col-6">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="agent_price_2" name="agent_price_2" value="{:config('sys.agent_price_2')}" placeholder="金牌代理价格">
+                        <label class="form-label" for="agent_price_1">金牌代理价格：</label>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="agent_give_z_2" name="agent_give_z_2" value="{:config('sys.agent_give_z_2')}" placeholder="金牌代理折扣">
+                        <label class="form-label" for="agent_give_z_1">金牌提卡折扣：</label>
+                    </div>
+                </div>
+            </div>
+            <div class="row mb-4">
+                <div class="col-6">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="agent_price_3" name="agent_price_3" value="{:config('sys.agent_price_3')}" placeholder="钻石代理价格">
+                        <label class="form-label" for="agent_price_1">钻石代理价格：</label>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="agent_give_z_3" name="agent_give_z_3" value="{:config('sys.agent_give_z_3')}" placeholder="钻石代理折扣">
+                        <label class="form-label" for="agent_give_z_1">钻石提卡折扣：</label>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_edit_config() {
+        x.ajax('/admin/ajax/set/config', $('#agent-form').serialize(), function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+</script>
+{/block}

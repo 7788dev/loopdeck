@@ -1,0 +1,446 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+{php}
+$a_data = unserialize($data['data']); // 反序列化账号数据
+$task = new \app\index\model\Tasks();
+$jobs = new \app\index\model\Jobs();
+$netease = new \netease\Netease($a_data['user_id'], $a_data['csrf'], $a_data['musicu']);
+$info = $netease->getMusicUserInfo();
+$timing = (string)($data['timing'] ?? '');
+$details = [
+'listenSongs' => $info['listenSongs'],
+'level_now' => $info['level'],
+'level_next' => $info['level'] + 1,
+'loginnum' => $info['nextLoginCount']-$info['nowLoginCount'],
+'listennum' => $info['nextPlayCount']-$info['nowPlayCount'],
+];
+{/php}
+<style>
+    td {
+        white-space:nowrap;
+    }
+</style>
+<div class="row">
+    <div class="col-xl-4">
+        <div class="block block-rounded">
+            <div class="block-content">
+                <a class="btn btn-lg btn-alt-primary w-100 mb-1" href="/index/console/netease/add">更新账号</a>
+                <p class="text-center fw-semibold fs-xs text-muted">若账号失效请及时更新</p>
+            </div>
+        </div>
+        <div class="block block-rounded block-link-shadow text-center" href="javascript:void(0)">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">
+                    <i class="fa fa-fw fa-graduation-cap opacity-50"></i>
+                    基本信息
+                </h3>
+            </div>
+            <div class="block-content block-content-full">
+                <div class="push">
+                    <img alt="" class="img-avatar" src="{$a_data.avatar}">
+                </div>
+                <div class="fw-semibold mb-1">{$a_data.nickname} ·
+                    {if condition="$data.state eq 1"}
+                    <span class="text-success">运行中</span>
+                    {else}
+                    <span class="text-danger">已失效</span>
+                    {/if}
+                </div>
+                <div class="fs-sm text-muted">{$info['profile']['signature']}</div>
+                <hr>
+                <div class="mt-1">
+                    <span class="text-muted fs-sm">
+                        挂机时间：<span class="text-success">{$data['timing'] ?? '未设置'}</span>
+                        <a href="javascript:ajax_set_timing('{$a_data[\'user_id\']}', '{$timing}');">设置</a>
+                    </span>
+                </div>
+                <button type="button" class="btn btn-sm btn-alt-primary me-1 mt-2" onclick="ajax_reexecute_task('{$a_data[\'user_id\']}')">
+                    <i class="si si-energy"></i>申请补挂
+                </button>
+            </div>
+        </div>
+        {if condition="$data.state eq 1"}
+        <div class="block block-rounded">
+            <div class="block-header block-header-default text-center">
+                <h3 class="block-title">
+                    <i class="fa fa-fw fa-info opacity-50"></i>
+                    等级信息
+                </h3>
+            </div>
+            <div class="block-content">
+                <table class="table table-borderless table-striped">
+                    <tbody>
+                    <tr>
+                        <td>
+                            <i class="fa fa-fw si si-star opacity-50 me-2"></i>
+                            <span class="fs-sm">当前等级：LV {$details['level_now']}</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <i class="fa fa-fw si si-music-tone-alt opacity-50 me-2"></i>
+                            <span class="fs-sm">累计听歌：{$details['listenSongs']}首</span>
+                        </td>
+                    </tr>
+                    {if condition="$details['level_now'] == 10"}
+                    <tr>
+                        <td class="text-center">
+                            <span class="fs-sm fw-semibold text-muted">太牛了，你的等级已爆表了！</span>
+                        </td>
+                    </tr>
+                    {else /}
+                    <tr>
+                        <td class="text-center">
+                            <span class="fs-sm fw-semibold text-muted">—距升级 LV{$details['level_next']}—</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <i class="fa fa-fw si si-music-tone-alt opacity-50 me-2"></i>
+                            <span class="fs-sm">还需听歌：{$details['listennum']} 首</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <i class="fa fa-fw si si-check opacity-50 me-2"></i>
+                            <span class="fs-sm">还需登录：{$details['loginnum']} 天</span>
+                        </td>
+                    </tr>
+                    {/if}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {/if}
+    </div>
+    <div class="col-xl-8">
+        <div class="block block-rounded">
+            <div class="block-content">
+                <div class="table-responsive">
+                    <table class="table table-striped table-vcenter">
+                        <tbody>
+                        {foreach $task->getTaskList('netease') as $k => $v}
+                        {php}
+                        $job = $jobs->getJobInfo('netease', $a_data['user_id'], $v['execute_name']);
+                        {/php}
+                        <tr>
+                            <td class="text-center">
+                                <i class="fw-semibold fa fa-2x {$v.icon}"></i>
+                            </td>
+                            <td class="fw-semibold">
+                                <p class="fw-semibold mb-1">{$v.name}
+                                    {if condition="$v.more"}
+                                    {php}
+                                    if ($job['data']) { $config = json_encode(unserialize($job['data'])); } else { $config = '[]'; }
+                                    {/php}
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 mx-1" data-config='{$config}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="si si-settings"></i></button>
+                                    {/if}
+                                </p>
+                                <p class="fs-xs text-muted mb-0">
+                                    {$v.describe}
+                                </p>
+                            </td>
+                            <td class="d-none d-sm-table-cell"><i class="far fa-clock opacity-75"></i>
+                                {if condition="!empty($job['lastExecute'])"}
+                                {:date("m-d H:i", strtotime($job.lastExecute))}
+                                {else /}
+                                <span class="text-muted">尚未执行</span>
+                                {/if}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group">
+                                    <div class="form-check form-switch">
+                                        {if condition="$job.state eq 1"}
+                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}');" checked>
+                                        {else /}
+                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}');">
+                                        {/if}
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {/foreach}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {if condition="config('sys.is_netease_tool')"}
+        <div class="block block-rounded">
+            <div class="block-header">
+                <i class="fa fa-music me-1"></i>
+                <h3 class="block-title">音乐小工具</h3>
+            </div>
+            <div class="block-content">
+                <h6 class="fs-sm fw-semibold content-heading">单曲播放量</h6>
+                <div class="row mb-4">
+                    <div class="col-lg-5 mb-4">
+                        <label class="form-label" for="tool_listen_songid">歌曲ID</label>
+                        <input type="text" class="form-control" id="tool_listen_songid" name="tool_listen_songid" placeholder="输入歌曲ID">
+                    </div>
+                    <div class="col-lg-5">
+                        <label class="form-label" for="tool_listen_times">播放次数</label>
+                        <input type="text" class="form-control" id="tool_listen_times" name="tool_listen_times" placeholder="输入歌曲播放次数">
+                        <div class="text-muted fs-xs">播放次数可能存在误差，请以网易云音乐官方数据为准</div>
+                    </div>
+                    <div class="col-lg-2" style="margin-top: 32px;">
+                        <button type="submit" class="btn btn-primary btn-sm" onclick="ajax_tool_listen('{$data.user_id}');">
+                            <i class="fa fa-paper-plane opacity-50 me-1"></i> 提交
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {/if}
+    </div>
+</div>
+<div class="row">
+    <div class="col-xl-12">
+        <div class="block block-rounded">
+            <div class="block-header">
+                <h3 class="block-title">任务运行日志 <small>仅展示最新的50条数据</small></h3>
+            </div>
+            <div class="block-content block-content-full">
+                <table class="table table-bordered table-striped table-vcenter js-dataTable-responsive" id="task-logs-list" data-type="netease" data-user_id="{$data.user_id}">
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="/static/js/plugins/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
+
+<script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
+<script src="/static/js/task_logs_datatables.js"></script>
+<script>
+    function updateConfig(execute_name, name, _this) {
+        if (typeof ($(_this).data("config")) == 'object') {
+            var config = JSON.stringify($(_this).data("config"));
+        } else {
+            var config = '{}';
+        }
+        // console.log(config);
+        switch (execute_name) {
+            case 'musician_task':
+                musicianTask(execute_name, name, config);
+                break;
+            case 'evaluate':
+                evaluateTask(execute_name, name, config);
+                break;
+            case 'daka_new':
+                dakaTask(execute_name, name, config);
+                break;
+            default:
+                layer.alert("请勿非法操作");
+                return false;
+        }
+    }
+
+    function musicianTask(execute_name, name, config)
+    {
+        layer.open({
+            title: name + "配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><input type="text"class="form-control"id="musician_song_id"name="musician_song_id"placeholder="歌曲ID"><label class="form-label"for="musician_song_id">歌曲ID</label><div class="form-text text-muted">填写你自己歌曲的ID，用于发布主创说，回复粉丝评论，回复粉丝私信，留空系统自动获取</div></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating"><input type="text"class="form-control"id="musician_follows_id"name="musician_follows_id"placeholder="歌曲ID"><label class="form-label"for="musician_follows_id">粉丝ID</label><div class="form-text text-muted">填写粉丝的ID，用于回复粉丝私信<span class="text-danger">（必填）</span></div></div></div><div class="col-md-6"><div class="form-floating"><input type="text"class="form-control"id="musician_follows_msg"name="musician_follows_msg"placeholder="私信内容"><label class="form-label"for="musician_follows_msg">私信内容</label><div class="form-text text-muted">给粉丝发送的私信，留空系统随机</div></div></div></div></form>',
+            success: function (res, index) {
+                config = JSON.parse(config);
+                // console.log(config)
+                if (typeof (config['musician_song_id']) !== 'undefined') {
+                    $("#musician_song_id").val(config['musician_song_id']);
+                }
+                if (typeof (config['musician_follows_id']) !== 'undefined') {
+                    $("#musician_follows_id").val(config['musician_follows_id']);
+                }
+                if (typeof (config['musician_follows_msg']) !== 'undefined') {
+                    $("#musician_follows_msg").val(config['musician_follows_msg']);
+                }
+            },
+            yes: function (index, dom) {
+                layer.close(index);
+                var loading = layer.load(2);
+                const params = JSON.stringify($(dom).find("form").parseForm());
+                x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {$a_data['user_id']}, config: params}, function (data) {
+                    if (data.code == 1) {
+                        x.close(loading);
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
+                        }, 1000)
+                    } else {
+                        x.close(loading);
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+
+    function evaluateTask(execute_name, name, config)
+    {
+        layer.open({
+            title: name + "配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><input type="text"class="form-control"id="evaluate_star"name="evaluate_star"placeholder="评分星数"><label class="form-label"for="evaluate_star">评分星数</label><div class="form-text text-muted">填写规则：3,4即为在3-4之间随机，最大值不能超过5，默认为2-3星</div></div></div></div></form>',
+            success: function (res, index) {
+                config = JSON.parse(config);
+                // console.log(config)
+                if (typeof (config['evaluate_star']) !== 'undefined') {
+                    $("#evaluate_star").val(config['evaluate_star']);
+                }
+            },
+            yes: function (index, dom) {
+                layer.close(index);
+                var loading = layer.load(2);
+                const params = JSON.stringify($(dom).find("form").parseForm());
+                x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {$a_data['user_id']}, config: params}, function (data) {
+                    if (data.code == 1) {
+                        x.close(loading);
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
+                        }, 1000)
+                    } else {
+                        x.close(loading);
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+
+    function dakaTask(execute_name, name, config)
+    {
+        layer.open({
+            title: name + "配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            area: ['25%'],
+            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><select class="form-select"id="daka_music_from"name="daka_music_from"aria-label="daka_music_from"><option value="personalized">首页推荐</option><option value="highquality">精品歌单</option></select><label class="form-label"for="daka_music_from">歌曲来源</label></div><div class="form-text text-muted">说明：如果一天无法听歌三百首，你可以尝试将歌曲来源切换成精品歌单（可能会改变听歌风格），由于官方计数方式，我们不能保证一天一定能打卡满300首</div></div></div></form>',
+            success: function (res, index) {
+                config = JSON.parse(config);
+                // console.log(config)
+                if (typeof (config['daka_music_from']) !== 'undefined') {
+                    $("#daka_music_from").val(config['daka_music_from']);
+                }
+            },
+            yes: function (index, dom) {
+                layer.close(index);
+                var loading = layer.load(2);
+                const params = JSON.stringify($(dom).find("form").parseForm());
+                x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {$a_data['user_id']}, config: params}, function (data) {
+                    if (data.code == 1) {
+                        x.close(loading);
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
+                        }, 1000)
+                    } else {
+                        x.close(loading);
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+
+    function ajax_set_zt(execute_name, user_id)
+    {
+        x.ajax('/index/ajax/netease/set','act=zt&do=' + execute_name + '&user_id=' + user_id, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else if (data.code == -1) {
+                x.notify(data.message, 'danger');
+                setTimeout(function () {
+                    // x.pjax('/index/console/netease/info/{$data["user_id"]}');
+                    window.location.href = '/index/console/netease/info/{$data["user_id"]}';
+                },1500)
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        });
+    }
+
+    function ajax_reexecute_task(user_id)
+    {
+        layer.confirm('你确定申请补挂吗?', {
+            btn: ['确定', '取消'],
+            closeBtn: 0,
+        }, function () {
+            x.ajax("/index/ajax/netease/reExecute", {user_id: user_id}, function (data) {
+                if (data.code === 1) {
+                    x.btn(data.message);
+                } else {
+                    x.notify(data.message, 'warning');
+                }
+            });
+        });
+    }
+
+    function ajax_tool_listen(user_id)
+    {
+        var songid = x.getval('#tool_listen_songid', '请先输入歌曲ID');
+        if (!songid) return;
+        var times = x.getval('#tool_listen_times', '请先输入播放次数');
+        if (!times) return;
+        x.ajax("/index/ajax/netease/listen", {user_id: user_id ,songid: songid, times: times}, function (data) {
+            if (data.code == 1) {
+                $("#tool_listen_songid").val(null);
+                $("#tool_listen_times").val(null);
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+
+    function ajax_set_timing(user_id, timing)
+    {
+        layer.open({
+            title: "挂机时间配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            zIndex: '1000',
+            area: ['20%'],//设置相对于父页面的大小
+            content: '<div class="form-floating col-xl-12 mb-2"><input type="text"class="js-flatpickr form-control"id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"><label class="form-label"for="timing">挂机时间</label></div><div><span class="text-danger">点击上方数字选择你需要的挂机时间<br></span><span class="fw-semibold">挂机时间说明：系统在您设定的时间为您挂机。<br>特殊说明：若您设置的时间内系统有大量账号需要排队执行，则可能会出现延迟执行的情况，系统仅保证在您设定的时间之后进行执行</span></div>',
+            success: function (res, index) {
+                if (typeof timing !== 'undefined') {
+                    $("#timing").val(timing);
+                }
+                Codebase.helpersOnLoad(['js-flatpickr']);
+            },
+            yes: function (index, dom) {
+                layer.close(index);
+                var loading = layer.load(2);
+                x.ajax('/index/ajax/netease/set', {act: 'timing', user_id: {$a_data['user_id']}, timing: x.getval('#timing')}, function (data) {
+                    if (data.code == 1) {
+                        x.close(loading);
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            // x.pjax('/index/console/netease/info/{$a_data["user_id"]}');
+                            window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
+                        }, 1000)
+                    } else {
+                        x.close(loading);
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+</script>
+{/block}
+

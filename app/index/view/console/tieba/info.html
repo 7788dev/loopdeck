@@ -1,0 +1,328 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+{php}
+    $a_data = unserialize($data['data']); // 反序列化账号数据
+    $task = new \app\index\model\Tasks();
+    $jobs = new \app\index\model\Jobs();
+
+{/php}
+<style>
+    td {
+        white-space:nowrap;
+    }
+</style>
+<div class="row">
+    <div class="col-xl-4">
+        <div class="block block-rounded">
+            <div class="block-content">
+                <a class="btn btn-lg btn-alt-primary w-100 mb-1" href="/index/console/tieba/add">更新账号</a>
+                <p class="text-center fw-semibold fs-xs text-muted">若账号失效请及时更新</p>
+            </div>
+        </div>
+        <div class="block block-rounded block-link-shadow text-center" href="javascript:void(0)">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">
+                    <i class="fa fa-fw fa-graduation-cap opacity-50"></i>
+                    基本信息
+                </h3>
+            </div>
+            <div class="block-content block-content-full">
+                <div class="push">
+                    <img alt="" class="img-avatar" src="{$a_data.avatar}">
+                </div>
+                <div class="fw-semibold mb-1">{$a_data.displayname} ·
+                    {if condition="$data.state eq 1"}
+                    <span class="text-success">运行中</span>
+                    {else}
+                    <span class="text-danger">已失效</span>
+                    {/if}
+                </div>
+                <hr>
+                <div class="mt-1">
+                    <span class="text-muted fs-sm">
+                        挂机时间：<span class="text-success">{$data['timing'] ?? '未设置'}</span>
+                        <a href="javascript:ajax_set_timing('{$data[\'user_id\']}', '{$data[\'timing\']}');">设置</a>
+                    </span>
+                </div>
+                <button type="button" class="btn btn-sm btn-alt-primary me-1 mt-2" onclick="ajax_reexecute_task('{$a_data[\'uid\']}')">
+                    <i class="si si-energy"></i>申请补挂
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-8">
+        <div class="block block-rounded">
+            <div class="block-content">
+                <div class="table-responsive">
+                    <table class="table table-striped table-vcenter">
+                        <tbody>
+                        {foreach $task->getTaskList('tieba') as $k => $v}
+                        {php}
+                            $job = $jobs->getJobInfo('tieba', $a_data['uid'], $v['execute_name']);
+                        {/php}
+                        <tr>
+                            <td class="text-center">
+                                <i class="fw-semibold fa fa-2x {$v.icon}"></i>
+                            </td>
+                            <td class="fw-semibold">
+                                <p class="fw-semibold mb-1">{$v.name}
+                                    {if condition="$v.more"}
+                                    {php}
+                                    if ($job['data']) { $config = json_encode(unserialize($job['data'])); } else { $config = '[]'; }
+                                    {/php}
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 mx-1" data-config='{$config}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="si si-settings"></i></button>
+                                    {/if}
+                                </p>
+                                <p class="fs-xs text-muted mb-0">
+                                    {$v.describe}
+                                </p>
+                            </td>
+                            <td class="d-none d-sm-table-cell"><i class="far fa-clock opacity-75"></i> {:date("m-d H:i",strtotime($job.lastExecute))}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group">
+                                    <div class="form-check form-switch">
+                                        {if condition="$job.state eq 1"}
+                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}');" checked>
+                                        {else /}
+                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}');">
+                                        {/if}
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {/foreach}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="block block-rounded">
+            <div class="block-header">
+                <h3 class="block-title">任务运行日志 <small>仅展示最新的50条数据</small></h3>
+            </div>
+            <div class="block-content block-content-full">
+                <table class="table table-bordered table-striped table-vcenter js-dataTable-responsive" id="task-logs-list" data-type="tieba" data-user_id="{$data.user_id}">
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="/static/js/plugins/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
+
+<script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
+<script src="/static/js/task_logs_datatables.js"></script>
+<script>
+    function updateConfig(execute_name, name, _this) {
+        if (typeof ($(_this).data("config")) == 'object') {
+            var config = JSON.stringify($(_this).data("config"));
+        } else {
+            var config = '{}';
+        }
+        console.log(config);
+        switch (execute_name) {
+            case 'like':
+                likeTask(execute_name, name, config);
+                break;
+            case 'shuo':
+                shuoTask(execute_name, name, config);
+                break;
+            case 'reply':
+                replyTask(execute_name, name, config);
+                break;
+            default:
+                layer.alert("请勿非法操作");
+                return false;
+        }
+    }
+
+    function likeTask(execute_name, name, config)
+    {
+        layer.open({
+            title: name + "配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><input type="text"class="form-control"id="forbid"name="forbid"placeholder="多个QQ号之间请使用小数点隔开"><label class="form-label"for="forbid">不赞Ta</label><div class="form-text text-muted">填写的QQ将不会点赞他的说说</div></div></div></div></form>',
+            success: function (res, index) {
+                config = JSON.parse(config);
+                // console.log(config)
+                if (typeof (config['forbid']) !== 'undefined') {
+                    $("#forbid").val(config['forbid']);
+                }
+            },
+            yes: function (index, dom) {
+                layer.close(index);
+                var loading = layer.load(2);
+                const params = JSON.stringify($(dom).find("form").parseForm());
+                x.ajax('/index/ajax/tieba/set', {do: execute_name, user_id: {$a_data['uid']}, config: params}, function (data) {
+                    if (data.code == 1) {
+                        x.close(loading);
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            window.location.href = '/index/console/tieba/info/{$a_data["uid"]}';
+                        }, 1000)
+                    } else {
+                        x.close(loading);
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+
+    function replyTask(execute_name, name, config)
+    {
+        layer.open({
+            title: name + "配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            content: '<form><div class="row"style="text-align: left;"><div class="col-md-12"><div class="mb-4"><label class="form-label"for="content">评论内容</label><textarea class="form-control form-control-lg"id="content"name="content"rows="4"placeholder="输入评论的内容"></textarea><div class="form-text text-muted">支持<code>[彩虹屁]</code>标签</div></div></div></div><div class="row"style="text-align: left;"><div class="col-md-12"><div class="form-floating"><input class="form-control"id="forbid"name="forbid"placeholder="多个QQ号之间请使用小数点隔开"type="text"><label class="form-label"for="forbid">不评论Ta</label><div class="form-text text-muted">填写的QQ号码将不会评论他的说说，多个QQ号之间请使用小数点隔开</div></div></div></div></form>',
+            success: function (res, index) {
+                config = JSON.parse(config);
+                // console.log(config)
+                if (typeof (config['content']) !== 'undefined') {
+                    $("#content").val(config['content']);
+                }
+                if (typeof (config['forbid']) !== 'undefined') {
+                    $("#forbid").val(config['forbid']);
+                }
+            },
+            yes: function (index, dom) {
+                layer.close(index);
+                var loading = layer.load(2);
+                const params = JSON.stringify($(dom).find("form").parseForm());
+                x.ajax('/index/ajax/tieba/set', {do: execute_name, user_id: {$a_data['uid']}, config: params}, function (data) {
+                    if (data.code == 1) {
+                        x.close(loading);
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            window.location.href = '/index/console/tieba/info/{$a_data["uid"]}';
+                        }, 1000)
+                    } else {
+                        x.close(loading);
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+
+    function shuoTask(execute_name, name, config)
+    {
+        layer.open({
+            title: name + "配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            content: '<form><div class="row"style="text-align: left;"><div class="col-md-12"><div class="mb-4"><label class="form-label"for="content">说说内容</label><textarea class="form-control form-control-lg"id="content"name="content"rows="4"placeholder="输入说说的内容"></textarea><div class="form-text text-muted">支持<code>[网易云热评]、[舔狗日记]</code>标签</div></div></div></div><div class="row"style="text-align: left;"><div class="col-md-12"><div class="form-floating mb-4"><select class="form-select"id="delete"name="delete"aria-label="delete"><option selected="0">否</option><option selected="1">是</option></select><label class="form-label"for="delete">同时删除上一条说说</label></div></div></div></form>',
+            success: function (res, index) {
+                config = JSON.parse(config);
+                // console.log(config)
+                if (typeof (config['content']) !== 'undefined') {
+                    $("#content").val(config['content']);
+                }
+                if (typeof (config['delete']) !== 'undefined') {
+                    $("#delete").val(config['delete']);
+                }
+            },
+            yes: function (index, dom) {
+                layer.close(index);
+                var loading = layer.load(2);
+                const params = JSON.stringify($(dom).find("form").parseForm());
+                x.ajax('/index/ajax/tieba/set', {do: execute_name, user_id: {$a_data['uid']}, config: params}, function (data) {
+                    if (data.code == 1) {
+                        x.close(loading);
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            window.location.href = '/index/console/tieba/info/{$a_data["uid"]}';
+                        }, 1000)
+                    } else {
+                        x.close(loading);
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+
+    function ajax_set_zt(execute_name, user_id)
+    {
+        x.ajax('/index/ajax/tieba/set','act=zt&do=' + execute_name + '&user_id=' + user_id, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else if (data.code == -1) {
+                x.notify(data.message, 'danger');
+                setTimeout(function () {
+                    // x.pjax('/index/console/tieba/info/{$data["user_id"]}');
+                    window.location.href = '/index/console/tieba/info/{$data["user_id"]}';
+                },1500)
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        });
+    }
+
+    function ajax_reexecute_task(user_id)
+    {
+        layer.confirm('你确定申请补挂吗?', {
+            btn: ['确定', '取消'],
+            closeBtn: 0,
+        }, function () {
+            x.ajax("/index/ajax/tieba/reExecute", {user_id: user_id}, function (data) {
+                if (data.code === 1) {
+                    x.btn(data.message);
+                } else {
+                    x.notify(data.message);
+                }
+            });
+        });
+    }
+
+    function ajax_set_timing(user_id, timing)
+    {
+        layer.open({
+            title: "挂机时间配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            zIndex: '1000',
+            area: ['20%'],//设置相对于父页面的大小
+            content: '<div class="form-floating col-xl-12 mb-2"><input type="text"class="js-flatpickr form-control"id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"><label class="form-label"for="timing">挂机时间</label></div><div><span class="text-danger">点击上方数字选择你需要的挂机时间<br></span><span class="fw-semibold">挂机时间说明：系统在您设定的时间为您挂机。<br>特殊说明：若您设置的时间内系统有大量账号需要排队执行，则可能会出现延迟执行的情况，系统仅保证在您设定的时间之后进行执行</span></div>',
+            success: function (res, index) {
+                if (typeof timing !== 'undefined') {
+                    $("#timing").val(timing);
+                }
+                Codebase.helpersOnLoad(['js-flatpickr']);
+            },
+            yes: function (index, dom) {
+                layer.close(index);
+                var loading = layer.load(2);
+                x.ajax('/index/ajax/tieba/set', {act: 'timing', user_id: {$data['user_id']}, timing: x.getval('#timing')}, function (data) {
+                    if (data.code == 1) {
+                        x.close(loading);
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            // x.pjax('/index/console/tieba/info/{$data["user_id"]}');
+                            window.location.href = '/index/console/tieba/info/{$data["user_id"]}';
+                        }, 1000)
+                    } else {
+                        x.close(loading);
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+</script>
+{/block}

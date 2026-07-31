@@ -1,0 +1,196 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<link rel="stylesheet" href="/static/js/plugins/slick-carousel/slick.css">
+<link rel="stylesheet" href="/static/js/plugins/slick-carousel/slick-theme.css">
+<div class="row">
+    <div class="col-md-6">
+        <a class="block block-rounded" href="javascript:void(0)">
+            <div class="block-content block-content-full">
+                <i class="far fa-chart-bar fa-2x opacity-25"></i>
+                <div class="row pt-2 pb-4 text-center">
+                    <div class="col-6 border-end">
+                        <div class="fs-3 fw-semibold">{$job_count}</div>
+                        <div class="fs-sm fw-semibold text-primary-light">累计任务</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="fs-3 fw-semibold">{$execute_count}</div>
+                        <div class="fs-sm fw-semibold text-primary-light">运行次数</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6">
+        <a class="block block-rounded" href="javascript:void(0)">
+            <div class="block-content block-content-full">
+                <div class="text-end">
+                    <i class="si si-users fa-2x opacity-25"></i>
+                </div>
+                <div class="row pt-2 pb-4 text-center fw-semibold">
+                    <div class="col-6 border-end">
+                        <div class="fs-3">{$user_count}</div>
+                        <div class="fs-sm text-primary-light">用户数量</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="fs-3">{$agent_count}</div>
+                        <div class="fs-sm text-primary-light">代理数量</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+{if condition="WEB_ID neq 1"}
+<div class="block block-rounded">
+    <div class="block-content block-content-full">
+        <div class="py-3 text-center">
+            <h3 class="fs-base fw-medium mb-0">
+                网站到期时间：<span class="text-danger">{:config('web.end_time')}</span>
+                续费联系站长QQ：<a href="http://wpa.qq.com/msgrd?v=3&uin={$user_qq}&site=qq&menu=yes">{$user_qq}</a>
+            </h3>
+        </div>
+    </div>
+</div>
+{/if}
+<div class="row">
+    <div class="col-md-4">
+        <div class="block block-rounded">
+            <div class="block-content block-content-full">
+                <div class="py-3 text-center">
+                    <div class="mb-3">
+                        <i class="si si-settings fa-4x text-primary"></i>
+                    </div>
+                    <div class="fs-4 fw-semibold">现在去设置我的网站</div>
+                    <div class="pt-3">
+                        <a class="btn btn-alt-primary" data-pjax href="{:url('/admin/system/set/info')}">
+                            <i class="fa fa-cog opacity-50 me-1"></i> 系统设置
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="block block-rounded">
+            <div class="block-content block-content-full">
+                <div class="py-3 text-center">
+                    <div class="mb-3">
+                        <i class="si si-user fa-4x text-info"></i>
+                    </div>
+                    <div class="fs-4 fw-semibold">现在去管理我的用户</div>
+                    <div class="pt-3">
+                        <a class="btn btn-alt-info" data-pjax href="{:url('/admin/system/data/users')}">
+                            <i class="fa fa-users opacity-50 me-1"></i> 用户管理
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="block block-rounded">
+            <div class="block-content block-content-full">
+                <div class="py-3 text-center">
+                    <div class="mb-3">
+                        <i class="fa fa-check fa-4x text-success"></i>
+                    </div>
+                    <div class="fs-4 fw-semibold">现在去更新我的程序</div>
+                    <div class="pt-3">
+                        <a class="btn btn-alt-success" href="{:url('/admin/system/update')}">
+                            <i class="fa fa-arrow-up opacity-50 me-1"></i> 程序更新
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="block block-rounded">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">系统公告</h3>
+            </div>
+            <div class="block-content">
+                <div class="js-slider slick-nav-black slick-nav-hover" data-dots="true" data-autoplay="true" data-arrows="true">
+                    {if condition="count($notices) eq 0"}
+                    <div class="col-12">
+                        <div class="block block-rounded">
+                            <div class="block-content text-center">
+                                <i class="si si-disc fa-2x"></i>
+                                <p class="text-muted fs-sm">
+                                    暂时还没有公告哦
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    {/if}
+                    {foreach $notices as $k => $v}
+                    <div class="block text-center bg-body-extra-light mb-0">
+                        <a href="javascript:show_notice_modal({$v['id']});" class="text-earth">
+                            <div class="block-content block-content-full">
+                                <div class="py-3 text-center">
+                                    <h2 class="fw-bold mb-2">
+                                        {$v.title}
+                                    </h2>
+                                    <h3 class="fs-base fw-medium text-muted mb-0">
+                                        系统管理员 - {:date("m-d H:i:s", $v.addtime)}
+                                    </h3>
+                                </div>
+                                <div class="text-muted text-end fs-sm mt-0">
+                                    点击查看更多详情
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    {/foreach}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="modal" tabindex="-1" aria-labelledby="2" style="display:none;" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-slideup" role="document">
+            <div class="modal-content">
+                <div class="block block-rounded shadow-none mb-0">
+                    <div class="block-header block-header-default">
+                        <h3 class="block-title" id="modal-title">勇于自我革命赢得历史主动</h3>
+                        <div class="block-options">
+                            <button type="button" class="btn-block-option" data-bs-dismiss="modal" aria-label="Close">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="block-content fs-sm" id="modal-content">
+                        <p>“我们只有勇于自我革命才能赢得历史主动。”
+                            2021年12月31日，习近平总书记以国家主席身份发表新年贺词，深刻指出中华民族伟大复兴绝不是轻轻松松、敲锣打鼓就能实现的，也绝不是一马平川、朝夕之间就能到达的。
+                            勇于自我革命，是中国共产党最鲜明的品格。
+                            立志千秋伟业，百年恰是风华正茂。踏上新的“赶考”之路，以习近平同志为核心的党中央正以勇于自我革命的意志和气魄，把握历史规律、掌握历史主动，推动中国特色社会主义事业航船劈波斩浪、一往无前。</p>
+                        <hr>
+                        <div class="text-muted text-end mb-3" id="modal-footer"><em>Admin - 2022-01-27</em></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/plugins/slick-carousel/slick.min.js"></script>
+<script>
+    $(function () {
+        jQuery(function () {
+            Codebase.helpers('jq-slimscroll');
+        });
+        {if condition="count($notices) neq 0"}
+        Codebase.helpersOnLoad(['jq-slick']);
+        {/if}
+    })
+
+    function show_notice_modal(id) {
+        x.mode('/admin/ajax/data/info/site_notice', {id: id}, '公告详情' );
+    }
+
+</script>
+{/block}

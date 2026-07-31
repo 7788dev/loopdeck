@@ -1,0 +1,293 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded bg-gd-dusk">
+    <div class="block-content bg-white-5">
+        <div class="py-4 text-center">
+            <h1 class="h2 fw-bold text-white mb-2">代理中心</h1>
+            <h2 class="h5 fw-medium text-white-75">Welcome, create something amazing!</h2>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-lg-12">
+        <div class="block block-rounded overflow-hidden">
+            <ul class="nav nav-tabs nav-tabs-block nav-justified" role="tablist">
+                <li class="nav-item">
+                    <button type="button" class="nav-link active" id="km-list-tab" data-bs-toggle="tab" data-bs-target="#km-list" role="tab" aria-controls="km-list" aria-selected="false">
+                        <i class="fa fa-fw fa-list-alt opacity-50 me-1 d-none d-sm-inline-block"></i> 卡密列表
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button type="button" class="nav-link" id="km-add-tab" data-bs-toggle="tab" data-bs-target="#km-add" role="tab" aria-controls="km-add" aria-selected="true">
+                        <i class="fa fa-fw fa-plus-circle opacity-50 me-1 d-none d-sm-inline-block"></i> 卡密生成
+                    </button>
+                </li>
+            </ul>
+        </div>
+        <div class="tab-content mt-2">
+            <div class="tab-pane active" id="km-list" role="tabpanel" aria-labelledby="km-list-tab">
+                <div class="block block-rounded" >
+                    <div class="block-header block-header-default">
+                        <h3 class="block-title"></h3>
+                        <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1" onclick="ajax_del_usedkm();">
+                            <i class="fa fa-times opacity-50 me-1"></i>清除已使用卡密
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1" onclick="ajax_del_notUsedkm();">
+                            <i class="fa fa-times opacity-50 me-1"></i>清除未使用卡密
+                        </button>
+                    </div>
+                    <div class="block-content block-content-full">
+                        <table class="table table-bordered table-striped table-vcenter js-dataTable-responsive" id="agent-kmlist">
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane" id="km-add" role="tabpanel" aria-labelledby="km-add-tab-tab">
+                <div class="row">
+                    <div class="col-md-6">
+                        <a class="block block-rounded block-link-rotate overflow-hidden shadow-lg"
+                           href="javascript:void(0)">
+                            <div class="block-content block-content-full">
+                                <i class="si si-briefcase fa-2x opacity-25"></i>
+                                <div class="row g-5 py-3">
+                                    <div class="col-6 text-end border-end">
+                                        <div>
+                                            <div class="fs-3 fw-semibold text-flat">{:is_Agent_Name(session('user.agent'))}</div>
+                                            <div class="fs-sm fw-semibold text-uppercase text-muted">代理商</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div>
+                                            <div class="fs-3 fw-semibold text-success">{:session('user.money')}</div>
+                                            <div class="fs-sm fw-semibold text-uppercase text-muted">账户余额</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-6">
+                        <a class="block block-rounded block-link-rotate overflow-hidden" href="javascript:void(0)">
+                            <div class="block-content block-content-full">
+                                <div class="text-end">
+                                    <i class="si si-wallet fa-2x opacity-25"></i>
+                                </div>
+                                <div class="row g-5 py-3">
+                                    <div class="col-6 text-end border-end">
+                                        <div>
+                                            <div class="fs-3 fw-semibold">{:count($all)}</div>
+                                            <div class="fs-sm fw-semibold text-uppercase text-muted">已生成卡密</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div>
+                                            <div class="fs-3 fw-semibold">{:count($used)}</div>
+                                            <div class="fs-sm fw-semibold text-uppercase text-muted">已使用卡密</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-12">
+                        <div class="block block-rounded">
+                            <div class="block-content">
+                                <form onsubmit="return false;">
+                                    <div class="mb-4">
+                                        <div class="form-floating">
+                                            <select class="form-select" id="type" name="type" size="1" placeholder="." onchange="ajax_get_price();typeChange(this);">
+                                                <option value="vip">VIP卡密</option>
+                                                <option value="quota">配额卡密</option>
+                                                {if condition="Session('user.agent') == 2 || Session('user.agent') == 3"}
+                                                <option value="agent">代理卡密</option>
+                                                {/if}
+                                            </select>
+                                            <label class="form-label" for="type">卡密类型</label>
+                                        </div>
+                                    </div>
+                                    <div class="row mb-4">
+                                        <div class="col-6">
+                                            <div class="form-floating">
+                                                <select class="form-select" id="value-vip" name="value" size="1" placeholder="." onchange="ajax_get_price();">
+                                                    <option value="5">3 天</option>
+                                                    <option value="6">7 天</option>
+                                                    <option value="1">1 个月</option>
+                                                    <option value="2">3 个月</option>
+                                                    <option value="3">6 个月</option>
+                                                    <option value="4">12 个月</option>
+                                                </select>
+                                                <select class="form-select" id="value-quota" name="value" size="1" placeholder="." style="display:none;" onchange="ajax_get_price();">
+                                                    <option value="1">1 个</option>
+                                                    <option value="2">3 个</option>
+                                                    <option value="3">5 个</option>
+                                                    <option value="4">10 个</option>
+                                                </select>
+                                                {if condition="Session('user.agent') == 2 || Session('user.agent') == 3"}
+                                                <select class="form-select" id="value-agent" name="value" size="1" placeholder="." style="display:none;" onchange="ajax_get_price();">
+                                                    <option value="1">银牌代理</option>
+                                                    {if condition="Session('user.agent') == 3"}
+                                                    <option value="2">金牌代理</option>
+                                                    {/if}
+                                                </select>
+                                                {/if}
+                                                <label class="form-label" for="type">卡密面值</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-floating">
+                                                <select class="form-select" id="num" name="type" size="1" placeholder="." onchange="ajax_get_price();">
+                                                    <option value="1">1 张</option>
+                                                    <option value="5">5 张</option>
+                                                    <option value="20">20 张</option>
+                                                    <option value="50">50 张</option>
+                                                    <option value="100">100 张</option>
+                                                </select>
+                                                <label class="form-label" for="type">卡密数量</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mb-4">
+                                        <div class="col-md-8">
+                                                <span class="fw-semibold">
+                                                    卡密类型：<span class="text-earth" id="km_type">-</span>
+                                                    卡密面值：<span class="text-earth" id="km_value">-</span>
+                                                    卡密数量：<span class="text-earth" id="km_num">-</span>
+                                                    生成价格：<span class="text-earth" id="km_price">-</span></span>
+                                        </div>
+                                        <div class="col-md-4 text-end">
+                                            <button type="submit" class="btn btn-primary" onclick="ajax_km_add()">
+                                                <i class="fa fa-paper-plane opacity-50 me-1 fs-sm"></i> 确定生成
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row" style="display: none;" id="create-success">
+                    <div class="col-md-6">
+                        <div class="block block-rounded">
+                            <div class="block-content block-content-full">
+                                <div class="py-3 text-center">
+                                    <div class="mb-3">
+                                        <i class="fa fa-check fa-4x text-success"></i>
+                                    </div>
+                                    <div class="fs-4 fw-semibold">生成成功</div>
+                                    <div class="text-muted">所有生成的卡密将显示在右侧</div>
+                                    <div class="pt-3">
+                                        <a class="btn btn-alt-success copy" id="copy"  data-clipboard-text="2" href="javascript:void(0)">
+                                            <i class="fa fa-arrow-up opacity-50 me-1"></i> 点击复制全部
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="block block-rounded">
+                            <div class="block-content block-content-full text-center" data-toggle="slimscroll" data-height="265" id="success" data-clipboard-text="">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="/static/js/plugins/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
+
+<script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
+<script src="/static/js/agent_kmlist_datatables.js"></script>
+
+<script>
+    $(function () {
+        ajax_get_price();
+        $(function(){Codebase.helpers('jq-slimscroll');});
+
+    })
+
+    function ajax_get_price() {
+        var type = $('#type').val(), value = $("#value-" + type).val(), num = $('#num').val();
+        x.ajax('/index/ajax/agent/getPrice', {type: type, value: value, num: num}, function (data) {
+            if (data.code == 1) {
+                $('#km_type').html(data.data.name);
+                $('#km_value').html(data.data.value);
+                $('#km_num').html(data.data.num);
+                $('#km_price').html(data.data.price);
+            }
+        })
+    }
+
+    function ajax_km_add() {
+        var type = $('#type').val(), value = $("#value-" + type).val(), num = $('#num').val();
+        x.ajax('/index/ajax/agent/add', {type: type, value: value, num: num}, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+                $('#create-success').show();
+                $('#success').html(data.data.km);
+                $('#copy').attr('data-clipboard-text', data.data.copy);
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+
+    function typeChange(o) {
+        if (o.value == 'vip') {
+            $('#value-vip').show();
+            $('#value-quota').hide();
+            $('#value-agent').hide();
+        } else if (o.value == 'quota') {
+            $('#value-vip').hide();
+            $('#value-quota').show();
+            $('#value-agent').hide();
+        }else {
+            $('#value-vip').hide();
+            $('#value-quota').hide();
+            $('#value-agent').show();
+        }
+    }
+
+    function ajax_km_delete(id) {
+        x.del('/index/ajax/agent/delKm', {id: id}, function (data) {
+            if (data.code == 1) {
+                var table = $('#kmlist').DataTable();
+                table.ajax.reload();
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+
+    function ajax_del_usedkm() {
+        x.del('/index/ajax/agent/delUsedKm',{id: 1}, function (data) {
+            if (data.code == 1) {
+                var table = $('#agent-kmlist').DataTable();
+                table.ajax.reload();
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+    
+        function ajax_del_notUsedkm() {
+        x.del('/index/ajax/agent/delNotUsedkm',{id: 0}, function (data) {
+            if (data.code == 1) {
+                var table = $('#agent-kmlist').DataTable();
+                table.ajax.reload();
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+</script>
+{/block}

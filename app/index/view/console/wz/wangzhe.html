@@ -1,0 +1,143 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+
+    <div class="block block-rounded">
+        <div class="block block-themed block-rounded">
+            <div class="block-header bg-gd-dusk">
+                <h3 class="block-title">王者战力查询</h3>
+            </div>
+            <div class="block-content">
+                <div class="mb-4">
+                    <div class="input-group">
+          <input type="text" class="form-control form-control-alt" id="hero-name" placeholder="请输入英雄名（如李白）">
+        
+        </div>
+        
+
+<div  class="block-content">
+   <div  class="mb-3  position-relative">
+     <button  class="btn  btn-lg  btn-alt-primary  w-100  mb-1"  type="button"  id="typeMenuButton"  data-bs-toggle="dropdown"  aria-expanded="false">
+       <i  class="fa  fa-cog  me-1"></i>  选择大区
+     </button>
+     <ul  class="dropdown-menu  w-100  position-absolute"  aria-labelledby="typeMenuButton">
+       <li><a  class="dropdown-item  text-center"  href="javascript:void(0);"  data-type="aqq">安卓QQ</a></li>
+       <li  class="dropdown-divider"></li>  <!--  添加分割线  -->
+       <li><a  class="dropdown-item  text-center"  href="javascript:void(0);"  data-type="awx">安卓VX</a></li>
+       <li  class="dropdown-divider"></li>  <!--  添加分割线  -->
+       <li><a  class="dropdown-item  text-center"  href="javascript:void(0);"  data-type="iqq">苹果QQ</a></li>
+       <li  class="dropdown-divider"></li>  <!--  添加分割线  -->
+       <li><a  class="dropdown-item  text-center"  href="javascript:void(0);"  data-type="iwx">苹果VX</a></li>
+     </ul>
+   </div>
+
+
+        
+                                <button type="button" class="btn btn-lg btn-alt-primary w-100 mb-1" id="start-query">
+                                                            <i class="fa fa-search me-1"></i> 开始查询
+                        
+                            
+                        </button>
+                                   </div>
+                                </div>
+                            </td>
+                        </tr>
+                        
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+     <div class="block block-rounded">
+            
+
+<div  id="api-response"  class="api-response"></div>
+
+{/block}
+
+{block name="foot"}
+
+<script>
+$(document).ready(function() {
+   let selectedType = '';
+
+   $('.dropdown-item').click(function() {
+     selectedType = $(this).data('type');
+     $('#typeMenuButton').text($(this).text());
+   });
+
+   $('#start-query').click(function() {
+     let heroName = $('#hero-name').val();
+     if  (!heroName) {
+       x.notify('请输入英雄名称！', 'warning');
+       return;
+     }
+     if  (!selectedType) {
+       x.notify('请选择类型！', 'warning');
+       return;
+     }
+     
+     $.ajax({
+       url: '//www.sapi.run/hero/select.php',
+       type: 'GET',
+       data: {
+         hero: heroName,
+         type: selectedType
+       },
+       dataType: 'json',
+       success: function(data) {
+         if(data.code === 200) {
+           const responseHtml = `
+           
+           
+             <div class="response-wrapper">
+               <br>
+                  <p class="time text-center">更新时间：${data.data.updatetime}</p>
+                 <div class="table-responsive">
+                   <table class="table table-bordered text-center">
+                      <thead>
+                        <tr>
+                          <th>奖励</th>
+                          <th>区域</th>
+                          <th>分数</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td class="text-warning font-weight-bold">金牌</td>
+                          <td>${data.data.province}</td>
+                          <td>${data.data.provincePower}</td>
+                        </tr>
+                        <tr>
+                          <td class="text-secondary font-weight-bold">银牌</td>
+                          <td>${data.data.city}</td>
+                          <td>${data.data.cityPower}</td>
+                        </tr>
+                        <tr>
+                          <td class="text-danger font-weight-bold">铜牌</td>
+                          <td>${data.data.area}</td>
+                          <td>${data.data.areaPower}</td>
+                        </tr>
+                      </tbody>
+                   </table>
+                 </div>
+                </div>
+             </div>
+           `;
+
+           $('#api-response').html(responseHtml).show();
+           x.notify('查询成功！', 'success');
+         } else {
+           x.notify('查询失败，请检查昵称是否正确！', 'warning');
+         }
+       },
+       error: function(jqXHR, textStatus, errorThrown) {
+         x.notify(`查询出错: ${textStatus}`, 'warning');
+       }
+     });
+   });
+});
+</script>
+
+
+{/block}

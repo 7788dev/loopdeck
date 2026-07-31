@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="referrer" content="no-referrer">
+    <meta content="width=device-width,initial-scale=1.0" name="viewport">
+    <title>提示信息</title>
+    <meta content="{:config('web.keywords')}" name="keywords">
+    <meta content="{:config('web.description')}" name="description">
+    <link href="/favicon.ico" rel="shortcut icon">
+    <link href="/static/media/favicons/favicon-192x192.png" rel="icon" sizes="192x192" type="image/png">
+    <link href="/static/media/favicons/apple-touch-icon-180x180.png" rel="apple-touch-icon" sizes="180x180">
+    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800&display=swap" rel="stylesheet">
+    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
+</head>
+<body>
+<div id="page-container" class="main-content-boxed">
+    <main id="main-container">
+        <div class="hero bg-body-extra-light">
+            <div class="hero-inner">
+                <div class="content content-full">
+                    <div class="py-4 text-center">
+                        <i class="si si-ghost text-primary display-3"></i>
+                        <h1 class="h2 fw-bold mt-4 mb-2">{$msg}</h1>
+                        <h2 class="h5 fw-medium text-muted mb-5">Please return to the console.</h2>
+                        <a class="btn btn-primary fs-sm" href="{$url}">
+                            <i class="fa fa-arrow-left opacity-50 me-1"></i> 返回控制台
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+</body>
+</html>

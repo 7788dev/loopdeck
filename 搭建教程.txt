@@ -1,0 +1,20 @@
+﻿2024最新OneTool多平台助手程序源码 
+
+安装教程：
+
+搭建环境需求：PHP8.0
+ 
+伪静态设置为thinkphp规则  
+  
+运行目录设置为public
+
+上传到服务器根目录解压访问域名打开安装
+
+网易云协议依赖（必须）：
+网易云登录与任务已内置纯 PHP SDK，不需要安装或常驻 Node 服务。
+PHP 需要启用 curl、openssl、sodium 和 json 扩展；项目 vendor 中需包含 Guzzle。
+
+部署后可在项目根目录执行以下命令检查协议实现：
+
+  php tests/NeteaseSdkTest.php
+  php tests/NeteaseWorkflowTest.php

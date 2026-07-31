@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1.0" name="viewport">
+    <title>{:config('web.webname')} - {:config('web.title')}</title>
+    <meta content="{:config('web.keywords')}" name="keywords">
+    <meta content="{:config('web.description')}" name="description">
+    <link href="/favicon.ico" rel="shortcut icon">
+<!--    <link href="/static/media/favicons/favicon-192x192.png" rel="icon" sizes="192x192" type="image/png">-->
+<!--    <link href="/static/media/favicons/apple-touch-icon-180x180.png" rel="apple-touch-icon" sizes="180x180">-->
+    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800&display=swap" rel="stylesheet">
+    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
+    <link href="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-0-M/nprogress/0.2.0/nprogress.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="main-content-boxed" id="page-container">
+    <main id="main-container">
+        <div class="bg-image" style="background-image: url('/static/media/photos/photo34@2x.jpg');">
+            <div class="row mx-0 bg-earth-op">
+                <div class="hero-static col-md-6 col-xl-8 d-none d-md-flex align-items-md-end">
+                    <div class="p-4">
+                        <p class="fs-3 fw-semibold text-white mb-1">
+                            We're very happy you are joining our community!
+                        </p>
+                        <p class="fs-5 text-white fw-medium">
+                            <i class="fa fa-angle-right opacity-50"></i> Create your account today !
+                        </p>
+                        <p class="text-white-75 fw-medium">
+                            Copyright &copy; <span data-toggle="year-copy"></span>
+                        </p>
+                    </div>
+                </div>
+                <div class="hero-static col-md-6 col-xl-4 d-flex align-items-center bg-body-extra-light">
+                    <div class="content content-full">
+                        <div class="px-4 py-2 mb-4">
+                            <a class="link-fx fw-bold" href="index.html">
+                                <i class="fa fa-fire"></i>
+                                <span class="fs-4 text-body-color">{:config('web.webname')}</span>
+                            </a>
+                            <h1 class="h3 fw-bold mt-4 mb-2">创建新账户</h1>
+                            <h2 class="h5 fw-medium text-muted mb-0">请填写您的详细资料</h2>
+                        </div>
+                        <form class="js-validation-signup px-4" onsubmit="return false;">
+                            <div class="form-floating mb-4">
+                                <input class="form-control" id="username" name="username" placeholder="输入你的用户名"
+                                       type="text">
+                                <label class="form-label" for="username">用户名</label>
+                            </div>
+                            <div class="form-floating mb-4">
+                                <input class="form-control" id="password" name="password" placeholder="输入你的密码"
+                                       type="password">
+                                <label class="form-label" for="password">密码</label>
+                            </div>
+                            <div class="form-floating mb-4">
+                                <input class="form-control" id="qq" name="qq" placeholder="输入你的QQ"
+                                       type="number">
+                                <label class="form-label" for="qq">QQ</label>
+                            </div>
+                            <div class="row mb-4">
+                                <div class="col-6">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="captcha" name="captcha" placeholder="请输入验证码">
+                                        <label class="form-label" for="captcha">验证码</label>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="form-floating">
+                                        <div><img class="border" id="captcha_img" src="{:captcha_src()}" onclick='this.src="{:captcha_src()}?"+Math.random();' alt="captcha" height="58px;" width="100%" /></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <div class="form-check">
+                                    <input checked class="form-check-input" id="signup-terms"
+                                           name="signup-terms" type="checkbox">
+                                    <label class="form-check-label" for="signup-terms">我同意条款</label>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <button class="btn btn-lg btn-alt-primary fw-semibold" type="submit" onclick="ajax_user_reg();">
+                                    创建账户
+                                </button>
+                                <div class="mt-4">
+                                    <a class="fs-sm fw-medium link-fx text-muted me-2 mb-1 d-inline-block"
+                                       href="{:url('/index/login/login')}">
+                                        返回登录
+                                    </a>
+                                    <a class="fs-sm fw-medium link-fx text-muted me-2 mb-1 d-inline-block"
+                                       href="{:url('/index/login/find')}">
+                                        找回密码
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="/static/js/codebase.app.min-5.0.js"></script>
+<script src="/static/js/lib/jquery.min.js"></script>
+<script src="/static/js/plugins/jquery-validation/jquery.validate.min.js"></script>
+<script src="/static/js/plugins/bootstrap-notify/bootstrap-notify.min.js"></script>
+<script src="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-0-M/nprogress/0.2.0/nprogress.min.js"></script>
+<script src="/static/js/app.min.js"></script>
+<script src="/static/js/layer.js"></script>
+<script>
+    function ajax_user_reg() {
+        x.ajax('/index/LoginAjax/reg', {
+            username: x.getval('#username'),
+            password: x.getval('#password'),
+            qq: x.getval('#qq'),
+            captcha: x.getval('#captcha'),
+        }, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    window.location.href = "{:url('console/index')}";
+                }, 1000)
+            } else {
+                $('#captcha').val(null);
+                $('#captcha_img').click();
+                x.notify(data.message, 'warning');
+            }
+        });
+    }
+</script>
+</body>
+</html>

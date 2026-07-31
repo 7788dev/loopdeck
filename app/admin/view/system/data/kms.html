@@ -1,0 +1,68 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<style>
+    th,td {
+        white-space: nowrap;
+    }
+</style>
+
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title">{$webTitle}</h3>
+
+    </div>
+
+    <div class="block-content block-content-full">
+        <div class="col-lg-12 space-y-2">
+            <div class="row row-cols-lg-auto g-3 align-items-center">
+                <div class="col-4">
+                    <label class="visually-hidden">卡密</label>
+                    <input type="text" class="form-control" id="search-km" placeholder="卡密">
+                </div>
+                <div class="col-4">
+                    <select class="form-select" id="search-type">
+                        <option selected="" value="">卡密类型</option>
+                        <option value="vip">VIP卡密</option>
+                        <option value="quota">配额卡密</option>
+                        <option value="agent">代理卡密</option>
+                    </select>
+                </div>
+                <div class="col-4">
+                    <select class="form-select" id="search-status">
+                        <option selected="" value="">卡密状态</option>
+                        <option value="0">未使用</option>
+                        <option value="1">已使用</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-alt-primary me-2" onclick="table_search();">
+                        <i class="fa fa-search me-1"></i> 查询
+                    </button>
+                    <button type="button" class="btn btn-sm btn-alt-success me-1 mt-1 mb-1" onclick="ajax_add_km();">
+                        <i class="fa fa-plus opacity-50 me-1"></i>生成卡密
+                    </button>
+                    <button type="button" class="btn btn-sm btn-alt-danger me-1 mt-1 mb-1" onclick="ajax_del_usedkm();">
+                        <i class="fa fa-times opacity-50 me-1"></i>清除已使用卡密
+                    </button>
+                    <button type="button" class="btn btn-sm btn-alt-danger me-1 mt-1 mb-1" onclick="ajax_del_notUsedkm();">
+                        <i class="fa fa-times opacity-50 me-1"></i>清除未使用卡密
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <table class="table table-bordered table-striped table-vcenter js-dataTable-responsive" id="kmsList">
+        </table>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="/static/js/plugins/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
+
+<script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
+
+<script src="/static/js/admin_kmsList_datatables.js"></script>
+{/block}

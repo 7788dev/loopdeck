@@ -1,0 +1,71 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded">
+    <div class="block-content block-content-full">
+        <div class="py-3 text-center">
+            <h2 class="fw-bold mb-2">
+                卡密激活
+            </h2>
+            <h3 class="fs-base fw-medium text-muted mb-0">
+                系统24小时自动处理订单，兑换后自动为您的账户充值余额，无需等待。
+            </h3>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-lg-6 col-xl-4">
+        <div class="block block-rounded text-center overflow-hidden">
+            <a class="d-block bg-pulse fw-semibold text-uppercase py-2" href="javascript:void(0)">
+                <span class="text-white fs-sm">账户明细</span>
+            </a>
+            <div class="block-content block-content-full">
+                <div class="fw-semibold mb-2">配额数量：{:session('user.quota')} 个</div>
+                {if session('user.vip_start')}
+                <div class="fw-semibold mb-2">VIP：{:session('user.vip_end')}</div>
+                {else /}
+                <div class="fw-semibold mb-2">普通用户</div>
+                {/if}
+                <div class="fw-semibold mb-2">余额：{:session('user.money')} 元</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6 col-xl-4">
+        <div class="block block-rounded text-center overflow-hidden">
+            <a class="d-block bg-elegance fw-semibold text-uppercase py-2" href="javascript:void(0)">
+                <span class="text-white fs-sm">输入卡密</span>
+            </a>
+            <div class="block-content tab-content">
+                <div class="tab-pane active" id="crypto-buy" role="tabpanel" aria-labelledby="crypto-buy-tab">
+                    <form onsubmit="return false;">
+                        <div class="mb-4">
+                            <div class="input-group input-group-lg">
+                                <input type="text" class="form-control" id="km" name="km" placeholder="请输入你的卡密">
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <button type="submit" class="btn btn-lg w-100 btn-alt-primary" onclick="ajax_km_activate();">确定兑换</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_km_activate()
+    {
+        var km = x.getval('#km', '请先输入卡密');
+        if (!km) reutrn;
+        x.ajax('/index/ajax/shop/activate', {km: km}, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+</script>
+{/block}

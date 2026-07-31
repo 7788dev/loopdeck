@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{:config('web.webname')} - {:config('web.title')}</title>
+    <meta content="{:config('web.keywords')}" name="keywords">
+    <meta content="{:config('web.description')}" name="description">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1">
+    <link href="favicon.ico" id="linear-gradient" rel="shortcut icon">
+    <link href="/static/template/index/lmao/css/main.css" rel="stylesheet"/>
+    <link href="/static/template/index/lmao/css/reset.css" rel="stylesheet"/>
+    <link href="/static/template/index/lmao/css/codebase.min-5.0.css" rel="stylesheet"/>
+    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" type="text/css" href="https://lib.baomitu.com/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body>
+     <div id="page-loader" class="show bg-index-0"></div>
+      <div class="sidebar-dark side-scroll page-header-fixed page-header-glass main-content-boxed" id="page-container">
+       <nav id="sidebar">
+        <div class="sidebar-content"> 
+         <div class="content-header justify-content-lg-center bg-black-10"> 
+          </div>
+           <div class="js-sidebar-scroll">
+            <div class="content-side content-side-full">
+             <ul class="nav-main">
+              <li class="nav-main-item"> <a class="nav-main-link active" href="/"> <i class="nav-main-link-icon fa fa-home"> </i>
+             <span class="nav-main-link-name"> 首页 </span></a></li>
+            </ul>
+           </div>
+          </div>
+         </div>
+        </nav>
+      <header id="page-header">
+        <div class="content-header">
+            <div class="space-x-1">
+                <a class="link-fx fw-bold" href="/">
+                <i class="fa fa-rocket text-primary"></i>
+            <span class="fs-4 text-dual">{:config('web.webname')}</span></a></div>
+
+         <div class="d-flex align-items-center space-x-2">
+          <ul class="nav-main nav-main-horizontal nav-main-hover d-none d-lg-block">
+           <li class="nav-main-item"> <a class="nav-main-link active" href="/"><i class="nav-main-link-icon fa fa-home"></i>
+             <span class="nav-main-link-name">首页</span></a></li> 
+              </ul>
+                <div class="dropdown d-inline-block">
+                    <button aria-expanded="false" aria-haspopup="true" class="btn btn-sm btn-alt-secondary bg-head" data-bs-auto-close="outside" data-bs-toggle="dropdown" id="page-header-themes-dropdown" type="button">
+                        <i class="fa fa-align-justify"></i>
+                    </button>
+                    <div aria-labelledby="page-header-themes-dropdown" class="dropdown-menu dropdown-menu-end">
+                        <h6 class="dropdown-header text-center">功能菜单</h6>
+                    <div class="row g-0 text-center">
+                    <div class="col-4 mb-1">
+                        <a class="text-default" data-theme="default" data-toggle="theme" href="javascript:void(0)">
+                            <i class="fa fa-2x fa-circle"></i>
+                        </a>
+                    </div>
+                    <div class="col-4 mb-1">
+                        <a class="text-elegance" data-theme="/static/css/themes/elegance.min-5.0.css" data-toggle="theme" href="javascript:void(0)">
+                            <i class="fa fa-2x fa-circle"></i>
+                        </a>
+                    </div>
+                    <div class="col-4 mb-1">
+                        <a class="text-pulse" data-theme="/static/css/themes/pulse.min-5.0.css" data-toggle="theme" href="javascript:void(0)">
+                            <i class="fa fa-2x fa-circle"></i>
+                        </a>
+                    </div>
+                    <div class="col-4 mb-1">
+                        <a class="text-flat" data-theme="/static/css/themes/flat.min-5.0.css" data-toggle="theme" href="javascript:void(0)">
+                            <i class="fa fa-2x fa-circle"></i>
+                        </a>
+                    </div>
+                    <div class="col-4 mb-1">
+                        <a class="text-corporate" data-theme="/static/css/themes/corporate.min-5.0.css" data-toggle="theme" href="javascript:void(0)">
+                            <i class="fa fa-2x fa-circle"></i>
+                        </a>
+                    </div>
+                    <div class="col-4 mb-1">
+                        <a class="text-earth" data-theme="/static/css/themes/earth.min-5.0.css" data-toggle="theme" href="javascript:void(0)">
+                            <i class="fa fa-2x fa-circle"></i>
+                        </a>
+                    </div>
+                        <li class="nav-main-item">
+                        <a class="nav-main-link active" href="//wpa.qq.com/msgrd?v=3&uin={:config('web.user_qq')}&site=qq&menu=yes" target="_blank">
+                            <i class="nav-main-link-icon fab fa-qq"></i>
+                            <span class="nav-main-link-name">联系站长</span>
+                        </a>
+                    </li>
+                </div>
+                </div>
+            </div>
+        </div>
+            </div>
+                <div class="overlay-header bg-primary" id="page-header-loader">
+                    <div class="content-header">
+                        <div class="w-100 text-center">
+                    <i class="far fa-sun fa-spin text-white"></i>
+                </div>
+            </div>
+        </div>
+     </header> 
+   <main class="bg-gd-indexg" id="main-container"> 
+    <div class="bg-default-light overflow-hidden bg-image" id="#home"> 
+     <div class="row">
+         <div class="hero-inner" style="background-image: -webkit-linear-gradient(0deg, rgb(229, 99, 81), rgb(240, 154, 234));">
+          <div class="content content-full text-center">
+              <br>
+              <br>
+              <br>
+              <br>
+              <h1 class="display-3 fw-bold text-white mb-2"> {:config('web.webname')} </h1>
+              <h4 class="fw-medium text-white-50 mb-5"> {:config('web.title')} </h4>
+              {if condition="!session('user')"}
+              <a class="btn btn-lg btn-alt-info fw-semibold me-1 mb-2 fs-sm" href="{:url('login/login')}">
+                  <i class="si si-login opacity-50 me-1"></i> 登 录
+              </a>
+              <a class="btn btn-lg btn-primary fw-semibold mb-2 fs-sm" href="{:url('login/reg')}">
+                  <i class="si si-energy opacity-50 me-1"></i> 注 册
+              </a>
+              {else /}
+              <a class="btn btn-lg btn-alt-info fw-semibold me-1 mb-2 fs-sm" href="{:url('index/console/')}">
+                  <i class="si si-login opacity-50 me-1"></i> 用户中心
+              </a>
+              {/if}
+                        </div>
+                </div>
+            </div>
+        </div>
+    <div class="bg-gd-index" id="#features">
+   <div class="content content-full">
+     <div class="row">
+      <div class="col-md-6 col-xl-3">
+      <a class="block block-rounded dg-NeteaseCloudMusic" href="/index/console/netease/add.html">
+        <div class="block-content block-content-full d-flex justify-content-between align-items-center">
+          <div>
+            <img class="img-avatar" src="/static/template/index/lmao/img/01.png" alt="网易云音乐">
+          </div>
+          <div class="text-end">
+              <div class="fw-semibold text mb-1">网易云音乐</div>
+              <div class="fs-sm text-muted">音乐人、合伙人任务等</div>
+          </div> 
+          </div> </a> 
+       </div>
+      <div class="col-md-6 col-xl-3">
+      <a class="block block-rounded dg-Bilibilitv" href="/index/console/bilibili/add.html">
+        <div class="block-content block-content-full d-flex justify-content-between align-items-center">
+          <div>
+            <img class="img-avatar" src="/static/template/index/lmao/img/02.png" alt="哔哩哔哩">
+          </div>
+          <div class="text-end">
+              <div class="fw-semibold text mb-1">哔哩哔哩</div>
+              <div class="fs-sm text-muted">每日看视频、投币任务等</div>
+          </div> 
+          </div> </a> 
+       </div>
+      <div class="col-md-6 col-xl-3">
+      <a class="block block-rounded dg-sportsassistant" href="/index/console/sport/add.html">
+        <div class="block-content block-content-full d-flex justify-content-between align-items-center">
+          <div>
+            <img class="img-avatar" src="/static/template/index/lmao/img/03.png" alt="步数助手">
+          </div>
+          <div class="text-end">
+              <div class="fw-semibold text mb-1">步数助手</div>
+
+              <div class="fs-sm text-muted">VX、ZFB 步数任务等</div>
+          </div> 
+          </div> </a> 
+       </div>
+      <!-- 百度贴吧功能已停用
+      <div class="col-md-6 col-xl-3">
+      <a class="block block-rounded dg-Baidupostbar" href="/index/console/tieba/add.html">
+        <div class="block-content block-content-full d-flex justify-content-between align-items-center">
+          <div>
+            <img class="img-avatar" src="/static/template/index/lmao/img/04.png" alt="百度贴吧">
+          </div>
+          <div class="text-end">
+              <div class="fw-semibold text mb-1">百度贴吧</div>
+              <div class="fs-sm text-muted">自动贴吧签到所有任务</div>
+          </div> 
+          </div> </a> 
+       </div>
+      -->
+      <!-- 米游社功能已停用
+      <div class="col-md-6 col-xl-3">
+      <a class="block block-rounded dg-Miyoushe" href="/index/console/mihoyo/add.html">
+        <div class="block-content block-content-full d-flex justify-content-between align-items-center">
+          <div>
+            <img class="img-avatar" src="/static/template/index/lmao/img/05.png" alt="米游社">
+          </div>
+          <div class="text-end">
+              <div class="fw-semibold text mb-1">米游社</div>
+              <div class="fs-sm text-muted">米游社任务、原神签到</div>
+          </div> 
+          </div> </a> 
+       </div>
+      -->
+      <div class="col-md-6 col-xl-3">
+      <a class="block block-rounded dg-Aiqiyivideo" href="/index/console/iqiyi/add.html">
+        <div class="block-content block-content-full d-flex justify-content-between align-items-center">
+          <div>
+            <img class="img-avatar" src="/static/template/index/lmao/img/06.png" alt="爱奇艺">
+          </div>
+          <div class="text-end">
+              <div class="fw-semibold text mb-1">爱奇艺</div>
+              <div class="fs-sm text-muted">签到、积分、vip任务等</div>
+          </div> 
+          </div> </a> 
+       </div>
+        </div> 
+       </div> 
+      </div>
+    <div class="bg-body-extra-light block block-rounded ">
+   <div class="content content-full">
+    <div class="py-5 text-center">
+        <h2 class="fw-bold mb-2 text-center"> 我们 <span class="text-tese"> 优势 </span></h2>
+        <h3 class="h4 fw-medium text-muted text-center mb-5">提供 优质 快速 专业 稳定 的服务</h3>
+            <div class="position-relative">
+                <div class="content content-full">
+                    <div class="row">
+                        <div class="col-md-6 col-xl-3">
+                            <a class="block block-rounded text-center">
+                                <div class="block-content block-content-full block-content-sm bg-primary-01">
+                                    <span class="fw-semibold text-white">24H运行</span></div>
+                                <div class="block-content block-content-full bg-primary-11">
+                              <div class="mb-1"><i class="fab fa-windows fa-2x text-ys-111"></i></div>
+                              <div class="fs-sm text-muted">服务器24h不间断运行稳定、快速、实用</div>
+                            </div>
+                                <div class="block-content bg-gd-11">
+                                    <div class="row items-push text-center">
+                                        <div class="col-6">
+                                            <div class="item item-circle bg-primary-1111 mx-auto mb-2">
+                                                <i class="fa fa-server text-success"></i>
+                                            </div>
+                                            <div class="text-muted">云 端</div>
+                                        </div>
+                                        <div class="col-6">
+                                        <div class="item item-circle bg-primary-11111 mx-auto mb-2">
+                                        <i class="fa fa-globe text-info"></i>
+                                            </div>
+                                            <div class="text-muted">稳 定</div>
+                                        </div>
+                                    </div>
+                                </div></a>
+                            </div>
+                        <div class="col-md-6 col-xl-3">
+                            <a class="block block-rounded text-center">
+                                <div class="block-content block-content-full block-content-sm bg-primary-02">
+                                    <span class="fw-semibold text-white">专人维护</span>
+                                </div>
+                                <div class="block-content block-content-full bg-primary-22">
+                                    <div class="mb-1"><i class="far fa-keyboard fa-2x text-ys-222"></i></div>
+                                    <div class="fs-sm text-muted">有专人维护更新协议使用更放心、贴心</div>
+                                </div>
+                                <div class="block-content bg-gd-22">
+                                    <div class="row items-push text-center">
+                                        <div class="col-6">
+                                            <div class="item item-circle bg-primary-2222 mx-auto mb-2">
+                                                <i class="far fa-credit-card text-earth"></i>
+                                            </div>
+                                            <div class="text-muted">正 版</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="item item-circle bg-primary-22222 mx-auto mb-2">
+                                                <i class="si si-heart text-pulse"></i>
+                                            </div>
+                                            <div class="text-muted">创 新</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                            </div>
+                        <div class="col-md-6 col-xl-3">
+                            <a class="block block-rounded text-center">
+                                <div class="block-content block-content-full block-content-sm bg-primary-03">
+                                    <span class="fw-semibold text-white">自动签到</span></div>
+                                <div class="block-content block-content-full bg-primary-33">
+                                    <div class="mb-1"><i class="fa fa-rocket fa-2x text-ys-333"></i></div>
+                                    <div class="fs-sm text-muted">内置各种自动签到服务稳定永远在线，安全快捷</div>
+                                </div>
+                                <div class="block-content bg-gd-33">
+                                    <div class="row items-push text-center">
+                                        <div class="col-6">
+                                            <div class="item item-circle bg-primary-3333 mx-auto mb-2">
+                                                <i class="fa fa-bolt text-elegance"></i>
+                                            </div>
+                                            <div class="text-muted">专 业</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="item item-circle bg-primary-33333 mx-auto mb-2">
+                                                <i class="fa fa-clone text-corporate"></i>
+                                            </div>
+                                            <div class="text-muted">简 约</div>
+                                        </div>
+                                    </div>
+                                </div></a>
+                            </div>
+                        <div class="col-md-6 col-xl-3">
+                            <a class="block block-rounded text-center">
+                                <div class="block-content block-content-full block-content-sm bg-primary-04">
+                                    <span class="fw-semibold text-white">账号安全</span></div>
+                                <div class="block-content block-content-full bg-primary-44">
+                                  <div class="mb-1"><i class="far fa-user fa-2x text-ys-444"></i></div>
+                                  <div class="fs-sm text-muted">本地部署，账号数据由你自己掌控</div>
+                                </div>
+                                <div class="block-content bg-gd-44">
+                                    <div class="row items-push text-center">
+                                        <div class="col-6">
+                                            <div class="item item-circle bg-primary-4444 mx-auto mb-2">
+                                                <i class="fa fa-user-secret text-danger"></i>
+                                            </div>
+                                            <div class="text-muted">安 全</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="item item-circle bg-primary-44444 mx-auto mb-2">
+                                                <i class="fa fa-server text-warning"></i>
+                                            </div>
+                                            <div class="text-muted">架 构</div>
+                                        </div>
+                                    </div>
+                                </div></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+        <main id="main-container">
+      <div id="page-overlay"></div>
+    <div class="content" id="pjax-container">
+    <div class="block block-rounded">
+        <div class="block-content text-center bg-gd-jiage">
+            <h2>出色的体验<span class="text-jiage"> 意想不到的价格 </span></h2>
+
+        </div>
+      <p class="fw-medium text-center bg-bai mb-0">不要把宝贵时间、浪费在等待上
+      </p><p class="fw-medium text-center bg-bai mb-0">按需选择会员与任务配额</p>
+            <table class="table table-bordered"><thead>
+            <tr>
+                <th class="text-center">挂机会员</th>
+
+                <th class="text-center">挂机配额</th>
+            </tr></thead><tbody>
+           <tr>
+                 <td class="text-success text-center">包月会员: {:config('sys.vip_price_1')}￥</td>
+                <td class="text-success text-center">一个配额: {:config('sys.quota_price_1')}￥</td>
+
+             </tr>
+            <tr><td class="text-sheji text-center">包季会员: {:config('sys.vip_price_2')}￥</td>
+
+                <td class="text-sheji text-center">三个配额: {:config('sys.quota_price_2')}￥</td>
+
+            </tr>
+            <tr>
+                <td class="text-tese text-center">半年会员: {:config('sys.vip_price_3')}￥</td>
+                <td class="text-tese text-center">五个配额: {:config('sys.quota_price_3')}￥</td>
+
+            </tr>
+            <tr>
+                <td class="text-danger text-center">包年会员: {:config('sys.vip_price_4')}￥</td>
+
+                <td class="text-danger text-center">十个配额: {:config('sys.quota_price_4')}￥</td>
+            </tr>
+            <tr><td class="text-center" style="color: #BA55D3;">永久会员: 联系站长</td>
+
+                <td class="text-center" style="color: #BA55D3;">配额永久使用</td>
+            </tr></tbody></table>
+            </div>
+        </div>
+        </main>
+            <div class="bg-body-extra-light block block-rounded">
+                <div class="content content-full">
+                <div class="position-relative">
+                <h2 class="fw-bold text-center mb-2"> TA们正在使用 <span class="text-yonhu"> {:config('web.webname')} </span> </h2>
+
+                <h3 class="h4 fw-medium text-muted text-center mb-5">享受最优质的功能 最极致的售后服务</h3>
+            </div>
+        <div class="row">
+            {volist name="users" id="vo"}
+                <div class="col-md-6 col-xl-3">
+        <a class="block block-rounded block-transparent text-center bg-image" style="background-image: url('/static/template/index/lmao/img/photo2.jpeg');">
+        <div class="block-content block-content-full">
+        <img class="img-avatar img-touxian avatar" src="//q4.qlogo.cn/headimg_dl?dst_uin={$vo.qq}&spec=100" alt="用户">
+        </div>
+        <div class="block-content block-content-full block-content-sm bg-black-50">
+            <div class="fw-semibold text-white mb-1">【 {$vo.nickname} 】</div>
+            <div class="fs-sm text-white-75"><i class="fa fa-rocket fa-1x text-ys-333 mb-1"></i>
+            至尊用户</div><span class="text-zhzt">账号状态：</span><span class="fw-semibold fs-sm text-elegance">正常</span>
+
+        </div></a>
+       </div>
+            {/volist}
+           </div>
+    </div>
+    </div>
+    <div class="6267bcecc1967 bg-image" id="#about" style="background-image: url('/static/template/index/lmao/img/background.jpeg');">
+        <div class="6267bcecc196b bg-black-75">
+            <div class="6267bcecc196f content content-top text-center">
+                <div class="6267bcecc1973 py-7">
+                    <h1 class="6267bcecc1976 fw-bold text-white mb-2">稳定运行<font color="DC143C"> {$timeCount} </font>天</h1>
+                    <h2 class="6267bcecc197a h4 fw-normal text-white-75">我们正在为<font color="BA55D3"> {$userCount} </font>位 用户提供服务</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="6267bcecc197e bg-body-light">
+        <div class="6267bcecc198b content content-full">
+            <div class="6267bcecc198f py-5 text-center">
+                <h3 class="fw-bold mb-2">坚持自己梦想</h3>
+
+                <h4 class="fw-normal text-muted mb-4" id="hitokoto">:ID 获取中... </h4>
+                <script src="//v1.hitokoto.cn/?encode=js&amp;select=%23hitokoto" defer=""></script>
+
+                <a class="btn btn-alt-primary text-muted" href="{:url('login/login')}">加入我们</a>
+            </div>
+        </div>
+    </div>
+    </main> 
+    </div>
+    <footer class="bg-body-extra-light block-rounded" id="page-footer">
+    <div class="content content-full">
+        <div class="row g-0 fs-sm border-top pt-3">
+            <div class="col-sm-6 order-sm-2 py-1 text-center text-sm-end">
+                © <span data-toggle="year-copy"></span> <a class="fw-semibold text" href="#" target="_blank">{:config('web.webname')}</a>
+               </div>
+                <div class="col-sm-6 order-sm-1 py-1 text-center text-sm-start">
+                <a href="//beian.miit.gov.cn/" target="_blank" class="text fw-semibold">{:config('web.icp')}</a>
+               </div>
+           </div>
+       </div>
+    </footer>
+     <script src="/static/js/codebase.app.min-5.0.js"></script>
+     <script src="/static/template/index/lmao/js/jquery-3.6.1.min.js"></script>
+     <script src="/static/template/index/lmao/js/jquery.gradientify.min.js"></script>
+     <script src="/static/template/index/lmao/js/index.js"></script>
+     <script src="/static/template/index/lmao/js/sweetalert.min.js"></script>
+<script>
+    swal('本站状态:稳定运行中','\n\n 所有挂机任务24小时自动处理中，欢迎使用！','success'); function AddFavorite(title, url) {
+    try {
+         window.external.addFavorite(url, title);
+        }
+        catch (e) {
+        try {
+         window.sidebar.addPanel(title, url,);
+        }
+       catch (e) {
+        alert("抱歉，您所使用的浏览器无法完成此操作。");
+        }
+     }
+    }
+</script>
+</body>
+</html>

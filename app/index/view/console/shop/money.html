@@ -1,0 +1,112 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded">
+    <div class="block-content block-content-full">
+        <div class="py-3 text-center">
+            <h2 class="fw-bold mb-2">
+                充值账户余额
+            </h2>
+            <h3 class="fs-base fw-medium text-muted mb-0">
+                系统24小时自动处理订单，支付后自动为您的账户充值余额，无需等待。
+            </h3>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-lg-6 col-xl-4">
+        <div class="block block-rounded text-center overflow-hidden">
+            <a class="d-block bg-gd-dusk fw-semibold text-uppercase py-2" href="javascript:void(0)">
+                <span class="text-white fs-sm">余额明细</span>
+            </a>
+            <div class="block-content block-content-full">
+                <p class="fs-sm fw-semibold text-uppercase text-muted">当前账户余额：</p>
+                <div class="pb-4">
+                    <div class="fs-3 fw-bold">{:session('user.money')}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6 col-xl-4">
+        <div class="block block-rounded text-center overflow-hidden">
+            <a class="d-block bg-gd-sea fw-semibold text-uppercase py-2" href="javascript:void(0)">
+                <span class="text-white fs-sm">余额充值</span>
+            </a>
+            <div class="block-content tab-content">
+                <div class="tab-pane active" id="crypto-buy" role="tabpanel" aria-labelledby="crypto-buy-tab">
+                    <form onsubmit="return false;">
+                        <div class="mb-4">
+                            <div class="input-group input-group-lg">
+                                <input type="number" class="form-control" id="money" name="money" placeholder="0.00">
+                                <span class="input-group-text fw-semibold">元</span>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <button type="submit" class="btn btn-lg w-100 btn-alt-primary" onclick="select_payment();">确定充值</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="content-content p-2" id="payment-selector" style="display: none">
+    <div class="text-center fw-semibold fs-sm">请选择支付方式</div>
+    <div class="btn-group btn-group-sm my-2" role="group">
+        {if condition="config('sys.is_qqpay')"}
+        <input type="radio" class="btn-check" name="qqpay" id="qqpay" onclick="ajax_shop_money('qqpay');">
+        <label class="btn btn-alt-info" for="qqpay">QQ支付</label>
+        {/if}
+        {if condition="config('sys.is_wxpay')"}
+        <input type="radio" class="btn-check" name="wxpay" id="wxpay" onclick="ajax_shop_money('wxpay');">
+        <label class="btn btn-alt-info" for="wxpay">微信支付</label>
+        {/if}
+        {if condition="config('sys.is_alipay')"}
+        <input type="radio" class="btn-check" name="alipay" id="alipay" onclick="ajax_shop_money('alipay');">
+        <label class="btn btn-alt-info" for="alipay">支付宝支付</label>
+        {/if}
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function select_payment() {
+        money = x.getval('#money');
+        if (money == 0 || money == undefined || money == '') {
+            x.notify('充值金额不正确', 'warning');
+            return;
+        }
+        {if condition="!config('sys.is_qqpay') && !config('sys.is_wxpay') && !config('sys.is_alipay')"}
+            x.notify('暂无支付渠道，请联系站长', 'danger');
+            return;
+        {/if}
+        layer.open({
+            type: 1,
+            shade: false,
+            title: false,
+            content: $('#payment-selector'),
+            cancel: function(){
+                x.notify('交易取消', 'warning');
+            },
+        });
+    }
+
+    function ajax_shop_money(pay_type)
+    {
+        x.ajax('/index/ajax/shop/buy', {shop: 'money', shopid: money, pay_type: pay_type}, function (data) {
+            if (data.code == 1) {
+                layer.closeAll();
+                layer.confirm(data.message, {
+                    btn: ['确定', '取消'],
+                    closeBtn: 0,
+                }, function () {
+                    window.location.href = data.data.success;
+                })
+            } else {
+                x.notify(data.message, 'warning');
+                layer.closeAll();
+            }
+        })
+    }
+</script>
+{/block}

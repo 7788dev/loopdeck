@@ -1,0 +1,48 @@
+# NetEase Cloud Music PHP SDK
+
+This directory contains the project's native PHP implementation of the request
+layer from `NeteaseCloudMusicApiEnhanced/api-enhanced` 4.39.0, commit
+`63d89aa906f78c286a7f838258fa29220d7f41dd`.
+
+Supported request modes:
+
+- `api`
+- `weapi` (AES-CBC plus RSA)
+- `eapi` (AES-ECB plus request digest)
+- `linuxapi`
+- `xeapi` (X25519, AES-GCM, AES-ECB, session reuse, and encrypted responses)
+
+The client also handles device cookies, anonymous `MUSIC_A` registration,
+XEAPI public-key refresh, v3 anti-cheat tokens, response cookies, proxy settings,
+and persistent protocol state. The existing `netease\Netease` class is the
+project-specific compatibility facade and sends all NetEase requests through
+this SDK.
+
+Basic use:
+
+```php
+use netease\sdk\Client;
+
+$client = new Client([
+    'user_id' => $userId,
+    'csrf' => $csrf,
+    'music_u' => $musicU,
+]);
+
+$response = $client->request(
+    '/api/v1/discovery/recommend/resource',
+    [],
+    'weapi'
+);
+```
+
+Verification:
+
+```text
+php tests/NeteaseSdkTest.php
+php tests/NeteaseWorkflowTest.php
+php tests/NeteaseLiveSmoke.php
+```
+
+The first two commands are fully offline. The last performs read-only protocol
+checks against NetEase and prepares, but does not send, a comment request.

@@ -1,0 +1,167 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-md-6">
+        <div class="block block-rounded h-100 mb-0">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">账号密码添加（请使用网易云音乐账号登录）</h3>
+            </div>
+            <div class="block-content">
+                <form onsubmit="return false;" id="login-form">
+                    <div class="mb-4">
+                        <label class="form-label" for="login-username">手机号</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                              <i class="far fa-user"></i>
+                            </span>
+                            <input type="text" class="form-control" id="login-username" name="login-username" placeholder="请输入手机号">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="login-password">密码</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                              <i class="far fa-surprise"></i>
+                            </span>
+                            <input type="password" class="form-control" id="login-password" name="login-password" placeholder="请输入密码">
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <button type="submit" class="btn btn-alt-primary" onclick="ajax_netease_login();">
+                            <i class="fa fa-arrow-right opacity-50 me-1"></i> 登录
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="block block-rounded h-100 mb-0">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">扫码添加</h3>
+                <div class="block-options">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="ajax_netease_qrlogin();">扫码完成，点击验证</button>
+                </div>
+            </div>
+            <div class="block-content text-center">
+                <div class="alert alert-primary d-flex align-items-center" role="alert">
+                    <i class="si si-magic-wand me-2"></i>
+                    <p class="mb-0" id="qr-alert">点击图片即可获取二维码</p>
+                </div>
+                <div class="block" id="qr-img" key="">
+                    <p class="mt-4">
+                        <i class="si si-camera fa-4x text-muted"></i>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_netease_login()
+    {
+        var username = x.getval('#login-username', '请先输入手机号！');
+        if (!username) return;
+        var password = x.getval('#login-password', '请先输入密码！');
+        if (!password) return;
+        x.ajax('/index/ajax/netease/add', {
+            username: username,
+            password: password,
+        }, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    // x.pjax('{:url("/index/console/netease/list")}');
+                    window.location.href = '{:url("/index/console/netease/list")}';
+                }, 1000)
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+
+    $('#qr-img').click(function () {
+        x.ajax('/index/ajax/netease/getQrimg',null ,function (data) {
+            if (data.code == 1) {
+                $('#qr-img').attr('key', data.data.key);
+                $('#qr-img').html('<img src="data:image/png;base64,'+ data.data.qrimg +'" height="145px;">');
+            }
+        })
+        Codebase.block('state_normal', '#qr-img');
+    });
+
+    function ajax_netease_qrlogin() {
+        var key = $('#qr-img').attr('key');
+        if (!key) return x.notify('请先获取二维码');
+        x.ajax('/index/ajax/netease/qrLogin', {
+            key: key,
+        }, function (data) {
+            if(data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    window.location.href = "{:url(\"/index/console/netease/list\")}";
+                }, 1000)
+            } else if (data.code == 8810) {
+                // 风控拦截：弹出二次安全验证二维码，用已登录该账号的APP扫码后轮询验证
+                start_verify_poll(data.data);
+            } else if (data.code == 800) {
+                $('#qr-img').click();
+            } else {
+                x.notify(data.message, 'warning')
+                $('#qr-alert').html(data.message);
+            }
+        })
+    }
+
+    // 8810 风控的二次扫码安全验证：后端返回验证二维码 + verify_unikey，前端轮询 verifyCheck。
+    var verify_timer = null;
+    function start_verify_poll(d) {
+        if (!d || !d.verify_unikey) {
+            x.notify('安全验证信息缺失，请重试', 'warning');
+            return;
+        }
+        var unikey = d.verify_unikey;
+        $('#qr-img').attr('key', '');
+        $('#qr-alert').html('当前网络环境存在风险，请用<strong>已登录该账号</strong>的网易云音乐APP扫描下方验证二维码');
+        if (d.verify_qrimg) {
+            $('#qr-img').html('<img src="data:image/png;base64,' + d.verify_qrimg + '" height="145px;">');
+        }
+        if (verify_timer) clearInterval(verify_timer);
+        var poll = function () {
+            x.ajax('/index/ajax/netease/verifyCheck', {
+                verify_unikey: unikey,
+            }, function (data) {
+                if (data.code == 1) {
+                    clearInterval(verify_timer);
+                    verify_timer = null;
+                    x.notify(data.message, 'success');
+                    setTimeout(function () {
+                        window.location.href = "{:url(\"/index/console/netease/list\")}";
+                    }, 1000)
+                } else if (data.code == 800) {
+                    clearInterval(verify_timer);
+                    verify_timer = null;
+                    x.notify('验证二维码已过期，请重新获取', 'warning');
+                } else if (data.code == -1) {
+                    // 801等待扫码 / 802已扫描待确认 —— 更新文案继续轮询
+                    $('#qr-alert').html(data.message);
+                } else {
+                    $('#qr-alert').html(data.message);
+                }
+            })
+        };
+        setTimeout(poll, 1500);
+        verify_timer = setInterval(poll, 2000);
+    }
+
+    $(function(){
+        Codebase.block('state_loading', '#qr-img');
+    });
+
+</script>
+{/block}
+

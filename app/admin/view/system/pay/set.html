@@ -1,0 +1,192 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title">{$webTitle}</h3>
+        <button type="submit" class="btn btn-sm btn-alt-primary" onclick="ajax_edit_config();">
+            <i class="fa fa-save opacity-50 me-1"></i> 保存
+        </button>
+    </div>
+    <div class="block-content">
+        <form onsubmit="return false;" id="payset-form">
+            <div class="row">
+                <div class="col-md-7">
+                    <div class="row mb-4">
+                        <div class="col-6">
+                            <label class="form-label">易支付API地址</label>
+                            <input type="text" class="form-control form-control-lg" name="epay_url" value="{:config('sys.epay_url')}"
+                                   placeholder="易支付API地址">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">易支付商户ID</label>
+                            <input type="text" class="form-control form-control-lg" name="epay_id" value="{:config('sys.epay_id')}"
+                                   placeholder="易支付商户ID">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="mb-4">
+                        <label class="form-label">易支付商户Key</label>
+                        <input type="text" class="form-control form-control-lg" name="epay_key" value="{:config('sys.epay_key')}" placeholder="易支付商户Key">
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-7">
+                    <div class="row mb-4">
+                        <div class="col-6">
+                            <label class="form-label">支付宝当面付APPID</label>
+                            <input type="text" class="form-control form-control-lg" name="alipay_appid" value="{:config('sys.alipay_appid')}"
+                                   placeholder="应用ID">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">支付宝当面付公钥</label>
+                            <input type="text" class="form-control form-control-lg" name="alipay_public_key" value="{:config('sys.alipay_public_key')}"
+                                   placeholder="支付宝公钥">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="mb-4">
+                        <label class="form-label">支付宝当面付商户私钥</label>
+                        <input type="text" class="form-control form-control-lg" name="alipay_private_key" value="{:config('sys.alipay_private_key')}" placeholder="商户私钥">
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-7">
+                    <div class="row mb-4">
+                        <div class="col-6">
+                            <label class="form-label">下单方式选择<span class="text-primary"> (等级代练除外)</span></label>
+                            <select class="form-select text-center" name="OrderPlacementMethod" onchange="selChange(this)">
+                                <option value="0"{if condition="config('sys.OrderPlacementMethod') eq 0"}selected{/if}>在线支付+卡密开通</option>
+                                <option value="1"{if condition="config('sys.OrderPlacementMethod') eq 1"}selected{/if}>仅允许在线支付</option>
+                                <option value="2"{if condition="config('sys.OrderPlacementMethod') eq 2"}selected{/if}>仅允许卡密下单</option>
+                            </select>
+                            <span class="text-danger my-1 fs-sm">仅允许在线支付时 代理中心生成的卡密将无法使用</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+<h2 class="content-heading">支付方式设置</h2>
+<div class="row items-push">
+    <div class="col-md-6 col-xl-3">
+        <div class="block block-rounded ribbon ribbon-modern ribbon-primary text-center">
+            <div class="block-content block-content-full">
+                <div class="item item-circle bg-white text-info-light mx-auto my-3">
+                    <svg t="1643473279413" class="icon" viewBox="0 0 1026 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="10261" width="64" height="64"><path d="M716.130927 713.43895m-310.56105 0a310.56105 310.56105 0 1 0 621.1221 0 310.56105 310.56105 0 1 0-621.1221 0Z" fill="#5CF1E7" p-id="10262"></path><path d="M627.399198 0H362.100292a47.054705 47.054705 0 1 0 0 94.109409H627.399198A44.814004 44.814004 0 1 0 627.399198 0z" fill="#A8B9E9" p-id="10263"></path><path d="M384.507295 394.811379a47.054705 47.054705 0 0 0-33.610504 80.217067l78.872648 78.872648a47.054705 47.054705 0 0 0 33.610503 13.892341 44.814004 44.814004 0 0 0 33.162363-13.892341 44.814004 44.814004 0 0 0 0-66.324726L417.669658 408.70372a44.814004 44.814004 0 0 0-33.162363-13.892341z" fill="#1F56F5" p-id="10264"></path><path d="M600.510796 395.259519a47.054705 47.054705 0 0 0-33.162364 13.892341l-78.424507 78.424508a47.054705 47.054705 0 0 0 66.772866 66.324726l78.424508-77.976368a47.502845 47.502845 0 0 0 0-66.772866 49.295405 49.295405 0 0 0-33.610503-13.892341z" fill="#1F56F5" p-id="10265"></path><path d="M627.399198 504.157549H362.100292a47.054705 47.054705 0 0 0 0 94.109409H627.399198a47.054705 47.054705 0 0 0 0-94.109409zM627.399198 638.599562H362.100292a44.814004 44.814004 0 0 0 0 94.10941H627.399198a47.054705 47.054705 0 0 0 0-94.10941z" fill="#1F56F5" p-id="10266"></path><path d="M761.841211 146.093654H227.658279a47.054705 47.054705 0 0 0 0 94.109409H761.841211a44.814004 44.814004 0 1 0 0-94.109409z" fill="#A8B9E9" p-id="10267"></path><path d="M492.957185 537.768053a44.814004 44.814004 0 0 0-44.814004 47.054704v230.792123a44.814004 44.814004 0 0 0 94.109409 0v-230.343983A44.814004 44.814004 0 0 0 492.957185 537.768053z" fill="#1F56F5" p-id="10268"></path><path d="M864.913421 993.974617H123.241649A122.790372 122.790372 0 0 1 0.003137 871.632385V392.570678A122.790372 122.790372 0 0 1 123.241649 268.884026H864.913421a122.790372 122.790372 0 0 1 123.238512 121.894092v239.754924a44.814004 44.814004 0 0 1-89.628008 0V392.570678A33.162363 33.162363 0 0 0 864.913421 358.512035H123.241649a33.162363 33.162363 0 0 0-33.610503 34.058643v479.061707a33.162363 33.162363 0 0 0 33.610503 32.714223H864.913421a33.162363 33.162363 0 0 0 33.610504-32.714223 44.814004 44.814004 0 0 1 89.628008 0 122.790372 122.790372 0 0 1-123.238512 122.342232z" fill="#1F56F5" p-id="10269"></path></svg>                    </div>
+            </div>
+            <div class="block-content block-content-full block-content-sm bg-body-light">
+                <div class="fw-semibold mb-1">易支付<span class="text-danger"><i class="fa fa-fw fa-heart"></i></span></div>
+            </div>
+            <div class="block-content block-content-full">
+                <div class="fs-sm fw-medium text-muted mb-md-3"> 虚位以待 </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="block block-rounded ribbon ribbon-modern ribbon-primary text-center">
+            <div class="ribbon-box">Alipay</div>
+            <div class="block-content block-content-full">
+                <div class="item item-circle bg-white text-success-light mx-auto my-3">
+                    <svg t="1643471912892" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1222" width="64" height="64"><path d="M1023.795 853.64v6.348a163.807 163.807 0 0 1-163.807 163.807h-696.18A163.807 163.807 0 0 1 0 859.988v-696.18A163.807 163.807 0 0 1 163.807 0h696.181a163.807 163.807 0 0 1 163.807 163.807V853.64z" fill="#009FE9" p-id="1223"></path><path d="M844.836 648.267c-40.952-14.333-95.623-34.809-156.846-57.128a949.058 949.058 0 0 0 90.094-222.573H573.325V307.14h245.711v-43.41l-245.71 2.458V143.33H472.173c-18.223 0-21.704 20.476-21.704 20.476v102.38H204.759v40.952h245.71v61.427H245.712v40.952h409.518a805.522 805.522 0 0 1-64.909 148.246c-128.384-42.795-266.186-77.604-354.233-55.08a213.564 213.564 0 0 0-112.003 63.27c-95.418 116.917-26.21 294.034 175.274 294.034 119.989 0 236.087-67.366 325.771-177.73 134.322 65.932 398.666 176.297 398.666 176.297V701.3s-32.352-4.095-178.96-53.033z m-563.702 144.97c-158.893 0-204.759-124.699-126.336-194.112a191.86 191.86 0 0 1 90.913-46.276c93.575-10.238 189.811 35.629 293.624 86.614-74.941 94.598-166.674 153.774-258.2 153.774z" fill="#FFFFFF" p-id="1224"></path></svg>
+                </div>
+            </div>
+            <div class="block-content block-content-full block-content-sm bg-body-light">
+                <div class="fw-semibold mb-1">支付宝<span class="text-warning"><i class="fa fa-fw fa-star fa-spin"></i></span></div>
+            </div>
+            <div class="block-content">
+                <div class="mb-4">
+                    <select class="form-select text-center" name="alipay_api" onchange="selChange(this)">
+                        <option value="1" selected>易支付</option>
+                    </select>
+                </div>
+            </div>
+            <div class="block-content block-content-full">
+                <div class="form-check form-switch form-check-inline">
+                    <input class="form-check-input" name="is_alipay" style="margin-left: -2.4em" type="checkbox" onclick="ajax_set_payment(this)" {if condition="config('sys.is_alipay') eq 1"}checked{/if}>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="block block-rounded ribbon ribbon-modern ribbon-primary text-center">
+            <div class="ribbon-box">WeChatPay</div>
+            <div class="block-content block-content-full">
+                <div class="item item-circle bg-white text-success-light mx-auto my-3">
+                    <svg t="1643472691654" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2567" width="64" height="64"><path d="M0 488.96v-30.72C2.56 430.08 7.68 404.48 15.36 378.88c20.48-66.56 53.76-122.88 99.84-171.52C179.2 138.24 256 94.72 340.48 66.56c48.64-15.36 97.28-23.04 145.92-25.6 40.96-2.56 79.36 0 120.32 7.68 33.28 5.12 64 12.8 97.28 25.6 79.36 28.16 148.48 71.68 207.36 133.12 7.68 7.68 12.8 15.36 20.48 23.04-2.56 0-2.56 2.56-5.12 2.56-20.48 10.24-40.96 20.48-61.44 28.16-143.36 66.56-286.72 133.12-430.08 197.12-28.16 12.8-56.32 10.24-81.92-5.12-20.48-12.8-38.4-25.6-58.88-38.4-12.8-10.24-25.6-17.92-40.96-28.16-12.8-7.68-20.48-2.56-20.48 12.8v2.56c2.56 12.8 5.12 25.6 10.24 38.4 25.6 61.44 51.2 120.32 76.8 181.76 7.68 17.92 20.48 25.6 35.84 23.04 10.24 0 20.48-2.56 28.16-7.68 30.72-15.36 58.88-33.28 87.04-51.2 156.16-92.16 309.76-184.32 465.92-276.48 10.24-7.68 23.04-12.8 33.28-20.48 0 2.56 2.56 2.56 2.56 5.12 5.12 10.24 10.24 17.92 12.8 28.16 28.16 61.44 40.96 125.44 35.84 192-2.56 28.16-7.68 56.32-15.36 84.48-17.92 61.44-48.64 115.2-92.16 163.84-51.2 56.32-115.2 99.84-184.32 128-40.96 15.36-81.92 28.16-122.88 35.84-28.16 5.12-56.32 7.68-81.92 7.68h-46.08c-20.48-2.56-40.96-2.56-58.88-5.12-30.72-5.12-61.44-12.8-89.6-23.04H322.56c-12.8 7.68-23.04 15.36-35.84 23.04-28.16 17.92-53.76 33.28-81.92 48.64-5.12 2.56-12.8 5.12-17.92 5.12s-10.24-2.56-10.24-10.24c0-5.12 0-12.8 2.56-17.92 5.12-38.4 12.8-74.24 20.48-112.64 0-5.12 0-7.68-5.12-10.24-15.36-12.8-30.72-23.04-46.08-38.4-51.2-46.08-92.16-102.4-117.76-166.4C20.48 599.04 12.8 568.32 7.68 537.6c-2.56-12.8-2.56-25.6-2.56-40.96-5.12 0-5.12-2.56-5.12-7.68z" fill="#6BCC03" p-id="2568"></path></svg>
+                </div>
+            </div>
+            <div class="block-content block-content-full block-content-sm bg-body-light">
+                <div class="fw-semibold mb-1">微信支付<span class="text-warning"><i class="fa fa-fw fa-star fa-spin"></i></span></div>
+            </div>
+            <div class="block-content block-content-full">
+                <div class="form-check form-switch form-check-inline">
+                    <input class="form-check-input" name="is_wxpay" style="margin-left: -2.4em" type="checkbox" onclick="ajax_set_payment(this)" {if condition="config('sys.is_wxpay') eq 1"}checked{/if}>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="block block-rounded ribbon ribbon-modern ribbon-primary text-center">
+            <div class="ribbon-box">TenPay</div>
+            <div class="block-content block-content-full">
+                <div class="item item-circle bg-white text-info-light mx-auto my-3">
+                    <svg t="1643473070256" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="5444" width="200" height="200"><path d="M173.056 947.712c0 41.984 73.728 76.288 164.352 76.288S501.76 989.696 501.76 947.712s-73.728-76.288-164.352-76.288-164.352 33.792-164.352 76.288zM521.728 947.712c0 41.984 73.728 76.288 164.352 76.288 91.136 0 164.352-34.304 164.352-76.288s-73.728-76.288-164.352-76.288c-90.624-0.512-164.352 33.792-164.352 76.288z" fill="#F5B824" p-id="5445"></path><path d="M878.08 506.88l-36.864-118.784C840.704 1.536 528.384 0 512 0c-16.896 0-328.704 1.536-328.704 388.096L145.92 506.88s-125.44 157.696-40.96 294.912c9.728 6.656 10.24 30.72 61.44-77.312 0 0 68.608 241.664 343.552 243.712h3.072c274.944-2.048 343.552-243.712 343.552-243.712 51.2 108.032 52.224 86.016 61.44 77.312 85.504-137.216-39.936-294.912-39.936-294.912z" fill="#121213" p-id="5446"></path><path d="M526.336 254.464c0 51.712 29.696 93.696 66.56 93.696s66.56-41.984 66.56-93.696c0-51.712-29.696-93.696-66.56-93.696-36.864 0.512-66.56 41.984-66.56 93.696zM355.328 254.464c0 51.712 29.696 93.696 66.56 93.696s66.56-41.984 66.56-93.696c0-51.712-29.696-93.696-66.56-93.696-36.352 0.512-66.56 41.984-66.56 93.696z" fill="#FFFFFF" p-id="5447"></path><path d="M414.72 254.464c0 22.016 12.8 40.448 28.672 40.448 15.872 0 28.672-17.92 28.672-40.448s-12.8-40.448-28.672-40.448c-15.872 0.512-28.672 18.432-28.672 40.448z" fill="#161616" p-id="5448"></path><path d="M781.312 466.944c-113.152 94.208-269.312 83.456-269.312 83.456s-156.672 10.752-269.312-83.456c0 0-107.52 484.864 269.312 484.864s269.312-484.864 269.312-484.864z" fill="#FAFAFB" p-id="5449"></path><path d="M840.704 388.096s-90.112 161.792-328.704 161.792-328.704-161.792-328.704-161.792C144.896 492.032 145.92 506.88 145.92 506.88c36.864 40.96 80.896 74.752 129.536 99.84-3.072 34.816-7.68 88.064-7.168 115.2 0.512 42.496 26.624 45.056 86.528 51.2 59.904 5.632 47.616-10.24 47.616-37.376V650.24c63.488 12.288 109.056 7.68 109.056 7.68s208.896 21.504 366.08-152.064c0.512 1.024 1.536-13.824-36.864-117.76z" fill="#D53118" p-id="5450"></path><path d="M687.616 407.552c-53.76-25.6-140.8-33.792-175.616-33.792s-121.856 8.192-175.616 33.792c-25.6 8.704-35.84 15.36-35.84 24.064 0 1.024 1.024 2.56 2.56 4.096 50.176 31.232 125.44 51.2 209.408 51.2s159.232-19.968 209.408-51.2c1.536-2.048 2.56-3.072 2.56-4.096-0.512-8.704-10.752-15.36-36.864-24.064z" fill="#F0B225" p-id="5451"></path></svg>
+                </div>
+            </div>
+            <div class="block-content block-content-full block-content-sm bg-body-light">
+                <div class="fw-semibold mb-1">QQ支付<span class="text-warning"><i class="fa fa-fw fa-star fa-spin"></i></span></div>
+            </div>
+            <div class="block-content block-content-full">
+                <div class="form-check form-switch form-check-inline">
+                    <input class="form-check-input" name="is_qqpay" style="margin-left: -2.4em" type="checkbox" onclick="ajax_set_payment(this)" {if condition="config('sys.is_qqpay') eq 1"}checked{/if}>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_edit_config() {
+        x.ajax('/admin/ajax/set/config', $('#payset-form').serialize(), function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+
+    function ajax_set_payment(_this) {
+        const data = {};
+        const name = $(_this).prop('name');
+        const state = $(_this).prop("checked");
+        state ? data[name] = 1 : data[name] = 0;
+        x.ajax('/admin/ajax/set/config', data, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+
+    function selChange(_this)  {
+        const key = $(_this).prop('name');
+        const val = $(_this).prop("value");
+        x.ajax('/admin/ajax/set/config', key + '=' + val, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+</script>
+{/block}

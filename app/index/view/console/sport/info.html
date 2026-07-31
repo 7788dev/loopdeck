@@ -1,0 +1,257 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+{php}
+    $a_data = unserialize($data['data']); // 反序列化账号数据
+    $task = new \app\index\model\Tasks();
+    $jobs = new \app\index\model\Jobs();
+{/php}
+<style>
+    td {
+        white-space:nowrap;
+    }
+</style>
+<div class="row">
+    <div class="col-xl-4">
+        <div class="block block-rounded">
+            <div class="block-content">
+                <a class="btn btn-lg btn-alt-primary w-100 mb-1" href="/index/console/sport/add">更新账号</a>
+                <p class="text-center fw-semibold fs-xs text-muted">若账号失效请及时更新</p>
+            </div>
+        </div>
+        <div class="block block-rounded block-link-shadow text-center" href="javascript:void(0)">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">
+                    <i class="fa fa-fw fa-graduation-cap opacity-50"></i>
+                    基本信息
+                </h3>
+            </div>
+            <div class="block-content block-content-full">
+                <div class="push">
+                    <img alt="" class="img-avatar" src="https://is3-ssl.mzstatic.com/image/thumb/Purple116/v4/b4/0b/82/b40b82ed-b579-4b85-303b-4c33ab2abe53/AppIcon-0-0-1x_U007emarketing-0-0-0-5-0-0-sRGB-0-0-0-GLES2_U002c0-512MB-85-220-0-0.png/230x0w.webp">
+                </div>
+                <div class="fw-semibold mb-1">{$a_data.nickname} ·
+                    {if condition="$data.state eq 1"}
+                    <span class="text-success">运行中</span>
+                    {else}
+                    <span class="text-danger">已失效</span>
+                    {/if}
+                </div>
+                <hr>
+                <div class="mt-1">
+                    <span class="text-muted fs-sm">
+                        挂机时间：<span class="text-success">{$data['timing'] ?? '未设置'}</span>
+                        <a href="javascript:ajax_set_timing('{$a_data[\'user_id\']}', '{$data[\'timing\']}');">设置</a>
+                    </span>
+                </div>
+                <button type="button" class="btn btn-sm btn-alt-primary me-1 mt-2" onclick="ajax_reexecute_task('{$a_data[\'user_id\']}')">
+                    <i class="si si-energy"></i>申请补挂
+                </button>
+            </div>
+        </div>
+        <div class="alert alert-info fw-semibold text-center">
+            <i class="fa fa-exclamation-triangle"></i> 
+            若运行后步数无变化，请增大范围并申请补挂
+        </div>
+    </div>
+    <div class="col-xl-8">
+        <div class="block block-rounded">
+            <div class="block-content">
+                <div class="table-responsive">
+                    <table class="table table-striped table-vcenter">
+                        <tbody>
+                        {foreach $task->getTaskList('sport') as $k => $v}
+                        {php}
+                            $job = $jobs->getJobInfo('sport', $a_data['user_id'], $v['execute_name']);
+                        {/php}
+                        <tr>
+                            <td class="text-center">
+                                <i class="fw-semibold fa fa-2x {$v.icon}"></i>
+                            </td>
+                            <td class="fw-semibold">
+                                <p class="fw-semibold mb-1">{$v.name}
+                                    {if condition="$v.more"}
+                                    {php}
+                                    if ($job['data']) { $config = json_encode(unserialize($job['data'])); } else { $config = '[]'; }
+                                    {/php}
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 mx-1" data-config='{$config}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="si si-settings"></i></button>
+                                    {/if}
+                                </p>
+                                <p class="fs-xs text-muted mb-0">
+                                    {$v.describe}
+                                </p>
+                            </td>
+                            <td class="d-none d-sm-table-cell"><i class="far fa-clock opacity-75"></i> {:date("m-d H:i",strtotime($job.lastExecute))}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group">
+                                    <div class="form-check form-switch">
+                                        {if condition="$job.state eq 1"}
+                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}');" checked>
+                                        {else /}
+                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}');">
+                                        {/if}
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {/foreach}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="block block-rounded">
+            <div class="block-header">
+                <h3 class="block-title">任务运行日志 <small>仅展示最新的50条数据</small></h3>
+            </div>
+            <div class="block-content block-content-full">
+                <table class="table table-bordered table-striped table-vcenter js-dataTable-responsive" id="task-logs-list" data-type="sport" data-user_id="{$data.user_id}">
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-xl-8">
+
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="/static/js/plugins/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
+
+<script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
+<script src="/static/js/task_logs_datatables.js"></script>
+<script>
+    function updateConfig(execute_name, name, _this) {
+        if (typeof ($(_this).data("config")) == 'object') {
+            var config = JSON.stringify($(_this).data("config"));
+        } else {
+            var config = '{}';
+        }
+        console.log(config);
+        switch (execute_name) {
+            case 'step':
+                step(execute_name, name, config);
+                break;
+            default:
+                layer.alert("请勿非法操作");
+                return false;
+        }
+    }
+
+    function step(execute_name, name, config)
+    {
+        layer.open({
+            title: name + "配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            area: ['17%'],
+            content: '<form><div class="row"><div class="col-lg-12"><div class="form-floating mb-2"><input type="number"class="form-control"id="step_start"name="step_start"placeholder="步数开始"><label class="form-label"for="step_start">步数开始</label></div><div class="form-floating"><input type="number"class="form-control"id="step_stop"name="step_stop"placeholder="步数结束"oninput="if(value>98000)value=98000"><label class="form-label"for="step_stop">步数结束</label></div></div></div><p class="fw-semibold text-danger mt-4">温馨提示：将在此步数范围随机，若未设置将系统在20000 - 30000随机生成，步数结果需要大于或等于开始步数不能高于98000，最低步数必须比当前步数大，记得在小米运动里面绑定微信或支付宝</p></form>',
+            success: function (res, index) {
+                config = JSON.parse(config);
+                // console.log(config)
+                if (typeof (config['step_start']) !== 'undefined') {
+                    $("#step_start").val(config['step_start']);
+                }
+                if (typeof (config['step_stop']) !== 'undefined') {
+                    $("#step_stop").val(config['step_stop']);
+                }
+            },
+            yes: function (index, dom) {
+                layer.close(index);
+                var loading = layer.load(2);
+                const params = JSON.stringify($(dom).find("form").parseForm());
+                x.ajax('/index/ajax/sport/set', {do: execute_name, user_id: {$a_data['user_id']}, config: params}, function (data) {
+                    if (data.code == 1) {
+                        x.close(loading);
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            // x.pjax('/index/console/sport/info/{$a_data["user_id"]}');
+                            window.location.href = '/index/console/sport/info/{$a_data["user_id"]}';
+                        }, 1000)
+                    } else {
+                        x.close(loading);
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+
+    function ajax_set_zt(execute_name, user_id)
+    {
+        x.ajax('/index/ajax/sport/set','act=zt&do=' + execute_name + '&user_id=' + user_id, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else if (data.code == -1) {
+                x.notify(data.message, 'danger');
+                setTimeout(function () {
+                    // x.pjax('/index/console/sport/info/{$data["user_id"]}');
+                    window.location.href = '/index/console/sport/info/{$data["user_id"]}';
+                },1500)
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        });
+    }
+
+    function ajax_reexecute_task(user_id)
+    {
+        layer.confirm('你确定申请补挂吗?', {
+            btn: ['确定', '取消'],
+            closeBtn: 0,
+        }, function () {
+            x.ajax("/index/ajax/sport/reExecute", {user_id: user_id}, function (data) {
+                if (data.code === 1) {
+                    x.btn(data.message);
+                } else {
+                    x.notify(data.message);
+                }
+            });
+        });
+    }
+
+    function ajax_set_timing(user_id, timing)
+    {
+        layer.open({
+            title: "挂机时间配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            zIndex: '1000',
+            area: ['20%'],//设置相对于父页面的大小
+            content: '<div class="form-floating col-xl-12 mb-2"><input type="text"class="js-flatpickr form-control"id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"><label class="form-label"for="timing">挂机时间</label></div><div><span class="text-danger">点击上方数字选择你需要的挂机时间<br></span><span class="fw-semibold">挂机时间说明：系统在您设定的时间为您挂机。<br>特殊说明：若您设置的时间内系统有大量账号需要排队执行，则可能会出现延迟执行的情况，系统仅保证在您设定的时间之后进行执行</span></div>',
+            success: function (res, index) {
+                if (typeof timing !== 'undefined') {
+                    $("#timing").val(timing);
+                }
+                Codebase.helpersOnLoad(['js-flatpickr']);
+            },
+            yes: function (index, dom) {
+                layer.close(index);
+                var loading = layer.load(2);
+                x.ajax('/index/ajax/sport/set', {act: 'timing', user_id: {$a_data['user_id']}, timing: x.getval('#timing')}, function (data) {
+                    if (data.code == 1) {
+                        x.close(loading);
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            // x.pjax('/index/console/sport/info/{$a_data["user_id"]}');
+                            window.location.href = '/index/console/sport/info/{$a_data["user_id"]}';
+                        }, 1000)
+                    } else {
+                        x.close(loading);
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+</script>
+{/block}

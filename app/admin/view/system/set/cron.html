@@ -1,0 +1,183 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title">{$webTitle}</h3>
+    </div>
+    <div class="block-content">
+        <table class="table table-vcenter">
+            <thead class="thead-light">
+            <tr>
+                <th class="text-center" style="width: 50px;"></th>
+                <th>名称</th>
+                <th class="d-none d-sm-table-cell">地址</th>
+                <th class="d-none d-sm-table-cell" style="width: 15%;">频率</th>
+                <th class="text-center" style="width: 100px;">操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <th class="text-center" scope="row">1</th>
+                <td>网易云音乐</td>
+                <td class="d-none d-sm-table-cell">{:get_Domain()}cron/netease?cronkey={:config('sys.cronkey')}</td>
+                <td class="d-none d-sm-table-cell">
+                    <span class="badge bg-warning">1分钟</span>
+                </td>
+                <td class="text-center">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-secondary js-bs-tooltip-enabled copy" data-clipboard-text="{:get_Domain()}cron/netease?cronkey={:config('sys.cronkey')}">
+                            <i class="fa fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <th class="text-center" scope="row">2</th>
+                <td>哔哩哔哩</td>
+                <td class="d-none d-sm-table-cell">{:get_Domain()}cron/bilibili?cronkey={:config('sys.cronkey')}</td>
+                <td class="d-none d-sm-table-cell">
+                    <span class="badge bg-warning">1分钟</span>
+                </td>
+                <td class="text-center">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-secondary js-bs-tooltip-enabled copy" data-clipboard-text="{:get_Domain()}cron/bilibili?cronkey={:config('sys.cronkey')}">
+                            <i class="fa fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <th class="text-center" scope="row">3</th>
+                <td>运动助手</td>
+                <td class="d-none d-sm-table-cell">{:get_Domain()}cron/sport?cronkey={:config('sys.cronkey')}</td>
+                <td class="d-none d-sm-table-cell">
+                    <span class="badge bg-warning">1分钟</span>
+                </td>
+                <td class="text-center">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-secondary js-bs-tooltip-enabled copy" data-clipboard-text="{:get_Domain()}cron/sport?cronkey={:config('sys.cronkey')}">
+                            <i class="fa fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            <!-- 百度贴吧功能已停用
+            <tr>
+                <th class="text-center" scope="row">4</th>
+                <td>百度贴吧</td>
+                <td class="d-none d-sm-table-cell">{:get_Domain()}cron/tieba?cronkey={:config('sys.cronkey')}</td>
+                <td class="d-none d-sm-table-cell">
+                    <span class="badge bg-warning">1分钟</span>
+                </td>
+                <td class="text-center">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-secondary js-bs-tooltip-enabled copy" data-clipboard-text="{:get_Domain()}cron/tieba?cronkey={:config('sys.cronkey')}">
+                            <i class="fa fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            -->
+            <tr>
+                <th class="text-center" scope="row">5</th>
+                <td>爱奇艺</td>
+                <td class="d-none d-sm-table-cell">{:get_Domain()}cron/iqiyi?cronkey={:config('sys.cronkey')}</td>
+                <td class="d-none d-sm-table-cell">
+                    <span class="badge bg-warning">1分钟</span>
+                </td>
+                <td class="text-center">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-secondary js-bs-tooltip-enabled copy" data-clipboard-text="{:get_Domain()}cron/iqiyi?cronkey={:config('sys.cronkey')}">
+                            <i class="fa fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            <!-- 米游社功能已停用
+            <tr>
+                <th class="text-center" scope="row">7</th>
+                <td>米游社</td>
+                <td class="d-none d-sm-table-cell">{:get_Domain()}cron/mihoyo?cronkey={:config('sys.cronkey')}</td>
+                <td class="d-none d-sm-table-cell">
+                    <span class="badge bg-warning">1分钟</span>
+                </td>
+                <td class="text-center">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-secondary js-bs-tooltip-enabled copy" data-clipboard-text="{:get_Domain()}cron/mihoyo?cronkey={:config('sys.cronkey')}">
+                            <i class="fa fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            -->
+            <tr>
+                <th class="text-center" scope="row">8</th>
+                <td>Epic周免通知</td>
+                <td class="d-none d-sm-table-cell">{:get_Domain()}cron/epic?cronkey={:config('sys.cronkey')}</td>
+                <td class="d-none d-sm-table-cell">
+                    <span class="badge bg-warning">1分钟</span>
+                </td>
+                <td class="text-center">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-secondary js-bs-tooltip-enabled copy" data-clipboard-text="{:get_Domain()}cron/epic?cronkey={:config('sys.cronkey')}">
+                            <i class="fa fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <th class="text-center" scope="row">9</th>
+                <td>小黑盒</td>
+                <td class="d-none d-sm-table-cell">{:get_Domain()}cron/heybox?cronkey={:config('sys.cronkey')}</td>
+                <td class="d-none d-sm-table-cell">
+                    <span class="badge bg-warning">1分钟</span>
+                </td>
+                <td class="text-center">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-secondary js-bs-tooltip-enabled copy" data-clipboard-text="{:get_Domain()}cron/heybox?cronkey={:config('sys.cronkey')}">
+                            <i class="fa fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title">{$webTitle} <code>实验性功能</code></h3>
+    </div>
+    <div class="block-content">
+        <table class="table table-vcenter">
+            <thead class="thead-light">
+            <tr>
+                <th class="text-center" style="width: 50px;"></th>
+                <th>名称</th>
+                <th class="d-none d-sm-table-cell">地址</th>
+                <th class="d-none d-sm-table-cell" style="width: 15%;">频率</th>
+                <th class="text-center" style="width: 100px;">操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <th class="text-center" scope="row">1</th>
+                <td>任务运行</td>
+                <td class="d-none d-sm-table-cell">{:get_Domain()}cron/task?cronkey={:config('sys.cronkey')}</td>
+                <td class="d-none d-sm-table-cell">
+                    <span class="badge bg-warning">1分钟</span>
+                </td>
+                <td class="text-center">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-secondary js-bs-tooltip-enabled copy" data-clipboard-text="{:get_Domain()}cron/task?cronkey={:config('sys.cronkey')}">
+                            <i class="fa fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}

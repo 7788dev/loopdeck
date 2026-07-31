@@ -1,0 +1,220 @@
+<?php
+
+namespace tieba;
+
+error_reporting(0);
+
+class TiebaHelper
+{
+	public $msg = [];
+	public $cookiezt = 0;
+
+	private $cookie;
+	private $bduss;
+	private $params;
+
+	function __construct($data = [])
+	{
+		$this->cookie = "BDUSS=" . $data["bduss"];
+		$this->bduss = $data["bduss"];
+		$this->params = [
+			'BDUSS' => $data["bduss"],
+			'_client_type' => '2',
+			'_client_version' => '11.1.8.2',
+			'_phone_imei' => '000000000000000',
+		];
+	}
+
+	//50贴吧一键签到
+	public function sign(){
+		$url = 'http://c.tieba.baidu.com/c/c/forum/msign';
+		$post = $this->params + [
+			'net_type' => '3',
+			'tbs' => $this->getTbs()
+		];
+		$signstr = '';
+		foreach($post as $k=>$v) {
+			$signstr .= $k.'='.$v;
+		}
+		$post['sign'] = strtoupper(md5($signstr . 'tiebaclient!!!'));
+		$cookie = 'ca=open';
+		$data = $this->get_curl($url, $cookie, http_build_query($post));
+		$arr = json_decode($data, true);
+		if(isset($arr['error_code']) && $arr['error_code'] == '0'){
+			if (empty($arr["info"])) {
+				$this->msg[] = "贴吧一键签到今天已完成";
+			} else {
+				/*foreach ($arr["info"] as $row) {
+					$this->msg[] = '《'.$row['forum_name'].'》吧签到完成，经验值+' . $row['cur_score'] . '，已连续签到' . $row['sign_day_count'] . '天';
+				}*/
+				$this->msg[] = "签到完成：本次共签到" . count($arr["info"]) . "个贴吧";
+			}
+			return true;
+		} else {
+			$this->msg[] = "签到失败：" . $arr["error_msg"];
+		}
+	}
+
+	//获取用户信息
+	public function getUserInfo()
+	{
+		$url = 'https://tieba.baidu.com/mg/o/profile?format=json';
+		$data = $this->get_curl($url, $this->cookie);
+		return $data['data']['user']['name'];
+	}
+
+	//获取tbs
+	public function getTbs()
+	{
+		$url = 'http://tieba.baidu.com/dc/common/tbs';
+		$data = $this->get_curl($url, $this->cookie);
+		$arr = json_decode($data, true);
+		if(isset($arr['is_login']) && $arr['is_login']==1){
+			return $arr['tbs'];
+		}elseif(isset($arr['is_login']) && $arr['is_login']==0){
+			$this->cookiezt = 1;
+			$this->msg[] = '百度登录状态已失效，请重新获取BDUSS';
+		}else{
+			$this->msg[] = '签到失败：获取tbs失败';
+		}
+		return false;
+	}
+
+	//获取扫码登录二维码
+	public function getqrcode(){
+		$url = "https://passport.baidu.com/v2/api/getqrcode?lp=pc&gid=07D9D20-91EB-43D8-8553-16A98A0B24AA&apiver=v3&tt=" . time() . "0000";
+		$data = $this->get_curl2($url, 0, "https://passport.baidu.com/v2/?login");
+		$arr = json_decode($data, true);
+		if ($arr["errno"] == 0) {
+			return resultArray(1, "获取成功", [
+				"imgurl" => $arr["imgurl"],
+				"sign" => $arr["sign"],
+				"url" => "https://wappass.baidu.com/wp/?qrlogin&t=" . time() . "&error=0&sign=" . $arr["sign"] . "&cmd=login&lp=pc&tpl=&uaonly="
+			]);
+		} else { 
+			return resultArray($arr["errno"], "获取二维码失败");
+		}
+	}
+
+	//扫码登录操作
+	public function qrLogin($sign) {
+		$url = "https://passport.baidu.com/channel/unicast?channel_id=$sign&tpl=pp&gid=07D9D20-91EB-43D8-8553-16A98A0B24AA&apiver=v3&tt=" . time() . "0000";
+		$data = $this->get_curl2($url, 0, "https://passport.baidu.com/v2/?login");
+		$arr = json_decode($data, true);
+		if ($arr["errno"] == 0) {
+			$arr = json_decode($arr["channel_v"], true);
+			if ($arr["status"] == 0) {
+				$data=$this->get_curl2("https://passport.baidu.com/v3/login/main/qrbdusslogin?v=" . time() . "000&bduss=" . $arr["v"] . "&u=https%3A%2F%2Fpassport.baidu.com%2F&loginVersion=v4&qrcode=1&tpl=pp&apiver=v3&tt=" . time() . "0000&callback=callback", 0, "https://passport.baidu.com/v2/?login", 0, 1);
+				preg_match('/callback\((.*?)\)/',$data,$match);
+				$arr=json_decode(str_replace(array("'data'",'\&quot;'),array('"data"',''),$match[1]),true);
+				if ($arr["errInfo"]["no"] == 0) {
+					$data=str_replace('=deleted','',$data);
+					preg_match('!BDUSS=(.*?);!i',$data,$bduss);
+					preg_match('!PTOKEN=(.*?);!i',$data,$ptoken);
+					preg_match('!STOKEN=(.*?);!i',$data,$stoken);
+					$cookie = "BDUSS=" . $bduss[1] . ";";
+					$userInfo = $this->getUserInfo2($cookie);
+					$data = [
+						"uid" => $userInfo["id"],
+						"user" => $userInfo["name"],
+						"displayname" => $userInfo["name_show"],
+						"avatar" => $userInfo["portraitUrl"],
+						"bduss" => $bduss[1],
+						"ptoken" => $ptoken[1],
+						"stoken" => $stoken[1]
+					];
+					return resultArray(1, "登录成功", $data);
+				} else if (!empty($arr["errInfo"])) {
+					return resultArray($arr["errInfo"]["no"], $arr["errInfo"]["msg"]);
+				} else {
+					return resultArray(-1, "登录失败2，原因未知");
+				}
+			} else {
+				return resultArray(2, null);
+			}
+		} else if (!empty($arr["errno"])){
+			return resultArray($arr["errno"], null);
+		} else {
+			return resultArray(-1, "登录失败，原因未知");
+		}
+	}
+
+	private function getUserInfo2($cookie){
+		$data = $this->get_curl2('https://tieba.baidu.com/mo/q/newmoindex?need_user=1',0,'https://tieba.baidu.com/index/tbwise/forum?shownew=1',$cookie);
+		$arr = json_decode($data,true);
+		return $arr['data'];
+	}
+
+
+	private function get_curl($url, $cookie = null, $post = null){
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL,$url);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+		$httpheader[] = "Accept: application/json";
+		$httpheader[] = "Accept-Encoding: gzip";
+		$httpheader[] = "Charset: UTF-8";
+		$httpheader[] = "net: 3";
+		$httpheader[] = "Connection: Keep-Alive";
+		curl_setopt($ch, CURLOPT_HTTPHEADER, $httpheader);
+		if($post){
+			curl_setopt($ch, CURLOPT_POST, 1);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, $post);
+		}
+		if($cookie){
+			curl_setopt($ch, CURLOPT_COOKIE, $cookie);
+		}
+		curl_setopt($ch, CURLOPT_USERAGENT,'bdtb for Android 8.4.0.1');
+		curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+		curl_setopt($ch, CURLOPT_ENCODING, "gzip");
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
+		$ret = curl_exec($ch);
+		curl_close($ch);
+		return $ret;
+	}
+
+	private function get_curl2($url,$post=0,$referer=0,$cookie=0,$header=0,$split=0) {
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL,$url);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+		$httpheader[] = "Accept: application/json";
+		$httpheader[] = "Accept-Encoding: gzip,deflate,sdch";
+		$httpheader[] = "Accept-Language: zh-CN,zh;q=0.8";
+		$httpheader[] = "Connection: close";
+		if($post && strpos($post,1,1) == '{' && strpos($post,-1) == '}'){
+			$httpheader = "Content-Type: application/json; charset=utf-8";
+		}
+		curl_setopt($ch, CURLOPT_HTTPHEADER, $httpheader);
+		if($post){
+			curl_setopt($ch, CURLOPT_POST, 1);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, $post);
+		}
+		if($header){
+			curl_setopt($ch, CURLOPT_HEADER, TRUE);
+		}
+		if($cookie){
+			curl_setopt($ch, CURLOPT_COOKIE, $cookie);
+		}
+		if($referer){
+			curl_setopt($ch, CURLOPT_REFERER, $referer);
+		}
+		curl_setopt($ch, CURLOPT_USERAGENT,'Mozilla/5.0 (Linux; Android 4.4.2; H650 Build/KOT49H) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/30.0.0.0 Mobile Safari/537.36');
+		curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+		curl_setopt($ch, CURLOPT_ENCODING, "gzip");
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
+		$ret = curl_exec($ch);
+		if ($split) {
+			$headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+			$header = substr($ret, 0, $headerSize);
+			$body = substr($ret, $headerSize);
+			$ret=array();
+			$ret['header']=$header;
+			$ret['body']=$body;
+		}
+		curl_close($ch);
+		return $ret;
+	}
+
+
+}

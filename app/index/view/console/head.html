@@ -1,0 +1,413 @@
+<nav id="sidebar">
+    <div class="sidebar-content">
+        <div class="content-header justify-content-lg-center">
+            <div>
+                <a class="link-fx fw-bold tracking-wide mx-auto" href="#">
+          <span class="smini-hidden">
+            <i class="fa fa-fire text-primary"></i>
+            <span class="fs-5 text-dual">{:config('web.webname')}</span>
+          </span>
+                </a>
+            </div>
+            <div>
+                <button class="btn btn-sm btn-alt-danger d-lg-none" data-action="sidebar_close" data-toggle="layout"
+                        type="button">
+                    <i class="fa fa-fw fa-times"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="js-sidebar-scroll">
+        <div class="content-side content-side-user px-0 py-0">
+            <div class="smini-visible-block animated fadeIn px-2">
+                <img alt="" class="img-avatar img-avatar32" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100">
+            </div>
+            <div class="smini-hidden text-center mx-auto">
+                <a class="img-link" href="{:url('/index/console/user/profile')}">
+                    <img alt="" class="img-avatar" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100">
+                </a>
+                <ul class="list-inline mt-3 mb-0">
+                    <li class="list-inline-item">
+                        <a class="link-fx text-dual fs-sm fw-semibold text-uppercase"
+                           data-pjax href="{:url('/index/console/user/profile')}">{:session('user.nickname')}
+                        </a>
+                    </li>
+                    <li class="list-inline-item">
+                        <a class="link-fx text-dual" data-action="dark_mode_toggle" data-toggle="layout"
+                           href="javascript:void(0)">
+                            <i class="fa fa-burn"></i>
+                        </a>
+                    </li>
+                    <li class="list-inline-item">
+                        <a href="javascript:;" onclick="logout();"  class="link-fx text-dual">
+                            <i class="fa fa-sign-out-alt"></i>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="content-side content-side-full" id="nav-main">
+            <ul class="nav-main">
+                {if condition="session('user.power') eq 6 && session('user.web_id') eq WEB_ID"}
+                <li class="nav-main-item">
+                    <a class="nav-main-link" href="{:url('/admin/system/index')}">
+                        <i class="nav-main-link-icon si si-speedometer"></i>
+                        <span class="nav-main-link-name">站长后台</span>
+                    </a>
+                </li>
+                {/if}
+                <li class="nav-main-heading">控制台</li>
+                <li class="nav-main-item">
+                    <a class="nav-main-link" data-pjax href="{:url('/index/console/index')}">
+                        <i class="nav-main-link-icon fa fa-user"></i>
+                        <span class="nav-main-link-name">用户中心</span>
+                    </a>
+                </li>
+                {if condition="session('user.agent')"}
+                <li class="nav-main-item">
+                    <a class="nav-main-link" data-pjax href="{:url('/index/console/agent')}">
+                        <i class="nav-main-link-icon fa fa-award"></i>
+                        <span class="nav-main-link-name">代理中心</span>
+                    </a>
+                </li>
+                {/if}
+                <li class="nav-main-item">
+                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
+                       data-toggle="submenu" href="#">
+                        <i class="nav-main-link-icon si si-basket-loaded"></i>
+                        <span class="nav-main-link-name">自助商店</span>
+                    </a>
+                    <ul class="nav-main-submenu">
+                        {if condition="config('sys.OrderPlacementMethod') eq 0 or config('sys.OrderPlacementMethod') eq 1"}
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/quota')}">
+                                <span class="nav-main-link-name">购买配额</span>
+                            </a>
+                        </li>
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/vip')}">
+                                <span class="nav-main-link-name">购买会员</span>
+                            </a>
+                        </li>
+                        
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/agent')}">
+                                <span class="nav-main-link-name">购买代理</span>
+                            </a>
+                        </li>
+                       
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/money')}">
+                                <span class="nav-main-link-name">充值余额</span>
+                            </a>
+                        </li>
+                        {/if}
+                        {if condition="config('sys.OrderPlacementMethod') eq 0 or config('sys.OrderPlacementMethod') eq 2"}
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/card')}">
+                                <span class="nav-main-link-name">卡密激活</span>
+                            </a>
+                        </li>
+                        {if condition="config('sys.OrderPlacementMethod') eq 2 and session('user.agent')"}
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/money')}">
+                                <span class="nav-main-link-name">充值余额</span>
+                            </a>
+                        </li>
+                        {/if}
+                        {/if}
+                        {if condition="config('sys.is_site') eq 1"}
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/site')}">
+                                <span class="nav-main-link-name">开通分站</span>
+                            </a>
+                        </li>
+                        {/if}
+                    </ul>
+                     
+                     
+                <li class="nav-main-heading" style="color: #70DB93;">𝙑𝙄𝙋 功能</li>
+                <li class="nav-main-item">
+                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
+                       data-toggle="submenu" href="#">
+                        <i class="nav-main-link-icon si si-music-tone"></i>
+                        <span class="nav-main-link-name">网易云音乐</span>
+                    </a>
+                    <ul class="nav-main-submenu">
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/netease/add')}">
+                                <span class="nav-main-link-name">添加账号</span>
+                            </a>
+                        </li>
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/netease/list')}">
+                                <span class="nav-main-link-name">管理账号</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="nav-main-item">
+                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
+                       data-toggle="submenu" href="#">
+                        <i class="nav-main-link-icon si si-camcorder"></i>
+                        <span class="nav-main-link-name">哔哩哔哩</span>
+                    </a>
+                    <ul class="nav-main-submenu">
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/bilibili/add')}">
+                                <span class="nav-main-link-name">添加账号</span>
+                            </a>
+                        </li>
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/bilibili/list')}">
+                                <span class="nav-main-link-name">管理账号</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="nav-main-item">
+                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
+                       data-toggle="submenu" href="#">
+                        <i class="nav-main-link-icon si si-rocket"></i>
+                        <span class="nav-main-link-name">步数助手</span>
+                    </a>
+                    <ul class="nav-main-submenu">
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/sport/add')}">
+                                <span class="nav-main-link-name">添加账号</span>
+                            </a>
+                        </li>
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/sport/list')}">
+                                <span class="nav-main-link-name">管理账号</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <!-- 百度贴吧、米游社功能已停用
+                <li class="nav-main-item">
+                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
+                       data-toggle="submenu" href="#">
+                        <i class="nav-main-link-icon si si-book-open"></i>
+                        <span class="nav-main-link-name">百度贴吧</span>
+                    </a>
+                    <ul class="nav-main-submenu">
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/tieba/add')}">
+                                <span class="nav-main-link-name">添加账号</span>
+                            </a>
+                        </li>
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/tieba/list')}">
+                                <span class="nav-main-link-name">管理账号</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                
+                
+                
+                
+                <li class="nav-main-item">
+                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
+                       data-toggle="submenu" href="#">
+                        <i class="nav-main-link-icon si si-globe-alt"></i>
+                        <span class="nav-main-link-name">米游社</span>
+                    </a>
+                    <ul class="nav-main-submenu">
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/mihoyo/add')}">
+                                <span class="nav-main-link-name">添加账号</span>
+                            </a>
+                        </li>
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/mihoyo/list')}">
+                                <span class="nav-main-link-name">管理账号</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                 
+                 
+                 
+                -->
+                <!-- 爱奇艺功能已停用
+                <li class="nav-main-item">
+                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
+                       data-toggle="submenu" href="#">
+                        <i class="nav-main-link-icon si si-screen-desktop"></i>
+                        <span class="nav-main-link-name">爱奇艺</span>
+                    </a>
+                    <ul class="nav-main-submenu">
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="/index/console/iqiyi/add">
+                                <span class="nav-main-link-name">添加账号</span>
+                            </a>
+                        </li>
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="/index/console/iqiyi/list">
+                                <span class="nav-main-link-name">管理账号</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                -->
+                <li class="nav-main-item">
+                    <a class="nav-main-link" data-pjax href="{:url('/index/console/epic/act/weeklygame')}">
+                        <i class="nav-main-link-icon si si-game-controller"></i>
+                        <span class="nav-main-link-name">Epic商城</span>
+                    </a>
+                </li>
+                <li class="nav-main-item">
+                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
+                       data-toggle="submenu" href="#">
+                        <i class="nav-main-link-icon fa fa-qrcode"></i>
+                        <span class="nav-main-link-name">收款码合一</span>
+                    </a>
+                    <ul class="nav-main-submenu">
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/qrcode/create')}">
+                                <span class="nav-main-link-name">生成收款码</span>
+                            </a>
+                        </li>
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/qrcode/list')}">
+                                <span class="nav-main-link-name">管理收款码</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <!-- Free 功能区已停用
+                <li class="nav-main-heading" style="color: #D19275;">𝙁𝙧𝙚𝙚 功能</li>
+                <li class="nav-main-item">
+                    <a class="nav-main-link" data-pjax href="/index/tool/analyse">
+                        <i class="nav-main-link-icon si si-social-youtube"></i>
+                        <span class="nav-main-link-name">视频图集解析</span>
+                    </a>
+                </li>
+                <li class="nav-main-item">
+                    <a class="nav-main-link" data-pjax href="/index/wz/wangzhe">
+                        <i class="nav-main-link-icon fas fa-stream"></i>
+                        <span class="nav-main-link-name">王者战力查询</span>
+                    </a>
+                </li>
+                <li class="nav-main-heading text-center">- 更多功能敬请期待 -</li>
+                -->
+                <li class="nav-main-heading">其他</li>
+                <li class="nav-main-item">
+                    <a class="nav-main-link" data-pjax href="{:url('/index/console/user/profile')}">
+                        <i class="nav-main-link-icon si si-user"></i>
+                        <span class="nav-main-link-name">个人资料</span>
+                    </a>
+                </li>
+                <li class="nav-main-item">
+                    <a class="nav-main-link" data-pjax href="{:url('/index/console/user/faq')}">
+                        <i class="nav-main-link-icon si si-info"></i>
+                        <span class="nav-main-link-name">帮助中心</span>
+                    </a>
+                </li>
+                {if condition="function_exists('opcache_reset')"}
+                <li class="nav-main-item mt-1">
+                    <a class="nav-main-link" data-pjax href="javascript:clearCache();">
+                        <i class="nav-main-link-icon si si-refresh"></i>
+                        <span class="nav-main-link-name">清理缓存</span>
+                    </a>
+                </li>
+                {/if}
+                </li>
+            </ul>
+        </div>
+
+    </div>
+</nav>
+
+<header id="page-header">
+    <div class="content-header">
+        <div class="space-x-1">
+            <button type="button" class="btn btn-sm btn-alt-secondary" data-toggle="layout" data-action="sidebar_toggle">
+                <i class="fa fa-fw fa-bars"></i>
+            </button>
+            <div class="dropdown d-inline-block">
+                <button type="button" class="btn btn-sm btn-alt-secondary" id="page-header-themes-dropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-paint-brush"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-lg p-0" aria-labelledby="page-header-themes-dropdown">
+                    <div class="p-3 bg-body-light rounded-top">
+                        <h5 class="h6 text-center mb-0">
+                            界面颜色
+                        </h5>
+                    </div>
+                    <div class="p-3">
+                        <div class="row g-0 text-center">
+                            <div class="col-2">
+                                <a class="text-default" data-toggle="theme" data-theme="default" href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                            <div class="col-2">
+                                <a class="text-elegance" data-toggle="theme" data-theme="/static/css/themes/elegance.min-5.0.css" href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                            <div class="col-2">
+                                <a class="text-pulse" data-toggle="theme" data-theme="/static/css/themes/pulse.min-5.0.css" href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                            <div class="col-2">
+                                <a class="text-flat" data-toggle="theme" data-theme="/static/css/themes/flat.min-5.0.css" href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                            <div class="col-2">
+                                <a class="text-corporate" data-toggle="theme" data-theme="/static/css/themes/corporate.min-5.0.css" href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                            <div class="col-2">
+                                <a class="text-earth" data-toggle="theme" data-theme="/static/css/themes/earth.min-5.0.css" href="javascript:void(0)">
+                                    <i class="fa fa-2x fa-circle"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="space-x-1">
+            <div class="dropdown d-inline-block">
+                <button type="button" class="btn btn-sm btn-alt-secondary" id="page-header-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-user d-sm-none"></i>
+                    <span class="d-none d-sm-inline-block fw-semibold">{:session('user.nickname')}</span>
+                    <i class="fa fa-angle-down opacity-50 ms-1"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-md dropdown-menu-end p-0" aria-labelledby="page-header-user-dropdown">
+                    <div class="px-2 py-3 bg-body-light rounded-top">
+                        <h5 class="h6 text-center mb-0">
+                            {:session('user.nickname')}
+                        </h5>
+                    </div>
+                    <div class="p-2">
+                        <a href="{:url('/index/console/user/profile')}" data-pjax class="dropdown-item d-flex align-items-center justify-content-between space-x-1">
+                            <span>个人资料</span>
+                            <i class="fa fa-fw fa-user opacity-25"></i>
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a href="javascript:;" onclick="logout();" class="dropdown-item d-flex align-items-center justify-content-between space-x-1">
+                            <span>注销登录</span>
+                            <i class="fa fa-fw fa-sign-out-alt opacity-25"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="page-header-loader" class="overlay-header bg-primary">
+        <div class="content-header">
+            <div class="w-100 text-center">
+                <i class="far fa-sun fa-spin text-white"></i>
+            </div>
+        </div>
+    </div>
+</header>

@@ -1,0 +1,14 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title">系统更新</h3>
+    </div>
+    <div class="block-content">
+        <div class="alert alert-warning">
+            远程更新已因安全风险禁用。请仅使用来源可信、经过恶意软件扫描和代码审计的离线更新包。
+        </div>
+    </div>
+</div>
+{/block}

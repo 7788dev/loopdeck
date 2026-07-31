@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1.0,maximum-scale=1" name="viewport">
+    <title>{:config('web.webname')} - {:config('web.title')}</title>
+    <meta content="{:config('web.keywords')}" name="keywords">
+    <meta content="{:config('web.description')}" name="description">
+    <link href="/favicon.ico" rel="shortcut icon">
+    <!--    <link href="/static/media/favicons/favicon-192x192.png" rel="icon" sizes="192x192" type="image/png">-->
+    <!--    <link href="/static/media/favicons/apple-touch-icon-180x180.png" rel="apple-touch-icon" sizes="180x180">-->
+    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800&display=swap" rel="stylesheet">
+    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
+    <link href="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-0-M/nprogress/0.2.0/nprogress.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="main-content-boxed" id="page-container">
+    <main id="main-container">
+        <div class="bg-body-dark">
+            <div class="row mx-0 justify-content-center">
+                <div class="hero-static col-lg-6 col-xl-4">
+                    <div class="content content-full overflow-hidden">
+                        <div class="py-4 text-center">
+                            <a class="link-fx fw-bold" href="{:url('index/index')}">
+                                <i class="fa fa-fire"></i>
+                                <span class="fs-4 text-body-color">{:config('web.webname')}</span>
+                            </a>
+                            <h1 class="h3 fw-bold mt-4 mb-2">欢迎使用您的私人助手</h1>
+                            <h2 class="h5 fw-medium text-muted mb-0">今天是个好日子！</h2>
+                        </div>
+                        <form class="js-validation-signin" onsubmit="return false;">
+                            <div class="block block-themed block-rounded block-fx-shadow">
+                                <div class="block-header bg-primary-light">
+                                    <h3 class="block-title">请登录</h3>
+                                </div>
+                                <div class="block-content">
+                                    <div class="form-floating mb-4">
+                                        <input class="form-control" id="username" name="username" placeholder="输入你的用户名"
+                                               type="text">
+                                        <label class="form-label" for="username">用户名</label>
+                                    </div>
+                                    <div class="form-floating mb-4">
+                                        <input class="form-control" id="password" name="password" placeholder="输入你的密码"
+                                               type="password">
+                                        <label class="form-label" for="password">密码</label>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-6 d-sm-flex align-items-center push">
+                                            <div class="form-check">
+                                                <input checked="" class="form-check-input" id="login-remember-me"
+                                                       name="login-remember-me"
+                                                       type="checkbox" value="">
+                                                <label class="form-check-label" for="login-remember-me">记住我</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 text-sm-end push">
+                                            <button type="submit" onclick="ajax_user_login();"
+                                                    class="btn btn-lg btn-alt-primary fw-medium">
+                                                登 录
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="block-content block-content-full bg-body-light text-center d-flex justify-content-between">
+                                    <a class="fs-sm fw-medium link-fx text-muted me-2 mb-1 d-inline-block"
+                                       href="{:url('/index/login/reg')}">
+                                        <i class="fa fa-plus opacity-50 me-1"></i> 创建账户
+                                    </a>
+                                    <a class="fs-sm fw-medium link-fx text-muted me-2 mb-1 d-inline-block"
+                                       href="{:url('/index/login/find')}">
+                                        忘记密码?
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="/static/js/codebase.app.min-5.0.js"></script>
+<script src="/static/js/lib/jquery.min.js"></script>
+<script src="/static/js/plugins/jquery-validation/jquery.validate.min.js"></script>
+<script src="/static/js/plugins/bootstrap-notify/bootstrap-notify.min.js"></script>
+<script src="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-0-M/nprogress/0.2.0/nprogress.min.js"></script>
+<script src="/static/js/app.min.js"></script>
+<script src="/static/js/layer.js"></script>
+<script>
+    function ajax_user_login() {
+        x.ajax('/index/LoginAjax/login', {
+            username: x.getval('#username'),
+            password: x.getval('#password')
+        }, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    window.location.href = "{:url('console/index')}";
+                }, 1000)
+            } else if (data.code == -1001) {
+                x.notify(data.message, 'warning');
+                setTimeout(function () {
+                    window.location.href = '//' + data.data.url;
+                }, 1000)
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        });
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title">{$webTitle} <small>你可以在这里配置注册账号</small></h3>
+        <div class="mb-0">
+            <button type="submit" class="btn btn-sm btn-alt-primary" onclick="ajax_edit_config();">
+                <i class="fa fa-save opacity-50 me-1"></i> 保存
+            </button>
+        </div>
+    </div>
+    <div class="block-content">
+        <form onsubmit="return false;" id="reg-form">
+            <div class="row">
+                <div class="col-lg-12 col-xl-6">
+                        <label class="form-label">关闭注册</label>
+                        <select class="form-select" id="reg_close" name="reg_close" default="{:config('sys.reg_close')}">
+                            <option value="0">开启注册</option>
+                            <option value="1" {if condition="config('sys.reg_close') eq 1" }selected {/if}>关闭注册</option>
+                        </select>
+                    </div>
+                <div class="col-lg-12 col-xl-6">
+                    <label class="form-label">IP限制</label>
+                    <select class="form-select" id="reg_iplimit" name="reg_iplimit" default="{:config('sys.reg_iplimit')}">
+                        <option value="0">关闭限制</option>
+                        <option value="1" {if condition="config('sys.reg_iplimit') eq 1" }selected {/if}>开启限制</option>
+                    </select>
+                </div>
+                </div><br>
+            <hr>
+            <div class="row">
+                <div class="col-lg-12 col-xl-6">
+                    <div class="mb-4">
+                        <label class="form-label">赠送VIP</label>
+                        <select class="form-select" id="reg_give_type" name="reg_free_vip" default="{:config('sys.reg_free_vip')}">
+                            <option value="0">关闭</option>
+                            <option value="1" {if condition="config('sys.reg_free_vip') eq 1" }selected {/if}>开启</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="reg_free_vip_day">赠送会员天数</label>
+                        <input type="text" class="form-control" id="reg_free_vip_day" name="reg_free_vip_day" value="{:config('sys.reg_free_vip_day')}" placeholder="输入赠送的天数">
+                    </div>
+                </div>
+                <div class="col-lg-12 col-xl-6">
+                    <div class="mb-4">
+                        <label class="form-label">赠送配额</label>
+                        <select class="form-select" id="reg_free_quota" name="reg_free_quota" default="{:config('sys.reg_free_quota')}">
+                            <option value="0">关闭</option>
+                            <option value="1" {if condition="config('sys.reg_free_quota') eq 1" }selected {/if}>开启</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="reg_free_quota_num">赠送配额个数</label>
+                        <input type="text" class="form-control" id="reg_free_quota_num" name="reg_free_quota_num" value="{:config('sys.reg_free_quota_num')}" placeholder="输入赠送的个数">
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-lg-12 col-xl-6">
+                    <div class="mb-4">
+                        <label class="form-label">赠送余额</label>
+                        <select class="form-select" id="reg_free_money" name="reg_free_money" default="{:config('sys.reg_free_money')}">
+                            <option value="0">关闭</option>
+                            <option value="1" {if condition="config('sys.reg_free_money') eq 1" }selected {/if}>开启</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="reg_free_money_num">赠送余额面值</label>
+                        <input type="text" class="form-control" id="reg_free_money_num" name="reg_free_money_num" value="{:config('sys.reg_free_money_num')}" placeholder="输入赠送的面值">
+                    </div>
+                </div>
+                <div class="col-lg-12 col-xl-6">
+                    <div class="mb-4">
+                        <label class="form-label">赠送代理</label>
+                        <select class="form-select" id="reg_free_agent" name="reg_free_agent" default="{:config('sys.reg_free_agent')}">
+                            <option value="0">关闭</option>
+                            <option value="1" {if condition="config('sys.reg_free_agent') eq 1" }selected {/if}>开启</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="reg_free_agent_grand">赠送代理权限</label>
+                        <select class="form-select" id="reg_free_agent_grand" name="reg_free_agent_grand" default="{:config('sys.reg_free_agent_grand')}">
+                            <option value="1" {if condition="config('sys.reg_free_agent_grand') eq 1" }selected {/if}>银牌代理</option>
+                            <option value="2" {if condition="config('sys.reg_free_agent_grand') eq 2" }selected {/if}>金牌代理</option>
+                            <option value="3" {if condition="config('sys.reg_free_agent_grand') eq 3" }selected {/if}>钻石代理</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_edit_config() {
+        x.ajax('/admin/ajax/set/config', $('#reg-form').serialize(), function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+</script>
+{/block}

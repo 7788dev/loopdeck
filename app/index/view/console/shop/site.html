@@ -1,0 +1,202 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="row items-push">
+    <div class="col-md-8">
+        <div class="block block-rounded h-100 mb-0">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">
+                    <i class="fa fa-thumbs-up fa-fw me-1 text-muted"></i>
+                </h3>
+            </div>
+            <div class="block-content">
+                <p class="mb-1">
+                    <strong>分站专享特权</strong>
+                </p>
+                <p class="mb-1 fs-sm">1、分站和主站的各个功能都是一样的，除了可以后台一些主要的功能之外，没有其他任何区别。</p>
+                <p class="mb-1 fs-sm">2、分站是一个独立的站点，有整个网站的控制权利，打造属于自己的网站 站长可管理自己的用户。</p>
+                <p class="mb-1 fs-sm">3、分站拥有独立的代理系统功能，可以设置价格，网站的收入完全100%到您的账户，主站不收任何提成。</p>
+                <p class="mb-1 fs-sm text-flat">注：系统24小时自动处理订单，支付后自动为您开通分站，无需等待。</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="block block-rounded h-100 mb-0">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">
+                    <i class="fa fa-star fa-fw me-1 text-muted"></i>
+                </h3>
+            </div>
+            <div class="block-content">
+                <div class="mb-4">
+                    <label class="form-label" for="webName">网站名称</label>
+                    <input type="text" class="form-control" id="webName" name="webName" placeholder="网站名称" autocomplete="off">
+                </div>
+                <div class="row mb-4">
+                    <div class="col-6">
+                        <label class="form-label" for="prefix">域名前缀</label>
+                        <input type="text" class="form-control form-control-lg" id="prefix" name="prefix" placeholder="域名前缀" autocomplete="off">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="domain">后缀选择</label>
+                        <select class="form-select" id="domain" name="domain">
+                            {volist name="site_url" id="data"}
+                            <option value="{$data}">.{$data}</option>
+                            {/volist}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-6 col-xl-3">
+        <a class="block block-link-pop block-rounded block-bordered text-center" href="javascript:select_payment(1)">
+            <div class="block-header">
+                <h3 class="block-title">包月分站</h3>
+            </div>
+            <div class="block-content bg-body-light">
+                <div class="h1 fw-bold mb-2">￥{:config('sys.site_price_1')}</div>
+                <div class="fw-medium text-muted mb-4">每 1 月</div>
+            </div>
+            <div class="block-content">
+                <p>
+                    <svg t="1644647008770" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4784" width="128" height="128"><path d="M802.3 604.7H132c-6.6 0-12-5.4-12-12V132c0-6.6 5.4-12 12-12h670.3c6.6 0 12 5.4 12 12v460.7c0 6.6-5.4 12-12 12z" fill="#E1F5FE" p-id="4785"></path><path d="M802.3 624.7H132c-17.6 0-32-14.4-32-32V132c0-17.6 14.4-32 32-32h670.3c17.6 0 32 14.4 32 32v460.7c0 17.6-14.4 32-32 32z m-662.3-40h654.3V140H140v444.7z" fill="#42A5F5" p-id="4786"></path><path d="M627.6 740.1H315.8v-40h135.3v-78.4h40v78.4h136.5z" fill="#42A5F5" p-id="4787"></path><path d="M450.1 298.1h-192v-40h192v40z m255.2-64.5H258v-40h447.3v40z" fill="#90CAF9" p-id="4788"></path><path d="M843.8 894.5l-34 34.4h-34l-34-34.4V712h101.9v79.2l-17 17.2 17 17.2v17.2l-17 17.2 17 17.2 0.1 17.3z m76.5-301.4c3.4 15.5 8.5 36.2 8.5 60.3s-3.4 44.8-8.5 60.3-17 27.6-34 31c-22.1 3.4-54.4 10.3-93.4 10.3-39.1 0-71.4-5.2-93.4-10.3-17-3.4-28.9-15.5-34-31-3.4-15.5-8.5-36.2-8.5-60.3s5.1-44.8 8.5-62c5.1-15.5 17-27.6 34-31 22.1-3.4 56.1-10.3 93.4-10.3s71.4 6.9 93.4 12.1c17 3.4 28.9 15.4 34 30.9z" fill="#FFA000" p-id="4789"></path><path d="M842.1 636.2h-96.8c-10.2 0-18.7-8.6-18.7-18.9v-24.1c0-5.2 30.6-10.3 68-10.3s68 5.2 68 10.3v24.1c-1.8 10.3-10.3 18.9-20.5 18.9z" fill="#FFFFFF" p-id="4790"></path></svg>
+                </p>
+            </div>
+            <div class="block-content block-content-full">
+              <span class="btn btn-primary">
+                <i class="fa fa-arrow-up opacity-50 me-1"></i> 购买
+              </span>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <a class="block block-link-pop block-rounded block-bordered text-center" href="javascript:select_payment(2)">
+            <div class="block-header">
+                <h3 class="block-title">包季分站</h3>
+            </div>
+            <div class="block-content bg-body-light">
+                <div class="h1 fw-bold mb-2">￥{:config('sys.site_price_2')}</div>
+                <div class="fw-medium text-muted mb-4">每 3 月</div>
+            </div>
+            <div class="block-content">
+                <p>
+                    <svg t="1644647008770" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4784" width="128" height="128"><path d="M802.3 604.7H132c-6.6 0-12-5.4-12-12V132c0-6.6 5.4-12 12-12h670.3c6.6 0 12 5.4 12 12v460.7c0 6.6-5.4 12-12 12z" fill="#E1F5FE" p-id="4785"></path><path d="M802.3 624.7H132c-17.6 0-32-14.4-32-32V132c0-17.6 14.4-32 32-32h670.3c17.6 0 32 14.4 32 32v460.7c0 17.6-14.4 32-32 32z m-662.3-40h654.3V140H140v444.7z" fill="#42A5F5" p-id="4786"></path><path d="M627.6 740.1H315.8v-40h135.3v-78.4h40v78.4h136.5z" fill="#42A5F5" p-id="4787"></path><path d="M450.1 298.1h-192v-40h192v40z m255.2-64.5H258v-40h447.3v40z" fill="#90CAF9" p-id="4788"></path><path d="M843.8 894.5l-34 34.4h-34l-34-34.4V712h101.9v79.2l-17 17.2 17 17.2v17.2l-17 17.2 17 17.2 0.1 17.3z m76.5-301.4c3.4 15.5 8.5 36.2 8.5 60.3s-3.4 44.8-8.5 60.3-17 27.6-34 31c-22.1 3.4-54.4 10.3-93.4 10.3-39.1 0-71.4-5.2-93.4-10.3-17-3.4-28.9-15.5-34-31-3.4-15.5-8.5-36.2-8.5-60.3s5.1-44.8 8.5-62c5.1-15.5 17-27.6 34-31 22.1-3.4 56.1-10.3 93.4-10.3s71.4 6.9 93.4 12.1c17 3.4 28.9 15.4 34 30.9z" fill="#FFA000" p-id="4789"></path><path d="M842.1 636.2h-96.8c-10.2 0-18.7-8.6-18.7-18.9v-24.1c0-5.2 30.6-10.3 68-10.3s68 5.2 68 10.3v24.1c-1.8 10.3-10.3 18.9-20.5 18.9z" fill="#FFFFFF" p-id="4790"></path></svg>
+                </p>
+            </div>
+            <div class="block-content block-content-full">
+              <span class="btn btn-primary">
+                <i class="fa fa-arrow-up opacity-50 me-1"></i> 购买
+              </span>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <a class="block block-link-pop block-rounded block-bordered text-center" href="javascript:select_payment(3)">
+            <div class="block-header">
+                <h3 class="block-title"><i class="fa fa-check"></i> 包季分站</h3>
+            </div>
+            <div class="block-content bg-body-light">
+                <div class="h1 fw-bold text-primary mb-2">￥{:config('sys.site_price_3')}</div>
+                <div class="fw-medium text-muted mb-4">每 6 月</div>
+            </div>
+            <div class="block-content">
+                <p>
+                    <svg t="1644647008770" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4784" width="128" height="128"><path d="M802.3 604.7H132c-6.6 0-12-5.4-12-12V132c0-6.6 5.4-12 12-12h670.3c6.6 0 12 5.4 12 12v460.7c0 6.6-5.4 12-12 12z" fill="#E1F5FE" p-id="4785"></path><path d="M802.3 624.7H132c-17.6 0-32-14.4-32-32V132c0-17.6 14.4-32 32-32h670.3c17.6 0 32 14.4 32 32v460.7c0 17.6-14.4 32-32 32z m-662.3-40h654.3V140H140v444.7z" fill="#42A5F5" p-id="4786"></path><path d="M627.6 740.1H315.8v-40h135.3v-78.4h40v78.4h136.5z" fill="#42A5F5" p-id="4787"></path><path d="M450.1 298.1h-192v-40h192v40z m255.2-64.5H258v-40h447.3v40z" fill="#90CAF9" p-id="4788"></path><path d="M843.8 894.5l-34 34.4h-34l-34-34.4V712h101.9v79.2l-17 17.2 17 17.2v17.2l-17 17.2 17 17.2 0.1 17.3z m76.5-301.4c3.4 15.5 8.5 36.2 8.5 60.3s-3.4 44.8-8.5 60.3-17 27.6-34 31c-22.1 3.4-54.4 10.3-93.4 10.3-39.1 0-71.4-5.2-93.4-10.3-17-3.4-28.9-15.5-34-31-3.4-15.5-8.5-36.2-8.5-60.3s5.1-44.8 8.5-62c5.1-15.5 17-27.6 34-31 22.1-3.4 56.1-10.3 93.4-10.3s71.4 6.9 93.4 12.1c17 3.4 28.9 15.4 34 30.9z" fill="#FFA000" p-id="4789"></path><path d="M842.1 636.2h-96.8c-10.2 0-18.7-8.6-18.7-18.9v-24.1c0-5.2 30.6-10.3 68-10.3s68 5.2 68 10.3v24.1c-1.8 10.3-10.3 18.9-20.5 18.9z" fill="#FFFFFF" p-id="4790"></path></svg>
+                </p>
+            </div>
+            <div class="block-content block-content-full">
+              <span class="btn btn-primary">
+                <i class="fa fa-arrow-up opacity-50 me-1"></i> 购买
+              </span>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <a class="block block-link-pop block-rounded block-bordered text-center" href="javascript:select_payment(4)">
+            <div class="block-header">
+                <h3 class="block-title">年费分站</h3>
+            </div>
+            <div class="block-content bg-body-light">
+                <div class="h1 fw-bold mb-2">￥{:config('sys.site_price_4')}</div>
+                <div class="fw-medium text-muted mb-4">每 12 月</div>
+            </div>
+            <div class="block-content">
+                <p>
+                    <svg t="1644647008770" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4784" width="128" height="128"><path d="M802.3 604.7H132c-6.6 0-12-5.4-12-12V132c0-6.6 5.4-12 12-12h670.3c6.6 0 12 5.4 12 12v460.7c0 6.6-5.4 12-12 12z" fill="#E1F5FE" p-id="4785"></path><path d="M802.3 624.7H132c-17.6 0-32-14.4-32-32V132c0-17.6 14.4-32 32-32h670.3c17.6 0 32 14.4 32 32v460.7c0 17.6-14.4 32-32 32z m-662.3-40h654.3V140H140v444.7z" fill="#42A5F5" p-id="4786"></path><path d="M627.6 740.1H315.8v-40h135.3v-78.4h40v78.4h136.5z" fill="#42A5F5" p-id="4787"></path><path d="M450.1 298.1h-192v-40h192v40z m255.2-64.5H258v-40h447.3v40z" fill="#90CAF9" p-id="4788"></path><path d="M843.8 894.5l-34 34.4h-34l-34-34.4V712h101.9v79.2l-17 17.2 17 17.2v17.2l-17 17.2 17 17.2 0.1 17.3z m76.5-301.4c3.4 15.5 8.5 36.2 8.5 60.3s-3.4 44.8-8.5 60.3-17 27.6-34 31c-22.1 3.4-54.4 10.3-93.4 10.3-39.1 0-71.4-5.2-93.4-10.3-17-3.4-28.9-15.5-34-31-3.4-15.5-8.5-36.2-8.5-60.3s5.1-44.8 8.5-62c5.1-15.5 17-27.6 34-31 22.1-3.4 56.1-10.3 93.4-10.3s71.4 6.9 93.4 12.1c17 3.4 28.9 15.4 34 30.9z" fill="#FFA000" p-id="4789"></path><path d="M842.1 636.2h-96.8c-10.2 0-18.7-8.6-18.7-18.9v-24.1c0-5.2 30.6-10.3 68-10.3s68 5.2 68 10.3v24.1c-1.8 10.3-10.3 18.9-20.5 18.9z" fill="#FFFFFF" p-id="4790"></path></svg>
+                </p>
+            </div>
+            <div class="block-content block-content-full">
+              <span class="btn btn-primary">
+                <i class="fa fa-arrow-up opacity-50 me-1"></i> 购买
+              </span>
+            </div>
+        </a>
+    </div>
+</div>
+<div class="content-content p-2" id="payment-selector" style="display: none">
+    <div class="text-center fw-semibold fs-sm">请选择支付方式</div>
+    <div class="btn-group btn-group-sm my-2" role="group">
+        {if condition="config('sys.is_qqpay')"}
+        <input type="radio" class="btn-check" name="qqpay" id="qqpay" onclick="ajax_shop_site('qqpay');">
+        <label class="btn btn-alt-info" for="qqpay">QQ支付</label>
+        {/if}
+        {if condition="config('sys.is_wxpay')"}
+        <input type="radio" class="btn-check" name="wxpay" id="wxpay" onclick="ajax_shop_site('wxpay');">
+        <label class="btn btn-alt-info" for="wxpay">微信支付</label>
+        {/if}
+        {if condition="config('sys.is_alipay')"}
+        <input type="radio" class="btn-check" name="alipay" id="alipay" onclick="ajax_shop_site('alipay');">
+        <label class="btn btn-alt-info" for="alipay">支付宝支付</label>
+        {/if}
+    </div>
+    <input type="hidden" id="shopid">
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function select_payment(shopid) {
+        webname = x.getval('#webName', '请先输入开通的网站名称');
+        if (!webname) return;
+        prefix = x.getval('#prefix', '请先输入开通的域名前缀');
+        if (!prefix) return;
+        domain = x.getval('#domain', '请先选择开通的域名后缀');
+        if (!domain) return;
+        {if condition="!config('sys.is_qqpay') && !config('sys.is_wxpay') && !config('sys.is_alipay')"}
+            x.notify('暂无支付渠道，请联系站长', 'danger');
+            return;
+        {/if}
+        $('#shopid').val(shopid);
+        layer.open({
+            type: 1,
+            shade: false,
+            title: false,
+            content: $('#payment-selector'),
+            cancel: function(){
+                x.notify('交易取消', 'warning');
+            },
+        });
+    }
+
+    function ajax_shop_site(pay_type)
+    {
+        var shopid = x.getval('#shopid');
+        x.ajax('/index/ajax/shop/buy', {shop: 'site', shopid: shopid, webname: webname , prefix: prefix, domain: domain ,pay_type: pay_type}, function (data) {
+            if (data.code == 1) {
+                layer.closeAll();
+                layer.confirm(data.message, {
+                    btn: ['确定', '取消'],
+                    closeBtn: 0,
+                }, function () {
+                    window.location.href = data.data.success;
+                })
+            } else {
+                x.notify(data.message, 'warning');
+                layer.closeAll();
+            }
+        })
+    }
+</script>
+{/block}

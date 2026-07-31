@@ -1,0 +1,120 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="content">
+    <div class="row">
+        <div class="col-md-12">
+            <form method="POST">
+                <div class="block block-themed block-rounded">
+                    <div class="block-header bg-flat-light">
+                        <h3 class="block-title">收款码三合一</h3>
+                    </div>
+                    <div class="block-content">
+                        <div class="row justify-content-center py-sm-3 py-md-5">
+                            <div class="col-sm-10 col-md-8">
+                                <div class="mb-4">
+                                    <label class="form-label" for="alipay">支付宝</label>
+                                    <input class="form-control" type="file" id="alipay" name="file" accept="image/*">
+                                    <input type="hidden" name="alipay_url" id="alipay_url" value="">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label" for="qq">QQ</label>
+                                    <input class="form-control" type="file" id="qq" name="file" accept="image/*">
+                                    <input type="hidden" name="alipay_url" id="qq_url" value="">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label" for="wechat">微信</label>
+                                    <input class="form-control" type="file" id="wechat" name="file" accept="image/*">
+                                    <input type="hidden" name="alipay_url" id="wechat_url" value="">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label" for="name">收款识别码</label>
+                                    <input class="form-control" type="text" id="name" name="name" placeholder="用于本站管理收款码和扫描二维码的ID">
+                                </div>
+                                <div id="qrcode" class="mb-4 text-center">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <div class="block-content block-content-full block-content-sm bg-body-light">
+                            <button type="button" class="btn btn-alt-info" onclick="ajax_create_qrcode();">
+                                <i class="fa fa-check opacity-50 me-1"></i> 生成
+                            </button>
+                            <button type="reset" class="btn btn-alt-secondary">
+                                <i class="fa fa-sync-alt opacity-50 me-1"></i> 重置
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    $(document).ready(function () {
+        $('input[type="file"]').on('change', function () {
+            const formData = new FormData();
+            formData.append('file', this.files[0]);
+            formData.append('type', $(this).attr('id'));
+            const index = layer.load(1);
+            $.ajax({
+                url: '/index/ajax/qrcode/uploads',
+                type: 'POST',
+                data: formData,
+                contentType: false,
+                processData: false,
+                success: function (res) {
+                    layer.closeAll();
+                    if (res.code === 1) {
+                        x.notify(res.message, 'success');
+                        $('#' + res.data.type + '_url').val(res.data.url);
+                    } else {
+                        x.notify(res.message, 'warning');
+                    }
+                },
+                error: function (xhr, status, error) {
+                    console.log(xhr);
+                }
+            });
+        });
+    })
+
+    function ajax_create_qrcode() {
+        const alipay_url = x.getval('#alipay_url', '请先上传支付宝收款码！');
+        if (!alipay_url) return;
+        const qq_url = x.getval('#qq_url', '请先上传QQ收款码！');
+        if (!qq_url) return;
+        const wechat_url = x.getval('#wechat_url', '请先上传微信收款码！');
+        if (!wechat_url) return;
+        const name = x.getval('#name', '请先输入收款人昵称！');
+        if (!name) return;
+        x.ajax('/index/ajax/qrcode/create', {
+            alipay_url: alipay_url,
+            qq_url: qq_url,
+            wechat_url: wechat_url,
+            name: name,
+        }, function (res) {
+            if (res.code == 1) {
+                x.notify(res.message, 'success');
+                $('#qrcode').html('<img id="img" src="data:image/png;base64,'+ res.data +'" height="200px;"><br><br><button type="button" onclick="ajax_dowmloadImg()" class="btn btn-alt-primary"><i class="si si-cloud-download"></i> 下载 </button>');
+            } else {
+                x.notify(res.message, 'warning');
+            }
+        })
+    }
+
+    function ajax_dowmloadImg() {
+        const imgUrl = $("#img").attr("src");
+        const link = document.createElement("a");
+        link.href = imgUrl;
+        link.download = "pay.jpg";
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+{/block}

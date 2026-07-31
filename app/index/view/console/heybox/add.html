@@ -1,0 +1,51 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-md-8">
+        <div class="block block-rounded">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">导入小黑盒会话</h3>
+            </div>
+            <div class="block-content">
+                <div class="alert alert-info">
+                    已移除账号密码登录，避免凭据被提交到不明接口。请填写小黑盒会话中的
+                    <code>heybox_id</code> 与 <code>pkey</code>。
+                </div>
+                <form onsubmit="return false;">
+                    <div class="mb-4">
+                        <label class="form-label" for="heybox-id">heybox_id</label>
+                        <input class="form-control" id="heybox-id" autocomplete="off">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="heybox-pkey">pkey</label>
+                        <textarea class="form-control" id="heybox-pkey" rows="4" autocomplete="off"></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <button type="button" class="btn btn-alt-primary" onclick="addHeyboxAccount();">
+                            <i class="fa fa-check opacity-50 me-1"></i> 保存
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+function addHeyboxAccount() {
+    const heyboxId = x.getval('#heybox-id', '请先输入 heybox_id');
+    const pkey = x.getval('#heybox-pkey', '请先输入 pkey');
+    if (!heyboxId || !pkey) return;
+    x.ajax('/index/ajax/heybox/add', {heybox_id: heyboxId, pkey: pkey}, function (data) {
+        x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+        if (data.code === 1) {
+            setTimeout(function () {
+                window.location.href = '{:url("/index/console/heybox/list")}';
+            }, 800);
+        }
+    });
+}
+</script>
+{/block}

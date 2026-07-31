@@ -1,0 +1,113 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="row items-push">
+    <div class="block block-rounded">
+        <div class="block-content block-content-full">
+            <div class="py-3 text-center">
+                <h2 class="fw-bold mb-2">
+                    Epic 每周免费领取游戏
+                </h2>
+                <h3 class="fs-base fw-medium text-muted mb-3">
+                    在这里设置你的通知邮箱
+                </h3>
+                <div class="row justify-content-center">
+                    <div class="col-md-10 col-lg-8 col-xl-6">
+                        <form onsubmit="return false;">
+                            <div class="input-group input-group-lg">
+                                <input type="email" class="form-control" placeholder="邮箱地址" id="email" value="{$job.user_id}">
+                                <input type="text"class="js-flatpickr form-control"id="timing"placeholder="时间"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true">                                <button type="submit" class="btn btn-alt-primary" onclick="setEmail()">
+                                    确认
+                                </button>
+                            </div>
+                            {if condition="$job.state == 1"}
+                            <p class="fs-sm text-muted mt-1 mb-0">
+                                状态：<span class="text-success">已开启</span><a class="mx-2" href="javascript:funcSwitch()">关闭</a>
+                            </p>
+                            {else /}
+                            <p class="fs-sm text-muted mt-1 mb-0">
+                                状态：<span class="text-warning">未开启</span><a class="mx-2" href="javascript:funcSwitch()">开启</a>
+                            </p>
+                            {/if}
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {volist name="list" id="v"}
+    <div class="col-xl-6">
+        <a class="block block-rounded block-transparent bg-image d-flex align-items-stretch h-100 mb-0" href="{$v.productUrl}"
+           style="background-image: url('{$v.image}');" target="_blank">
+            <div class="block-content block-sticky-options pt-7 bg-black-50">
+                <div class="block-options block-options-left text-white">
+                    <div class="block-options-item">
+                        <span class="badge bg-gd-emerald fw-medium p-2 text-uppercase">剩余 {$v.leftDay} 天</span>
+                    </div>
+                </div>
+                <div class="block-options text-white">
+                    <div class="block-options-item">
+                        <b><del>{$v.originalPrice} </del>¥0.00</b>
+                    </div>
+                </div>
+                <h2 class="h3 fw-bold text-white mb-1">{$v.title}</h2>
+                <h3 class="fs-base fw-medium text-white-75">{$v.description}</h3>
+            </div>
+        </a>
+    </div>
+    {/volist}
+    <div class="block block-rounded bg-body-light mt-5">
+        <div class="block-content block-content-full">
+            <div class="py-3 text-center">
+                <h3 class="fw-bold mb-2">
+                    怕忘记?
+                </h3>
+                <h4 class="h5 text-muted">
+                    开个会员，每周自动提醒，这还能忘？
+                </h4>
+                <a class="btn btn-alt-primary px-4 py-3" href="{:url('/index/console/shop/vip')}">
+                    <i class="fa fa-paper-plane opacity-50 me-1"></i> 马上开通!
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/plugins/flatpickr/flatpickr.min.js"></script>
+<script>
+    function setEmail() {
+        let email = x.getval('#email', '请先输入邮箱地址');
+        if (!email) return;
+        let timing = x.getval('#timing', '请先填入通知时间');
+        if (!timing) return;
+        x.ajax('/index/ajax/epic/act/setEmail', {email: email, timing: x.getval('#timing')}, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    window.location.reload();
+                }, 1000)
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+
+    function funcSwitch() {
+        x.ajax('/index/ajax/epic/act/funcSwitch', null, function (data) {
+            if (data.code == 1) {
+                x.notify("修改成功", 'success');
+                setTimeout(function () {
+                    window.location.reload();
+                }, 1000)
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+    $(function () {
+        $('#timing').val("{:unserialize($job.data)['timing']}")
+        Codebase.helpersOnLoad(['js-flatpickr']);
+    })
+</script>
+{/block}

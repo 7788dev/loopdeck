@@ -11,6 +11,7 @@
 use think\facade\Route;
 
 // 监控运行
+Route::rule('task', 'task/index');
 Route::rule('netease/:do', 'netease/execute');
 Route::rule('bilibili/:do', 'bilibili/execute');
 Route::rule('heybox/:do', 'heybox/execute');

@@ -62,28 +62,13 @@
                     </div>
                 </td>
             </tr>
-            <tr>
-                <th class="text-center" scope="row">4</th>
-                <td>小黑盒</td>
-                <td class="d-none d-sm-table-cell">{:get_Domain()}cron/heybox?cronkey={:config('sys.cronkey')}</td>
-                <td class="d-none d-sm-table-cell">
-                    <span class="badge bg-warning">1分钟</span>
-                </td>
-                <td class="text-center">
-                    <div class="btn-group">
-                        <button type="button" class="btn btn-sm btn-secondary js-bs-tooltip-enabled copy" data-clipboard-text="{:get_Domain()}cron/heybox?cronkey={:config('sys.cronkey')}">
-                            <i class="fa fa-copy"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
             </tbody>
         </table>
     </div>
 </div>
 <div class="block block-rounded">
     <div class="block-header block-header-default">
-        <h3 class="block-title">{$webTitle} <code>实验性功能</code></h3>
+        <h3 class="block-title">统一任务调度</h3>
     </div>
     <div class="block-content">
         <table class="table table-vcenter">
@@ -99,7 +84,7 @@
             <tbody>
             <tr>
                 <th class="text-center" scope="row">1</th>
-                <td>任务运行</td>
+                <td>网易云与哔哩哔哩任务</td>
                 <td class="d-none d-sm-table-cell">{:get_Domain()}cron/task?cronkey={:config('sys.cronkey')}</td>
                 <td class="d-none d-sm-table-cell">
                     <span class="badge bg-warning">1分钟</span>

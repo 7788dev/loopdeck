@@ -1,0 +1,12 @@
+.form-control,
+.form-select {
+    font-family: Poppins, webfont, "Microsoft YaHei UI", "PingFang SC",
+    "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+    letter-spacing: 0;
+}
+
+.form-control::placeholder {
+    font-family: inherit;
+    font-weight: 400;
+    letter-spacing: 0;
+}

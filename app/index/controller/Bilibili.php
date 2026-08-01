@@ -9,7 +9,7 @@ use app\index\model\Tasks;
 use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
 use bilibili\Bilibili as BilibiliClient;
-use netease\Qrcode;
+use netease\QRcode;
 use think\exception\ValidateException;
 use think\facade\Request;
 use think\facade\Session;

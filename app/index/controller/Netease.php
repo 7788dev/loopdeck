@@ -9,7 +9,7 @@ use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\service\AutomaticSchedule;
 use netease\Netease as NeteaseClient;
-use netease\Qrcode;
+use netease\QRcode;
 use think\exception\ValidateException;
 use think\facade\Request;
 use think\facade\Session;
@@ -73,17 +73,21 @@ class Netease
 
     private function getQrimg()
     {
-        $client = new NeteaseClient();
-        $key = $client->get_qr_key();
-        if ($key === '') {
-            return resultJson(0, '获取二维码登录密钥失败');
-        }
+        try {
+            $client = new NeteaseClient();
+            $key = $client->get_qr_key();
+            if ($key === '') {
+                return resultJson(0, '获取二维码登录密钥失败');
+            }
 
-        $url = 'https://music.163.com/login?codekey=' . rawurlencode($key);
-        return resultJson(1, '获取二维码成功', [
-            'key' => $key,
-            'qrimg' => $this->renderQrBase64($url),
-        ]);
+            $url = 'https://music.163.com/login?codekey=' . rawurlencode($key);
+            return resultJson(1, '获取二维码成功', [
+                'key' => $key,
+                'qrimg' => $this->renderQrBase64($url),
+            ]);
+        } catch (\Throwable $exception) {
+            return resultJson(0, '二维码生成失败，请稍后重试');
+        }
     }
 
     private function qrLogin()

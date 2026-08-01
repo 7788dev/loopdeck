@@ -55,7 +55,13 @@ class Weblist extends Model
             $data['index_mode'] = $mode;
         }
         foreach (['index_template', 'login_template'] as $field) {
-            if (isset($data[$field]) && preg_match('/\A[A-Za-z0-9_-]{1,20}\z/', $data[$field]) !== 1) {
+            if (!isset($data[$field])) {
+                continue;
+            }
+            $templates = $field === 'index_template'
+                ? self::indexTemplateData()
+                : self::loginTemplateData();
+            if (!in_array($data[$field], array_column($templates, 'id'), true)) {
                 return false;
             }
         }
@@ -149,72 +155,112 @@ class Weblist extends Model
 
     public static function templateCount(): int
     {
-        $index_file_path = root_path() . "app" . DIRECTORY_SEPARATOR . "index" . DIRECTORY_SEPARATOR . "view" . DIRECTORY_SEPARATOR . "index";
-        $login_file_path = root_path() . "app" . DIRECTORY_SEPARATOR . "index" . DIRECTORY_SEPARATOR . "view" . DIRECTORY_SEPARATOR . "login";
-        $index_res = self::my_scandir($index_file_path);
-        $login_res = self::my_scandir($login_file_path);
-        $index_num = count($index_res);
-        $login_num = count($login_res);
-        return $index_num + $login_num;
+        return count(self::indexTemplateData()) + count(self::loginTemplateData());
     }
 
-    private static function my_scandir($dir): array
+    public static function templateSettingsData(array $site = []): array
     {
-        if (!is_dir($dir) || ($handle = opendir($dir)) === false) {
-            return [];
-        }
+        $indexTemplates = self::indexTemplateData();
+        $loginTemplates = self::loginTemplateData();
 
-        $files = [];
-        try {
-            while (($file = readdir($handle)) !== false) {
-                if ($file !== '.' && $file !== '..') {
-                    if (is_dir($dir . '/' . $file)) {
-                        $files[$file] = self::my_scandir($dir . '/' . $file);
-                    } else {
-                        $files[] = $dir . '/' . $file;
-                    }
-                }
-            }
-        } finally {
-            closedir($handle);
-        }
-
-        return $files;
+        return [
+            'num' => count($indexTemplates) + count($loginTemplates),
+            'index_data' => $indexTemplates,
+            'login_data' => $loginTemplates,
+            'current_index_template' => self::selectedTemplateId(
+                $indexTemplates,
+                (string)($site['index_template'] ?? 'default')
+            ),
+            'current_login_template' => self::selectedTemplateId(
+                $loginTemplates,
+                (string)($site['login_template'] ?? 'default')
+            ),
+        ];
     }
 
     public static function indexTemplateData(): array
     {
-        $file_path = root_path() . "app" . DIRECTORY_SEPARATOR . "index" . DIRECTORY_SEPARATOR . "view" . DIRECTORY_SEPARATOR . "index";
-        $res = self::my_scandir($file_path);
-        $result = [];
-        foreach ($res as $val) {
-            foreach ($val as $row) {
-                if (str_contains($row, "json")) {
-                    $result[] = json_decode(file_get_contents($row),true);
-                }
-            }
-        }
-        return $result;
+        return self::templateData('index');
     }
 
     public static function loginTemplateData(): array
     {
-        $file_path = root_path() . "app" . DIRECTORY_SEPARATOR . "index" . DIRECTORY_SEPARATOR . "view" . DIRECTORY_SEPARATOR . "login";
-        $res = self::my_scandir($file_path);
-        $result = [];
-        foreach ($res as $val) {
-            foreach ($val as $row) {
-                if (str_contains($row, "json")) {
-                    $result[] = json_decode(file_get_contents($row),true);
-                }
-            }
-        }
-        return $result;
+        return self::templateData('login');
     }
-	
-	private static function get_extension($file)
-	{
-       return pathinfo($file, PATHINFO_EXTENSION);
+
+    private static function templateData(string $section): array
+    {
+        if (!in_array($section, ['index', 'login'], true)) {
+            return [];
+        }
+
+        $directory = dirname(__DIR__, 2)
+            . DIRECTORY_SEPARATOR . 'index'
+            . DIRECTORY_SEPARATOR . 'view'
+            . DIRECTORY_SEPARATOR . $section;
+        if (!is_dir($directory)) {
+            return [];
+        }
+
+        $templates = [];
+        foreach (new \DirectoryIterator($directory) as $entry) {
+            if ($entry->isDot() || !$entry->isDir()) {
+                continue;
+            }
+
+            $id = $entry->getFilename();
+            $metadataPath = $entry->getPathname() . DIRECTORY_SEPARATOR . 'readme.json';
+            $entryTemplate = $entry->getPathname() . DIRECTORY_SEPARATOR . ($section === 'index' ? 'index.html' : 'login.html');
+            if (!is_file($metadataPath) || !is_file($entryTemplate)) {
+                continue;
+            }
+
+            $contents = @file_get_contents($metadataPath);
+            if (!is_string($contents)) {
+                continue;
+            }
+            try {
+                $metadata = json_decode(
+                    $contents,
+                    true,
+                    32,
+                    JSON_THROW_ON_ERROR
+                );
+            } catch (\JsonException) {
+                continue;
+            }
+            if (!is_array($metadata)
+                || (string)($metadata['id'] ?? '') !== $id
+                || preg_match('/\A[A-Za-z0-9][A-Za-z0-9_.-]{0,19}\z/', $id) !== 1
+                || str_contains($id, '..')
+            ) {
+                continue;
+            }
+
+            $templates[] = [
+                'id' => $id,
+                'name' => trim((string)($metadata['name'] ?? $id)) ?: $id,
+                'description' => trim((string)($metadata['description'] ?? '')),
+                'author' => trim((string)($metadata['author'] ?? '')),
+                'demoSite' => trim((string)($metadata['demoSite'] ?? '')),
+                'img' => trim((string)($metadata['img'] ?? '')),
+            ];
+        }
+
+        usort($templates, static fn(array $left, array $right): int => strnatcasecmp($left['id'], $right['id']));
+        return $templates;
+    }
+
+    private static function selectedTemplateId(array $templates, string $selected): string
+    {
+        $ids = array_column($templates, 'id');
+        if (in_array($selected, $ids, true)) {
+            return $selected;
+        }
+        if (in_array('default', $ids, true)) {
+            return 'default';
+        }
+        return (string)($ids[0] ?? '');
     }
 
 }

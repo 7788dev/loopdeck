@@ -60,7 +60,10 @@ class System extends Common
                 View::assign('webTitle', '邮箱信息设置');
                 return View::fetch('system/set/mail');
             case 'template':
-                View::assign('webTitle', '前台模板设置');
+                View::assign(array_merge(
+                    ['webTitle' => '前台模板设置'],
+                    Weblist::templateSettingsData((array)config('web'))
+                ));
                 return View::fetch('system/set/template');
             default:
                 return response('未知的系统设置页面', 404);

@@ -15,11 +15,9 @@
             <h2 class="content-heading">首页模板</h2>
             {foreach $index_data as $key => $v}
             <div class="col-md-6 col-xl-4">
-                <div class="block block-rounded">
+                <div class="block block-rounded{if condition='$current_index_template eq $v.id'} border border-primary{/if}">
                     <div class="block-content p-0 overflow-hidden">
-                        <a class="img-link" href="#">
-                            <img class="img-fluid rounded-top" src="{$v.img}" alt="">
-                        </a>
+                        <img class="img-fluid rounded-top" src="{$v.img}" alt="{$v.name}" loading="lazy">
                     </div>
                     <div class="block-content border-bottom">
                         <h4 class="fs-5 mb-4">{$v.name}</h4>
@@ -46,7 +44,17 @@
                     <div class="block-content block-content-full">
                         <div class="row g-sm">
                             <div class="col-12">
-                               <input name="index_template" onclick="ajax_set_template(this)" class="btn btn-sm btn-primary w-100" value="{$v.id}" readonly>
+                                <button type="button" name="index_template" data-template-id="{$v.id}"
+                                        onclick="ajax_set_template(this)"
+                                        class="btn btn-sm w-100 {if condition='$current_index_template eq $v.id'}btn-alt-success{else /}btn-primary{/if}"
+                                        aria-pressed="{if condition='$current_index_template eq $v.id'}true{else /}false{/if}"
+                                        {if condition="$current_index_template eq $v.id"}disabled{/if}>
+                                    {if condition="$current_index_template eq $v.id"}
+                                    <i class="fa fa-check me-1"></i>当前使用
+                                    {else /}
+                                    启用 {$v.name}
+                                    {/if}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -57,11 +65,9 @@
             <h2 class="content-heading">登录注册模板</h2>
             {foreach $login_data as $key => $v}
             <div class="col-md-6 col-xl-4">
-                <div class="block block-rounded">
+                <div class="block block-rounded{if condition='$current_login_template eq $v.id'} border border-primary{/if}">
                     <div class="block-content p-0 overflow-hidden">
-                        <a class="img-link" href="#">
-                            <img class="img-fluid rounded-top" src="{$v.img}" alt="">
-                        </a>
+                        <img class="img-fluid rounded-top" src="{$v.img}" alt="{$v.name}" loading="lazy">
                     </div>
                     <div class="block-content border-bottom">
                         <h4 class="fs-5 mb-2">{$v.name}</h4>
@@ -88,7 +94,17 @@
                     <div class="block-content block-content-full">
                         <div class="row g-sm">
                             <div class="col-12">
-                                <input name="login_template" onclick="ajax_set_template(this)" class="btn btn-sm btn-primary w-100" value="{$v.id}" readonly>
+                                <button type="button" name="login_template" data-template-id="{$v.id}"
+                                        onclick="ajax_set_template(this)"
+                                        class="btn btn-sm w-100 {if condition='$current_login_template eq $v.id'}btn-alt-success{else /}btn-primary{/if}"
+                                        aria-pressed="{if condition='$current_login_template eq $v.id'}true{else /}false{/if}"
+                                        {if condition="$current_login_template eq $v.id"}disabled{/if}>
+                                    {if condition="$current_login_template eq $v.id"}
+                                    <i class="fa fa-check me-1"></i>当前使用
+                                    {else /}
+                                    启用 {$v.name}
+                                    {/if}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -100,40 +116,24 @@
 </div>
 {/block}
 {block name="foot"}
-{if condition="$start neq 1"}
-<script>
-    layer.open({
-        content: '您还没有初始化模板切换功能，功能无法正常使用！',
-        btn: '初 始 化',
-        shadeClose: false,
-        closeBtn: 0,
-        move: false,
-        yes: function(i){
-            x.ajax('/admin/ajax/set/template_start',null,function (data){
-                if (data.code == 1) {
-                    x.notify(data.message, 'success');
-                    setTimeout(function () {
-                        location.reload();
-                    }, 1000)
-                } else {
-                    x.notify(data.message, 'warning');
-                }
-            });
-        },
-    });
-</script>
-{/if}
 <script>
     function ajax_set_template(_this) {
         var name = $(_this).prop('name');
-        var value = $(_this).prop('value');
-        x.ajax('/admin/ajax/set/info', name + '=' + value, function (data) {
+        var value = $(_this).data('template-id');
+        var payload = {};
+        payload[name] = value;
+        $(_this).prop('disabled', true);
+        x.ajax('/admin/ajax/set/info', payload, function (data) {
             if (data.code == 1) {
                 x.notify(data.message, 'success');
+                setTimeout(function () {
+                    location.reload();
+                }, 500);
             } else {
+                $(_this).prop('disabled', false);
                 x.notify(data.message, 'warning');
             }
-        })
+        });
     }
 </script>
 {/block}

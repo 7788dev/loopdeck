@@ -83,7 +83,7 @@ docker compose down
 
 ## 后台一键更新
 
-仓库根目录的 `VERSION` 是程序版本号。管理员进入“站长后台 → 程序更新”时，应用会读取本地版本，并与 GitHub `main` 分支上的 `VERSION` 比较。
+仓库根目录的 `VERSION` 是程序版本号。管理员进入“站长后台 → 程序更新”时，应用会读取本地版本，并通过 GitHub API 获取 `main` 分支上的 `VERSION` 进行比较；如果主版本源不可用，会自动回退到 jsDelivr 和 GitHub Raw。
 
 检测到新版本后，后台会通过 Docker 内网调用 `updater` 容器。更新器只选择带 `com.centurylinklabs.watchtower.enable=true` 标签的 `app` 和 `scheduler`，拉取 `APP_IMAGE` 对应的新镜像并重建容器；MySQL、应用数据卷和数据库卷不会被删除。更新器端口不会映射到宿主机，调用还必须携带 `.env` 中的 `UPDATE_TOKEN`。
 

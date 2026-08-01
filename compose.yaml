@@ -27,7 +27,7 @@ services:
       SCHEDULER_RETRY_JITTER_SECONDS: "${SCHEDULER_RETRY_JITTER_SECONDS:-60}"
       TASK_LOG_RETENTION_DAYS: "${TASK_LOG_RETENTION_DAYS:-30}"
       TASK_LOG_PRUNE_BATCH_SIZE: "${TASK_LOG_PRUNE_BATCH_SIZE:-5000}"
-      UPDATE_VERSION_URL: "${UPDATE_VERSION_URL:-https://raw.githubusercontent.com/7788dev/loopdeck/main/VERSION}"
+      UPDATE_VERSION_URL: "${UPDATE_VERSION_URL:-https://api.github.com/repos/7788dev/loopdeck/contents/VERSION?ref=main}"
       UPDATE_API_URL: "http://updater:8080/v1/update"
       UPDATE_IMAGE: "${APP_IMAGE:-ghcr.io/7788dev/loopdeck:latest}"
       UPDATE_TOKEN: "${UPDATE_TOKEN:?Set UPDATE_TOKEN in .env}"

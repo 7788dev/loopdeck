@@ -18,7 +18,7 @@ function updaterCheck(bool $condition, string $message): void
     }
 }
 
-updaterCheck(ApplicationVersion::current() === '1.0.3', 'Local VERSION was not loaded');
+updaterCheck(ApplicationVersion::current() === '1.0.4', 'Local VERSION was not loaded');
 updaterCheck(ApplicationVersion::normalize('v1.2.3') === '1.2.3', 'Version normalization failed');
 updaterCheck(ApplicationVersion::normalize('latest') === null, 'Invalid version was accepted');
 
@@ -37,7 +37,7 @@ $updater = new SystemUpdater($client, [
 ]);
 
 $status = $updater->status();
-updaterCheck($status['current_version'] === '1.0.3', 'Status returned the wrong local version');
+updaterCheck($status['current_version'] === '1.0.4', 'Status returned the wrong local version');
 updaterCheck($status['latest_version'] === '1.1.0', 'Status returned the wrong remote version');
 updaterCheck($status['update_available'] === true, 'Newer remote version was not detected');
 updaterCheck($status['updater_available'] === true, 'Configured updater was reported unavailable');
@@ -93,5 +93,25 @@ $invalid = new SystemUpdater(new GuzzleHttp\Client([
     'version_url' => 'https://example.test/VERSION',
 ]);
 updaterCheck($invalid->status()['error'] !== null, 'Invalid remote VERSION did not produce an error');
+
+$fallbackHistory = [];
+$fallbackRequest = new Request('GET', 'https://primary.example.test/VERSION');
+$fallbackStack = HandlerStack::create(new MockHandler([
+    new ConnectException('connect timeout', $fallbackRequest, null, [
+        'errno' => 28,
+        'request_size' => 0,
+        'primary_port' => 0,
+    ]),
+    new Response(200, ['Content-Type' => 'text/plain'], "1.1.0\n"),
+]));
+$fallbackStack->push(Middleware::history($fallbackHistory));
+$fallback = new SystemUpdater(new GuzzleHttp\Client(['handler' => $fallbackStack]), [
+    'version_url' => 'https://primary.example.test/VERSION',
+    'version_fallback_urls' => ['https://fallback.example.test/VERSION'],
+]);
+$fallbackStatus = $fallback->status();
+updaterCheck($fallbackStatus['latest_version'] === '1.1.0', 'Fallback version source was not used');
+updaterCheck($fallbackStatus['version_url'] === 'https://fallback.example.test/VERSION', 'Fallback source was not reported');
+updaterCheck(count($fallbackHistory) === 2, 'Unexpected fallback request count');
 
 echo "System updater tests passed\n";

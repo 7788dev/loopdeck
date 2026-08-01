@@ -14,12 +14,19 @@ final class SystemUpdater
 {
     private const CURL_OPERATION_TIMED_OUT = 28;
     private const DISPATCH_TIMEOUT_SECONDS = 1.5;
-    private const DEFAULT_VERSION_URL = 'https://raw.githubusercontent.com/7788dev/loopdeck/main/VERSION';
+    private const VERSION_CONNECT_TIMEOUT_SECONDS = 2.0;
+    private const VERSION_TIMEOUT_SECONDS = 4.0;
+    private const DEFAULT_VERSION_URL = 'https://api.github.com/repos/7788dev/loopdeck/contents/VERSION?ref=main';
+    private const VERSION_FALLBACK_URLS = [
+        'https://cdn.jsdelivr.net/gh/7788dev/loopdeck@main/VERSION',
+        'https://raw.githubusercontent.com/7788dev/loopdeck/main/VERSION',
+    ];
     private const DEFAULT_UPDATE_URL = 'http://updater:8080/v1/update';
     private const DEFAULT_IMAGE = 'ghcr.io/7788dev/loopdeck:latest';
 
     private ClientInterface $client;
     private string $versionUrl;
+    private array $versionUrls;
     private string $updateUrl;
     private string $updateToken;
     private string $image;
@@ -28,6 +35,13 @@ final class SystemUpdater
     {
         $this->client = $client ?? new Client();
         $this->versionUrl = trim((string)($config['version_url'] ?? getenv('UPDATE_VERSION_URL') ?: self::DEFAULT_VERSION_URL));
+        $fallbackUrls = $config['version_fallback_urls'] ?? self::VERSION_FALLBACK_URLS;
+        $this->versionUrls = $this->versionUrl === ''
+            ? []
+            : $this->uniqueVersionUrls(array_merge(
+                [$this->versionUrl],
+                is_array($fallbackUrls) ? $fallbackUrls : []
+            ));
         $this->updateUrl = trim((string)($config['update_url'] ?? getenv('UPDATE_API_URL') ?: self::DEFAULT_UPDATE_URL));
         $this->updateToken = trim((string)($config['update_token'] ?? getenv('UPDATE_TOKEN') ?: ''));
         $this->image = trim((string)($config['image'] ?? getenv('UPDATE_IMAGE') ?: self::DEFAULT_IMAGE));
@@ -50,32 +64,38 @@ final class SystemUpdater
             return $status;
         }
 
-        try {
-            $response = $this->client->request('GET', $this->versionUrl, [
-                'connect_timeout' => 5.0,
-                'timeout' => 10.0,
-                'http_errors' => false,
-                'headers' => [
-                    'Accept' => 'text/plain',
-                    'Cache-Control' => 'no-cache',
-                    'User-Agent' => 'LoopDeck/' . $current,
-                ],
-            ]);
-            if ($response->getStatusCode() !== 200) {
-                throw new RuntimeException('GitHub 返回 HTTP ' . $response->getStatusCode());
-            }
+        $errors = [];
+        foreach ($this->versionUrls as $versionUrl) {
+            try {
+                $response = $this->client->request('GET', $versionUrl, [
+                    'connect_timeout' => self::VERSION_CONNECT_TIMEOUT_SECONDS,
+                    'timeout' => self::VERSION_TIMEOUT_SECONDS,
+                    'http_errors' => false,
+                    'headers' => [
+                        'Accept' => 'application/vnd.github.raw+json',
+                        'Cache-Control' => 'no-cache',
+                        'User-Agent' => 'LoopDeck/' . $current,
+                    ],
+                ]);
+                if ($response->getStatusCode() !== 200) {
+                    throw new RuntimeException('返回 HTTP ' . $response->getStatusCode());
+                }
 
-            $latest = ApplicationVersion::normalize((string)$response->getBody());
-            if ($latest === null) {
-                throw new RuntimeException('远程 VERSION 文件格式无效');
-            }
+                $latest = ApplicationVersion::normalize((string)$response->getBody());
+                if ($latest === null) {
+                    throw new RuntimeException('VERSION 文件格式无效');
+                }
 
-            $status['latest_version'] = $latest;
-            $status['update_available'] = version_compare($latest, $current, '>');
-        } catch (Throwable $exception) {
-            $status['error'] = $exception->getMessage();
+                $status['version_url'] = $versionUrl;
+                $status['latest_version'] = $latest;
+                $status['update_available'] = version_compare($latest, $current, '>');
+                return $status;
+            } catch (Throwable $exception) {
+                $errors[] = $this->versionSourceError($versionUrl, $exception);
+            }
         }
 
+        $status['error'] = '所有 GitHub 版本源均不可用：' . implode('；', $errors);
         return $status;
     }
 
@@ -141,5 +161,29 @@ final class SystemUpdater
                 'status' => 'accepted',
             ],
         ];
+    }
+
+    private function uniqueVersionUrls(array $urls): array
+    {
+        $unique = [];
+        foreach ($urls as $url) {
+            $url = trim((string)$url);
+            if ($url !== '' && !in_array($url, $unique, true)) {
+                $unique[] = $url;
+            }
+        }
+
+        return $unique;
+    }
+
+    private function versionSourceError(string $url, Throwable $exception): string
+    {
+        $host = (string)(parse_url($url, PHP_URL_HOST) ?: $url);
+        if ($exception instanceof ConnectException
+            && (int)($exception->getHandlerContext()['errno'] ?? 0) === self::CURL_OPERATION_TIMED_OUT) {
+            return $host . ' 请求超时';
+        }
+
+        return $host . ' ' . $exception->getMessage();
     }
 }

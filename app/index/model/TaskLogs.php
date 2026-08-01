@@ -11,7 +11,7 @@ class TaskLogs extends Model
     public static function searchLogs($type, $user_id)
     {
         $self = new static();
-        if ($result = $self->order('addtime desc')->where('type', '=', $type)->where('user_id', '=', $user_id)->limit(50)->select()) {
+        if ($result = $self->order(['addtime' => 'desc', 'id' => 'desc'])->where('type', '=', $type)->where('user_id', '=', $user_id)->limit(50)->select()) {
             return $result;
         }
         return false;

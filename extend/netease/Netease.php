@@ -8,7 +8,7 @@ use netease\sdk\Client as CloudMusicClient;
  * NetEase Cloud Music client.
  *
  * The protocol implementation follows NeteaseCloudMusicApiEnhanced/api-enhanced
- * (commit 63d89aa906f78c286a7f838258fa29220d7f41dd).  The public methods intentionally
+ * (commit 6732fc7c32518ee481b089e2a40f488c28729054).  The public methods intentionally
  * retain the legacy class API because the scheduler and the web console call
  * them directly.
  */
@@ -927,7 +927,7 @@ class Netease
             'type' => 'song',
             'msg' => $message,
             'id' => $songId,
-        ], 'eapi', ['os' => 'android']));
+        ], 'xeapi', ['os' => 'android', 'check_token' => 'v3']));
         if (($body['code'] ?? 0) !== 200) {
             return $this->makeResult(201, (string)($body['message'] ?? '音乐人任务：分享歌曲失败'));
         }

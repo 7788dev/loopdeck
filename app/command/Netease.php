@@ -9,6 +9,7 @@ use app\index\model\Jobs;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
+use app\service\NeteaseSchedule;
 use think\console\Command;
 use think\console\Input;
 use think\console\input\Argument;
@@ -65,7 +66,12 @@ class Netease extends Command
             Info::where('sysid','=','100')->update(['last' => date('Y-m-d H:i:s')]);
             Jobs::updateJobInfo($job['do'], $job['user_id'], [ // 更新任务执行信息
                 'lastExecute' => date("Y-m-d H:i:s"),
-                'nextExecute' => isset($account['timing']) ? strtotime($account['timing'].'+1 day') : time() + $task['execute_rate'],
+                'nextExecute' => !empty($account['timing'])
+                    ? (NeteaseSchedule::nextTimedExecution(
+                        (string)$account['timing'],
+                        'netease:' . (string)$job['user_id']
+                    ) ?? time() + (int)$task['execute_rate'])
+                    : time() + (int)$task['execute_rate'],
             ]);
         }
         $count = count($jobs);

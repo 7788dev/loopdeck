@@ -2,7 +2,7 @@
 
 This directory contains the project's native PHP implementation of the request
 layer from `NeteaseCloudMusicApiEnhanced/api-enhanced` 4.39.0, commit
-`63d89aa906f78c286a7f838258fa29220d7f41dd`.
+`6732fc7c32518ee481b089e2a40f488c28729054`.
 
 Supported request modes:
 

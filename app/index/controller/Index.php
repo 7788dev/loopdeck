@@ -6,6 +6,7 @@ namespace app\index\controller;
 use app\index\model\Accounts;
 use app\index\model\Users;
 use app\index\model\Weblist;
+use app\service\ApplicationVersion;
 use netease\Qrcode;
 use think\facade\Request;
 use think\facade\View;
@@ -34,6 +35,7 @@ class Index extends Common
         return response('ok', 200, [
             'Content-Type' => 'text/plain; charset=utf-8',
             'Cache-Control' => 'no-store',
+            'X-LoopDeck-Version' => ApplicationVersion::current(),
         ]);
     }
 

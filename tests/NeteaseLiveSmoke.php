@@ -76,4 +76,22 @@ $summary['xeapi_prepare'] = [
     'token' => !empty($xeapi['options']['headers']['X-antiCheatToken']),
 ];
 
+$shareXeapi = $client->prepare('/api/share/friends/resource', [
+    'type' => 'song',
+    'msg' => '',
+    'id' => '1',
+], 'xeapi', [
+    'check_token' => 'v3',
+    'os' => 'android',
+    'skip_anonymous' => true,
+]);
+$summary['share_xeapi_prepare'] = [
+    'url' => $shareXeapi['url'],
+    'token' => !empty($shareXeapi['options']['headers']['X-antiCheatToken']),
+];
+if (!$summary['share_xeapi_prepare']['token']) {
+    fwrite(STDERR, json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL);
+    exit(1);
+}
+
 echo json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;

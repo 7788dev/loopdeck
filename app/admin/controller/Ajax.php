@@ -16,6 +16,7 @@ use app\admin\validate\Users as UsersValidate;
 use app\index\controller\Common;
 use app\index\model\Kms;
 use app\index\model\Users;
+use app\service\SystemUpdater;
 use think\exception\ValidateException;
 use think\facade\Db;
 use think\facade\Request;
@@ -29,12 +30,18 @@ class Ajax extends Common
         'app\middleware\CheckAjaxRequest',
     ];
 
-    public static function update()
+    public function update()
     {
-        return resultJson(
-            -1,
-            '在线更新已禁用。请审核更新内容后通过本地部署流程更新。'
-        );
+        if (WEB_ID != 1) {
+            return resultJson(0, '无权执行系统更新');
+        }
+
+        try {
+            $result = (new SystemUpdater())->trigger();
+            return resultJson(1, '更新任务已提交，正在拉取新镜像并重启服务', $result);
+        } catch (\Throwable $exception) {
+            return resultJson(0, '更新失败：' . $exception->getMessage());
+        }
     }
 
     public function zipExtract($src, $dest)

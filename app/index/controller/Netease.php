@@ -7,6 +7,7 @@ use app\index\model\Captcha;
 use app\index\model\Jobs;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
+use app\service\NeteaseSchedule;
 use netease\Netease as NeteaseClient;
 use netease\Qrcode;
 use think\exception\ValidateException;
@@ -213,8 +214,8 @@ class Netease
                     return resultJson(0, '请先等待系统执行后再设定挂机时间');
                 }
                 $timing = trim((string)($data['timing'] ?? ''));
-                $next = strtotime($timing . ' +1 day');
-                if ($timing === '' || $next === false) {
+                $next = NeteaseSchedule::nextTimedExecution($timing, 'netease:' . (string)$userId);
+                if ($next === null) {
                     return resultJson(0, '挂机时间格式错误');
                 }
                 Accounts::where('type', 'netease')

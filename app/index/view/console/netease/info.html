@@ -51,9 +51,12 @@ $details = [
                 <hr>
                 <div class="mt-1">
                     <span class="text-muted fs-sm">
-                        挂机时间：<span class="text-success">{$data['timing'] ?? '未设置'}</span>
+                        挂机时间：<span class="text-success">{if condition="$timing neq ''"}{$timing}{else /}未设置{/if}</span>
                         <a href="javascript:ajax_set_timing('{$a_data[\'user_id\']}', '{$timing}');">设置</a>
                     </span>
+                </div>
+                <div class="mt-1 text-muted fs-xs">
+                    为降低固定时间执行带来的风控风险，系统每天会在设定时间后随机延迟 3–15 分钟执行。
                 </div>
                 <button type="button" class="btn btn-sm btn-alt-primary me-1 mt-2" onclick="ajax_reexecute_task('{$a_data[\'user_id\']}')">
                     <i class="si si-energy"></i>申请补挂
@@ -415,7 +418,7 @@ $details = [
             shadeClose: true,
             zIndex: '1000',
             area: ['20%'],//设置相对于父页面的大小
-            content: '<div class="form-floating col-xl-12 mb-2"><input type="text"class="js-flatpickr form-control"id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"><label class="form-label"for="timing">挂机时间</label></div><div><span class="text-danger">点击上方数字选择你需要的挂机时间<br></span><span class="fw-semibold">挂机时间说明：系统在您设定的时间为您挂机。<br>特殊说明：若您设置的时间内系统有大量账号需要排队执行，则可能会出现延迟执行的情况，系统仅保证在您设定的时间之后进行执行</span></div>',
+            content: '<div class="form-floating col-xl-12 mb-2"><input type="text"class="js-flatpickr form-control"id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"><label class="form-label"for="timing">挂机时间</label></div><div><span class="text-danger">点击上方数字选择你需要的挂机时间<br></span><span class="fw-semibold">挂机时间说明：系统每天会在您设定的时间后随机延迟 3–15 分钟执行，以降低固定时间挂机带来的风控风险。<br>特殊说明：若同时有大量账号排队，实际执行时间仍可能继续顺延。</span></div>',
             success: function (res, index) {
                 if (typeof timing !== 'undefined') {
                     $("#timing").val(timing);

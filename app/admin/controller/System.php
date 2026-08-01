@@ -9,6 +9,7 @@ use app\index\controller\Common;
 use app\index\model\Info;
 use app\index\model\Jobs;
 use app\index\model\Users;
+use app\service\SystemUpdater;
 use think\facade\View;
 
 class System extends Common
@@ -166,6 +167,8 @@ class System extends Common
             ]);
             exit(View::fetch('common/alert'));
         }
+        View::assign((new SystemUpdater())->status());
+        View::assign('webTitle', '系统更新');
         return View::fetch('system/update');
     }
 

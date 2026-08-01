@@ -27,6 +27,10 @@ services:
       SCHEDULER_RETRY_JITTER_SECONDS: "${SCHEDULER_RETRY_JITTER_SECONDS:-60}"
       TASK_LOG_RETENTION_DAYS: "${TASK_LOG_RETENTION_DAYS:-30}"
       TASK_LOG_PRUNE_BATCH_SIZE: "${TASK_LOG_PRUNE_BATCH_SIZE:-5000}"
+      UPDATE_VERSION_URL: "${UPDATE_VERSION_URL:-https://raw.githubusercontent.com/7788dev/loopdeck/main/VERSION}"
+      UPDATE_API_URL: "http://updater:8080/v1/update"
+      UPDATE_IMAGE: "${APP_IMAGE:-ghcr.io/7788dev/loopdeck:latest}"
+      UPDATE_TOKEN: "${UPDATE_TOKEN:?Set UPDATE_TOKEN in .env}"
     volumes:
       - app_data:/var/lib/loopdeck
     depends_on:
@@ -48,6 +52,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     mem_limit: "${APP_MEMORY_LIMIT:-448m}"
     memswap_limit: "${APP_MEMORY_SWAP_LIMIT:-512m}"
     cpus: "${APP_CPU_LIMIT:-1.50}"
@@ -77,10 +83,39 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     mem_limit: "${SCHEDULER_MEMORY_LIMIT:-32m}"
     memswap_limit: "${SCHEDULER_MEMORY_LIMIT:-32m}"
     cpus: "${SCHEDULER_CPU_LIMIT:-0.10}"
     pids_limit: 32
+    logging: *default-logging
+
+  updater:
+    image: nickfedor/watchtower:1.14.2@sha256:db1fef2dca3e1d435a704ad22bcdc64529c3b3e1d4b4e04aa8a565193d60057b
+    restart: unless-stopped
+    command:
+      - --http-api-update
+      - --label-enable
+      - --cleanup
+      - --no-startup-message
+    environment:
+      WATCHTOWER_HTTP_API_TOKEN: "${UPDATE_TOKEN:?Set UPDATE_TOKEN in .env}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,noexec,nosuid,nodev
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+    mem_limit: "${UPDATER_MEMORY_LIMIT:-64m}"
+    memswap_limit: "${UPDATER_MEMORY_LIMIT:-64m}"
+    cpus: "${UPDATER_CPU_LIMIT:-0.20}"
+    pids_limit: 64
     logging: *default-logging
 
   db:

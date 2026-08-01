@@ -15,7 +15,7 @@ GitHub Actions 会在 `main` 分支或 `v*` 标签更新时，在 GitHub 上构�
 
    已有 `.env` 时，脚本会保留自定义密钥，只更新性能参数。也可以单独运行 `./docker/tune-env.sh .env`。
 
-2. 若手工部署，复制配置并至少修改以下三项，且不要提交 `.env`：
+2. 若手工部署，复制配置并至少修改以下四项，且不要提交 `.env`：
 
    ```bash
    cp .env.example .env
@@ -24,6 +24,7 @@ GitHub Actions 会在 `main` 分支或 `v*` 标签更新时，在 GitHub 上构�
    - `MYSQL_PASSWORD`
    - `MYSQL_ROOT_PASSWORD`
    - `CRON_KEY`（建议使用 48 字节以上随机值）
+   - `UPDATE_TOKEN`（后台一键更新服务的内网鉴权密钥，建议使用 48 字节以上随机值）
 
 3. 手工拉取 GitHub 镜像并启动：
 
@@ -52,7 +53,7 @@ GitHub Actions 会在 `main` 分支或 `v*` 标签更新时，在 GitHub 上构�
 - MySQL 关闭 Performance Schema 和 MySQL X Plugin，并限制连接数与缓存；
 - 应用、数据库和调度器均有 CPU、内存、进程数及日志轮转限制；
 - 任务时间字段使用数值类型和复合索引；同一批任务复用用户、账号与任务配置查询；
-- 任务按批次、时间预算和 ID 分片执行；调度 worker 数随 CPU 自动增长，并为固定时间任务增加可配置抖动，避免瞬时拥塞；
+- 任务按批次、时间预算和 ID 分片执行；调度 worker 数随 CPU 自动增长；网易云固定时间任务每天在设定时间后随机延迟 3–15 分钟，其他固定时间任务使用可配置抖动；
 - 运行日志默认保留 30 天并按索引分批清理。
 
 默认 2 核配置使用 2 个调度 worker，每个 worker 每分钟最多选取 50 条任务，理论选择上限为每天 144,000 条。实际完成量取决于第三方接口延迟、限流和任务类型；“数万条日常任务”应分散到全天，不能把数万次外部请求集中在同一分钟。
@@ -80,11 +81,27 @@ docker compose down
 
 不要在有数据时执行 `docker compose down --volumes`，该命令会永久删除应用和数据库卷。
 
+## 后台一键更新
+
+仓库根目录的 `VERSION` 是程序版本号。管理员进入“站长后台 → 程序更新”时，应用会读取本地版本，并与 GitHub `main` 分支上的 `VERSION` 比较。
+
+检测到新版本后，后台会通过 Docker 内网调用 `updater` 容器。更新器只选择带 `com.centurylinklabs.watchtower.enable=true` 标签的 `app` 和 `scheduler`，拉取 `APP_IMAGE` 对应的新镜像并重建容器；MySQL、应用数据卷和数据库卷不会被删除。更新器端口不会映射到宿主机，调用还必须携带 `.env` 中的 `UPDATE_TOKEN`。
+
+发布新版本时应同时：
+
+1. 按语义化版本格式更新 `VERSION`；
+2. 将代码推送到 `main`；
+3. 等待 GitHub Actions 完成 `latest` 和版本号镜像标签的构建。
+
+如果升级内容修改了 `compose.yaml`、卷挂载或环境变量，仍需先在宿主机执行一次 `git pull` 和 `./docker/deploy.sh`，让 Compose 配置本身生效。普通应用代码更新可以直接从后台完成。
+
 ## 容器内测试
 
 ```bash
 docker compose exec app php tests/NeteaseSdkTest.php
 docker compose exec app php tests/NeteaseWorkflowTest.php
+docker compose exec app php tests/NeteaseScheduleTest.php
+docker compose exec app php tests/SystemUpdaterTest.php
 docker compose exec app php tests/BilibiliSdkTest.php
 docker compose exec app php tests/BilibiliWorkflowTest.php
 docker compose exec app php tests/BilibiliTaskExecutorTest.php

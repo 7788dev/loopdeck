@@ -241,6 +241,18 @@ workflowCheck(
     'Musician workflow did not use XEAPI comment creation'
 );
 workflowCheck(
+    count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/xeapi/share/friends/resource'))) === 1,
+    'Musician share task did not use the current XEAPI v3 endpoint'
+);
+$shareRequests = array_values(array_filter(
+    $transport->requests,
+    static fn(array $request): bool => str_contains($request['url'], '/xeapi/share/friends/resource')
+));
+workflowCheck(
+    !empty($shareRequests[0]['options']['headers']['X-antiCheatToken']),
+    'Musician share task did not attach the v3 anti-cheat token'
+);
+workflowCheck(
     count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/eapi/feedback/weblog'))) >= 2,
     'Listening workflows did not use EAPI weblog reporting'
 );

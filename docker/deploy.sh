@@ -40,6 +40,7 @@ set_if_placeholder() {
 set_if_placeholder MYSQL_PASSWORD replace_with_a_random_password "$(random_hex 24)"
 set_if_placeholder MYSQL_ROOT_PASSWORD replace_with_another_random_password "$(random_hex 32)"
 set_if_placeholder CRON_KEY replace_with_a_long_random_cron_key "$(random_hex 48)"
+set_if_placeholder UPDATE_TOKEN replace_with_a_long_random_update_token "$(random_hex 48)"
 
 "$script_dir/tune-env.sh" "$env_file"
 

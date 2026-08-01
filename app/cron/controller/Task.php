@@ -11,6 +11,7 @@ use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\BilibiliTaskExecutor;
+use app\service\NeteaseSchedule;
 use netease\Netease as NeteaseAPI;
 use think\facade\Request;
 use Throwable;
@@ -368,6 +369,16 @@ class Task extends Common
     private function nextExecuteAt($account, $task, int $jobId): int
     {
         if (!empty($account['timing'])) {
+            if ((string)($account['type'] ?? '') === 'netease') {
+                $next = NeteaseSchedule::nextTimedExecution(
+                    (string)$account['timing'],
+                    'netease:' . (string)($account['user_id'] ?? $jobId)
+                );
+                if ($next !== null) {
+                    return $next;
+                }
+            }
+
             $next = strtotime((string)$account['timing'] . ' +1 day');
             if ($next !== false) {
                 $jitter = $this->envInt('SCHEDULER_JITTER_SECONDS', 120, 0, 900);

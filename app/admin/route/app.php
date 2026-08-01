@@ -10,16 +10,8 @@
 // +----------------------------------------------------------------------
 use think\facade\Route;
 
-// Security hardening: never allow the legacy remote update service to
-// download and overwrite application files.
-Route::rule('ajax/update', function () {
-    return response()
-        ->data(json_encode([
-            'code' => 0,
-            'message' => '远程更新已因安全风险禁用，请使用经过审计的离线更新包。',
-        ], JSON_UNESCAPED_UNICODE))
-        ->contentType('application/json; charset=utf-8');
-});
+Route::get('system/update', 'system/update');
+Route::post('ajax/update', 'ajax/update');
 
 //系统设置
 Route::rule('system/set/[:act]', 'system/set');

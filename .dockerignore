@@ -2,6 +2,7 @@
 .github/
 .env
 .env.example
+vendor/
 .gitignore
 .dockerignore
 config/Db.php

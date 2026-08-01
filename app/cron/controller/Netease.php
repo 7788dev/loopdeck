@@ -94,7 +94,7 @@ class Netease extends Common
     {
         $job = Jobs::where(['user_id' => $user_id, 'do' => $do])->find();
         try {
-            $job_data = unserialize($job['data']);
+            $job_data = safe_unserialize_array($job['data']);
         } catch (Exception $e) {
             TaskLogs::operateExecuteLog('netease', $user_id, $do, '获取功能配置失败，请重新添加账号'); // 写入运行日志
             Jobs::where(['user_id' => $user_id, 'do' => $do])-> update(['state' => 0]);
@@ -102,7 +102,7 @@ class Netease extends Common
         }
         $job_config = $job['data'] ? '&'.http_build_query($job_data) : '';
         $account = Accounts::where('type', '=', 'netease')->where('user_id', '=', $user_id)->find();
-        $account_info = unserialize($account['data']);
+        $account_info = safe_unserialize_array($account['data']);
         $url = get_Domain() . "cron/netease/{$do}?user_id={$account_info['user_id']}&csrf={$account_info['csrf']}&musicu={$account_info['musicu']}" . $job_config . "&runkey=" . RUN_KEY;
         return $url;
     }

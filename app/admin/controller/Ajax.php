@@ -60,9 +60,43 @@ class Ajax extends Common
                 break;
             case 'config':
                 $data = Request::post();
-                foreach ($data as $k => $value) {
-                    $web_data = Weblist::where('web_id', Session::get('user.web_id'))->find();
-                    $res = Db::execute("INSERT INTO " . $web_data['prefix'] . "configs SET k='" . $k . "',v='" . $value . "' ON DUPLICATE KEY UPDATE v='" . $value . "'");
+                $web_data = Weblist::where('web_id', Session::get('user.web_id'))->find();
+                $table = $web_data ? Weblist::configTableName($web_data['prefix']) : null;
+                if ($table === null || empty($data)) {
+                    return resultJson(0, '站点配置无效');
+                }
+
+                $records = [];
+                foreach ($data as $key => $value) {
+                    if (!is_string($key)
+                        || preg_match('/\A[A-Za-z0-9_.-]{1,255}\z/', $key) !== 1
+                        || (!is_scalar($value) && $value !== null)
+                    ) {
+                        return resultJson(0, '配置项格式无效');
+                    }
+                    $value = (string)$value;
+                    if (strlen($value) > 65535) {
+                        return resultJson(0, '配置内容过长');
+                    }
+                    $records[] = [$key, $value];
+                }
+
+                try {
+                    Db::transaction(static function () use ($table, $records): void {
+                        foreach ($records as [$key, $value]) {
+                            Db::execute(
+                                "INSERT INTO `{$table}` (`k`, `v`) VALUES (:config_key, :config_value) "
+                                . "ON DUPLICATE KEY UPDATE `v` = :updated_value",
+                                [
+                                    'config_key' => $key,
+                                    'config_value' => $value,
+                                    'updated_value' => $value,
+                                ]
+                            );
+                        }
+                    });
+                } catch (\Throwable $exception) {
+                    return resultJson(0, '配置保存失败');
                 }
                 return resultJson(1, '配置保存成功');
                 break;
@@ -249,7 +283,11 @@ class Ajax extends Common
                     case 'site':
                         $id = Request::post('id');
                         $web_data = Weblist::findByWebid($id);
-                        $sql = "DROP TABLE IF EXISTS `" . $web_data['prefix'] . "configs`";
+                        $table = $web_data ? Weblist::configTableName($web_data['prefix']) : null;
+                        if ($table === null) {
+                            return resultJson(0, '站点数据无效');
+                        }
+                        $sql = "DROP TABLE IF EXISTS `{$table}`";
                         Db::execute($sql);  // 删除分站configs表
                         if (Weblist::delByid($id)) {
                             return resultJson(1, '删除成功');

@@ -1,4 +1,5 @@
 .env
+vendor/
 config/Db.php
 runtime/
 .security-quarantine/

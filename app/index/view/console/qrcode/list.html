@@ -29,7 +29,7 @@
     {else \}
     {foreach $list as $k => $value}
     {php}
-    $v = unserialize($value['data']);
+    $v = safe_unserialize_array($value['data']);
     $user_id = $value['user_id'];
     {/php}
     <div class="block block-rounded">

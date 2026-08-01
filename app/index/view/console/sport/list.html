@@ -26,14 +26,14 @@
     {/if}
     {foreach $list as $k => $value}
     {php}
-        $v = unserialize($value['data']);
+        $v = safe_unserialize_array($value['data']);
         $job = $jobs->getJobInfo('sport', $value['user_id'], 'step');
         $step = [
             'step_start' => '',
             'step_stop'  => '',
         ];
         if (!empty($job['data'])) {
-            $step = unserialize($job['data']); //反序列化数组
+            $step = safe_unserialize_array($job['data']); //反序列化数组
         }
     {/php}
     <div class="col-md-6 col-xl-3">

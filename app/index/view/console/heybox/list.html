@@ -23,7 +23,7 @@
     {/if}
     {foreach $list as $key => $value}
     {php}
-        $v = unserialize($value['data']);
+        $v = safe_unserialize_array($value['data']);
     {/php}
     <div class="col-md-6 col-xl-3">
         <div class="block block-rounded text-center">

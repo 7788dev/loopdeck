@@ -14,6 +14,8 @@ return [
     'with_route'       => true,
     // 默认应用
     'default_app'      => 'index',
+    // 未显式携带应用名的 URL 仍由默认应用处理
+    'app_express'      => true,
     // 默认时区
     'default_timezone' => 'Asia/Shanghai',
 

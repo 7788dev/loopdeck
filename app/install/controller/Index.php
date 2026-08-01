@@ -20,7 +20,7 @@ class Index
 
     public function checkfun(): bool
     {
-        return version_compare(PHP_VERSION, '8.0.0', '>=')
+        return version_compare(PHP_VERSION, '8.1.0', '>=')
             && extension_loaded('mysqli')
             && extension_loaded('curl')
             && function_exists('file_get_contents');

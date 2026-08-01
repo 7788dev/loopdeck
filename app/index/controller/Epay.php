@@ -16,7 +16,7 @@ use think\facade\Request;
 use think\facade\Session;
 use think\facade\View;
 
-class epay extends Common
+class Epay extends Common
 {
     protected $middleware = [
         'app\middleware\CheckLoginUser'

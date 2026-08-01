@@ -54,8 +54,8 @@ class Sport extends Command
                 Jobs::where('id', $job['id'])->update(['nextExecute' => 0]);
                 continue;
             }
-            $account_info = unserialize($account['data']);
-            $job_config = unserialize($job['data'] ?? '');
+            $account_info = safe_unserialize_array($account['data']);
+            $job_config = safe_unserialize_array($job['data'] ?? '');
             $job_config['username'] = $account_info['username'];
             $job_config['password'] = $account_info['password'];
             $do = new SportAPI($account_info['user_id'], $account_info['login_token'], $account_info['app_token'], $job_config);

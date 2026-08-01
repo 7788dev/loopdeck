@@ -19,14 +19,14 @@ function updaterCheck(bool $condition, string $message): void
     }
 }
 
-updaterCheck(ApplicationVersion::current() === '1.0.8', 'Local VERSION was not loaded');
-updaterCheck(app_version() === '1.0.8', 'Template asset version was not loaded');
+updaterCheck(ApplicationVersion::current() === '1.1.0', 'Local VERSION was not loaded');
+updaterCheck(app_version() === '1.1.0', 'Template asset version was not loaded');
 updaterCheck(ApplicationVersion::normalize('v1.2.3') === '1.2.3', 'Version normalization failed');
 updaterCheck(ApplicationVersion::normalize('latest') === null, 'Invalid version was accepted');
 
 $history = [];
 $stack = HandlerStack::create(new MockHandler([
-    new Response(200, ['Content-Type' => 'text/plain'], "1.1.0\n"),
+    new Response(200, ['Content-Type' => 'text/plain'], "1.1.1\n"),
     new Response(202, ['Content-Type' => 'application/json'], '{"status":"accepted"}'),
 ]));
 $stack->push(Middleware::history($history));
@@ -39,8 +39,8 @@ $updater = new SystemUpdater($client, [
 ]);
 
 $status = $updater->status();
-updaterCheck($status['current_version'] === '1.0.8', 'Status returned the wrong local version');
-updaterCheck($status['latest_version'] === '1.1.0', 'Status returned the wrong remote version');
+updaterCheck($status['current_version'] === '1.1.0', 'Status returned the wrong local version');
+updaterCheck($status['latest_version'] === '1.1.1', 'Status returned the wrong remote version');
 updaterCheck($status['update_available'] === true, 'Newer remote version was not detected');
 updaterCheck($status['updater_available'] === true, 'Configured updater was reported unavailable');
 
@@ -104,7 +104,7 @@ $fallbackStack = HandlerStack::create(new MockHandler([
         'request_size' => 0,
         'primary_port' => 0,
     ]),
-    new Response(200, ['Content-Type' => 'text/plain'], "1.1.0\n"),
+    new Response(200, ['Content-Type' => 'text/plain'], "1.1.1\n"),
 ]));
 $fallbackStack->push(Middleware::history($fallbackHistory));
 $fallback = new SystemUpdater(new GuzzleHttp\Client(['handler' => $fallbackStack]), [
@@ -112,7 +112,7 @@ $fallback = new SystemUpdater(new GuzzleHttp\Client(['handler' => $fallbackStack
     'version_fallback_urls' => ['https://fallback.example.test/VERSION'],
 ]);
 $fallbackStatus = $fallback->status();
-updaterCheck($fallbackStatus['latest_version'] === '1.1.0', 'Fallback version source was not used');
+updaterCheck($fallbackStatus['latest_version'] === '1.1.1', 'Fallback version source was not used');
 updaterCheck($fallbackStatus['version_url'] === 'https://fallback.example.test/VERSION', 'Fallback source was not reported');
 updaterCheck(count($fallbackHistory) === 2, 'Unexpected fallback request count');
 

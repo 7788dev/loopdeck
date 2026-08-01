@@ -1,5 +1,42 @@
 <?php
 
+if (!function_exists('safe_unserialize_array')) {
+    /**
+     * Decode legacy array payloads without allowing PHP object construction.
+     */
+    function safe_unserialize_array(mixed $payload): array
+    {
+        if (!is_string($payload) || $payload === '') {
+            return [];
+        }
+
+        try {
+            $decoded = @unserialize($payload, ['allowed_classes' => false]);
+        } catch (Throwable $exception) {
+            return [];
+        }
+
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $pending = [$decoded];
+        while ($pending !== []) {
+            $current = array_pop($pending);
+            foreach ($current as $value) {
+                if (is_object($value) || is_resource($value)) {
+                    return [];
+                }
+                if (is_array($value)) {
+                    $pending[] = $value;
+                }
+            }
+        }
+
+        return $decoded;
+    }
+}
+
 use mail\PHPMailer\PHPMailer;
 
 if (!function_exists('resultJson')) {

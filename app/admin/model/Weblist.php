@@ -9,6 +9,22 @@ use think\Model;
 
 class Weblist extends Model
 {
+    private const EDITABLE_FIELDS = [
+        'webname',
+        'title',
+        'keywords',
+        'description',
+        'domain',
+        'domain2',
+        'user_qq',
+        'icp',
+        'index_bg',
+        'index_mode',
+        'index_url',
+        'index_template',
+        'login_template',
+    ];
+
     /**
      * updateByWebid
      * @param $id
@@ -18,8 +34,53 @@ class Weblist extends Model
      */
     public static function updateByWebid($id, $data = [])
     {
+        if (!is_array($data)) {
+            return false;
+        }
+        $data = array_intersect_key($data, array_flip(self::EDITABLE_FIELDS));
+        if ($data === []) {
+            return false;
+        }
+        foreach ($data as $key => $value) {
+            if (!is_scalar($value) && $value !== null) {
+                return false;
+            }
+            $data[$key] = (string)$value;
+        }
+        if (isset($data['index_mode'])) {
+            $mode = filter_var($data['index_mode'], FILTER_VALIDATE_INT);
+            if (!in_array($mode, [1, 2, 3], true)) {
+                return false;
+            }
+            $data['index_mode'] = $mode;
+        }
+        foreach (['index_template', 'login_template'] as $field) {
+            if (isset($data[$field]) && preg_match('/\A[A-Za-z0-9_-]{1,20}\z/', $data[$field]) !== 1) {
+                return false;
+            }
+        }
+        foreach ($data as $key => $value) {
+            $limit = $key === 'title' ? 20 : ($key === 'index_url' ? 64 : 255);
+            if (is_string($value) && strlen($value) > $limit) {
+                return false;
+            }
+        }
+
         $self = new static();
         return ($self->where('web_id', '=', $id)->update($data) !== false);
+    }
+
+    public static function configTableName(mixed $prefix): ?string
+    {
+        if (!is_string($prefix)
+            || $prefix === ''
+            || strlen($prefix) > 56
+            || preg_match('/\A[A-Za-z][A-Za-z0-9_]*\z/', $prefix) !== 1
+        ) {
+            return null;
+        }
+
+        return $prefix . 'configs';
     }
 
     public static function findByWebid($id)
@@ -99,21 +160,25 @@ class Weblist extends Model
 
     private static function my_scandir($dir): array
     {
-        $files = array();
-        if (is_dir($dir)) {
-            if ($handle = opendir($dir)) {
-                while (($file = readdir($handle)) !== false) {
-                    if ($file != '.' && $file != "..") {
-                        if (is_dir($dir . "/" . $file)) {
-                            $files[$file] = self::my_scandir($dir . "/" . $file);
-                        } else {
-                            $files[] = $dir . "/" . $file;  //获取文件的完全路径
-                        }
+        if (!is_dir($dir) || ($handle = opendir($dir)) === false) {
+            return [];
+        }
+
+        $files = [];
+        try {
+            while (($file = readdir($handle)) !== false) {
+                if ($file !== '.' && $file !== '..') {
+                    if (is_dir($dir . '/' . $file)) {
+                        $files[$file] = self::my_scandir($dir . '/' . $file);
+                    } else {
+                        $files[] = $dir . '/' . $file;
                     }
                 }
             }
+        } finally {
+            closedir($handle);
         }
-        closedir($handle);
+
         return $files;
     }
 
@@ -121,6 +186,7 @@ class Weblist extends Model
     {
         $file_path = root_path() . "app" . DIRECTORY_SEPARATOR . "index" . DIRECTORY_SEPARATOR . "view" . DIRECTORY_SEPARATOR . "index";
         $res = self::my_scandir($file_path);
+        $result = [];
         foreach ($res as $val) {
             foreach ($val as $row) {
                 if (str_contains($row, "json")) {
@@ -135,6 +201,7 @@ class Weblist extends Model
     {
         $file_path = root_path() . "app" . DIRECTORY_SEPARATOR . "index" . DIRECTORY_SEPARATOR . "view" . DIRECTORY_SEPARATOR . "login";
         $res = self::my_scandir($file_path);
+        $result = [];
         foreach ($res as $val) {
             foreach ($val as $row) {
                 if (str_contains($row, "json")) {

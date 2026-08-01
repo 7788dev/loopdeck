@@ -2,7 +2,7 @@
 {block name="head"}{include file="console/head" /}{/block}
 {block name="main"}
 {php}
-$a_data = unserialize($data['data']); // 反序列化账号数据
+$a_data = safe_unserialize_array($data['data']); // 反序列化账号数据
 $task = new \app\index\model\Tasks();
 $jobs = new \app\index\model\Jobs();
 $netease = new \netease\Netease($a_data['user_id'], $a_data['csrf'], $a_data['musicu']);
@@ -137,7 +137,7 @@ $details = [
                                 <p class="fw-semibold mb-1">{$v.name}
                                     {if condition="$v.more"}
                                     {php}
-                                    if ($job['data']) { $config = json_encode(unserialize($job['data'])); } else { $config = '[]'; }
+                                    if ($job['data']) { $config = json_encode(safe_unserialize_array($job['data'])); } else { $config = '[]'; }
                                     {/php}
                                     <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 mx-1" data-config='{$config}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="si si-settings"></i></button>
                                     {/if}

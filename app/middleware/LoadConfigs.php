@@ -17,6 +17,10 @@ class LoadConfigs
      */
     public function handle($request, \Closure $next)
     {
+        if (in_array($request->pathinfo(), ['healthcheck', 'version'], true)) {
+            return $next($request);
+        }
+
         if (!is_file(root_path() . 'config' . DIRECTORY_SEPARATOR . 'Db.php')) {
             return redirect('/install');
         }

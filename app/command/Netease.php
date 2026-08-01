@@ -54,8 +54,8 @@ class Netease extends Command
                 Jobs::where('id', $job['id'])->update(['nextExecute' => 0]);
                 continue;
             }
-            $account_info = unserialize($account['data']);
-            $job_config = unserialize($job['data'] ?? '');
+            $account_info = safe_unserialize_array($account['data']);
+            $job_config = safe_unserialize_array($job['data'] ?? '');
             $do = new NeteaseAPI($account_info['user_id'], $account_info['csrf'], $account_info['musicu'], $job_config);
             $execute = $do->{$job['do']}();
             if ($do->cookiezt) {

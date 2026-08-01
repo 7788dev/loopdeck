@@ -27,16 +27,11 @@
                 user_id: table.data("user_id"),
             },
             "dataSrc": function (rows) {
-                if (!Array.isArray(rows)) return [];
-
-                return rows.map(function (row, index) {
-                    row.log_index = index + 1;
-                    return row;
-                });
+                return Array.isArray(rows) ? rows : [];
             },
         },
         columns: [
-            {"title": "序号", "data": "log_index"},
+            {"title": "ID", "data": "id"},
             {"title": "任务名称", "data": "do"},
             {"title": "任务响应", "data": "response"},
             {"title": "运行时间", "data": "addtime"}

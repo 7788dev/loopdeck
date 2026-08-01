@@ -106,7 +106,7 @@
         })
     }
     $(function () {
-        $('#timing').val("{:unserialize($job.data)['timing']}")
+        $('#timing').val("{:safe_unserialize_array($job.data)['timing'] ?? ''}")
         Codebase.helpersOnLoad(['js-flatpickr']);
     })
 </script>

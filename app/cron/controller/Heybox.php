@@ -94,14 +94,14 @@ class Heybox extends Common
     {
         $job = Jobs::where(['user_id' => $user_id, 'do' => $do])->find();
         try {
-            $job_data = unserialize($job['data']);
+            $job_data = safe_unserialize_array($job['data']);
         } catch (Exception $e) {
             TaskLogs::operateExecuteLog('heybox', $user_id, $do, '获取功能配置失败，请重新添加账号'); // 写入运行日志
             Jobs::where(['user_id' => $user_id, 'do' => $do])-> update(['state' => 0]);
             return false;
         }
         $account = Accounts::where('type', '=', 'heybox')->where('user_id', '=', $user_id)->find();
-        $account_info = unserialize($account['data']);
+        $account_info = safe_unserialize_array($account['data']);
         $url = get_Domain() . "cron/heybox/{$do}?user_id={$account_info['user_id']}" . "&pkey={$account_info['pkey']}" . "&runkey=" . RUN_KEY;
         return $url;
     }

@@ -4,6 +4,8 @@
 
 GitHub Actions 会在 `main` 分支或 `v*` 标签更新时，在 GitHub 上构建 `linux/amd64` 与 `linux/arm64` 镜像并发布到 `ghcr.io/7788dev/loopdeck`。本地和生产服务器不需要构建镜像。
 
+PHP 依赖由根目录的 `composer.json` 声明、由 `composer.lock` 精确锁定。镜像构建会在独立阶段执行 `composer validate`、`composer install --no-dev`、`composer audit` 和全部离线回归测试；`vendor/` 不进入 Git，也不会从开发机复制进镜像。
+
 ## 首次启动
 
 1. 推荐直接运行自动部署脚本。它会生成随机数据库密钥、根据宿主机 CPU/内存调整资源参数，并且只拉取 GitHub 镜像：

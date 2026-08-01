@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
-FROM serversideup/php:8.2-fpm-nginx-alpine@sha256:57919c0ed10e91318b87c518f4a2e25e98a259086d440955f692b095734c0508 AS runtime
+FROM composer:2.10.2@sha256:629d4ef35e75349d452851637d37a40ac33a09d6ac010139020603d79713d9bf AS composer
+
+FROM serversideup/php:8.2-fpm-nginx-alpine@sha256:57919c0ed10e91318b87c518f4a2e25e98a259086d440955f692b095734c0508 AS php-base
 
 ENV TZ=Asia/Shanghai \
     PHP_DATE_TIMEZONE=Asia/Shanghai \
@@ -29,9 +31,44 @@ RUN apk add --no-cache tzdata \
         mysqli \
     && rm -rf /tmp/* /var/cache/apk/*
 
+FROM php-base AS dependencies
+
+ENV COMPOSER_ALLOW_SUPERUSER=1 \
+    COMPOSER_HOME=/tmp/composer
+
+WORKDIR /app
+
+COPY --from=composer /usr/bin/composer /usr/local/bin/composer
+COPY composer.json composer.lock ./
+
+RUN --mount=type=cache,target=/tmp/composer/cache \
+    composer validate --strict --no-check-publish \
+    && composer install \
+        --no-dev \
+        --no-autoloader \
+        --no-interaction \
+        --no-progress \
+        --no-scripts \
+        --prefer-dist \
+    && composer audit --locked --no-dev --abandoned=fail
+
+COPY app ./app
+COPY config ./config
+COPY extend ./extend
+COPY public ./public
+COPY tests ./tests
+COPY VERSION think ./
+
+RUN composer dump-autoload --no-dev --no-scripts --optimize \
+    && php think service:discover \
+    && set -eu; for test_file in tests/*Test.php; do php "$test_file"; done
+
+FROM php-base AS runtime
+
 WORKDIR /var/www/html
 
 COPY --chown=82:82 . /var/www/html
+COPY --from=dependencies --chown=82:82 /app/vendor /var/www/html/vendor
 COPY --chown=root:root --chmod=0755 docker/entrypoint.sh /etc/entrypoint.d/50-loopdeck.sh
 COPY --chown=root:root --chmod=0755 docker/scheduler.sh /usr/local/bin/loopdeck-scheduler
 COPY --chown=root:root --chmod=0644 docker/nginx-security.conf /etc/nginx/server-opts.d/loopdeck-security.conf

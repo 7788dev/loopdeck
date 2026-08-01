@@ -3,7 +3,7 @@ CREATE TABLE `cloud_configs`(
     `k` varchar(255) NOT NULL DEFAULT '',
     `v` text,
     PRIMARY KEY (`k`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `cloud_configs` (`k`, `v`) VALUES
 ('vip_price_1', '1'),

@@ -2,7 +2,7 @@
 
 安装教程：
 
-搭建环境需求：PHP8.0
+搭建环境需求：PHP 8.1+、Composer 2
 
 伪静态设置为thinkphp规则
 
@@ -12,7 +12,12 @@
 
 网易云协议依赖（必须）：
 网易云登录与任务已内置纯 PHP SDK，不需要安装或常驻 Node 服务。
-PHP 需要启用 curl、openssl、sodium 和 json 扩展；项目 vendor 中需包含 Guzzle。
+PHP 需要启用 curl、fileinfo、gd、mbstring、openssl、pdo_mysql、sodium 和 json 扩展。
+项目不再提交 vendor 目录，请在项目根目录执行：
+
+  composer install --no-dev --prefer-dist --optimize-autoloader
+
+Docker 镜像会严格根据 composer.lock 自动安装并审计依赖，无需在宿主机安装 Composer。
 
 部署后可在项目根目录执行以下命令检查协议实现：
 

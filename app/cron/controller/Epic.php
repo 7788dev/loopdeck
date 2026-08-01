@@ -31,7 +31,7 @@ class Epic extends Common
         foreach ($jobs as $job) {
             if (in_array($job['user_id'], $vip_expired_userIds)) continue;
             $user = Users::where('uid', '=', $job['uid'])->find();
-            $timing = isset($job['data']) ? unserialize($job['data'])['timing'] : null;
+            $timing = isset($job['data']) ? (safe_unserialize_array($job['data'])['timing'] ?? null) : null;
             if ($timing == '' || empty($timing)) {
                 $job->where('state', '=', 1)->update(['state' => 0]);
                 continue;

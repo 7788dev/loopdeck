@@ -17,6 +17,7 @@ use app\index\controller\Common;
 use app\index\model\Kms;
 use app\index\model\Users;
 use app\service\SystemUpdater;
+use mail\PHPMailer\PHPMailer;
 use think\exception\ValidateException;
 use think\facade\Db;
 use think\facade\Request;
@@ -78,6 +79,16 @@ class Ajax extends Common
                     if (strlen($value) > 65535) {
                         return resultJson(0, '配置内容过长');
                     }
+                    if (in_array($key, ['mail_invalid', 'bark_enabled', 'is_netease_tool'], true)
+                        && !in_array($value, ['0', '1'], true)
+                    ) {
+                        return resultJson(0, '开关配置只能为 0 或 1');
+                    }
+                    if ($key === 'netease_tool_limit'
+                        && (preg_match('/\A[1-9]\d{0,3}\z/', $value) !== 1 || (int)$value > 1000)
+                    ) {
+                        return resultJson(0, '网易云工具每日次数必须在 1 到 1000 之间');
+                    }
                     $records[] = [$key, $value];
                 }
 
@@ -100,6 +111,44 @@ class Ajax extends Common
                 }
                 return resultJson(1, '配置保存成功');
                 break;
+            case 'testSendMail':
+                $host = trim((string)Request::post('mail_smtp', ''));
+                $port = (int)Request::post('mail_port', 0);
+                $username = trim((string)Request::post('mail_name', ''));
+                $password = (string)Request::post('mail_pwd', '');
+                $recipient = trim((string)Session::get('user.mail', ''));
+
+                $validHost = filter_var($host, FILTER_VALIDATE_IP) !== false
+                    || preg_match('/\A(?=.{1,253}\z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\z/', $host) === 1;
+                if (!$validHost || $port < 1 || $port > 65535 || !check_mail($username) || $password === '') {
+                    return resultJson(0, 'SMTP 配置格式无效');
+                }
+                if (!check_mail($recipient)) {
+                    return resultJson(0, '请先为当前管理员账号设置有效邮箱');
+                }
+
+                try {
+                    $mail = new PHPMailer(true);
+                    $mail->isSMTP();
+                    $mail->Host = $host;
+                    $mail->SMTPAuth = true;
+                    $mail->Username = $username;
+                    $mail->Password = $password;
+                    $mail->Port = $port;
+                    $mail->SMTPSecure = $port === 465
+                        ? PHPMailer::ENCRYPTION_SMTPS
+                        : PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->CharSet = 'UTF-8';
+                    $mail->setFrom($username, (string)config('web.webname', 'LoopDeck'));
+                    $mail->addAddress($recipient);
+                    $mail->isHTML(true);
+                    $mail->Subject = (string)config('web.webname', 'LoopDeck') . ' - 测试邮件';
+                    $mail->Body = '<p>SMTP 信息推送配置测试成功。</p>';
+                    $mail->send();
+                    return resultJson(1, '测试邮件发送成功，请检查管理员邮箱');
+                } catch (\Throwable $exception) {
+                    return resultJson(0, '测试邮件发送失败，请检查 SMTP 配置');
+                }
         }
     }
 

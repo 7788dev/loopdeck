@@ -8,7 +8,7 @@ use Throwable;
 final class Client
 {
     public const UPSTREAM_VERSION = '4.39.0';
-    public const UPSTREAM_COMMIT = '6732fc7c32518ee481b089e2a40f488c28729054';
+    public const UPSTREAM_COMMIT = '8f4873f2e2f677153d398a62d9ca0e3826c3f86d';
 
     private const PROFILES = [
         'pc' => [

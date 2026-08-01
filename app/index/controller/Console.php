@@ -8,6 +8,7 @@ use app\index\model\Tasks;
 use app\index\model\Users;
 use app\index\model\Accounts;
 use app\service\BilibiliTaskExecutor;
+use app\service\UserNotificationSettings;
 use bilibili\Bilibili as BilibiliClient;
 use think\facade\Session;
 use Throwable;
@@ -250,6 +251,18 @@ class Console
             case "list" :
                 return view("console/netease/list", ["list" => Accounts::getMyList("netease")]);
                 break;
+            case "tool" :
+                if ((int)config('sys.is_netease_tool') !== 1) {
+                    return view('common/alert', [
+                        'msg' => '管理员尚未开启听歌任务工具',
+                        'url' => '/index/console/netease/list.html',
+                    ]);
+                }
+                return view('console/netease/tool', [
+                    'accounts' => $this->neteaseToolAccounts(),
+                    'daily_limit' => max(0, (int)config('sys.netease_tool_limit')),
+                ]);
+                break;
             case "info" :
                 $account = Accounts::findByUserId($user_id);
                 if ($account) {
@@ -258,6 +271,35 @@ class Console
                 return view("console/netease/info", ["data" => $account]);
                 break;
         }
+    }
+
+    private function neteaseToolAccounts(): array
+    {
+        $result = [];
+        $accounts = Accounts::getMyList('netease');
+        if (!$accounts) {
+            return $result;
+        }
+
+        foreach ($accounts as $account) {
+            if ((int)$account['state'] !== 1) {
+                continue;
+            }
+            try {
+                $profile = safe_unserialize_array((string)$account['data']);
+            } catch (Throwable $exception) {
+                continue;
+            }
+            $userId = trim((string)($profile['user_id'] ?? $account['user_id'] ?? ''));
+            if ($userId === '') {
+                continue;
+            }
+            $result[] = [
+                'user_id' => $userId,
+                'nickname' => trim((string)($profile['nickname'] ?? '')) ?: '网易云用户 ' . $userId,
+            ];
+        }
+        return $result;
     }
 
     public function sport($act = "", $uid = "")
@@ -326,6 +368,28 @@ class Console
         switch ($act) {
             case "profile" :
                 return view("console/user/profile");
+                break;
+            case "notification" :
+                if ((int)config('sys.bark_enabled') !== 1) {
+                    return view('common/alert', [
+                        'msg' => '管理员尚未开启 Bark 信息推送',
+                        'url' => '/index/console/user/profile.html',
+                    ]);
+                }
+                try {
+                    $token = (new UserNotificationSettings())->barkToken(
+                        (int)Session::get('user.uid'),
+                        (int)Session::get('user.web_id')
+                    );
+                } catch (Throwable $exception) {
+                    return view('common/alert', [
+                        'msg' => '信息推送设置暂不可用，请联系管理员',
+                        'url' => '/index/console/user/profile.html',
+                    ]);
+                }
+                return view('console/user/notification', [
+                    'bark_token' => htmlspecialchars($token, ENT_QUOTES, 'UTF-8'),
+                ]);
                 break;
             case "faq" :
                 return view("console/user/faq", ["webTitle" => "帮助中心"]);

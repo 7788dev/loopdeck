@@ -10,6 +10,7 @@ use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
+use app\service\BarkNotificationService;
 use think\console\Command;
 use think\console\Input;
 use think\console\input\Argument;
@@ -83,7 +84,9 @@ class Netease extends Command
 
     protected function vipExpired($type, $uid, $user_id)
     {
-        Users::where('uid', '=', $uid)->update(['vip_start' => NULL, 'vip_end' => NULL]);
+        $membershipChanged = Users::where('uid', '=', $uid)
+            ->whereRaw('(`vip_start` IS NOT NULL OR `vip_end` IS NOT NULL)')
+            ->update(['vip_start' => NULL, 'vip_end' => NULL]);
         Jobs::where('type', '=', $type)->where('user_id', '=', $user_id)->update(['state' => 0]);
         $data = [
             'type' => $type,
@@ -92,16 +95,29 @@ class Netease extends Command
             'response' => '会员过期，请开通会员后再试',
         ];
         TaskLogs::operateLog($data);
+        if ($membershipChanged > 0) {
+            $user = Users::where('uid', '=', $uid)->find();
+            if ($user) {
+                (new BarkNotificationService())->sendVipExpired($user);
+            }
+        }
     }
 
     protected function accountInvalid($type, $user, $user_id)
     {
-        Accounts::where('user_id', '=', $user_id)->update(['state' => 0,]);
-        Jobs::where('user_id', '=', $user_id)->where('type', '=', $type)->update(['state' => -1]);
-        if (config('sys.mail_invalid') == 1) {
+        $stateChanged = Accounts::where('user_id', '=', $user_id)
+            ->where('type', '=', $type)
+            ->where('uid', '=', $user['uid'])
+            ->where('state', '=', 1)
+            ->update(['state' => 0]);
+        Jobs::where('user_id', '=', $user_id)->where('uid', '=', $user['uid'])->where('type', '=', $type)->update(['state' => -1]);
+        if ($stateChanged > 0 && config('sys.mail_invalid') == 1) {
             $msg = get_mail_tempale(3, $user, '网易云音乐');
             $sub = config('web.webname') . ' - 失效提醒';
             send_mail($user['mail'], $sub, $msg);
+        }
+        if ($stateChanged > 0) {
+            (new BarkNotificationService())->sendAccountInvalid($user, '网易云音乐');
         }
     }
 }

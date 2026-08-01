@@ -1,0 +1,93 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-12">
+        <div class="block block-rounded">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">
+                    <i class="fa fa-music me-1 text-muted"></i> 网易云听歌任务工具
+                </h3>
+            </div>
+            <div class="block-content">
+                {if condition="count($accounts) eq 0"}
+                <div class="alert alert-warning">
+                    请先添加并登录一个网易云账号后再使用听歌任务工具。
+                    <a class="alert-link" href="{:url('/index/console/netease/add')}">添加账号</a>
+                </div>
+                {else /}
+                <div class="row items-push">
+                    <div class="col-lg-3">
+                        <p class="text-muted">
+                            使用网易云当前的开始播放与播放完成两阶段协议上报。官方最终计数可能存在延迟。
+                        </p>
+                        {if condition="$daily_limit gt 0"}
+                        <p class="text-muted fs-sm">同一网易云账号每天最多提交 {$daily_limit} 次。</p>
+                        {/if}
+                    </div>
+                    <div class="col-lg-7 offset-lg-1">
+                        <div class="mb-4">
+                            <label class="form-label" for="tool_account">网易云账号</label>
+                            <select class="form-select" id="tool_account">
+                                {foreach $accounts as $account}
+                                <option value="{$account.user_id}">
+                                    {$account.nickname}（{$account.user_id}）
+                                </option>
+                                {/foreach}
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label" for="tool_songid">歌曲 ID</label>
+                            <input type="number" min="1" step="1" class="form-control" id="tool_songid"
+                                   placeholder="例如：347230">
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label" for="tool_times">播放次数</label>
+                            <input type="number" min="1" max="300" step="1" class="form-control" id="tool_times"
+                                   value="1">
+                            <div class="form-text">单次最多 300 次，请以网易云音乐官方最终统计为准。</div>
+                        </div>
+                        <div class="mb-4">
+                            <button type="button" class="btn btn-primary" id="listen-submit" onclick="submitListenTask();">
+                                <i class="fa fa-paper-plane opacity-50 me-1"></i> 执行听歌任务
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {/if}
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function submitListenTask() {
+        var userId = x.getval('#tool_account', '请选择网易云账号');
+        if (!userId) return;
+        var songId = x.getval('#tool_songid', '请输入歌曲 ID');
+        if (!songId) return;
+        var times = x.getval('#tool_times', '请输入播放次数');
+        if (!times) return;
+        if (!/^\d+$/.test(songId) || Number(songId) < 1) {
+            return x.notify('歌曲 ID 格式错误', 'warning');
+        }
+        if (!/^\d+$/.test(times) || Number(times) < 1 || Number(times) > 300) {
+            return x.notify('播放次数必须在 1 到 300 之间', 'warning');
+        }
+
+        var button = $('#listen-submit');
+        button.prop('disabled', true);
+        var loading = layer.load(2);
+        x.ajax('/index/ajax/netease/listen', {
+            user_id: userId,
+            songid: songId,
+            times: times
+        }, function (data) {
+            x.close(loading);
+            button.prop('disabled', false);
+            x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+        });
+    }
+</script>
+{/block}

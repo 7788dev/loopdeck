@@ -8,7 +8,7 @@ use netease\sdk\Client as CloudMusicClient;
  * NetEase Cloud Music client.
  *
  * The protocol implementation follows NeteaseCloudMusicApiEnhanced/api-enhanced
- * (commit 6732fc7c32518ee481b089e2a40f488c28729054).  The public methods intentionally
+ * (commit 8f4873f2e2f677153d398a62d9ca0e3826c3f86d).  The public methods intentionally
  * retain the legacy class API because the scheduler and the web console call
  * them directly.
  */
@@ -610,12 +610,18 @@ class Netease
             return $this->makeResult(201, '歌曲ID不能为空');
         }
         $detail = $this->decodeBody($this->get_songs_detail($songId));
+        if (empty($detail['songs'][0]['id'])) {
+            return $this->makeResult(201, '歌曲ID：' . $songId . ' 不存在或暂时无法读取');
+        }
         $duration = (int)ceil(($detail['songs'][0]['dt'] ?? 240000) / 1000);
         $songs = [];
         for ($i = 0; $i < $times; $i++) {
             $songs[] = ['id' => $songId, 'sourceId' => 0, 'time' => $duration];
         }
         $success = $this->scrobbleBatch($songs);
+        if ($success <= 0) {
+            return $this->makeResult(201, '歌曲ID：' . $songId . ' 播放上报失败，请稍后重试');
+        }
         return $this->makeResult(200, '歌曲ID：' . $songId . ' 成功播放' . $success . '次');
     }
 

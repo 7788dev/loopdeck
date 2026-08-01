@@ -145,6 +145,13 @@
                                 <span class="nav-main-link-name">管理账号</span>
                             </a>
                         </li>
+                        {if condition="config('sys.is_netease_tool') eq 1"}
+                        <li class="nav-main-item">
+                            <a class="nav-main-link" data-pjax href="{:url('/index/console/netease/tool')}">
+                                <span class="nav-main-link-name">听歌任务工具</span>
+                            </a>
+                        </li>
+                        {/if}
                     </ul>
                 </li>
                 <li class="nav-main-item">
@@ -199,6 +206,14 @@
                         <span class="nav-main-link-name">个人资料</span>
                     </a>
                 </li>
+                {if condition="config('sys.bark_enabled') eq 1"}
+                <li class="nav-main-item">
+                    <a class="nav-main-link" data-pjax href="{:url('/index/console/user/notification')}">
+                        <i class="nav-main-link-icon fa fa-bell"></i>
+                        <span class="nav-main-link-name">信息推送</span>
+                    </a>
+                </li>
+                {/if}
                 <li class="nav-main-item">
                     <a class="nav-main-link" data-pjax href="{:url('/index/console/user/faq')}">
                         <i class="nav-main-link-icon si si-info"></i>

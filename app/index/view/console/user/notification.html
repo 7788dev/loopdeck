@@ -1,0 +1,65 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+<div class="row">
+    <div class="col-12">
+        <div class="block block-rounded">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">
+                    <i class="fa fa-bell me-1 text-muted"></i> 信息推送
+                </h3>
+            </div>
+            <div class="block-content">
+                <div class="row items-push">
+                    <div class="col-lg-3">
+                        <p class="text-muted">
+                            配置 Bark 后，账号失效和会员到期提醒会推送到你的 iPhone。
+                        </p>
+                        <p class="text-muted fs-sm">
+                            固定使用 Bark 官方服务器 <code>https://api.day.app</code>，不支持自定义服务器。
+                        </p>
+                    </div>
+                    <div class="col-lg-7 offset-lg-1">
+                        <div class="mb-4">
+                            <label class="form-label" for="bark_token">Bark Token（设备 Key）</label>
+                            <input class="form-control form-control-lg" id="bark_token" type="password"
+                                   value="{$bark_token}" autocomplete="off"
+                                   placeholder="从 Bark App 复制设备 Key">
+                            <div class="form-text">只填写 Token，不要填写完整 URL。留空保存可清除配置。</div>
+                        </div>
+                        <div class="mb-4 d-flex gap-2">
+                            <button type="button" class="btn btn-alt-primary" onclick="saveBarkToken();">
+                                <i class="fa fa-save opacity-50 me-1"></i> 保存
+                            </button>
+                            <button type="button" class="btn btn-alt-success" onclick="testBarkPush();">
+                                <i class="fa fa-paper-plane opacity-50 me-1"></i> 测试推送
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function saveBarkToken() {
+        x.ajax('/index/ajax/user/notification', {
+            bark_token: $('#bark_token').val().trim()
+        }, function (data) {
+            x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+        });
+    }
+
+    function testBarkPush() {
+        var token = $('#bark_token').val().trim();
+        if (!token) {
+            return x.notify('请先填写并保存 Bark Token', 'warning');
+        }
+        x.ajax('/index/ajax/user/notificationTest', {}, function (data) {
+            x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+        });
+    }
+</script>
+{/block}

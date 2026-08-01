@@ -11,6 +11,8 @@ use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
+use app\service\BarkNotificationService;
+use app\service\UserNotificationSettings;
 use netease\Qrcode;
 use think\exception\ValidateException;
 use think\facade\Request;
@@ -198,13 +200,49 @@ class Ajax extends Common
 	{
 		switch ($act) {
 			case "profile":
-				$_var_48 = Request::Post();
-				if (Users::updateByUid(Session::get("user.uid"), $_var_48)) {
+				$data = [
+					'nickname' => trim((string)Request::post('nickname', '')),
+					'qq' => trim((string)Request::post('qq', '')),
+					'mail' => trim((string)Request::post('mail', '')),
+				];
+				try {
+					validate(\app\index\validate\Users::class)->scene('profile')->check($data);
+				} catch (ValidateException $exception) {
+					return resultJson(0, $exception->getMessage());
+				}
+				if (Users::updateByUid(Session::get("user.uid"), $data)) {
 					return resultJson(1, "修改成功");
 				} else {
 					return resultJson(0, "修改失败，无修改");
 				}
 				break;
+			case 'notification':
+				if ((int)config('sys.bark_enabled') !== 1) {
+					return resultJson(0, '管理员尚未开启 Bark 信息推送');
+				}
+				$token = trim((string)Request::post('bark_token', ''));
+				try {
+					(new UserNotificationSettings())->saveBarkToken(
+						(int)Session::get('user.uid'),
+						(int)Session::get('user.web_id'),
+						$token
+					);
+					return resultJson(1, $token === '' ? 'Bark 推送配置已清除' : 'Bark Token 保存成功');
+				} catch (\RuntimeException $exception) {
+					return resultJson(0, $exception->getMessage());
+				} catch (\Throwable $exception) {
+					return resultJson(0, 'Bark Token 保存失败');
+				}
+			case 'notificationTest':
+				if ((int)config('sys.bark_enabled') !== 1) {
+					return resultJson(0, '管理员尚未开启 Bark 信息推送');
+				}
+				$user = Users::where('uid', (int)Session::get('user.uid'))->find();
+				if (!$user) {
+					return resultJson(0, '用户不存在');
+				}
+				$result = (new BarkNotificationService())->sendTest($user);
+				return resultJson(!empty($result['success']) ? 1 : 0, (string)$result['message']);
 			case "passWord":
 				$_var_48 = Request::post();
 				$_var_49 = Users::changePassWord(Session::get("user.uid"), $_var_48);

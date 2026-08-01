@@ -58,6 +58,10 @@ INSERT INTO `cloud_configs` (`k`, `v`) VALUES
                                            ('reg_close', '0'),
                                            ('reg_iplimit', '0'),
                                            ('site_url', ''),
+                                           ('mail_invalid', '0'),
+                                           ('bark_enabled', '0'),
+                                           ('is_netease_tool', '0'),
+                                           ('netease_tool_limit', '3'),
                                            ('OrderPlacementMethod','0');
 
 CREATE TABLE `cloud_info` (
@@ -201,6 +205,13 @@ CREATE TABLE `cloud_users` (
                                `state` tinyint NOT NULL DEFAULT '1'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `cloud_user_notifications` (
+                                                `uid` int(11) NOT NULL,
+                                                `web_id` int(11) NOT NULL,
+                                                `bark_token` varchar(255) NOT NULL DEFAULT '',
+                                                `updated_at` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `cloud_weblist` (
                                  `web_id` int(11) NOT NULL COMMENT '站点编号',
                                  `sup_id` int(11) NOT NULL DEFAULT '0' COMMENT '上级ID',
@@ -278,6 +289,10 @@ ALTER TABLE `cloud_users`
     ADD KEY `idx_users_site_state` (`web_id`,`state`,`uid`),
     ADD KEY `idx_users_qq` (`qq`(64)),
     ADD KEY `idx_users_mail` (`mail`(128));
+
+ALTER TABLE `cloud_user_notifications`
+    ADD PRIMARY KEY (`uid`),
+    ADD KEY `idx_user_notifications_site` (`web_id`,`uid`);
 
 ALTER TABLE `cloud_weblist`
     ADD PRIMARY KEY (`web_id`),

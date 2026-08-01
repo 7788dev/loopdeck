@@ -12,6 +12,7 @@ use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
+use app\service\BarkNotificationService;
 use think\console\Command;
 use think\console\Input;
 use think\console\input\Argument;
@@ -148,7 +149,9 @@ class Bilibili extends Command
 
     private function vipExpired(string $type, int $uid, string $userId): void
     {
-        Users::where('uid', $uid)->update(['vip_start' => null, 'vip_end' => null]);
+        $membershipChanged = Users::where('uid', $uid)
+            ->whereRaw('(`vip_start` IS NOT NULL OR `vip_end` IS NOT NULL)')
+            ->update(['vip_start' => null, 'vip_end' => null]);
         Jobs::where('type', $type)->where('user_id', $userId)->where('uid', $uid)->update(['state' => 0]);
         TaskLogs::operateLog([
             'type' => $type,
@@ -156,15 +159,28 @@ class Bilibili extends Command
             'do' => '系统提示',
             'response' => '会员过期，请开通会员后再试',
         ]);
+        if ($membershipChanged > 0) {
+            $user = Users::where('uid', $uid)->find();
+            if ($user) {
+                (new BarkNotificationService())->sendVipExpired($user);
+            }
+        }
     }
 
     private function accountInvalid(string $type, $user, string $userId): void
     {
-        Accounts::where('type', $type)->where('user_id', $userId)->where('uid', $user['uid'])->update(['state' => 0]);
+        $stateChanged = Accounts::where('type', $type)
+            ->where('user_id', $userId)
+            ->where('uid', $user['uid'])
+            ->where('state', 1)
+            ->update(['state' => 0]);
         Jobs::where('type', $type)->where('user_id', $userId)->where('uid', $user['uid'])->update(['state' => -1]);
-        if ((int)config('sys.mail_invalid') === 1) {
+        if ($stateChanged > 0 && (int)config('sys.mail_invalid') === 1) {
             $message = get_mail_tempale(3, $user, '哔哩哔哩');
             send_mail((string)$user['mail'], (string)config('web.webname') . ' - 失效提醒', $message);
+        }
+        if ($stateChanged > 0) {
+            (new BarkNotificationService())->sendAccountInvalid($user, '哔哩哔哩');
         }
     }
 }

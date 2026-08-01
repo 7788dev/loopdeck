@@ -57,7 +57,7 @@ class System extends Common
                 View::assign('webTitle', '注册赠送配置');
                 return View::fetch('system/set/reg');
             case 'mail':
-                View::assign('webTitle', '邮箱信息设置');
+                View::assign('webTitle', '信息推送设置');
                 return View::fetch('system/set/mail');
             case 'template':
                 View::assign(array_merge(

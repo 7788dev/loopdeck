@@ -15,10 +15,11 @@
             <div class="row push">
                 <div class="col-lg-4">
                     <p class="text-muted">
-                        你可以在这里配置邮箱信息，找回密码需要
+                        配置站点的信息推送渠道。邮箱仍用于验证码和找回密码；Bark 用于登录用户的账号失效与会员到期提醒。
                     </p>
                 </div>
                 <div class="col-lg-8 col-xl-5">
+                    <h4 class="content-heading pt-0">邮箱推送</h4>
                     <div class="mb-4">
                         <label class="form-label">失效提醒</label>
                         <select class="form-select" id="mail_invalid" name="mail_invalid" default="{:config('sys.mail_invalid')}">
@@ -47,8 +48,25 @@
                                type="text" value="{:config('sys.mail_pwd')}">
                     </div>
                     <button type="submit" class="btn btn-primary" onclick="ajax_testSendMail();">
-                   <i class="fa fa-paper-plane opacity-50 me-1"></i> 测试发信
-                  </button>
+                        <i class="fa fa-paper-plane opacity-50 me-1"></i> 测试发信
+                    </button>
+
+                    <h4 class="content-heading">Bark 推送</h4>
+                    <div class="mb-4">
+                        <label class="form-label" for="bark_enabled">Bark 信息推送</label>
+                        <select class="form-select" id="bark_enabled" name="bark_enabled">
+                            <option value="0">关闭</option>
+                            <option value="1" {if condition="config('sys.bark_enabled') eq 1"}selected{/if}>开启</option>
+                        </select>
+                        <div class="form-text">
+                            开启后，用户前台“个人资料”下方会显示“信息推送”菜单，用于保存各自的 Bark Token。
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Bark 服务器</label>
+                        <input class="form-control" type="text" value="https://api.day.app" readonly>
+                        <div class="form-text">固定使用 Bark 官方服务器，不开放自定义服务器。</div>
+                    </div>
                 </div>
             </div>
         </form>

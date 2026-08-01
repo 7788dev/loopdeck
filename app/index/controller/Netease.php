@@ -280,22 +280,39 @@ class Netease
 
     private function listen()
     {
-        if (config('sys.is_netease_tool') != 1) {
+        if ((int)config('sys.is_netease_tool') !== 1) {
             return resultJson(0, '网易云播放工具未开启');
         }
-        $data = Request::post();
-        $userId = $data['user_id'] ?? null;
-        $account = $userId ? Accounts::findByUserId($userId) : false;
+        $userId = trim((string)Request::post('user_id', ''));
+        $songId = trim((string)Request::post('songid', ''));
+        $timesValue = trim((string)Request::post('times', ''));
+        $account = $userId === '' ? null : Accounts::where('type', 'netease')
+            ->where('user_id', $userId)
+            ->where('uid', Session::get('user.uid'))
+            ->where('state', 1)
+            ->find();
         if (!$account) {
-            return resultJson(0, '账号不存在或无权操作');
+            return resultJson(0, '网易云账号不存在、已失效或无权操作');
         }
-        $cookies = @unserialize($account['data'], ['allowed_classes' => false]);
-        if (!is_array($cookies) || empty($data['songid']) || empty($data['times'])) {
+        if (!ctype_digit($songId)
+            || strlen($songId) > 18
+            || (int)$songId <= 0
+            || !ctype_digit($timesValue)
+        ) {
             return resultJson(0, '参数错误');
         }
-        $times = (int)$data['times'];
-        if ($times < 1 || $times > 1000) {
-            return resultJson(0, '次数必须在1到1000之间');
+        $times = (int)$timesValue;
+        if ($times < 1 || $times > 300) {
+            return resultJson(0, '次数必须在1到300之间');
+        }
+
+        try {
+            $cookies = safe_unserialize_array((string)$account['data']);
+        } catch (\Throwable $exception) {
+            return resultJson(0, '网易云账号凭据损坏，请重新登录');
+        }
+        if (empty($cookies['user_id']) || empty($cookies['csrf']) || empty($cookies['musicu'])) {
+            return resultJson(0, '网易云账号凭据不完整，请重新登录');
         }
 
         $where = [
@@ -307,21 +324,31 @@ class Netease
         if ($limit > 0 && Captcha::where($where)->count() >= $limit) {
             return resultJson(-1, '当前账号今日使用次数过多，请24小时后再试');
         }
+
+        $client = new NeteaseClient(
+            (string)$cookies['user_id'],
+            (string)$cookies['csrf'],
+            (string)$cookies['musicu'],
+            [
+                'songid' => $songId,
+                'times' => $times,
+                'sdk' => [
+                    'connect_timeout' => 4.0,
+                    'timeout' => 8.0,
+                ],
+            ]
+        );
+        $result = $client->listen();
+        if ((int)($result['code'] ?? 0) !== 200) {
+            return resultJson(0, trim((string)($result['message'] ?? '听歌任务执行失败')) ?: '听歌任务执行失败');
+        }
+
         Captcha::add([
             'type' => 0,
-            'code' => $data['songid'],
+            'code' => $songId,
             'send' => $cookies['user_id'],
             'ip' => real_ip(),
         ]);
-        $url = get_Domain() . 'cron/netease/listen?' . http_build_query([
-            'user_id' => $cookies['user_id'],
-            'csrf' => $cookies['csrf'],
-            'musicu' => $cookies['musicu'],
-            'songid' => $data['songid'],
-            'times' => $times,
-            'runkey' => RUN_KEY,
-        ]);
-        get_curl($url);
-        return resultJson(1, '歌曲ID ' . $data['songid'] . ' 成功提交播放' . $times . '次');
+        return resultJson(1, (string)$result['message']);
     }
 }

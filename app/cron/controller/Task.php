@@ -11,6 +11,7 @@ use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
+use app\service\BarkNotificationService;
 use app\service\BilibiliTaskExecutor;
 use app\service\NeteaseSchedule;
 use netease\Netease as NeteaseAPI;
@@ -554,20 +555,27 @@ class Task extends Common
 
     private function expireVip(string $type, int $uid, string $userId): void
     {
-        Users::where('uid', $uid)->update(['vip_start' => null, 'vip_end' => null]);
+        $membershipChanged = Users::where('uid', $uid)
+            ->whereRaw('(`vip_start` IS NOT NULL OR `vip_end` IS NOT NULL)')
+            ->update(['vip_start' => null, 'vip_end' => null]);
         Jobs::where('type', $type)
             ->where('uid', $uid)
             ->where('user_id', $userId)
             ->update(['state' => 0]);
         $this->suppressedAccounts[$this->accountKey($type, $uid, $userId)] = true;
         $this->writeLog($type, $userId, '系统提示', '会员过期，请开通会员后再试');
+        $user = $this->user($uid);
+        if ($membershipChanged > 0 && $user) {
+            (new BarkNotificationService())->sendVipExpired($user);
+        }
     }
 
     private function invalidateAccount(string $type, int $uid, string $userId): void
     {
-        Accounts::where('type', $type)
+        $stateChanged = Accounts::where('type', $type)
             ->where('uid', $uid)
             ->where('user_id', $userId)
+            ->where('state', 1)
             ->update(['state' => 0]);
         Jobs::where('type', $type)
             ->where('uid', $uid)
@@ -576,6 +584,15 @@ class Task extends Common
         $key = $this->accountKey($type, $uid, $userId);
         $this->suppressedAccounts[$key] = true;
         $this->accountCache[$key] = null;
+        $user = $this->user($uid);
+        if ($stateChanged > 0 && $user) {
+            $provider = match ($type) {
+                'netease' => '网易云音乐',
+                'bilibili' => '哔哩哔哩',
+                default => $type,
+            };
+            (new BarkNotificationService())->sendAccountInvalid($user, $provider);
+        }
     }
 
     private function recordAttempts(int $attempts): void

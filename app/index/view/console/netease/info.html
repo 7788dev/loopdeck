@@ -171,7 +171,7 @@ $details = [
                 </div>
             </div>
         </div>
-        {if condition="config('sys.is_netease_tool')"}
+        {if condition="config('sys.is_netease_tool') eq 1"}
         <div class="block block-rounded">
             <div class="block-header">
                 <i class="fa fa-music me-1"></i>
@@ -182,12 +182,12 @@ $details = [
                 <div class="row mb-4">
                     <div class="col-lg-5 mb-4">
                         <label class="form-label" for="tool_listen_songid">歌曲ID</label>
-                        <input type="text" class="form-control" id="tool_listen_songid" name="tool_listen_songid" placeholder="输入歌曲ID">
+                        <input type="number" min="1" step="1" class="form-control" id="tool_listen_songid" name="tool_listen_songid" placeholder="输入歌曲ID">
                     </div>
                     <div class="col-lg-5">
                         <label class="form-label" for="tool_listen_times">播放次数</label>
-                        <input type="text" class="form-control" id="tool_listen_times" name="tool_listen_times" placeholder="输入歌曲播放次数">
-                        <div class="text-muted fs-xs">播放次数可能存在误差，请以网易云音乐官方数据为准</div>
+                        <input type="number" min="1" max="300" step="1" class="form-control" id="tool_listen_times" name="tool_listen_times" placeholder="输入歌曲播放次数">
+                        <div class="text-muted fs-xs">单次最多 300 次，播放计数可能延迟，请以网易云音乐官方数据为准</div>
                     </div>
                     <div class="col-lg-2" style="margin-top: 32px;">
                         <button type="submit" class="btn btn-primary btn-sm" onclick="ajax_tool_listen('{$data.user_id}');">
@@ -399,7 +399,15 @@ $details = [
         if (!songid) return;
         var times = x.getval('#tool_listen_times', '请先输入播放次数');
         if (!times) return;
+        if (!/^\d+$/.test(songid) || Number(songid) < 1) {
+            return x.notify('歌曲 ID 格式错误', 'warning');
+        }
+        if (!/^\d+$/.test(times) || Number(times) < 1 || Number(times) > 300) {
+            return x.notify('播放次数必须在 1 到 300 之间', 'warning');
+        }
+        var loading = layer.load(2);
         x.ajax("/index/ajax/netease/listen", {user_id: user_id ,songid: songid, times: times}, function (data) {
+            x.close(loading);
             if (data.code == 1) {
                 $("#tool_listen_songid").val(null);
                 $("#tool_listen_times").val(null);

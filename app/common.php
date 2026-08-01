@@ -16,6 +16,13 @@ if (!function_exists('resultJson')) {
     }
 }
 
+if (!function_exists('app_version')) {
+    function app_version(): string
+    {
+        return \app\service\ApplicationVersion::current();
+    }
+}
+
 if (!function_exists('real_ip')) {
     function real_ip(): string
     {

@@ -10,6 +10,7 @@ use app\index\model\Jobs;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
+use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
 use think\console\Command;
 use think\console\Input;
@@ -34,6 +35,7 @@ class Bilibili extends Command
         $executed = 0;
         $jobs = Jobs::where('type', 'bilibili')
             ->where('state', 1)
+            ->where('nextExecute', '>', 0)
             ->where('nextExecute', '<=', time())
             ->whereIn('do', BilibiliTaskExecutor::TASKS)
             ->order('nextExecute', 'asc')
@@ -82,6 +84,10 @@ class Bilibili extends Command
                     Jobs::where('type', 'bilibili')->where('user_id', $userId)->where('uid', $job['uid'])->update(['state' => -1]);
                     continue;
                 }
+                if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
+                    Jobs::where('id', $job['id'])->update(['nextExecute' => 0]);
+                    continue;
+                }
 
                 $accountData = BilibiliTaskExecutor::decodeSerializedArray((string)$account['data']);
                 $jobConfig = BilibiliTaskExecutor::decodeSerializedArray((string)($job['data'] ?? ''));
@@ -104,7 +110,7 @@ class Bilibili extends Command
                 Info::where('sysid', '100')->update(['last' => date('Y-m-d H:i:s')]);
                 Jobs::where('id', $job['id'])->update([
                     'lastExecute' => date('Y-m-d H:i:s'),
-                    'nextExecute' => $this->nextExecuteAt($account, $task),
+                    'nextExecute' => $this->nextExecuteAt($account, $userId),
                 ]);
                 $executed++;
             } catch (Throwable $exception) {
@@ -126,15 +132,13 @@ class Bilibili extends Command
         return BilibiliTaskExecutor::decodeSerializedArray(is_string($payload) ? $payload : '') ?? [];
     }
 
-    private function nextExecuteAt($account, $task): int
+    private function nextExecuteAt($account, string $userId): int
     {
-        if (!empty($account['timing'])) {
-            $next = strtotime((string)$account['timing'] . ' +1 day');
-            if ($next !== false) {
-                return $next;
-            }
-        }
-        return time() + max(60, (int)$task['execute_rate']);
+        return AutomaticSchedule::nextExecution(
+            'bilibili',
+            $userId,
+            (string)($account['timing'] ?? '')
+        ) ?? 0;
     }
 
     private function writeLog(string $userId, string $task, string $message): void

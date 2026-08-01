@@ -10,6 +10,7 @@ use app\index\model\Jobs;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
+use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
 use app\service\NeteaseSchedule;
 use netease\Netease as NeteaseAPI;
@@ -19,6 +20,7 @@ use Throwable;
 class Task extends Common
 {
     private const NETEASE_JITTER_MIGRATION_MARKER = 'netease-schedule-jitter-v1.done';
+    private const SCHEDULE_OPT_IN_MIGRATION_MARKER = 'schedule-opt-in-v1.done';
 
     private const NETEASE_TASKS = [
         'sign',
@@ -81,11 +83,13 @@ class Task extends Common
             'succeeded' => 0,
             'failed' => 0,
             'disabled' => 0,
+            'unscheduled' => 0,
             'invalid_accounts' => 0,
             'vip_expired' => 0,
         ];
 
         try {
+            $this->pauseLegacyUnscheduledJobs();
             $this->normalizeLegacyNeteaseSchedules();
             $configuredLimit = (int)config('sys.interval');
             $limit = $this->envInt('SCHEDULER_BATCH_SIZE', $configuredLimit ?: 50, 1, 500);
@@ -127,6 +131,7 @@ class Task extends Common
         foreach ($taskMap as $type => $tasks) {
             $query = Jobs::where('type', $type)
                 ->where('state', 1)
+                ->where('nextExecute', '>', 0)
                 ->where('nextExecute', '<=', $now)
                 ->whereIn('do', $tasks);
             if ($workerCount > 1) {
@@ -155,6 +160,49 @@ class Task extends Common
         });
 
         return array_slice($jobs, 0, $limit);
+    }
+
+    private function pauseLegacyUnscheduledJobs(): void
+    {
+        $marker = runtime_path() . self::SCHEDULE_OPT_IN_MIGRATION_MARKER;
+        if (is_file($marker)) {
+            return;
+        }
+
+        $lockHandle = @fopen($marker . '.lock', 'c+');
+        if (!is_resource($lockHandle)) {
+            return;
+        }
+        if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+            fclose($lockHandle);
+            return;
+        }
+
+        try {
+            if (is_file($marker)) {
+                return;
+            }
+
+            $accounts = Accounts::field('uid,type,user_id,timing')->select();
+            foreach ($accounts as $account) {
+                if (AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
+                    continue;
+                }
+
+                Jobs::where('uid', (int)($account['uid'] ?? 0))
+                    ->where('type', (string)($account['type'] ?? ''))
+                    ->where('user_id', (string)($account['user_id'] ?? ''))
+                    ->where('nextExecute', '>', 0)
+                    ->update(['nextExecute' => 0]);
+            }
+
+            @file_put_contents($marker, date(DATE_ATOM) . PHP_EOL, LOCK_EX);
+        } catch (Throwable $exception) {
+            // Retry on the next scheduler run if the migration is interrupted.
+        } finally {
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
+        }
     }
 
     private function normalizeLegacyNeteaseSchedules(): void
@@ -262,6 +310,11 @@ class Task extends Common
                 $summary['disabled']++;
                 return;
             }
+            if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
+                Jobs::where('id', $jobId)->update(['nextExecute' => 0]);
+                $summary['unscheduled']++;
+                return;
+            }
             if ((int)$task['vip'] === 1 && $this->vipExpiredAt($user)) {
                 $this->expireVip($type, $uid, $userId);
                 $summary['vip_expired']++;
@@ -308,7 +361,7 @@ class Task extends Common
 
             Jobs::where('id', $jobId)->update([
                 'lastExecute' => date('Y-m-d H:i:s'),
-                'nextExecute' => $this->nextExecuteAt($account, $task, $jobId),
+                'nextExecute' => $this->nextExecuteAt($account, $jobId),
             ]);
             $summary[$result['success'] ? 'succeeded' : 'failed']++;
         } catch (Throwable $exception) {
@@ -438,36 +491,47 @@ class Task extends Common
         return $expiresAt === false || $expiresAt < time();
     }
 
-    private function nextExecuteAt($account, $task, int $jobId): int
+    private function nextExecuteAt($account, int $jobId): int
     {
-        if (!empty($account['timing'])) {
-            if ((string)($account['type'] ?? '') === 'netease') {
-                $next = NeteaseSchedule::nextTimedExecution(
-                    (string)$account['timing'],
-                    'netease:' . (string)($account['user_id'] ?? $jobId)
-                );
-                if ($next !== null) {
-                    return $next;
-                }
-            }
-
-            $next = strtotime((string)$account['timing'] . ' +1 day');
-            if ($next !== false) {
-                $jitter = $this->envInt('SCHEDULER_JITTER_SECONDS', 120, 0, 900);
-                return $next + $this->stableJitter($jobId, $jitter);
-            }
+        $type = (string)($account['type'] ?? '');
+        $userId = (string)($account['user_id'] ?? $jobId);
+        $next = AutomaticSchedule::nextExecution(
+            $type,
+            $userId,
+            (string)($account['timing'] ?? '')
+        );
+        if ($next === null) {
+            return 0;
         }
 
-        return time() + max(60, (int)$task['execute_rate']);
+        if ($type !== 'netease') {
+            $jitter = $this->envInt('SCHEDULER_JITTER_SECONDS', 120, 0, 900);
+            $next += $this->stableJitter($jobId, $jitter);
+        }
+
+        return $next;
     }
 
     private function retryJob(int $jobId): void
     {
-        $cooldown = max(60, (int)(config('sys.reExecute_time') ?: 300));
-        $jitter = $this->envInt('SCHEDULER_RETRY_JITTER_SECONDS', 60, 0, 300);
+        $nextExecute = 0;
+        $job = Jobs::where('id', $jobId)->field('uid,type,user_id')->find();
+        if ($job) {
+            $timing = Accounts::where('type', (string)$job['type'])
+                ->where('uid', (int)$job['uid'])
+                ->where('user_id', (string)$job['user_id'])
+                ->value('timing');
+            if (AutomaticSchedule::isConfigured(is_string($timing) ? $timing : null)) {
+                $cooldown = max(60, (int)(config('sys.reExecute_time') ?: 300));
+                $jitter = $this->envInt('SCHEDULER_RETRY_JITTER_SECONDS', 60, 0, 300);
+                $nextExecute = time() + $cooldown
+                    + $this->stableJitter($jobId + intdiv(time(), 60), $jitter);
+            }
+        }
+
         Jobs::where('id', $jobId)->update([
             'lastExecute' => date('Y-m-d H:i:s'),
-            'nextExecute' => time() + $cooldown + $this->stableJitter($jobId + intdiv(time(), 60), $jitter),
+            'nextExecute' => $nextExecute,
         ]);
     }
 

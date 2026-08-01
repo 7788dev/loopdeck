@@ -3,6 +3,7 @@ declare (strict_types=1);
 
 namespace app\index\model;
 
+use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
 use think\Collection;
 use think\db\exception\DataNotFoundException;
@@ -19,6 +20,7 @@ class Jobs extends Model
     {
         $self = new static();
         $tasks = Tasks::getTaskList($type);
+        $nextExecute = self::nextExecutionForAccount((string)$type, (string)$user_id);
         foreach ($tasks as $key => $value) {
             $offline = $type === 'bilibili'
                 && BilibiliTaskExecutor::offlineReason((string)$value['execute_name']) !== null;
@@ -29,7 +31,7 @@ class Jobs extends Model
                     'user_id' => $user_id,
                     'do' => $value['execute_name'],
                     'state' => 0,
-                    'nextExecute' => time(),
+                    'nextExecute' => $nextExecute,
                 ]);
             } else {
                 $self->insert([
@@ -38,7 +40,7 @@ class Jobs extends Model
                     'user_id' => $user_id,
                     'do' => $value['execute_name'],
                     'state' => 1,
-                    'nextExecute' => time(),
+                    'nextExecute' => $nextExecute,
                 ]);
             }
         }
@@ -57,6 +59,7 @@ class Jobs extends Model
     {
         $self = new static();
         $tasks = Tasks::getTaskList($type);
+        $nextExecute = self::nextExecutionForAccount((string)$type, (string)$user_id);
         foreach ($tasks as $key => $value) {
             if (!$self::getJobInfo($type, $user_id, $value['execute_name'])) {
                 $self->create([
@@ -68,7 +71,7 @@ class Jobs extends Model
                         && BilibiliTaskExecutor::offlineReason((string)$value['execute_name']) !== null
                         ? 0
                         : 1,
-                    'nextExecute' => time(),
+                    'nextExecute' => $nextExecute,
                 ]);
             }
         }
@@ -103,13 +106,14 @@ class Jobs extends Model
     {
         $self = new static();
         $tasks = Tasks::getTaskList('netease');
+        $nextExecute = self::nextExecutionForAccount('netease', (string)$data['user_id']);
         foreach ($tasks as $key => $value) {
             $result = $self->insert([
                 'uid' => Session::get('user.uid'),
                 'type' => 'netease',
                 'user_id' => $data['user_id'],
                 'do' => $value['execute_name'],
-                'nextExecute' => time(),
+                'nextExecute' => $nextExecute,
             ]);
         }
         if ($result) {
@@ -132,6 +136,7 @@ class Jobs extends Model
     {
         $self = new static();
         $tasks = Tasks::getTaskList('bilibili');
+        $nextExecute = self::nextExecutionForAccount('bilibili', (string)$data['mid']);
         foreach ($tasks as $key => $value) {
             $offline = BilibiliTaskExecutor::offlineReason((string)$value['execute_name']) !== null;
             $result = $self->insert([
@@ -140,7 +145,7 @@ class Jobs extends Model
                 'user_id' => $data['mid'],
                 'do' => $value['execute_name'],
                 'state' => $offline ? 0 : 1,
-                'nextExecute' => time(),
+                'nextExecute' => $nextExecute,
             ]);
         }
         if ($result) {
@@ -163,13 +168,14 @@ class Jobs extends Model
     {
         $self = new static();
         $tasks = Tasks::getTaskList('sport');
+        $nextExecute = self::nextExecutionForAccount('sport', (string)$data['user_id']);
         foreach ($tasks as $key => $value) {
             $result = $self->insert([
                 'uid' => Session::get('user.uid'),
                 'type' => 'sport',
                 'user_id' => $data['user_id'],
                 'do' => $value['execute_name'],
-                'nextExecute' => time(),
+                'nextExecute' => $nextExecute,
             ]);
         }
         if ($result) {
@@ -189,6 +195,7 @@ class Jobs extends Model
     {
         $self = new static();
         $tasks = Tasks::getTaskList($type);
+        $nextExecute = self::nextExecutionForAccount((string)$type, (string)$user_id);
         foreach ($tasks as $key => $value) {
             if ($type === 'bilibili'
                 && BilibiliTaskExecutor::offlineReason((string)$value['execute_name']) !== null) {
@@ -203,13 +210,13 @@ class Jobs extends Model
                     ->where('user_id', '=', $user_id)
                     ->where('state', '=', -1)
                     ->where('do', '=', $value['execute_name'])
-                    ->update(['state' => 1, 'nextExecute' => time()]);
+                    ->update(['state' => 1, 'nextExecute' => $nextExecute]);
             } else {
                 $self->where('type', '=', $type)
                     ->where('user_id', '=', $user_id)
                     ->where('state', '=', -1)
                     ->where('do', '=', $value['execute_name'])
-                    ->update(['state' => 1, 'nextExecute' => time()]);
+                    ->update(['state' => 1, 'nextExecute' => $nextExecute]);
             }
         }
         return false;
@@ -274,7 +281,7 @@ class Jobs extends Model
     public static function getUnexecutedList($type = null, $filter = [])
     {
         $self = new static();
-        $result = $self->where($filter)->where([['type', '=', $type], ['state', '=', 1], ['nextExecute', '<=', time()]])
+        $result = $self->where($filter)->where([['type', '=', $type], ['state', '=', 1], ['nextExecute', '>', 0], ['nextExecute', '<=', time()]])
             ->limit((int)config('sys.interval') ?? 0)
             ->select();
         if ($result) {
@@ -328,6 +335,25 @@ class Jobs extends Model
             return $result;
         }
         return false;
+    }
+
+    private static function nextExecutionForAccount(string $type, string $userId): int
+    {
+        $uid = (int)Session::get('user.uid');
+        if ($type === '' || $userId === '' || $uid <= 0) {
+            return 0;
+        }
+
+        $timing = Accounts::where('type', $type)
+            ->where('user_id', $userId)
+            ->where('uid', $uid)
+            ->value('timing');
+
+        return AutomaticSchedule::nextExecution(
+            $type,
+            $userId,
+            is_string($timing) ? $timing : null
+        ) ?? 0;
     }
 
 }

@@ -8,7 +8,7 @@ use app\index\model\Accounts;
 use app\index\model\Jobs;
 use app\index\model\Tasks;
 use app\index\model\Users;
-use app\service\NeteaseSchedule;
+use app\service\AutomaticSchedule;
 use netease\Netease as NeteaseAPI;
 use Exception;
 use think\facade\Request;
@@ -42,6 +42,10 @@ class Netease extends Common
                 Jobs::delJob('netease',$job['user_id']);
                 continue;
             }
+            if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
+                Jobs::where('id', $job['id'])->update(['nextExecute' => 0]);
+                continue;
+            }
             if ($task['vip'] == 1 && strtotime($user['vip_end'] ?? '') < time()) {  // 判断会员功能、用户会员是否过期
                 $this->vipExpired('netease', $user['uid'], $job['user_id']); // 会员过期处理
                 // 将VIP过期的任务用户id放入一个数组，用于后续判断
@@ -54,12 +58,11 @@ class Netease extends Common
             Info::where('sysid','=','100')->update(['last' => date('Y-m-d H:i:s')]);
             Jobs::updateJobInfo($job['do'], $job['user_id'], [ // 更新任务执行信息
                 'lastExecute' => date("Y-m-d H:i:s"),
-                'nextExecute' => !empty($account['timing'])
-                    ? (NeteaseSchedule::nextTimedExecution(
-                        (string)$account['timing'],
-                        'netease:' . (string)$job['user_id']
-                    ) ?? time() + (int)$task['execute_rate'])
-                    : time() + (int)$task['execute_rate'],
+                'nextExecute' => AutomaticSchedule::nextExecution(
+                    'netease',
+                    (string)$job['user_id'],
+                    (string)$account['timing']
+                ) ?? 0,
             ]);
         }
         if ($urls) $this->curl_mulit($urls);
@@ -70,10 +73,13 @@ class Netease extends Common
     {
         $data = Request::get();
         if (isset($data['runkey']) && $data['runkey'] == RUN_KEY) {
+            $account = Accounts::where('type', 'netease')->where('user_id', $data['user_id'])->find();
+            if (!$account || !AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
+                return resultJson(0, '请先设置挂机时间');
+            }
             $netease = new NeteaseAPI($data['user_id'], $data['csrf'], $data['musicu'], $data);
             $execute = $netease->{$do}();
             if ($netease->cookiezt) {
-                $account = Accounts::where('type', '=', 'netease')->where('user_id', '=', $data['user_id'])->find();
                 $user = Users::where('uid', '=', $account['uid'])->find();
                 $this->accountInvalid('netease', $user, $data['user_id']); // 账号失效处理
             } else {

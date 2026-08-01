@@ -53,7 +53,7 @@ GitHub Actions 会在 `main` 分支或 `v*` 标签更新时，在 GitHub 上构�
 - MySQL 关闭 Performance Schema 和 MySQL X Plugin，并限制连接数与缓存；
 - 应用、数据库和调度器均有 CPU、内存、进程数及日志轮转限制；
 - 任务时间字段使用数值类型和复合索引；同一批任务复用用户、账号与任务配置查询；
-- 任务按批次、时间预算和 ID 分片执行；调度 worker 数随 CPU 自动增长；网易云固定时间任务每天在设定时间后随机延迟 3–15 分钟，其他固定时间任务使用可配置抖动；
+- 只有设置了有效挂机时间的账号才进入自动任务队列；任务按批次、时间预算和 ID 分片执行；调度 worker 数随 CPU 自动增长；网易云固定时间任务每天在设定时间后随机延迟 3–15 分钟，其他固定时间任务使用可配置抖动；
 - 运行日志默认保留 30 天并按索引分批清理。
 
 默认 2 核配置使用 2 个调度 worker，每个 worker 每分钟最多选取 50 条任务，理论选择上限为每天 144,000 条。实际完成量取决于第三方接口延迟、限流和任务类型；“数万条日常任务”应分散到全天，不能把数万次外部请求集中在同一分钟。
@@ -101,6 +101,7 @@ docker compose down
 docker compose exec app php tests/NeteaseSdkTest.php
 docker compose exec app php tests/NeteaseWorkflowTest.php
 docker compose exec app php tests/NeteaseScheduleTest.php
+docker compose exec app php tests/AutomaticScheduleTest.php
 docker compose exec app php tests/SystemUpdaterTest.php
 docker compose exec app php tests/BilibiliSdkTest.php
 docker compose exec app php tests/BilibiliWorkflowTest.php

@@ -10,6 +10,7 @@ use app\index\model\Jobs;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
+use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
 use think\facade\Request;
 use Throwable;
@@ -27,6 +28,7 @@ class Bilibili extends Common
         $limit = max(1, (int)config('sys.interval'));
         $jobs = Jobs::where('type', 'bilibili')
             ->where('state', 1)
+            ->where('nextExecute', '>', 0)
             ->where('nextExecute', '<=', time())
             ->whereIn('do', BilibiliTaskExecutor::TASKS)
             ->order('nextExecute', 'asc')
@@ -48,6 +50,10 @@ class Bilibili extends Common
 
             if (!$user || !$account || !$task) {
                 Jobs::where('id', $job['id'])->update(['state' => 0]);
+                continue;
+            }
+            if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
+                Jobs::where('id', $job['id'])->update(['nextExecute' => 0]);
                 continue;
             }
             if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()) {
@@ -104,6 +110,10 @@ class Bilibili extends Common
             if (!$user || !$task || !$account) {
                 return resultJson(0, '账号、用户或任务数据不存在');
             }
+            if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
+                Jobs::where('id', $job['id'])->update(['nextExecute' => 0]);
+                return resultJson(0, '请先设置挂机时间');
+            }
             if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()) {
                 $this->vipExpired('bilibili', $user['uid'], $userId);
                 return resultJson(0, '会员已过期');
@@ -134,7 +144,7 @@ class Bilibili extends Common
             Info::where('sysid', '100')->update(['last' => date('Y-m-d H:i:s')]);
             Jobs::where('id', $job['id'])->update([
                 'lastExecute' => date('Y-m-d H:i:s'),
-                'nextExecute' => $this->nextExecuteAt($account, $task),
+                'nextExecute' => $this->nextExecuteAt($account, $userId),
             ]);
             return resultJson($result['code'] === 1 ? 1 : 0, $result['message']);
         } catch (Throwable $exception) {
@@ -153,15 +163,13 @@ class Bilibili extends Common
         return BilibiliTaskExecutor::decodeSerializedArray(is_string($payload) ? $payload : '');
     }
 
-    private function nextExecuteAt($account, $task): int
+    private function nextExecuteAt($account, string $userId): int
     {
-        if (!empty($account['timing'])) {
-            $next = strtotime((string)$account['timing'] . ' +1 day');
-            if ($next !== false) {
-                return $next;
-            }
-        }
-        return time() + max(60, (int)$task['execute_rate']);
+        return AutomaticSchedule::nextExecution(
+            'bilibili',
+            $userId,
+            (string)($account['timing'] ?? '')
+        ) ?? 0;
     }
 
     private function getExecuteUrl(string $userId, string $task): string

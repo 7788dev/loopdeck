@@ -7,7 +7,7 @@ use app\index\model\Captcha;
 use app\index\model\Jobs;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
-use app\service\NeteaseSchedule;
+use app\service\AutomaticSchedule;
 use netease\Netease as NeteaseClient;
 use netease\Qrcode;
 use think\exception\ValidateException;
@@ -205,28 +205,20 @@ class Netease
                     : resultJson(0, '修改失败');
 
             case 'timing':
-                $job = Jobs::where('type', 'netease')
-                    ->where('user_id', $userId)
-                    ->where('uid', Session::get('user.uid'))
-                    ->whereNotNull('lastExecute')
-                    ->find();
-                if (!$job) {
-                    return resultJson(0, '请先等待系统执行后再设定挂机时间');
-                }
                 $timing = trim((string)($data['timing'] ?? ''));
-                $next = NeteaseSchedule::nextTimedExecution($timing, 'netease:' . (string)$userId);
-                if ($next === null) {
+                $next = AutomaticSchedule::nextExecution('netease', (string)$userId, $timing);
+                if ($timing !== '' && $next === null) {
                     return resultJson(0, '挂机时间格式错误');
                 }
                 Accounts::where('type', 'netease')
                     ->where('user_id', $userId)
                     ->where('uid', Session::get('user.uid'))
-                    ->update(['timing' => $timing]);
+                    ->update(['timing' => $timing !== '' ? $timing : null]);
                 Jobs::where('type', 'netease')
                     ->where('user_id', $userId)
                     ->where('uid', Session::get('user.uid'))
-                    ->update(['nextExecute' => $next]);
-                return resultJson(1, '保存成功');
+                    ->update(['nextExecute' => $next ?? 0]);
+                return resultJson(1, $next === null ? '已关闭自动挂机' : '保存成功');
 
             default:
                 $config = json_decode((string)($data['config'] ?? '{}'), true);
@@ -257,6 +249,9 @@ class Netease
         $account = $userId ? Accounts::findByUserId($userId) : false;
         if (!$account) {
             return resultJson(0, '非法操作');
+        }
+        if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
+            return resultJson(0, '请先设置挂机时间');
         }
 
         $query = Jobs::where('user_id', $userId)

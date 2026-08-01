@@ -6,6 +6,7 @@ use app\index\model\Accounts;
 use app\index\model\Jobs;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
+use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
 use bilibili\Bilibili as BilibiliClient;
 use netease\Qrcode;
@@ -258,30 +259,19 @@ class Bilibili
 
     private function setTiming(string $userId, string $timing)
     {
-        $job = Jobs::where('type', 'bilibili')
-            ->where('user_id', $userId)
-            ->where('uid', Session::get('user.uid'))
-            ->whereNotNull('lastExecute')
-            ->find();
-        if (!$job) {
-            return resultJson(0, '请先等待系统执行后再设定挂机时间');
-        }
-        if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $timing)) {
-            return resultJson(0, '挂机时间格式错误');
-        }
-        $next = strtotime($timing . ' +1 day');
-        if ($next === false) {
+        $next = AutomaticSchedule::nextExecution('bilibili', $userId, $timing);
+        if ($timing !== '' && $next === null) {
             return resultJson(0, '挂机时间格式错误');
         }
         Accounts::where('type', 'bilibili')
             ->where('user_id', $userId)
             ->where('uid', Session::get('user.uid'))
-            ->update(['timing' => $timing]);
+            ->update(['timing' => $timing !== '' ? $timing : null]);
         Jobs::where('type', 'bilibili')
             ->where('user_id', $userId)
             ->where('uid', Session::get('user.uid'))
-            ->update(['nextExecute' => $next]);
-        return resultJson(1, '保存成功');
+            ->update(['nextExecute' => $next ?? 0]);
+        return resultJson(1, $next === null ? '已关闭自动挂机' : '保存成功');
     }
 
     private function normalizeTaskConfig(string $do, array $config): ?array
@@ -316,6 +306,9 @@ class Bilibili
         $account = $this->ownedAccount($userId);
         if (!$account) {
             return resultJson(0, '非法操作');
+        }
+        if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
+            return resultJson(0, '请先设置挂机时间');
         }
         $query = Jobs::where('type', 'bilibili')
             ->where('user_id', $userId)

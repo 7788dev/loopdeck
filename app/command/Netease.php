@@ -9,7 +9,7 @@ use app\index\model\Jobs;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
-use app\service\NeteaseSchedule;
+use app\service\AutomaticSchedule;
 use think\console\Command;
 use think\console\Input;
 use think\console\input\Argument;
@@ -31,7 +31,7 @@ class Netease extends Command
     {
         $interval = trim($input->getArgument('interval'));
         $vip_expired_userIds = [];
-        $jobs = Jobs::where([['type', '=', 'netease'], ['state', '=', 1], ['nextExecute', '<=', time()]])
+        $jobs = Jobs::where([['type', '=', 'netease'], ['state', '=', 1], ['nextExecute', '>', 0], ['nextExecute', '<=', time()]])
             ->limit((int)$interval)
             ->select();
         foreach ($jobs as $job) {
@@ -50,6 +50,10 @@ class Netease extends Command
                 Jobs::delJob('netease',$job['user_id']);
                 continue;
             }
+            if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
+                Jobs::where('id', $job['id'])->update(['nextExecute' => 0]);
+                continue;
+            }
             $account_info = unserialize($account['data']);
             $job_config = unserialize($job['data'] ?? '');
             $do = new NeteaseAPI($account_info['user_id'], $account_info['csrf'], $account_info['musicu'], $job_config);
@@ -66,12 +70,11 @@ class Netease extends Command
             Info::where('sysid','=','100')->update(['last' => date('Y-m-d H:i:s')]);
             Jobs::updateJobInfo($job['do'], $job['user_id'], [ // 更新任务执行信息
                 'lastExecute' => date("Y-m-d H:i:s"),
-                'nextExecute' => !empty($account['timing'])
-                    ? (NeteaseSchedule::nextTimedExecution(
-                        (string)$account['timing'],
-                        'netease:' . (string)$job['user_id']
-                    ) ?? time() + (int)$task['execute_rate'])
-                    : time() + (int)$task['execute_rate'],
+                'nextExecute' => AutomaticSchedule::nextExecution(
+                    'netease',
+                    (string)$job['user_id'],
+                    (string)$account['timing']
+                ) ?? 0,
             ]);
         }
         $count = count($jobs);

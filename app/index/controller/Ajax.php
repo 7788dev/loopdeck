@@ -10,6 +10,7 @@ use app\index\model\Pays;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
+use app\service\AutomaticSchedule;
 use netease\Qrcode;
 use think\exception\ValidateException;
 use think\facade\Request;
@@ -135,6 +136,9 @@ class Ajax extends Common
 			return TaskLogs::searchLogs($type, $userId);
 		}
 		if ($act === "reExecute") {
+			if (!AutomaticSchedule::isConfigured((string)($account["timing"] ?? ""))) {
+				return resultJson(0, "请先设置挂机时间");
+			}
 			$query = Jobs::where("type", "=", $type)
 				->where("user_id", "=", $userId)
 				->where("uid", "=", Session::get("user.uid"))
@@ -149,11 +153,16 @@ class Ajax extends Common
 			$mode = (string)Request::post("act", "");
 			if ($mode === "timing") {
 				$timing = trim((string)Request::post("timing", ""));
-				if ($timing !== "" && !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $timing)) {
+				$next = AutomaticSchedule::nextExecution($type, $userId, $timing);
+				if ($timing !== "" && $next === null) {
 					return resultJson(0, "时间格式应为 HH:MM");
 				}
 				Accounts::where("id", "=", $account["id"])->update(["timing" => $timing ?: null]);
-				return resultJson(1, "保存成功");
+				Jobs::where("type", "=", $type)
+					->where("user_id", "=", $userId)
+					->where("uid", "=", Session::get("user.uid"))
+					->update(["nextExecute" => $next ?? 0]);
+				return resultJson(1, $next === null ? "已关闭自动挂机" : "保存成功");
 			}
 			$do = trim((string)Request::post("do", ""));
 			$job = Jobs::where("type", "=", $type)

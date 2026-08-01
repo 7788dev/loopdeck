@@ -8,7 +8,7 @@ use Throwable;
 
 final class Client
 {
-    private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+    private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0';
 
     private TransportInterface $transport;
     private CookieSession $session;
@@ -18,6 +18,8 @@ final class Client
     private array $config;
     /** @var array{img_key:string,sub_key:string}|null */
     private ?array $wbiKeys = null;
+    /** @var array<string,mixed> */
+    private array $smsLoginContext = [];
 
     /** @param array<string,mixed>|string $cookies */
     public function __construct(
@@ -39,6 +41,9 @@ final class Client
             'verify' => true,
             'access_key' => '',
             'wbi_keys' => [],
+            'android_version' => AppSigner::FALLBACK_ANDROID_VERSION,
+            'android_build' => AppSigner::FALLBACK_ANDROID_BUILD,
+            'web_login_source' => 'main-fe-header',
         ], $config);
         $this->transport = $transport ?? new GuzzleTransport();
         $this->session = new CookieSession($cookies);
@@ -131,8 +136,9 @@ final class Client
     }
 
     /** @return array<string,mixed> */
-    public function captcha(string $source = 'main_web'): array
+    public function captcha(string $source = ''): array
     {
+        $source = $this->webLoginSource($source);
         return $this->requestJson('GET', $this->passport('/x/passport-login/captcha'), [
             'query' => ['source' => $source, 't' => (int)round(microtime(true) * 1000)],
             'with_cookies' => false,
@@ -141,27 +147,49 @@ final class Client
     }
 
     /** @return array<string,mixed> */
-    public function qrGenerate(): array
+    public function qrGenerate(string $source = ''): array
     {
+        $source = $this->webLoginSource($source);
         return $this->requestJson('GET', $this->passport('/x/passport-login/web/qrcode/generate'), [
+            'query' => [
+                'source' => $source,
+                'go_url' => 'https://www.bilibili.com/',
+                'web_location' => '333.1007',
+            ],
             'with_cookies' => false,
-            'referer' => 'https://passport.bilibili.com/login',
+            'referer' => 'https://www.bilibili.com/',
         ]);
     }
 
     /** @return array<string,mixed> */
-    public function qrPoll(string $qrcodeKey): array
+    public function qrPoll(string $qrcodeKey, string $source = ''): array
     {
-        return $this->requestJson('GET', $this->passport('/x/passport-login/web/qrcode/poll'), [
-            'query' => ['qrcode_key' => $qrcodeKey],
-            'referer' => 'https://passport.bilibili.com/login',
+        $response = $this->requestJson('GET', $this->passport('/x/passport-login/web/qrcode/poll'), [
+            'query' => [
+                'qrcode_key' => $qrcodeKey,
+                'source' => $this->webLoginSource($source),
+            ],
+            'referer' => 'https://www.bilibili.com/',
         ]);
+        $this->captureLoginPayload($response);
+        return $response;
     }
 
     /** @return array<string,mixed> */
-    public function smsSend(string $phone, array $captcha, int $cid = 1, string $source = 'main_web'): array
+    public function smsSend(string $phone, array $captcha, int $cid = 86, string $source = ''): array
     {
-        return $this->requestJson('POST', $this->passport('/x/passport-login/web/sms/send'), [
+        $device = $this->prepareSmsWebDevice();
+        if (($device['code'] ?? -1) !== 0) {
+            return $device;
+        }
+
+        $source = $this->webLoginSource($source);
+        $this->smsLoginContext = [
+            'protocol' => 'web',
+            'buvid3' => $this->session->get('buvid3'),
+            'source' => $source,
+        ];
+        $response = $this->requestJson('POST', $this->passport('/x/passport-login/web/sms/send'), [
             'form_params' => [
                 'cid' => $cid,
                 'tel' => $phone,
@@ -171,28 +199,55 @@ final class Client
                 'validate' => (string)($captcha['validate'] ?? ''),
                 'seccode' => (string)($captcha['seccode'] ?? ''),
             ],
-            'with_cookies' => false,
             'origin' => 'https://passport.bilibili.com',
-            'referer' => 'https://passport.bilibili.com/login',
+            'referer' => 'https://www.bilibili.com/',
         ]);
+        $this->smsLoginContext['cookies'] = $this->session->all();
+        return $this->requiresClientUpgrade($response)
+            ? $this->smsSendApp($phone, $captcha, $cid)
+            : $response;
     }
 
     /** @return array<string,mixed> */
-    public function smsLogin(string $phone, string $code, string $captchaKey, int $cid = 1): array
+    public function smsLogin(
+        string $phone,
+        string $code,
+        string $captchaKey,
+        int $cid = 86,
+        array $context = []
+    ): array
     {
-        return $this->requestJson('POST', $this->passport('/x/passport-login/web/login/sms'), [
+        $context = array_replace($this->smsLoginContext, $context);
+        if (($context['protocol'] ?? 'web') === 'app') {
+            return $this->smsLoginApp($phone, $code, $captchaKey, $cid, $context);
+        }
+        if (is_array($context['cookies'] ?? null)) {
+            $this->session->merge($context['cookies']);
+        } elseif (!empty($context['buvid3'])) {
+            $this->session->merge(['buvid3' => (string)$context['buvid3']]);
+        }
+
+        $response = $this->requestJson('POST', $this->passport('/x/passport-login/web/login/sms'), [
             'form_params' => [
                 'cid' => $cid,
                 'tel' => $phone,
                 'code' => $code,
-                'source' => 'main_web',
+                'source' => $this->webLoginSource((string)($context['source'] ?? '')),
                 'captcha_key' => $captchaKey,
                 'go_url' => 'https://www.bilibili.com/',
                 'keep' => 'true',
             ],
             'origin' => 'https://passport.bilibili.com',
-            'referer' => 'https://passport.bilibili.com/login',
+            'referer' => 'https://www.bilibili.com/',
         ]);
+        $this->captureLoginPayload($response);
+        return $response;
+    }
+
+    /** @return array<string,mixed> */
+    public function smsLoginContext(): array
+    {
+        return $this->smsLoginContext;
     }
 
     /** @return array<string,mixed> */
@@ -588,15 +643,179 @@ final class Client
                 'csrf_token' => $this->csrf(),
             ];
         }
-        $signed = $this->appSigner->sign($params, (string)$this->config['access_key']);
+        $protocol = $this->androidProtocol();
+        $signed = $this->appSigner->sign($params, (string)$this->config['access_key'], 'legacy', $protocol);
         $options = [
             strtoupper($method) === 'GET' ? 'query' : 'form_params' => $signed,
             'referer' => 'https://live.bilibili.com/',
+            'user_agent' => $this->appSigner->userAgent($protocol),
         ];
         if (strtoupper($method) === 'POST') {
             $options['origin'] = 'https://live.bilibili.com';
         }
         return $this->requestJson($method, $url, $options);
+    }
+
+    /** @return array<string,mixed> */
+    private function smsSendApp(string $phone, array $captcha, int $cid): array
+    {
+        $buvid = $this->generateAppBuvid();
+        $protocol = $this->androidProtocol();
+        $context = [
+            'protocol' => 'app',
+            'login_session_id' => bin2hex(random_bytes(16)),
+            'buvid' => $buvid,
+            'local_id' => $buvid,
+            'android_version' => $protocol['version'],
+            'android_build' => $protocol['build'],
+        ];
+        $params = $this->appSigner->signLogin([
+            'cid' => $cid,
+            'tel' => $phone,
+            'login_session_id' => $context['login_session_id'],
+            'recaptcha_token' => (string)($captcha['token'] ?? ''),
+            'gee_challenge' => (string)($captcha['challenge'] ?? ''),
+            'gee_validate' => (string)($captcha['validate'] ?? ''),
+            'gee_seccode' => (string)($captcha['seccode'] ?? ''),
+            'buvid' => $context['buvid'],
+            'local_id' => $context['local_id'],
+        ], $protocol);
+        $this->smsLoginContext = $context;
+        return $this->requestJson('POST', $this->passport('/x/passport-login/sms/send'), [
+            'form_params' => $params,
+            'with_cookies' => false,
+            'origin' => 'https://passport.bilibili.com',
+            'referer' => 'https://passport.bilibili.com/login',
+            'user_agent' => $this->appSigner->userAgent($protocol),
+        ]);
+    }
+
+    /** @return array<string,mixed> */
+    private function smsLoginApp(
+        string $phone,
+        string $code,
+        string $captchaKey,
+        int $cid,
+        array $context
+    ): array {
+        foreach (['login_session_id', 'buvid', 'local_id'] as $required) {
+            if (empty($context[$required])) {
+                return ['code' => -1, 'message' => 'bilibili sdk: SMS APP login context is incomplete'];
+            }
+        }
+        $protocol = $this->appSigner->protocol([
+            'version' => $context['android_version'] ?? $this->config['android_version'] ?? null,
+            'build' => $context['android_build'] ?? $this->config['android_build'] ?? null,
+        ]);
+        $params = $this->appSigner->signLogin([
+            'cid' => $cid,
+            'tel' => $phone,
+            'code' => $code,
+            'captcha_key' => $captchaKey,
+            'login_session_id' => (string)$context['login_session_id'],
+            'buvid' => (string)$context['buvid'],
+            'local_id' => (string)$context['local_id'],
+        ], $protocol);
+        $response = $this->requestJson('POST', $this->passport('/x/passport-login/login/sms'), [
+            'form_params' => $params,
+            'with_cookies' => false,
+            'origin' => 'https://passport.bilibili.com',
+            'referer' => 'https://passport.bilibili.com/login',
+            'user_agent' => $this->appSigner->userAgent($protocol),
+        ]);
+        $this->captureLoginPayload($response);
+        return $response;
+    }
+
+    /** @return array<string,mixed> */
+    private function prepareSmsWebDevice(): array
+    {
+        if ($this->session->has('buvid3')) {
+            return ['code' => 0, 'message' => '0'];
+        }
+        $response = $this->deviceFingerprint();
+        if (($response['code'] ?? -1) === 0 && $this->session->has('buvid3')) {
+            return ['code' => 0, 'message' => '0'];
+        }
+        return $response;
+    }
+
+    /** @return array{version:string,build:string} */
+    private function androidProtocol(): array
+    {
+        return $this->appSigner->protocol([
+            'version' => $this->config['android_version'] ?? null,
+            'build' => $this->config['android_build'] ?? null,
+        ]);
+    }
+
+    private function webLoginSource(string $source = ''): string
+    {
+        $source = trim($source);
+        if ($source !== '') {
+            return $source;
+        }
+        $configured = trim((string)($this->config['web_login_source'] ?? ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+        return 'main-fe-header';
+    }
+
+    private function requiresClientUpgrade(array $response): bool
+    {
+        if ((int)($response['code'] ?? 0) === 20000) {
+            return true;
+        }
+        $message = (string)($response['message'] ?? $response['msg'] ?? '');
+        foreach (['版本过低', '版本已不支持', '升级新版本', '客户端版本过低'] as $needle) {
+            if (str_contains($message, $needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function captureLoginPayload(array $response): void
+    {
+        $data = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $cookieInfo = is_array($data['cookie_info'] ?? null) ? $data['cookie_info'] : [];
+        $cookieItems = is_array($cookieInfo['cookies'] ?? null) ? $cookieInfo['cookies'] : $cookieInfo;
+        $cookies = [];
+        foreach ($cookieItems as $cookie) {
+            if (!is_array($cookie)) {
+                continue;
+            }
+            $name = trim((string)($cookie['name'] ?? ''));
+            if ($name !== '' && array_key_exists('value', $cookie)) {
+                $cookies[$name] = (string)$cookie['value'];
+            }
+        }
+
+        $url = (string)($data['url'] ?? '');
+        $query = (string)(parse_url($url, PHP_URL_QUERY) ?? '');
+        if ($query !== '') {
+            $urlCookies = [];
+            parse_str($query, $urlCookies);
+            foreach (['DedeUserID', 'DedeUserID__ckMd5', 'SESSDATA', 'bili_jct', 'sid'] as $name) {
+                if (isset($urlCookies[$name]) && is_scalar($urlCookies[$name])) {
+                    $cookies[$name] = (string)$urlCookies[$name];
+                }
+            }
+        }
+        if ($cookies !== []) {
+            $this->session->merge($cookies);
+        }
+    }
+
+    private function generateAppBuvid(): string
+    {
+        $mac = implode(':', array_map(
+            static fn(int $byte): string => str_pad(dechex($byte), 2, '0', STR_PAD_LEFT),
+            array_values(unpack('C*', random_bytes(6)))
+        ));
+        $hash = md5($mac);
+        return 'XY' . $hash[2] . $hash[12] . $hash[22] . $hash;
     }
 
     /** @return array<string,mixed> */

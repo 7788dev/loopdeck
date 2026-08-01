@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
+use bilibili\Bilibili as BilibiliService;
+use bilibili\sdk\AppSigner;
 use bilibili\sdk\Client;
 use bilibili\sdk\CookieSession;
 use bilibili\sdk\TransportInterface;
@@ -70,17 +72,28 @@ biliCheck($signer->mixinKey(
 ) === 'ea1db124af3c7062474693fa704f4ff8', 'WBI mixin key does not match the upstream vector');
 biliCheck(($signed['w_rid'] ?? '') === '8f6f2b5b3d485fe1886cec6a0be8c5d4', 'WBI signature does not match the upstream vector');
 
+$appSigner = new AppSigner();
+biliCheck(
+    $appSigner->protocol() === ['version' => '9.5.0', 'build' => '9050300'],
+    'Current Android protocol metadata is stale'
+);
+biliCheck(
+    $appSigner->protocol(['version' => 'invalid', 'build' => '1']) === ['version' => '9.5.0', 'build' => '9050300'],
+    'Invalid Android protocol metadata did not fall back safely'
+);
+
+$captchaTransport = new BilibiliRecordingTransport();
+$captchaClient = new Client([], [], $captchaTransport);
+$captchaClient->captcha();
+biliCheck(
+    ($captchaTransport->requests[0]['options']['query']['source'] ?? '') === 'main-fe-header',
+    'Captcha source is stale'
+);
+
 $loginTransport = new BilibiliRecordingTransport([
     ['body' => '{"code":0,"data":{"url":"https://scan.test/","qrcode_key":"qr-key"}}'],
     [
-        'body' => '{"code":0,"data":{"code":0,"message":"","refresh_token":"refresh"}}',
-        'set_cookie' => [
-            'DedeUserID=42; Path=/',
-            'DedeUserID__ckMd5=mid-md5; Path=/',
-            'SESSDATA=session-token; Path=/; HttpOnly',
-            'bili_jct=csrf-token; Path=/',
-            'sid=sid-token; Path=/',
-        ],
+        'body' => '{"code":0,"data":{"code":0,"message":"","refresh_token":"refresh","url":"https://www.bilibili.com/?DedeUserID=42&DedeUserID__ckMd5=mid-md5&SESSDATA=session-token&bili_jct=csrf-token&sid=sid-token"}}',
     ],
     ['body' => '{"code":0,"data":{"isLogin":true,"mid":42}}'],
 ]);
@@ -96,14 +109,18 @@ biliCheck(
     'Captured QR cookies were not sent to nav'
 );
 biliCheck($loginTransport->requests[0]['url'] === 'https://passport.bilibili.com/x/passport-login/web/qrcode/generate', 'QR generate endpoint is stale');
+biliCheck(($loginTransport->requests[0]['options']['query']['source'] ?? '') === 'main-fe-header', 'QR generate source is stale');
+biliCheck(($loginTransport->requests[0]['options']['query']['go_url'] ?? '') === 'https://www.bilibili.com/', 'QR generate go_url is missing');
+biliCheck(($loginTransport->requests[0]['options']['query']['web_location'] ?? '') === '333.1007', 'QR generate web_location is missing');
 biliCheck($loginTransport->requests[1]['method'] === 'GET', 'QR poll must use GET');
 biliCheck(($loginTransport->requests[1]['options']['query']['qrcode_key'] ?? '') === 'qr-key', 'QR poll key is missing');
+biliCheck(($loginTransport->requests[1]['options']['query']['source'] ?? '') === 'main-fe-header', 'QR poll source is stale');
 
 $smsTransport = new BilibiliRecordingTransport([
-    ['body' => '{"code":0,"data":{"captcha_key":"captcha-key"}}'],
+    ['body' => '{"code":0,"message":"0","data":{"b_3":"sms-buvid3","b_4":"sms-buvid4"}}'],
     [
-        'body' => '{"code":0,"data":{"status":0}}',
-        'set_cookie' => ['DedeUserID=77; Path=/', 'SESSDATA=sms-session; Path=/', 'bili_jct=sms-csrf; Path=/'],
+        'body' => '{"code":0,"data":{"captcha_key":"captcha-key"}}',
+        'set_cookie' => ['b_lsid=sms-lsid; Path=/; Domain=.bilibili.com'],
     ],
 ]);
 $smsClient = new Client([], [], $smsTransport);
@@ -113,11 +130,98 @@ $smsClient->smsSend('13800000000', [
     'validate' => 'validate',
     'seccode' => 'validate|jordan',
 ]);
-$smsClient->smsLogin('13800000000', '123456', 'captcha-key');
-$smsSendRequest = $smsTransport->requests[0];
+$smsContext = $smsClient->smsLoginContext();
+$smsVerifyTransport = new BilibiliRecordingTransport([[
+    'body' => '{"code":0,"data":{"status":0,"cookie_info":{"cookies":[{"name":"DedeUserID","value":"77"},{"name":"DedeUserID__ckMd5","value":"sms-mid-md5"},{"name":"SESSDATA","value":"sms-session"},{"name":"bili_jct","value":"sms-csrf"}]},"url":"https://www.bilibili.com/?sid=sms-sid"}}',
+]]);
+$smsVerifyClient = new Client([], [], $smsVerifyTransport);
+$smsVerifyClient->smsLogin('13800000000', '123456', 'captcha-key', 86, $smsContext);
+$smsSendRequest = $smsTransport->requests[1];
+$smsLoginRequest = $smsVerifyTransport->requests[0];
+biliCheck($smsTransport->requests[0]['url'] === 'https://api.bilibili.com/x/frontend/finger/spi', 'SMS device fingerprint endpoint is missing');
 biliCheck($smsSendRequest['url'] === 'https://passport.bilibili.com/x/passport-login/web/sms/send', 'SMS send endpoint is wrong');
-biliCheck(($smsSendRequest['options']['form_params']['source'] ?? '') === 'main_web', 'SMS source is missing');
-biliCheck($smsClient->cookies()['SESSDATA'] === 'sms-session', 'SMS login cookies were not captured');
+biliCheck(($smsSendRequest['options']['form_params']['source'] ?? '') === 'main-fe-header', 'SMS send source is stale');
+biliCheck(($smsSendRequest['options']['form_params']['cid'] ?? 0) === 86, 'SMS send cid must use the mainland international prefix');
+biliCheck(str_contains($smsSendRequest['options']['headers']['Cookie'] ?? '', 'buvid3=sms-buvid3'), 'SMS send is missing the device cookie');
+biliCheck(
+    ($smsSendRequest['options']['headers']['User-Agent'] ?? '') === 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0',
+    'SMS web User-Agent is stale'
+);
+biliCheck(($smsLoginRequest['options']['form_params']['source'] ?? '') === 'main-fe-header', 'SMS login did not retain the send source');
+biliCheck(($smsLoginRequest['options']['form_params']['cid'] ?? 0) === 86, 'SMS login cid changed between requests');
+biliCheck(($smsContext['protocol'] ?? '') === 'web', 'Web SMS context protocol is missing');
+biliCheck(($smsContext['buvid3'] ?? '') === 'sms-buvid3', 'Web SMS context lost buvid3');
+biliCheck(($smsContext['cookies']['b_lsid'] ?? '') === 'sms-lsid', 'Web SMS context lost response cookies');
+biliCheck(str_contains($smsLoginRequest['options']['headers']['Cookie'] ?? '', 'buvid3=sms-buvid3'), 'SMS login lost the device cookie across requests');
+biliCheck(str_contains($smsLoginRequest['options']['headers']['Cookie'] ?? '', 'b_lsid=sms-lsid'), 'SMS login lost send-response cookies across requests');
+biliCheck($smsVerifyClient->cookies()['SESSDATA'] === 'sms-session', 'SMS login cookies were not captured');
+biliCheck($smsVerifyClient->cookies()['sid'] === 'sms-sid', 'SMS login URL cookies were not captured');
+
+$fallbackTransport = new BilibiliRecordingTransport([
+    ['body' => '{"code":0,"message":"0","data":{"b_3":"fallback-buvid3","b_4":"fallback-buvid4"}}'],
+    ['body' => '{"code":20000,"message":"版本过低，请升级客户端"}'],
+    ['body' => '{"code":0,"message":"0","data":{"captcha_key":"app-captcha-key"}}'],
+]);
+$fallbackClient = new Client([], [], $fallbackTransport);
+$fallbackSend = $fallbackClient->smsSend('13800000000', [
+    'token' => 'token',
+    'challenge' => 'challenge',
+    'validate' => 'validate',
+    'seccode' => 'validate|jordan',
+]);
+biliCheck(($fallbackSend['data']['captcha_key'] ?? '') === 'app-captcha-key', 'Version-upgrade response did not fall back to APP SMS');
+$appContext = $fallbackClient->smsLoginContext();
+biliCheck(($appContext['protocol'] ?? '') === 'app', 'APP SMS context protocol is missing');
+biliCheck(preg_match('/^[0-9a-f]{32}$/', $appContext['login_session_id'] ?? '') === 1, 'APP SMS login_session_id is invalid');
+biliCheck(($appContext['buvid'] ?? '') === ($appContext['local_id'] ?? ''), 'APP SMS local_id does not match buvid');
+biliCheck(($appContext['android_version'] ?? '') === '9.5.0', 'APP SMS context lost the Android version');
+biliCheck(($appContext['android_build'] ?? '') === '9050300', 'APP SMS context lost the Android build');
+$fallbackVerifyTransport = new BilibiliRecordingTransport([
+    ['body' => '{"code":0,"message":"0","data":{"token_info":{"access_token":"app-access","refresh_token":"app-refresh"},"cookie_info":{"cookies":[{"name":"DedeUserID","value":"88"},{"name":"DedeUserID__ckMd5","value":"app-mid-md5"},{"name":"SESSDATA","value":"app-session"},{"name":"bili_jct","value":"app-csrf"},{"name":"sid","value":"app-sid"}]}}}'],
+]);
+$fallbackVerifyClient = new Client([], [
+    'android_version' => '1.0.0',
+    'android_build' => '1000000',
+], $fallbackVerifyTransport);
+$fallbackLogin = $fallbackVerifyClient->smsLogin('13800000000', '123456', 'app-captcha-key', 86, $appContext);
+biliCheck(($fallbackLogin['data']['token_info']['access_token'] ?? '') === 'app-access', 'APP SMS login response was not returned');
+
+$appSendRequest = biliRequestByPath($fallbackTransport->requests, '/x/passport-login/sms/send');
+$appLoginRequest = biliRequestByPath($fallbackVerifyTransport->requests, '/x/passport-login/login/sms');
+$appSendParams = $appSendRequest['options']['form_params'];
+$appLoginParams = $appLoginRequest['options']['form_params'];
+biliCheck(($appSendParams['build'] ?? '') === '9050300', 'APP SMS send build is stale');
+biliCheck(($appLoginParams['build'] ?? '') === '9050300', 'APP SMS login build is stale');
+biliCheck(($appSendParams['cid'] ?? 0) === 86, 'APP SMS send cid is wrong');
+biliCheck(($appLoginParams['login_session_id'] ?? '') === ($appSendParams['login_session_id'] ?? ''), 'APP SMS login_session_id changed between requests');
+$statistics = json_decode((string)($appSendParams['statistics'] ?? ''), true);
+biliCheck(($statistics['version'] ?? '') === '9.5.0', 'APP SMS statistics version is stale');
+biliCheck(str_contains($appSendRequest['options']['headers']['User-Agent'] ?? '', 'BiliDroid/9.5.0'), 'APP SMS User-Agent version is stale');
+biliCheck(str_contains($appSendRequest['options']['headers']['User-Agent'] ?? '', 'build/9050300'), 'APP SMS User-Agent build is stale');
+$appSignature = (string)($appSendParams['sign'] ?? '');
+unset($appSendParams['sign']);
+ksort($appSendParams, SORT_STRING);
+biliCheck(
+    hash_equals($appSignature, md5(http_build_query($appSendParams, '', '&', PHP_QUERY_RFC3986) . '2653583c8873dea268ab9386918b1d65')),
+    'APP SMS signature is invalid'
+);
+biliCheck($fallbackVerifyClient->cookies()['SESSDATA'] === 'app-session', 'APP SMS cookie_info was not captured');
+
+$serviceTransport = new BilibiliRecordingTransport([
+    ['body' => '{"code":0,"message":"0","data":{"token_info":{"access_token":"service-access","refresh_token":"service-refresh"},"cookie_info":{"cookies":[{"name":"DedeUserID","value":"99"},{"name":"DedeUserID__ckMd5","value":"service-mid-md5"},{"name":"SESSDATA","value":"service-session"},{"name":"bili_jct","value":"service-csrf"},{"name":"sid","value":"service-sid"}]}}}'],
+    ['body' => '{"code":0,"message":"0","data":{"isLogin":true,"mid":99,"uname":"SMS Tester","face":"https://example.test/avatar.png"}}'],
+]);
+$serviceClient = new Client([], [], $serviceTransport);
+$service = new BilibiliService(client: $serviceClient);
+$serviceLogin = $service->smsLogin('13800000000', '123456', 'service-captcha', 86, [
+    'protocol' => 'app',
+    'login_session_id' => str_repeat('a', 32),
+    'buvid' => 'XYservicebuvid',
+    'local_id' => 'XYservicebuvid',
+]);
+biliCheck(($serviceLogin['code'] ?? 0) === 1, 'APP SMS service login failed');
+biliCheck(($serviceLogin['data']['access_key'] ?? '') === 'service-access', 'APP access token was not persisted');
+biliCheck(($serviceLogin['data']['refresh_token'] ?? '') === 'service-refresh', 'APP refresh token was not persisted');
 
 $protocolTransport = new BilibiliRecordingTransport();
 $protocolClient = new Client([
@@ -204,6 +308,8 @@ $mangaRequest = biliRequestByPath($protocolTransport->requests, '/twirp/activity
 biliCheck(($mangaRequest['options']['form_params']['platform'] ?? '') === 'android', 'Manga clock-in is missing platform=android');
 $legacyRequest = biliRequestByPath($protocolTransport->requests, '/AppBag/sendDaily');
 biliCheck(isset($legacyRequest['options']['query']['appkey'], $legacyRequest['options']['query']['sign']), 'Legacy live compatibility request is unsigned');
+biliCheck(($legacyRequest['options']['query']['build'] ?? '') === '9050300', 'Legacy APP compatibility build is stale');
+biliCheck(str_contains($legacyRequest['options']['headers']['User-Agent'] ?? '', 'BiliDroid/9.5.0'), 'Legacy APP compatibility User-Agent is stale');
 $appHeartRequest = biliRequestByPath($protocolTransport->requests, '/mobile/userOnlineHeart');
 biliCheck(($appHeartRequest['options']['form_params']['csrf'] ?? '') === 'csrf', 'Legacy APP heartbeat is missing csrf');
 biliCheck(($appHeartRequest['options']['form_params']['csrf_token'] ?? '') === 'csrf', 'Legacy APP heartbeat is missing csrf_token');

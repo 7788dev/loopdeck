@@ -16,6 +16,9 @@ use think\facade\Session;
 
 class Bilibili
 {
+    private const SMS_SESSION_KEY = 'bilibili_sms_login';
+    private const SMS_SESSION_TTL = 300;
+
     protected $middleware = [
         \app\middleware\CheckLoginUser::class,
         \app\middleware\CheckAjaxRequest::class,
@@ -90,7 +93,7 @@ class Bilibili
     private function sendSms()
     {
         $phone = trim((string)Request::post('phone', ''));
-        $cid = max(1, (int)Request::post('cid', 1));
+        $cid = max(1, (int)Request::post('cid', 86));
         if (!preg_match('/^\d{5,20}$/', $phone)) {
             return resultJson(0, '手机号格式错误');
         }
@@ -104,10 +107,29 @@ class Bilibili
             return resultJson(0, '请先完成人机验证');
         }
 
-        $result = (new BilibiliClient())->sendSms($phone, $captcha, $cid);
-        return ($result['code'] ?? 0) === 1
-            ? resultJson(1, $result['message'] ?? '短信验证码已发送', $result['data'] ?? [])
-            : resultJson(0, $result['message'] ?? '短信验证码发送失败');
+        $client = new BilibiliClient();
+        $result = $client->sendSms($phone, $captcha, $cid);
+        if (($result['code'] ?? 0) !== 1) {
+            Session::delete(self::SMS_SESSION_KEY);
+            return resultJson(0, $result['message'] ?? '短信验证码发送失败');
+        }
+
+        $captchaKey = (string)($result['data']['captcha_key'] ?? '');
+        $context = $client->sdk()->smsLoginContext();
+        if ($captchaKey === '' || !in_array($context['protocol'] ?? '', ['web', 'app'], true)) {
+            Session::delete(self::SMS_SESSION_KEY);
+            return resultJson(0, '短信登录上下文生成失败，请重新获取验证码');
+        }
+        Session::set(self::SMS_SESSION_KEY, [
+            'phone' => $phone,
+            'cid' => $cid,
+            'captcha_key' => $captchaKey,
+            'context' => $context,
+            'expires_at' => time() + self::SMS_SESSION_TTL,
+        ]);
+        return resultJson(1, $result['message'] ?? '短信验证码已发送', [
+            'captcha_key' => $captchaKey,
+        ]);
     }
 
     private function smsLogin()
@@ -115,14 +137,31 @@ class Bilibili
         $phone = trim((string)Request::post('phone', ''));
         $code = trim((string)Request::post('code', ''));
         $captchaKey = trim((string)Request::post('captcha_key', ''));
-        $cid = max(1, (int)Request::post('cid', 1));
+        $cid = max(1, (int)Request::post('cid', 86));
         if (!preg_match('/^\d{5,20}$/', $phone) || !preg_match('/^\d{4,8}$/', $code) || $captchaKey === '') {
             return resultJson(0, '短信登录参数错误');
         }
 
-        $result = (new BilibiliClient())->smsLogin($phone, $code, $captchaKey, $cid);
+        $state = Session::get(self::SMS_SESSION_KEY);
+        if (!is_array($state)
+            || (int)($state['expires_at'] ?? 0) < time()
+            || (string)($state['phone'] ?? '') !== $phone
+            || (int)($state['cid'] ?? 0) !== $cid
+            || !hash_equals((string)($state['captcha_key'] ?? ''), $captchaKey)
+            || !is_array($state['context'] ?? null)
+        ) {
+            Session::delete(self::SMS_SESSION_KEY);
+            return resultJson(0, '短信验证码会话已失效，请重新获取');
+        }
+
+        $context = $state['context'];
+        $result = (new BilibiliClient(config: $context))->smsLogin($phone, $code, $captchaKey, $cid, $context);
         if (($result['code'] ?? 0) === 1) {
+            Session::delete(self::SMS_SESSION_KEY);
             return $this->storeAccount($result['data'] ?? []);
+        }
+        if (in_array((int)($result['upstream_code'] ?? 0), [1007, 86205, 20000], true)) {
+            Session::delete(self::SMS_SESSION_KEY);
         }
         return resultJson(0, $result['message'] ?? '短信登录失败');
     }

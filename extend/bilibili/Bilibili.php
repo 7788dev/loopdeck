@@ -40,8 +40,14 @@ class Bilibili
             'SESSDATA' => $this->token,
             'bili_jct' => $this->csrf,
             'sid' => $this->config['sid'] ?? null,
+            'buvid3' => $this->config['buvid3'] ?? null,
+            'buvid4' => $this->config['buvid4'] ?? null,
         ], static fn($value): bool => $value !== null && $value !== '');
-        $this->client = $client ?? new Client($cookies, ['access_key' => $this->accessKey]);
+        $this->client = $client ?? new Client($cookies, [
+            'access_key' => $this->accessKey,
+            'android_version' => $this->config['android_version'] ?? null,
+            'android_build' => $this->config['android_build'] ?? null,
+        ]);
     }
 
     public function sdk(): Client
@@ -109,12 +115,15 @@ class Bilibili
                 return ['code' => -2, 'message' => '已扫码，请在哔哩哔哩 APP 中确认登录'];
             case 86038:
                 return ['code' => 800, 'message' => '二维码已失效，请重新获取'];
+            case 86039:
+            case 86087:
+                return ['code' => 800, 'message' => '二维码登录已取消，请重新获取'];
             default:
                 return ['code' => 0, 'message' => (string)($data['message'] ?? '未知二维码状态')];
         }
     }
 
-    public function sendSms(string $phone, array $captcha, int $cid = 1): array
+    public function sendSms(string $phone, array $captcha, int $cid = 86): array
     {
         $response = $this->client->smsSend($phone, $captcha, $cid);
         if (($response['code'] ?? -1) !== 0 || empty($response['data']['captcha_key'])) {
@@ -127,13 +136,31 @@ class Bilibili
         ];
     }
 
-    public function smsLogin(string $phone, string $code, string $captchaKey, int $cid = 1): array
+    public function smsLogin(
+        string $phone,
+        string $code,
+        string $captchaKey,
+        int $cid = 86,
+        array $context = []
+    ): array
     {
-        $response = $this->client->smsLogin($phone, $code, $captchaKey, $cid);
-        if (($response['code'] ?? -1) !== 0 || (int)($response['data']['status'] ?? 0) !== 0) {
+        $response = $this->client->smsLogin($phone, $code, $captchaKey, $cid, $context);
+        $data = is_array($response['data'] ?? null) ? $response['data'] : [];
+        if (($response['code'] ?? -1) !== 0) {
             return $this->failure($response, '短信登录失败');
         }
-        return $this->loginSuccess((string)($response['data']['refresh_token'] ?? ''));
+        if ((int)($data['status'] ?? 0) === 5) {
+            return ['code' => 0, 'message' => '短信登录触发哔哩哔哩安全验证，请改用扫码登录'];
+        }
+        if ((int)($data['status'] ?? 0) !== 0) {
+            return $this->failure($response, '短信登录失败');
+        }
+
+        $tokenInfo = is_array($data['token_info'] ?? null) ? $data['token_info'] : $data;
+        return $this->loginSuccess(
+            (string)($tokenInfo['refresh_token'] ?? $data['refresh_token'] ?? ''),
+            (string)($tokenInfo['access_token'] ?? $data['access_token'] ?? '')
+        );
     }
 
     /** @return array{header:string,body:string,status:int,set_cookie:array<int,string>} */
@@ -505,7 +532,7 @@ class Bilibili
         return $this->failure($response, $label . '：兑换失败');
     }
 
-    private function loginSuccess(string $refreshToken): array
+    private function loginSuccess(string $refreshToken, string $accessKey = ''): array
     {
         $cookies = $this->client->cookies();
         foreach (['DedeUserID', 'DedeUserID__ckMd5', 'SESSDATA', 'bili_jct'] as $required) {
@@ -531,7 +558,7 @@ class Bilibili
                 'token' => (string)$cookies['SESSDATA'],
                 'csrf' => (string)$cookies['bili_jct'],
                 'sid' => (string)($cookies['sid'] ?? ''),
-                'access_key' => '',
+                'access_key' => $accessKey,
                 'refresh_token' => $refreshToken,
             ],
         ];

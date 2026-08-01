@@ -36,6 +36,19 @@ Successful login captures `DedeUserID`, `DedeUserID__ckMd5`, `SESSDATA`,
 these values in the existing Bilibili account record and never passes them in a
 Cron URL.
 
+The login client follows Bilibili's current web MiniLogin request shape. QR,
+captcha, SMS send, and SMS verification use the same `main-fe-header` source;
+QR generation includes the current `go_url` and `web_location`; and SMS login
+keeps the generated `buvid3` device cookie for the whole five-minute login
+session. China mainland uses international prefix `86`.
+
+If the web SMS-send endpoint explicitly returns client-upgrade code `20000` or
+a version-upgrade message, the SDK retries through the signed Android login
+endpoint and preserves its `login_session_id` through verification. The Android
+fallback metadata is `9.5.0` / build `9050300`, obtained from Bilibili's Fawkes
+upgrade endpoint on 2026-08-02. Successful APP login also stores the returned
+access and refresh tokens.
+
 ## Supported Project Workflows
 
 The client exposes the protocols required by the configured project tasks:
@@ -71,6 +84,8 @@ and all configured task workflows without using a real account.
 ## Attribution
 
 Protocol research and field definitions are adapted from
-`bilibili-API-collect`. See [NOTICE.md](NOTICE.md) before redistributing or using
-this SDK. The referenced material is licensed under CC BY-NC 4.0 and prohibits
+`bilibili-API-collect` and cross-checked against Bilibili's current desktop
+MiniLogin component and actively maintained community clients. See
+[NOTICE.md](NOTICE.md) before redistributing or using this SDK. The referenced
+`bilibili-API-collect` material is licensed under CC BY-NC 4.0 and prohibits
 commercial use.

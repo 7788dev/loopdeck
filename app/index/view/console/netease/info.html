@@ -420,7 +420,7 @@ $details = [
             shadeClose: true,
             zIndex: '1000',
             area: ['20%'],//设置相对于父页面的大小
-            content: '<div class="form-floating col-xl-12 mb-2"><input type="text"class="js-flatpickr form-control"id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"><label class="form-label"for="timing">挂机时间</label></div><div><span class="text-danger">未设置时不会自动执行；清空时间并保存可关闭自动挂机。<br></span><span class="fw-semibold">挂机时间说明：系统每天会在您设定的时间后随机延迟 3–15 分钟执行，以降低固定时间挂机带来的风控风险。<br>特殊说明：若同时有大量账号排队，实际执行时间仍可能继续顺延。</span></div>',
+            content: '<div class="form-floating col-xl-12 mb-2"><input type="text"class="js-flatpickr form-control"id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"data-allow-input="true"><label class="form-label"for="timing">挂机时间</label></div><div><span class="text-danger">未设置时不会自动执行；清空时间并保存可关闭自动挂机。<br></span><span class="fw-semibold">挂机时间说明：系统每天会在您设定的时间后随机延迟 3–15 分钟执行，以降低固定时间挂机带来的风控风险。<br>特殊说明：若同时有大量账号排队，实际执行时间仍可能继续顺延。</span></div>',
             success: function (res, index) {
                 if (typeof timing !== 'undefined') {
                     $("#timing").val(timing);

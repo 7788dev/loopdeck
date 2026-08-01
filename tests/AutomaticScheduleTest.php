@@ -48,4 +48,12 @@ automaticScheduleCheck(
     'A new account is still blocked from setting its first schedule'
 );
 
+$neteaseView = file_get_contents(dirname(__DIR__) . '/app/index/view/console/netease/info.html');
+$bilibiliView = file_get_contents(dirname(__DIR__) . '/app/index/view/console/bilibili/info.html');
+automaticScheduleCheck(
+    str_contains($neteaseView, 'data-allow-input="true"')
+        && str_contains($bilibiliView, 'data-allow-input="true"'),
+    'Schedule inputs cannot be cleared to disable automatic execution'
+);
+
 echo "Automatic schedule opt-in tests passed\n";

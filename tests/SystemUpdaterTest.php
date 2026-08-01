@@ -4,9 +4,11 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 use app\service\ApplicationVersion;
 use app\service\SystemUpdater;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
+use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 
 function updaterCheck(bool $condition, string $message): void
@@ -16,7 +18,7 @@ function updaterCheck(bool $condition, string $message): void
     }
 }
 
-updaterCheck(ApplicationVersion::current() === '1.0.1', 'Local VERSION was not loaded');
+updaterCheck(ApplicationVersion::current() === '1.0.2', 'Local VERSION was not loaded');
 updaterCheck(ApplicationVersion::normalize('v1.2.3') === '1.2.3', 'Version normalization failed');
 updaterCheck(ApplicationVersion::normalize('latest') === null, 'Invalid version was accepted');
 
@@ -35,7 +37,7 @@ $updater = new SystemUpdater($client, [
 ]);
 
 $status = $updater->status();
-updaterCheck($status['current_version'] === '1.0.1', 'Status returned the wrong local version');
+updaterCheck($status['current_version'] === '1.0.2', 'Status returned the wrong local version');
 updaterCheck($status['latest_version'] === '1.1.0', 'Status returned the wrong remote version');
 updaterCheck($status['update_available'] === true, 'Newer remote version was not detected');
 updaterCheck($status['updater_available'] === true, 'Configured updater was reported unavailable');
@@ -49,8 +51,41 @@ updaterCheck(
 );
 $query = [];
 parse_str($history[1]['request']->getUri()->getQuery(), $query);
-updaterCheck(($query['async'] ?? '') === 'true', 'Async update query is missing');
 updaterCheck(($query['image'] ?? '') === 'ghcr.io/7788dev/loopdeck:latest', 'Target image query is missing');
+updaterCheck(!array_key_exists('async', $query), 'Unsupported async query was sent to Watchtower');
+
+$timeoutRequest = new Request('POST', 'http://updater:8080/v1/update');
+$dispatchedTimeout = new SystemUpdater(new GuzzleHttp\Client([
+    'handler' => new MockHandler([new ConnectException('response timeout', $timeoutRequest, null, [
+        'errno' => 28,
+        'request_size' => 283,
+        'primary_port' => 8080,
+    ])]),
+]), [
+    'update_url' => 'http://updater:8080/v1/update',
+    'update_token' => 'test-update-token',
+    'image' => 'ghcr.io/7788dev/loopdeck:latest',
+]);
+updaterCheck($dispatchedTimeout->trigger()['status'] === 202, 'Dispatched update timeout was not accepted');
+
+$connectionFailed = new SystemUpdater(new GuzzleHttp\Client([
+    'handler' => new MockHandler([new ConnectException('connect timeout', $timeoutRequest, null, [
+        'errno' => 28,
+        'request_size' => 0,
+        'primary_port' => 0,
+    ])]),
+]), [
+    'update_url' => 'http://updater:8080/v1/update',
+    'update_token' => 'test-update-token',
+    'image' => 'ghcr.io/7788dev/loopdeck:latest',
+]);
+$connectionFailureRaised = false;
+try {
+    $connectionFailed->trigger();
+} catch (ConnectException $exception) {
+    $connectionFailureRaised = true;
+}
+updaterCheck($connectionFailureRaised, 'Connection failure was incorrectly accepted');
 
 $invalid = new SystemUpdater(new GuzzleHttp\Client([
     'handler' => new MockHandler([new Response(200, [], 'latest')]),

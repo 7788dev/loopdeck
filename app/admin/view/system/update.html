@@ -92,7 +92,7 @@
                 return;
             }
 
-            fetch('/version?_=' + Date.now(), {cache: 'no-store'})
+            fetch('/index/version?_=' + Date.now(), {cache: 'no-store'})
                 .then(function (response) {
                     var version = response.headers.get('X-LoopDeck-Version');
                     if (response.ok && version && version !== currentVersion) {

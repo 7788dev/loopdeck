@@ -6,11 +6,14 @@ namespace app\service;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Exception\ConnectException;
 use RuntimeException;
 use Throwable;
 
 final class SystemUpdater
 {
+    private const CURL_OPERATION_TIMED_OUT = 28;
+    private const DISPATCH_TIMEOUT_SECONDS = 1.5;
     private const DEFAULT_VERSION_URL = 'https://raw.githubusercontent.com/7788dev/loopdeck/main/VERSION';
     private const DEFAULT_UPDATE_URL = 'http://updater:8080/v1/update';
     private const DEFAULT_IMAGE = 'ghcr.io/7788dev/loopdeck:latest';
@@ -82,20 +85,27 @@ final class SystemUpdater
             throw new RuntimeException('Docker 更新服务尚未配置');
         }
 
-        $response = $this->client->request('POST', $this->updateUrl, [
-            'connect_timeout' => 5.0,
-            'timeout' => 20.0,
-            'http_errors' => false,
-            'headers' => [
-                'Accept' => 'application/json',
-                'Authorization' => 'Bearer ' . $this->updateToken,
-                'User-Agent' => 'LoopDeck/' . ApplicationVersion::current(),
-            ],
-            'query' => [
-                'image' => $this->image,
-                'async' => 'true',
-            ],
-        ]);
+        try {
+            $response = $this->client->request('POST', $this->updateUrl, [
+                'connect_timeout' => 1.0,
+                'timeout' => self::DISPATCH_TIMEOUT_SECONDS,
+                'http_errors' => false,
+                'headers' => [
+                    'Accept' => 'application/json',
+                    'Authorization' => 'Bearer ' . $this->updateToken,
+                    'User-Agent' => 'LoopDeck/' . ApplicationVersion::current(),
+                ],
+                'query' => [
+                    'image' => $this->image,
+                ],
+            ]);
+        } catch (ConnectException $exception) {
+            if ($this->wasUpdateRequestDispatched($exception)) {
+                return $this->acceptedResponse();
+            }
+
+            throw $exception;
+        }
 
         $statusCode = $response->getStatusCode();
         $body = json_decode((string)$response->getBody(), true);
@@ -108,6 +118,28 @@ final class SystemUpdater
             'status' => $statusCode,
             'image' => $this->image,
             'response' => is_array($body) ? $body : [],
+        ];
+    }
+
+    private function wasUpdateRequestDispatched(ConnectException $exception): bool
+    {
+        $context = $exception->getHandlerContext();
+
+        // Watchtower's update endpoint is synchronous. Once cURL has sent the
+        // request, a response timeout means the update continues server-side.
+        return (int)($context['errno'] ?? 0) === self::CURL_OPERATION_TIMED_OUT
+            && (int)($context['request_size'] ?? 0) > 0
+            && (int)($context['primary_port'] ?? 0) > 0;
+    }
+
+    private function acceptedResponse(): array
+    {
+        return [
+            'status' => 202,
+            'image' => $this->image,
+            'response' => [
+                'status' => 'accepted',
+            ],
         ];
     }
 }

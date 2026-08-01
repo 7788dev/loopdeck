@@ -102,6 +102,7 @@ docker compose exec app php tests/NeteaseSdkTest.php
 docker compose exec app php tests/NeteaseWorkflowTest.php
 docker compose exec app php tests/NeteaseScheduleTest.php
 docker compose exec app php tests/AutomaticScheduleTest.php
+docker compose exec app php tests/FaviconTest.php
 docker compose exec app php tests/SystemUpdaterTest.php
 docker compose exec app php tests/BilibiliSdkTest.php
 docker compose exec app php tests/BilibiliWorkflowTest.php

@@ -6,7 +6,7 @@
     <title>{:config('web.webname')} - {:config('web.title')}</title>
     <meta content="{:config('web.keywords')}" name="keywords">
     <meta content="{:config('web.description')}" name="description">
-    <link href="/favicon.ico" rel="shortcut icon">
+    <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
     <link rel="stylesheet" href="/static/template/Oneui/css/oneui.min.css">
     <link rel="stylesheet" href="/static/template/Oneui/css/jquery-confirm.min.css">
 </head>

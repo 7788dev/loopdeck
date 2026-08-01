@@ -14,7 +14,7 @@
     <title>{:config('web.webname')} - {:config('web.title')}</title>
     <meta content="{:config('web.keywords')}" name="keywords">
     <meta content="{:config('web.description')}" name="description">
-    <link href="/favicon.ico" rel="shortcut icon">
+    <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
     <link href="/static/js/plugins/datatables-bs5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/js/plugins/datatables-responsive-bs5/css/responsive.bootstrap5.min.css">
     <link href="/static/css/nprogress.min.css" rel="stylesheet">

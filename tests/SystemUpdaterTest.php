@@ -19,8 +19,8 @@ function updaterCheck(bool $condition, string $message): void
     }
 }
 
-updaterCheck(ApplicationVersion::current() === '1.0.7', 'Local VERSION was not loaded');
-updaterCheck(app_version() === '1.0.7', 'Template asset version was not loaded');
+updaterCheck(ApplicationVersion::current() === '1.0.8', 'Local VERSION was not loaded');
+updaterCheck(app_version() === '1.0.8', 'Template asset version was not loaded');
 updaterCheck(ApplicationVersion::normalize('v1.2.3') === '1.2.3', 'Version normalization failed');
 updaterCheck(ApplicationVersion::normalize('latest') === null, 'Invalid version was accepted');
 
@@ -39,7 +39,7 @@ $updater = new SystemUpdater($client, [
 ]);
 
 $status = $updater->status();
-updaterCheck($status['current_version'] === '1.0.7', 'Status returned the wrong local version');
+updaterCheck($status['current_version'] === '1.0.8', 'Status returned the wrong local version');
 updaterCheck($status['latest_version'] === '1.1.0', 'Status returned the wrong remote version');
 updaterCheck($status['update_available'] === true, 'Newer remote version was not detected');
 updaterCheck($status['updater_available'] === true, 'Configured updater was reported unavailable');

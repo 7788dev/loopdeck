@@ -11,6 +11,7 @@
 use think\facade\Route;
 
 Route::get('healthcheck', 'index/healthcheck');
+Route::get('version', 'index/version');
 
 Route::group('console', function () {
     Route::rule('netease/[:act]/[:user_id]', 'console/netease');

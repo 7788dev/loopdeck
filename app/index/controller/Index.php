@@ -39,6 +39,17 @@ class Index extends Common
         ]);
     }
 
+    public function version()
+    {
+        $version = ApplicationVersion::current();
+
+        return response($version, 200, [
+            'Content-Type' => 'text/plain; charset=utf-8',
+            'Cache-Control' => 'no-store',
+            'X-LoopDeck-Version' => $version,
+        ]);
+    }
+
     public function qrcode()
     {
         $name = trim((string)Request::get('name', ''));

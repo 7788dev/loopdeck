@@ -28,6 +28,33 @@ scheduleCheck(
     $next === NeteaseSchedule::nextTimedExecution('08:00', 'netease:3306177679', $now),
     'The same account and day did not receive a stable offset'
 );
+scheduleCheck(
+    NeteaseSchedule::deferredLegacyExecution(
+        '08:00',
+        'netease:3306177679',
+        $base,
+        $base + 60
+    ) === $next,
+    'Legacy exact-time execution was not deferred to the jittered time'
+);
+scheduleCheck(
+    NeteaseSchedule::deferredLegacyExecution(
+        '08:00',
+        'netease:3306177679',
+        $next,
+        $base + 60
+    ) === null,
+    'Already jittered execution was changed'
+);
+scheduleCheck(
+    NeteaseSchedule::deferredLegacyExecution(
+        '08:00',
+        'netease:3306177679',
+        $base,
+        $next
+    ) === null,
+    'Past legacy execution was deferred after its safe window'
+);
 
 $offsets = [];
 for ($day = 1; $day <= 7; $day++) {

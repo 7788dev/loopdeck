@@ -18,6 +18,8 @@ use Throwable;
 
 class Task extends Common
 {
+    private const NETEASE_JITTER_MIGRATION_MARKER = 'netease-schedule-jitter-v1.done';
+
     private const NETEASE_TASKS = [
         'sign',
         'login_work',
@@ -84,6 +86,7 @@ class Task extends Common
         ];
 
         try {
+            $this->normalizeLegacyNeteaseSchedules();
             $configuredLimit = (int)config('sys.interval');
             $limit = $this->envInt('SCHEDULER_BATCH_SIZE', $configuredLimit ?: 50, 1, 500);
             $timeBudget = $this->envInt('SCHEDULER_TIME_BUDGET_SECONDS', 50, 0, 300);
@@ -152,6 +155,75 @@ class Task extends Common
         });
 
         return array_slice($jobs, 0, $limit);
+    }
+
+    private function normalizeLegacyNeteaseSchedules(): void
+    {
+        $marker = runtime_path() . self::NETEASE_JITTER_MIGRATION_MARKER;
+        if (is_file($marker)) {
+            return;
+        }
+
+        $lockHandle = @fopen($marker . '.lock', 'c+');
+        if (!is_resource($lockHandle)) {
+            return;
+        }
+        if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+            fclose($lockHandle);
+            return;
+        }
+
+        try {
+            if (is_file($marker)) {
+                return;
+            }
+
+            $accounts = Accounts::where('type', 'netease')
+                ->where('state', 1)
+                ->whereNotNull('timing')
+                ->where('timing', '<>', '')
+                ->field('uid,user_id,timing')
+                ->select();
+            $now = time();
+
+            foreach ($accounts as $account) {
+                $userId = trim((string)($account['user_id'] ?? ''));
+                if ($userId === '') {
+                    continue;
+                }
+
+                $jobs = Jobs::where('type', 'netease')
+                    ->where('uid', (int)($account['uid'] ?? 0))
+                    ->where('user_id', $userId)
+                    ->where('state', 1)
+                    ->where('nextExecute', '>', 0)
+                    ->field('id,nextExecute')
+                    ->select();
+                foreach ($jobs as $job) {
+                    $scheduledAt = (int)($job['nextExecute'] ?? 0);
+                    $deferred = NeteaseSchedule::deferredLegacyExecution(
+                        (string)($account['timing'] ?? ''),
+                        'netease:' . $userId,
+                        $scheduledAt,
+                        $now
+                    );
+                    if ($deferred === null) {
+                        continue;
+                    }
+
+                    Jobs::where('id', (int)($job['id'] ?? 0))
+                        ->where('nextExecute', $scheduledAt)
+                        ->update(['nextExecute' => $deferred]);
+                }
+            }
+
+            @file_put_contents($marker, date(DATE_ATOM) . PHP_EOL, LOCK_EX);
+        } catch (Throwable $exception) {
+            // Scheduling must continue; a failed migration is retried later.
+        } finally {
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
+        }
     }
 
     private function runJob($job, array &$summary): void

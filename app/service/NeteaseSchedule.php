@@ -11,11 +11,6 @@ final class NeteaseSchedule
 
     public static function nextTimedExecution(string $timing, string $accountIdentity, ?int $now = null): ?int
     {
-        $timing = trim($timing);
-        if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $timing)) {
-            return null;
-        }
-
         $now ??= time();
         $tomorrow = strtotime('+1 day', $now);
         if ($tomorrow === false) {
@@ -23,12 +18,37 @@ final class NeteaseSchedule
         }
 
         $date = date('Y-m-d', $tomorrow);
-        $scheduled = strtotime($date . ' ' . $timing);
-        if ($scheduled === false) {
+        $scheduled = self::baseExecution($timing, $date);
+        if ($scheduled === null) {
             return null;
         }
 
         return $scheduled + self::dailyOffset($accountIdentity, $date);
+    }
+
+    public static function deferredLegacyExecution(
+        string $timing,
+        string $accountIdentity,
+        int $scheduledAt,
+        ?int $now = null
+    ): ?int {
+        if ($scheduledAt <= 0) {
+            return null;
+        }
+
+        $date = date('Y-m-d', $scheduledAt);
+        $base = self::baseExecution($timing, $date);
+        if ($base === null) {
+            return null;
+        }
+
+        $target = $base + self::dailyOffset($accountIdentity, $date);
+        $now ??= time();
+        if ($scheduledAt < $base || $scheduledAt >= $target || $now >= $target) {
+            return null;
+        }
+
+        return $target;
     }
 
     public static function dailyOffset(string $accountIdentity, string $date): int
@@ -37,5 +57,18 @@ final class NeteaseSchedule
         $unsigned = (int)sprintf('%u', crc32($accountIdentity . '|' . $date));
 
         return self::MINIMUM_JITTER_SECONDS + ($unsigned % $range);
+    }
+
+    private static function baseExecution(string $timing, string $date): ?int
+    {
+        $timing = trim($timing);
+        if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $timing)
+            || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return null;
+        }
+
+        $scheduled = strtotime($date . ' ' . $timing);
+
+        return $scheduled === false ? null : $scheduled;
     }
 }

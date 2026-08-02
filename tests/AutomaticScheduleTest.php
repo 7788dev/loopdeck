@@ -59,5 +59,9 @@ automaticScheduleCheck(
     str_contains($neteaseView, '<option value="daily_recommend">首页每日推荐（默认）</option>'),
     'NetEase daily listening source does not default to home daily recommendations'
 );
+automaticScheduleCheck(
+    !str_contains($neteaseView, '说明：默认使用当前账号首页的每日推荐歌曲'),
+    'NetEase daily listening configuration still shows explanatory text'
+);
 
 echo "Automatic schedule opt-in tests passed\n";

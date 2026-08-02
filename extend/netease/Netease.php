@@ -667,7 +667,7 @@ class Netease
                         $logSong,
                         $source,
                         $duration,
-                        (int)$prepared['nowMs']
+                        (int)round(microtime(true) * 1000)
                     ),
                 ]]);
                 $upload = $this->prepareNcblUpload($context, $metaJson, $pldBody);
@@ -814,6 +814,9 @@ class Netease
         array $history,
         int $limit
     ): void {
+        if (count($songs) >= $limit) {
+            return;
+        }
         shuffle($candidates);
         foreach ($candidates as $song) {
             $id = (int)($song['id'] ?? 0);
@@ -833,6 +836,9 @@ class Netease
         array $history,
         int $limit
     ): void {
+        if (count($songs) >= $limit) {
+            return;
+        }
         shuffle($playlists);
         foreach ($playlists as $playlistId) {
             $playlist = $this->playlist_detail($playlistId);
@@ -893,6 +899,40 @@ class Netease
             json_encode($merged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
             LOCK_EX
         );
+    }
+
+    /** @return array<string,mixed> */
+    protected function loadDakaDailyState(): array
+    {
+        $path = $this->dakaDailyStatePath();
+        if ($path === null || !is_file($path)) {
+            return [];
+        }
+        $decoded = json_decode((string)@file_get_contents($path), true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /** @param array<string,mixed> $state */
+    protected function rememberDakaDailyState(array $state): void
+    {
+        $path = $this->dakaDailyStatePath();
+        if ($path === null) {
+            return;
+        }
+        @file_put_contents(
+            $path,
+            json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}',
+            LOCK_EX
+        );
+    }
+
+    protected function dakaDailyStatePath(): ?string
+    {
+        $historyPath = $this->dakaHistoryPath();
+        if ($historyPath === null) {
+            return null;
+        }
+        return substr($historyPath, 0, -5) . '.daily.json';
     }
 
     protected function dakaHistoryPath(): ?string
@@ -972,7 +1012,32 @@ class Netease
             return $this->makeResult(201, '登录状态已失效');
         }
         $source = (string)($this->config['daka_music_from'] ?? 'highquality');
-        $limit = max(1, min(300, (int)($this->config['daka_limit'] ?? 300)));
+        $target = max(1, min(300, (int)($this->config['daka_limit'] ?? 300)));
+        $today = date('Y-m-d');
+        $dailyState = $this->loadDakaDailyState();
+        $sameDay = (string)($dailyState['date'] ?? '') === $today;
+        $confirmedToday = $sameDay
+            ? max(0, min(300, (int)($dailyState['pld_confirmed'] ?? 0)))
+            : 0;
+        if ($confirmedToday >= $target) {
+            return $this->makeResult(200,
+                '今日已确认提交' . $confirmedToday . '/' . $target . '首，已跳过重复执行；'
+                . '网易云每天最多统计300次播放，累计听歌只会增加账号此前未听过的歌曲，'
+                . '所以同日重复执行不会按提交数继续增长。当前累计听歌' . $listenSongs . '首',
+                [
+                    'submitted' => 0,
+                    'daily_target' => $target,
+                    'daily_confirmed' => $confirmedToday,
+                    'daily_remaining' => 0,
+                    'skipped_duplicate' => true,
+                    'listen_songs_before' => $listenSongs,
+                    'listen_songs_after' => $listenSongs,
+                    'listen_songs_delta' => 0,
+                ]
+            );
+        }
+
+        $limit = $target - $confirmedToday;
         $songs = $this->dakaSongs($source, $this->loadDakaHistory(), $limit);
         if ($songs === []) {
             return $this->makeResult(201, '未获取到可用于打卡的新歌曲');
@@ -986,6 +1051,26 @@ class Netease
         $current = (int)($after['listenSongs'] ?? $listenSongs);
         $delta = max(0, $current - $listenSongs);
         $submitted = count($songs);
+        $dailyConfirmed = min(300, $confirmedToday + $success);
+        if ($success > 0) {
+            $initialListenSongs = $sameDay
+                ? (int)($dailyState['listen_songs_before'] ?? $listenSongs)
+                : $listenSongs;
+            $this->rememberDakaDailyState([
+                'date' => $today,
+                'target' => $target,
+                'submitted' => ($sameDay ? (int)($dailyState['submitted'] ?? 0) : 0) + $submitted,
+                'plv_confirmed' => ($sameDay ? (int)($dailyState['plv_confirmed'] ?? 0) : 0)
+                    + $this->lastScrobbleStarts,
+                'pld_confirmed' => $dailyConfirmed,
+                'submitted_seconds' => ($sameDay ? (int)($dailyState['submitted_seconds'] ?? 0) : 0)
+                    + $this->lastScrobbleSeconds,
+                'listen_songs_before' => $initialListenSongs,
+                'listen_songs_after' => $current,
+                'listen_songs_delta' => max(0, $current - $initialListenSongs),
+                'updated_at' => date('c'),
+            ]);
+        }
         $prefix = $delta > 0
             ? '网易云累计听歌已从' . $listenSongs . '增至' . $current . '首（实际查询+' . $delta . '）'
             : '网易云累计听歌当前仍为' . $listenSongs . '首';
@@ -993,8 +1078,11 @@ class Netease
         $message .= '，完播文件确认' . $success . '/' . $submitted . '首';
         $message .= '，提交时长约' . (int)ceil($this->lastScrobbleSeconds / 60) . '分钟';
         $message .= '，上传耗时约' . round($this->lastScrobbleElapsedSeconds, 1) . '秒';
+        $message .= '；今日累计文件确认' . $dailyConfirmed . '/' . $target . '首';
         if ($delta === 0) {
-            $message .= '；文件上传已确认，但累计统计尚未入账，不能把上传确认写成计数成功';
+            $message .= '；文件上传已确认，但累计统计尚未入账，不能把上传确认写成计数成功。'
+                . '网易云每天最多统计300次播放，且累计听歌只对账号此前未听过的歌曲去重增加，'
+                . '同日重复执行不会按提交数继续增长';
         }
         return $this->makeResult($success > 0 ? 200 : 201, $message, [
             'submitted' => $submitted,
@@ -1005,6 +1093,10 @@ class Netease
             'listen_songs_before' => $listenSongs,
             'listen_songs_after' => $current,
             'listen_songs_delta' => $delta,
+            'daily_target' => $target,
+            'daily_confirmed' => $dailyConfirmed,
+            'daily_remaining' => max(0, $target - $dailyConfirmed),
+            'skipped_duplicate' => false,
         ]);
     }
 

@@ -188,6 +188,65 @@ final class WorkflowTransport implements TransportInterface
     }
 }
 
+final class DakaLimitProbe extends Netease
+{
+    public int $playlistDetailCalls = 0;
+
+    public function appendSearchForTest(array &$songs, array $candidates, array $history, int $limit): void
+    {
+        $this->appendSearchSongs($songs, $candidates, $history, $limit);
+    }
+
+    public function appendPlaylistForTest(array &$songs, array $playlists, array $history, int $limit): void
+    {
+        $this->appendPlaylistSongs($songs, $playlists, $history, $limit);
+    }
+
+    public function playlist_detail($playlist_id)
+    {
+        $this->playlistDetailCalls++;
+        return [
+            'code' => 200,
+            'playlist' => [
+                'tracks' => [
+                    ['id' => 9000 + $this->playlistDetailCalls, 'dt' => 180000],
+                ],
+            ],
+        ];
+    }
+}
+
+final class DailyDakaProbe extends Netease
+{
+    public int $scrobbleCalls = 0;
+
+    protected function dakaSongs(string $source, array $history, int $limit = 300): array
+    {
+        $songs = [];
+        for ($index = 1; $index <= $limit; $index++) {
+            $songs[7000 + $index] = [
+                'id' => 7000 + $index,
+                'sourceId' => 10,
+                'time' => 180,
+            ];
+        }
+        return $songs;
+    }
+
+    protected function scrobbleBatch(array $songs): int
+    {
+        $this->scrobbleCalls++;
+        $this->lastScrobbleStarts = count($songs);
+        $this->lastScrobbleSeconds = count($songs) * 180;
+        $this->lastScrobbleSongIds = array_values(array_map(
+            static fn(array $song): int => (int)$song['id'],
+            $songs
+        ));
+        $this->lastScrobbleElapsedSeconds = 0.25;
+        return count($songs);
+    }
+}
+
 function workflowCheck(bool $condition, string $message): void
 {
     if (!$condition) {
@@ -218,6 +277,53 @@ $netease = new Netease(1, 'csrf', 'music-u', [
     'songid' => 101,
     'times' => 2,
 ], $sdk);
+
+$limitProbe = new DakaLimitProbe(1, 'csrf', 'music-u', [], $sdk);
+$alreadyFull = [101 => ['id' => 101, 'sourceId' => 10, 'time' => 180]];
+$limitProbe->appendSearchForTest(
+    $alreadyFull,
+    [['id' => 102, 'sourceId' => 10, 'time' => 180]],
+    [],
+    1
+);
+workflowCheck(count($alreadyFull) === 1, 'Search candidates exceeded an already reached daka limit');
+$limitProbe->appendPlaylistForTest($alreadyFull, [10], [], 1);
+workflowCheck(count($alreadyFull) === 1, 'Playlist candidates exceeded an already reached daka limit');
+workflowCheck($limitProbe->playlistDetailCalls === 0, 'Reached daka limit still fetched another playlist');
+
+$oneSong = [];
+$limitProbe->appendSearchForTest(
+    $oneSong,
+    [
+        ['id' => 102, 'sourceId' => 10, 'time' => 180],
+        ['id' => 103, 'sourceId' => 10, 'time' => 180],
+    ],
+    [],
+    1
+);
+workflowCheck(count($oneSong) === 1, 'Search candidates did not stop exactly at the daka limit');
+
+$dailyDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-daily-' . bin2hex(random_bytes(6));
+workflowCheck(@mkdir($dailyDirectory, 0770, true), 'Daily daka test directory could not be created');
+$dailyProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
+    'daka_limit' => 3,
+    'daka_history_dir' => $dailyDirectory,
+], $sdk);
+$dailyFirst = $dailyProbe->daka_new();
+$dailySecond = $dailyProbe->daka_new();
+workflowCheck((int)($dailyFirst['data']['submitted'] ?? 0) === 3, 'Daily daka target was not submitted');
+workflowCheck((int)($dailyFirst['data']['daily_confirmed'] ?? 0) === 3, 'Daily daka state lost confirmed plays');
+workflowCheck(!empty($dailySecond['data']['skipped_duplicate']), 'Same-day daka rerun was not skipped');
+workflowCheck((int)($dailySecond['data']['submitted'] ?? -1) === 0, 'Same-day daka rerun still submitted songs');
+workflowCheck($dailyProbe->scrobbleCalls === 1, 'Same-day daka rerun called the reporting protocol again');
+workflowCheck(
+    str_contains((string)($dailySecond['message'] ?? ''), '同日重复执行不会按提交数继续增长'),
+    'Same-day daka skip did not explain NetEase daily accounting'
+);
+foreach (glob($dailyDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $dailyFile) {
+    @unlink($dailyFile);
+}
+@rmdir($dailyDirectory);
 
 $results = [
     'login_work' => $netease->login_work(),

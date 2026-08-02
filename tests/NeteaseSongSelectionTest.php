@@ -9,6 +9,7 @@ use netease\Netease;
 final class NeteaseSelectionFixture extends Netease
 {
     public array $artists = [];
+    public array $queries = [];
 
     public function __construct()
     {
@@ -17,6 +18,11 @@ final class NeteaseSelectionFixture extends Netease
     public function selectedSongs(int $limit = 300): array
     {
         return $this->dakaSongs('highquality', [], $limit);
+    }
+
+    public function supplementSongs(array $history = [], int $limit = 300): array
+    {
+        return $this->dakaSupplementSongs($history, $limit);
     }
 
     public function get_highquality_playlist($limit, $before = 0)
@@ -46,6 +52,7 @@ final class NeteaseSelectionFixture extends Netease
         ?string $preferredArtist = null
     ): array {
         $this->artists[] = $preferredArtist ?? $keywords;
+        $this->queries[] = ['keywords' => $keywords, 'offset' => $offset, 'artist' => $preferredArtist];
         $base = 500000 + count($this->artists) * 1000;
         $songs = [];
         for ($i = 1; $i <= 100; $i++) {
@@ -87,5 +94,29 @@ foreach ([19723756, 3779629, 2884035, 3778678] as $chartPlaylistId) {
         'Each official chart must contribute its own 20-song quota'
     );
 }
+
+$supplementFixture = new NeteaseSelectionFixture();
+$supplement = $supplementFixture->supplementSongs([], 300);
+selectionCheck(count($supplement) === 300, 'Supplement selection did not fill a unique 300-song batch');
+foreach ([3779629, 19723756, 2884035, 3778678] as $chartPlaylistId) {
+    selectionCheck(
+        count(array_filter(
+            $supplement,
+            static fn(array $song): bool => (int)$song['sourceId'] === $chartPlaylistId
+        )) === 30,
+        'Supplement selection did not preserve the changing-chart quota'
+    );
+}
+selectionCheck(
+    array_slice($supplementFixture->artists, 0, 7) === ['徐良', '许嵩', '薛之谦', '汪苏泷', '周杰伦', '林俊杰', '陈奕迅'],
+    'Supplement selection did not retain the requested popular artist style'
+);
+selectionCheck(
+    count(array_filter(
+        $supplementFixture->queries,
+        static fn(array $query): bool => str_contains((string)$query['keywords'], date('Y'))
+    )) >= 1,
+    'Supplement selection did not include current-year new-song searches'
+);
 
 echo "Netease song selection tests passed\n";

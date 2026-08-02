@@ -71,13 +71,18 @@ class Netease extends Command
             }
             Info::where('sysid','=','100')->inc('times',1)->update();
             Info::where('sysid','=','100')->update(['last' => date('Y-m-d H:i:s')]);
+            $nextExecute = AutomaticSchedule::nextExecution(
+                'netease',
+                (string)$job['user_id'],
+                (string)$account['timing']
+            ) ?? 0;
+            $retryAfter = max(0, (int)($execute['data']['retry_after_seconds'] ?? 0));
+            if ((int)($execute['code'] ?? 0) === 200 && $retryAfter > 0) {
+                $nextExecute = time() + max(60, min(3600, $retryAfter));
+            }
             Jobs::updateJobInfo('netease', $job['do'], $job['user_id'], [ // 更新任务执行信息
                 'lastExecute' => date("Y-m-d H:i:s"),
-                'nextExecute' => AutomaticSchedule::nextExecution(
-                    'netease',
-                    (string)$job['user_id'],
-                    (string)$account['timing']
-                ) ?? 0,
+                'nextExecute' => $nextExecute,
             ]);
             $executed++;
         }

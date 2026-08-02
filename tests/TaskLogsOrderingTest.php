@@ -21,11 +21,17 @@ taskLogsOrderingCheck(
 );
 taskLogsOrderingCheck(
     str_contains($table, '{"title": "ID", "data": "id"}'),
-    'Task log table must display the real database ID'
+    'Task log table must display the service/account-local ID'
 );
 taskLogsOrderingCheck(
-    !str_contains($table, 'log_index'),
-    'Task log table must not replace IDs with page-relative sequence numbers'
+    str_contains($model, '->where(\'type\', \'=\', $type)')
+        && str_contains($model, '->where(\'user_id\', \'=\', $user_id)')
+        && str_contains($model, '->count(\'id\')'),
+    'Task log ID totals must be scoped by service and account'
+);
+taskLogsOrderingCheck(
+    str_contains($model, '$row[\'id\'] = max(1, (int)$total - (int)$offset)'),
+    'Task logs must replace the global database ID with a service/account-local sequence'
 );
 taskLogsOrderingCheck(
     str_contains($table, 'ordering: false'),

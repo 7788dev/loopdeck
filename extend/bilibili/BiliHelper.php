@@ -74,6 +74,16 @@ class BiliHelper extends Bilibili
         return $this->combine([parent::pcSilver2coin(), parent::appSilver2coin()]);
     }
 
+    public function dailyexperience(): array
+    {
+        return parent::dailyExperience();
+    }
+
+    public function vipexperience(): array
+    {
+        return parent::vipExperience();
+    }
+
     private function combine(array $results): array
     {
         if ($results === []) {

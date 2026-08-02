@@ -10,9 +10,24 @@ class TaskLogs extends Model
 
     public static function searchLogs($type, $user_id)
     {
-        $self = new static();
-        if ($result = $self->order(['addtime' => 'desc', 'id' => 'desc'])->where('type', '=', $type)->where('user_id', '=', $user_id)->limit(50)->select()) {
-            return $result;
+        $total = (new static())
+            ->where('type', '=', $type)
+            ->where('user_id', '=', $user_id)
+            ->count('id');
+        $result = (new static())
+            ->order(['addtime' => 'desc', 'id' => 'desc'])
+            ->where('type', '=', $type)
+            ->where('user_id', '=', $user_id)
+            ->limit(50)
+            ->select();
+        if ($result) {
+            $rows = $result->toArray();
+            foreach ($rows as $offset => &$row) {
+                // Keep the displayed ID local to this service and external account.
+                $row['id'] = max(1, (int)$total - (int)$offset);
+            }
+            unset($row);
+            return $rows;
         }
         return false;
     }
@@ -26,10 +41,10 @@ class TaskLogs extends Model
         return false;
     }
     
-    public static function deleteLogsById($user_id)
+    public static function deleteLogsById($type, $user_id)
     {
         $self = new static();
-        if ($result = $self->where('user_id', '=', $user_id)->delete() !== false) {
+        if ($result = $self->where('type', '=', $type)->where('user_id', '=', $user_id)->delete() !== false) {
             return $result;
         }
         return false;

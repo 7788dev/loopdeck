@@ -25,6 +25,9 @@ class Netease
     protected $config;
     protected $cookie;
     protected $sdk;
+    protected $lastScrobbleStarts = 0;
+    protected $lastScrobbleSeconds = 0;
+    protected $lastScrobbleSongIds = [];
 
     protected $resourceTypeMap = [
         0 => 'R_SO_4_',
@@ -423,6 +426,49 @@ class Netease
         return $ids ?: $this->personalized($limit);
     }
 
+    /** @return array<int,array{id:int,sourceId:int,time:int}> */
+    public function search_songs(
+        string $keywords,
+        int $limit = 100,
+        int $offset = 0,
+        ?string $preferredArtist = null
+    ): array
+    {
+        $body = $this->decodeBody($this->requestApi('/api/cloudsearch/pc', [
+            's' => $keywords,
+            'type' => 1,
+            'limit' => max(1, min(100, $limit)),
+            'offset' => max(0, $offset),
+            'total' => true,
+        ], 'eapi'));
+        $songs = [];
+        foreach ($body['result']['songs'] ?? [] as $song) {
+            $id = (int)($song['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            if ($preferredArtist !== null) {
+                $matched = false;
+                foreach (($song['ar'] ?? $song['artists'] ?? []) as $artist) {
+                    $name = trim((string)($artist['name'] ?? ''));
+                    if ($name !== '' && str_contains($name, $preferredArtist)) {
+                        $matched = true;
+                        break;
+                    }
+                }
+                if (!$matched) {
+                    continue;
+                }
+            }
+            $songs[] = [
+                'id' => $id,
+                'sourceId' => 0,
+                'time' => max(30, (int)ceil(($song['dt'] ?? $song['duration'] ?? 240000) / 1000)),
+            ];
+        }
+        return $songs;
+    }
+
     protected function playlistIdsFromSearch(array $body): array
     {
         $ids = [];
@@ -545,23 +591,36 @@ class Netease
         $play = $this->decodeBody($this->requestApi('/api/feedback/weblog', [
             'logs' => $this->jsonEncode([['action' => 'play', 'json' => $playJson]]),
         ], 'eapi', ['domain' => 'https://clientlog.music.163.com', 'os' => 'osx']));
-        return in_array((int)($play['code'] ?? 0), [200, 250], true) ||
-            in_array((int)($start['code'] ?? 0), [200, 250], true);
+        if ((int)($play['code'] ?? 0) === 301 || (int)($start['code'] ?? 0) === 301) {
+            $this->cookiezt = true;
+        }
+        return in_array((int)($play['code'] ?? 0), [200, 250], true);
     }
 
     /**
-     * Apply the upstream two-phase startplay/play protocol in bounded batches.
-     * NetEase accepts multiple weblog entries in one request, which keeps the
-     * legacy 300-play task practical without changing its accounting payload.
+     * Apply the upstream two-phase startplay/play protocol. Each song remains an
+     * independent weblog request, matching the current upstream implementation;
+     * the HTTP transport only parallelizes those independent requests.
      */
     protected function scrobbleBatch(array $songs): int
     {
+        $this->lastScrobbleStarts = 0;
+        $this->lastScrobbleSeconds = 0;
+        $this->lastScrobbleSongIds = [];
+        $songs = array_values(array_filter($songs, static fn($song): bool =>
+            is_array($song) && (int)($song['id'] ?? 0) > 0
+        ));
+        if ($songs === []) {
+            return 0;
+        }
+
+        $concurrency = max(1, min(16, (int)($this->config['daka_concurrency'] ?? 8)));
         $success = 0;
-        foreach (array_chunk(array_values($songs), 25) as $chunk) {
-            $startLogs = [];
-            $playLogs = [];
-            foreach ($chunk as $song) {
-                $sourceId = $song['sourceId'] ?? 0;
+        foreach (array_chunk($songs, $concurrency, true) as $chunk) {
+            $startRequests = [];
+            $playRequests = [];
+            foreach ($chunk as $index => $song) {
+                $sourceId = (int)($song['sourceId'] ?? 0);
                 $base = [
                     'id' => (int)$song['id'],
                     'type' => 'song',
@@ -569,27 +628,234 @@ class Netease
                     'mainsiteWeb' => '1',
                     'content' => 'id=' . (string)$sourceId,
                 ];
-                $startLogs[] = ['action' => 'startplay', 'json' => $base];
-                $playLogs[] = ['action' => 'play', 'json' => $base + [
-                    'download' => 0,
-                    'end' => 'playend',
-                    'sourceId' => $sourceId,
-                    'time' => max(1, (int)($song['time'] ?? 240)),
-                    'wifi' => 0,
-                    'source' => 'list',
-                ]];
+                $options = ['domain' => 'https://clientlog.music.163.com', 'os' => 'osx'];
+                $startRequests[$index] = [
+                    'uri' => '/api/feedback/weblog',
+                    'data' => ['logs' => $this->jsonEncode([['action' => 'startplay', 'json' => $base]])],
+                    'crypto' => 'eapi',
+                    'options' => $options,
+                ];
+                $playRequests[$index] = [
+                    'uri' => '/api/feedback/weblog',
+                    'data' => ['logs' => $this->jsonEncode([['action' => 'play', 'json' => $base + [
+                        'download' => 0,
+                        'end' => 'playend',
+                        'sourceId' => $sourceId,
+                        'time' => max(1, (int)($song['time'] ?? 240)),
+                        'wifi' => 0,
+                        'source' => 'list',
+                    ]]])],
+                    'crypto' => 'eapi',
+                    'options' => $options,
+                ];
             }
-            $this->requestApi('/api/feedback/weblog', [
-                'logs' => $this->jsonEncode($startLogs),
-            ], 'eapi', ['domain' => 'https://clientlog.music.163.com', 'os' => 'osx']);
-            $play = $this->decodeBody($this->requestApi('/api/feedback/weblog', [
-                'logs' => $this->jsonEncode($playLogs),
-            ], 'eapi', ['domain' => 'https://clientlog.music.163.com', 'os' => 'osx']));
-            if (in_array((int)($play['code'] ?? 0), [200, 250], true)) {
-                $success += count($chunk);
+
+            // Keep each bounded group close to the upstream sequence: all songs
+            // in the group start first, then their matching play-end reports.
+            $startResponses = $this->sdk->requestMany($startRequests, $concurrency);
+            $playResponses = $this->sdk->requestMany($playRequests, $concurrency);
+            foreach ($chunk as $index => $song) {
+                $start = $this->decodeBody($startResponses[$index] ?? []);
+                $play = $this->decodeBody($playResponses[$index] ?? []);
+                if ((int)($start['code'] ?? 0) === 301 || (int)($play['code'] ?? 0) === 301) {
+                    $this->cookiezt = true;
+                }
+                if (in_array((int)($start['code'] ?? 0), [200, 250], true)) {
+                    $this->lastScrobbleStarts++;
+                }
+                if (in_array((int)($play['code'] ?? 0), [200, 250], true)) {
+                    $success++;
+                    $this->lastScrobbleSeconds += max(1, (int)($song['time'] ?? 240));
+                    $this->lastScrobbleSongIds[] = (int)$song['id'];
+                }
             }
         }
         return $success;
+    }
+
+    /** @return array<int,array{id:int,sourceId:int,time:int}> */
+    protected function dakaSongs(string $source, array $history, int $limit = 300): array
+    {
+        $songs = [];
+        if (in_array($source, ['personalized', 'highquality'], true)) {
+            $playlists = $source === 'highquality'
+                ? $this->get_highquality_playlist(50)
+                : $this->personalized(50);
+            $this->appendPlaylistSongs($songs, $playlists, $history, min($limit, 140));
+
+            // Stable official chart playlist IDs: soaring, new songs, original,
+            // and hot songs. They keep the default selection recognizably popular.
+            foreach ([19723756, 3779629, 2884035, 3778678] as $chartPlaylistId) {
+                $chartTarget = min($limit, count($songs) + 20);
+                $this->appendPlaylistSongs(
+                    $songs,
+                    [$chartPlaylistId],
+                    $history,
+                    $chartTarget
+                );
+            }
+
+            // “坏女孩”与“幻听”分别对应徐良、许嵩；薛之谦是用户指定的
+            // 同类热门华语风格。每位歌手设置独立配额，避免某一位占满结果。
+            foreach (['徐良', '许嵩', '薛之谦'] as $artist) {
+                $artistTarget = min($limit, count($songs) + 20);
+                $this->appendSearchSongs(
+                    $songs,
+                    $this->search_songs($artist, 100, 0, $artist),
+                    $history,
+                    $artistTarget
+                );
+            }
+
+            // Use nearby mainstream artists to finish the normal 300-song mix.
+            foreach (['汪苏泷', '周杰伦', '林俊杰', '陈奕迅'] as $artist) {
+                $artistTarget = min($limit, count($songs) + 5);
+                $this->appendSearchSongs(
+                    $songs,
+                    $this->search_songs($artist, 100, 0, $artist),
+                    $history,
+                    $artistTarget
+                );
+            }
+        }
+
+        if (count($songs) < $limit) {
+            $terms = [
+                '华语流行', '网易云热歌', '经典华语', '网络热歌', '流行男声',
+                '流行女声', '伤感情歌', '影视金曲', 'KTV热歌', '国风热歌',
+                '热门翻唱', '青春回忆',
+            ];
+            shuffle($terms);
+            foreach ($terms as $term) {
+                $offsets = [0, 100, 200];
+                shuffle($offsets);
+                $this->appendSearchSongs(
+                    $songs,
+                    $this->search_songs($term, 100, $offsets[0]),
+                    $history,
+                    $limit
+                );
+                if (count($songs) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        if (count($songs) < $limit) {
+            $fallback = array_values(array_unique(array_merge(
+                $this->get_highquality_playlist(50),
+                $this->personalized(50)
+            )));
+            shuffle($fallback);
+            $this->appendPlaylistSongs($songs, $fallback, $history, $limit);
+        }
+
+        return $songs;
+    }
+
+    protected function appendSearchSongs(
+        array &$songs,
+        array $candidates,
+        array $history,
+        int $limit
+    ): void {
+        shuffle($candidates);
+        foreach ($candidates as $song) {
+            $id = (int)($song['id'] ?? 0);
+            if ($id <= 0 || isset($songs[$id]) || isset($history[$id])) {
+                continue;
+            }
+            $songs[$id] = $song;
+            if (count($songs) >= $limit) {
+                return;
+            }
+        }
+    }
+
+    protected function appendPlaylistSongs(
+        array &$songs,
+        array $playlists,
+        array $history,
+        int $limit
+    ): void {
+        shuffle($playlists);
+        foreach ($playlists as $playlistId) {
+            $playlist = $this->playlist_detail($playlistId);
+            $tracks = is_array($playlist['playlist']['tracks'] ?? null)
+                ? $playlist['playlist']['tracks']
+                : [];
+            shuffle($tracks);
+            foreach ($tracks as $song) {
+                $id = (int)($song['id'] ?? 0);
+                if ($id <= 0 || isset($songs[$id]) || isset($history[$id])) {
+                    continue;
+                }
+                $songs[$id] = [
+                    'id' => $id,
+                    'sourceId' => (int)$playlistId,
+                    'time' => max(30, (int)ceil(($song['dt'] ?? 240000) / 1000)),
+                ];
+                if (count($songs) >= $limit) {
+                    return;
+                }
+            }
+        }
+    }
+
+    protected function loadDakaHistory(): array
+    {
+        $path = $this->dakaHistoryPath();
+        if ($path === null || !is_file($path)) {
+            return [];
+        }
+        $decoded = json_decode((string)@file_get_contents($path), true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+        $history = [];
+        foreach ($decoded as $songId) {
+            $id = (int)$songId;
+            if ($id > 0) {
+                $history[$id] = true;
+            }
+        }
+        return $history;
+    }
+
+    protected function rememberDakaSongs(array $songIds): void
+    {
+        $path = $this->dakaHistoryPath();
+        if ($path === null) {
+            return;
+        }
+        $existing = array_keys($this->loadDakaHistory());
+        $merged = array_values(array_unique(array_map('intval', array_merge($existing, $songIds))));
+        if (count($merged) > 30000) {
+            $merged = array_slice($merged, -30000);
+        }
+        @file_put_contents(
+            $path,
+            json_encode($merged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
+            LOCK_EX
+        );
+    }
+
+    protected function dakaHistoryPath(): ?string
+    {
+        if (array_key_exists('daka_history_dir', $this->config)
+            && trim((string)$this->config['daka_history_dir']) === '') {
+            return null;
+        }
+        $configured = trim((string)($this->config['daka_history_dir'] ?? ''));
+        $directory = $configured !== ''
+            ? $configured
+            : (function_exists('runtime_path')
+                ? rtrim((string)runtime_path(), '/\\') . DIRECTORY_SEPARATOR . 'netease-daka'
+                : rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'loopdeck-netease-daka');
+        if (!is_dir($directory) && !@mkdir($directory, 0770, true) && !is_dir($directory)) {
+            return null;
+        }
+        return $directory . DIRECTORY_SEPARATOR . hash('sha256', (string)$this->userId) . '.json';
     }
 
     public function _listen($songid, $times)
@@ -622,7 +888,12 @@ class Netease
         if ($success <= 0) {
             return $this->makeResult(201, '歌曲ID：' . $songId . ' 播放上报失败，请稍后重试');
         }
-        return $this->makeResult(200, '歌曲ID：' . $songId . ' 成功播放' . $success . '次');
+        return $this->makeResult(
+            200,
+            '歌曲ID：' . $songId . ' 成功播放' . $success . '次；云村足迹起播提交'
+            . $this->lastScrobbleStarts . '次，听歌时长提交约'
+            . (int)ceil($this->lastScrobbleSeconds / 60) . '分钟'
+        );
     }
 
     public function _daka_new()
@@ -634,37 +905,34 @@ class Netease
     {
         $before = $this->decodeBody($this->detail($this->userId));
         $listenSongs = (int)($before['listenSongs'] ?? 0);
-        $source = $this->config['daka_music_from'] ?? 'personalized';
-        $playlists = $source === 'highquality'
-            ? $this->get_highquality_playlist(50)
-            : $this->personalized(50);
-        if (!$playlists) {
-            $playlists = $this->get_search_playlist2('冷门', 1000, 50);
+        if ((int)($before['code'] ?? 0) === 301) {
+            $this->cookiezt = true;
+            return $this->makeResult(201, '登录状态已失效');
         }
-        if (!$playlists) {
-            return $this->makeResult(201, '未获取到可用于打卡的歌单');
+        $source = (string)($this->config['daka_music_from'] ?? 'highquality');
+        $songs = $this->dakaSongs($source, $this->loadDakaHistory(), 300);
+        if ($songs === []) {
+            return $this->makeResult(201, '未获取到可用于打卡的新歌曲');
         }
 
-        shuffle($playlists);
-        $songs = [];
-        foreach ($playlists as $playlistId) {
-            $playlist = $this->playlist_detail($playlistId);
-            foreach ($playlist['playlist']['tracks'] ?? [] as $song) {
-                $id = $song['id'] ?? null;
-                if ($id !== null && !isset($songs[$id])) {
-                    $songs[$id] = [
-                        'id' => $id,
-                        'sourceId' => $playlistId,
-                        'time' => (int)ceil(($song['dt'] ?? 240000) / 1000),
-                    ];
-                }
-                if (count($songs) >= 300) {
-                    break 2;
-                }
-            }
-        }
         $success = $this->scrobbleBatch($songs);
-        return $this->makeResult(200, '累计听歌' . $listenSongs . '首，本次打卡' . $success . '首');
+        if ($success > 0) {
+            $this->rememberDakaSongs($this->lastScrobbleSongIds);
+        }
+        $after = $this->decodeBody($this->detail($this->userId));
+        $current = (int)($after['listenSongs'] ?? $listenSongs);
+        $delta = max(0, $current - $listenSongs);
+        $submitted = count($songs);
+        $prefix = $delta > 0
+            ? '当前累计听歌' . $current . '首（本次查询较执行前+' . $delta . '）'
+            : '执行前累计听歌' . $listenSongs . '首';
+        $message = $prefix . '；已按官方单曲协议提交' . $success . '/' . $submitted . '首';
+        $message .= '；云村足迹起播提交' . $this->lastScrobbleStarts . '/' . $submitted . '首';
+        $message .= '，听歌时长提交约' . (int)ceil($this->lastScrobbleSeconds / 60) . '分钟';
+        if ($delta === 0) {
+            $message .= '；网易云累计统计为异步更新，请稍后查看';
+        }
+        return $this->makeResult($success > 0 ? 200 : 201, $message);
     }
 
     public function evaluate()

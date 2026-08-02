@@ -271,6 +271,36 @@ final class Client
     }
 
     /** @return array<string,mixed> */
+    public function experienceLog(): array
+    {
+        return $this->requestJson('GET', $this->api('/x/member/web/exp/log'), [
+            'query' => [
+                'jsonp' => 'jsonp',
+                'web_location' => '333.33',
+            ],
+            'referer' => 'https://account.bilibili.com/account/record',
+        ]);
+    }
+
+    /** @return array<string,mixed> */
+    public function vipPrivilege(): array
+    {
+        return $this->requestJson('GET', $this->api('/x/vip/privilege/my'), [
+            'referer' => 'https://account.bilibili.com/account/big/myPackage',
+        ]);
+    }
+
+    /** @return array<string,mixed> */
+    public function claimVipExperience(): array
+    {
+        return $this->requestJson('POST', $this->api('/x/vip/experience/add'), [
+            'form_params' => ['csrf' => $this->csrf()],
+            'origin' => 'https://account.bilibili.com',
+            'referer' => 'https://account.bilibili.com/account/big/myPackage',
+        ]);
+    }
+
+    /** @return array<string,mixed> */
     public function popular(int $page = 1, int $pageSize = 20): array
     {
         return $this->requestJson('GET', $this->api('/x/web-interface/popular'), [

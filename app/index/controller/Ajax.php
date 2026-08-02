@@ -129,7 +129,7 @@ class Ajax extends Common
 		}
 
 		if ($act === "delete") {
-			$deleted = Accounts::delByUserId($userId);
+			$deleted = Accounts::delByUserId($type, $userId);
 			Jobs::where("type", "=", $type)->where("user_id", "=", $userId)->where("uid", "=", Session::get("user.uid"))->delete();
 			TaskLogs::deleteLogs($type, $userId);
 			return $deleted ? resultJson(1, "删除成功") : resultJson(0, "删除失败");

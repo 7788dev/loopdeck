@@ -274,6 +274,111 @@ class Bilibili
         ];
     }
 
+    public function dailyExperience(): array
+    {
+        if ($this->authenticatedNav() === null) {
+            return $this->invalidAccount();
+        }
+        $before = $this->client->dailyReward();
+        if (($before['code'] ?? -1) !== 0) {
+            return $this->failure($before, '主站每日经验：任务状态读取失败');
+        }
+
+        $messages = [];
+        $success = true;
+        $beforeData = is_array($before['data'] ?? null) ? $before['data'] : [];
+        if (empty($beforeData['watch'])) {
+            $watch = $this->watchAid();
+            $success = $success && (int)($watch['code'] ?? 0) === 1;
+            $messages[] = (string)($watch['message'] ?? '观看任务执行失败');
+        }
+        if (empty($beforeData['share'])) {
+            $share = $this->shareAid();
+            $success = $success && (int)($share['code'] ?? 0) === 1;
+            $messages[] = (string)($share['message'] ?? '分享任务执行失败');
+        }
+
+        $after = $this->client->dailyReward();
+        $afterData = ($after['code'] ?? -1) === 0 && is_array($after['data'] ?? null)
+            ? $after['data']
+            : $beforeData;
+        $status = static fn(bool $done): string => $done ? '完成' : '已上报，状态待同步';
+        $messages[] = '登录' . $status(!empty($afterData['login']));
+        $messages[] = '观看' . $status(!empty($afterData['watch']));
+        $messages[] = '分享' . $status(!empty($afterData['share']));
+
+        $coin = $this->client->todayCoinExp();
+        if (($coin['code'] ?? -1) === 0) {
+            $messages[] = '投币经验' . max(0, (int)($coin['data'] ?? 0)) . '/50';
+        } else {
+            $messages[] = '投币经验读取失败';
+        }
+
+        $log = $this->client->experienceLog();
+        if (($log['code'] ?? -1) === 0) {
+            $today = date('Y-m-d');
+            $todayExperience = 0;
+            foreach ($log['data']['list'] ?? [] as $entry) {
+                if (is_array($entry) && str_starts_with((string)($entry['time'] ?? ''), $today)) {
+                    $todayExperience += (int)($entry['delta'] ?? 0);
+                }
+            }
+            $messages[] = '经验日志今日+' . max(0, $todayExperience);
+        }
+
+        return [
+            'code' => $success ? 1 : 0,
+            'message' => '主站每日经验：' . implode('；', array_values(array_unique(array_filter($messages)))),
+        ];
+    }
+
+    public function vipExperience(): array
+    {
+        if ($this->authenticatedNav() === null) {
+            return $this->invalidAccount();
+        }
+        $privilege = $this->client->vipPrivilege();
+        if (($privilege['code'] ?? -1) !== 0) {
+            if ($this->client->isAuthenticationFailure($privilege)) {
+                $this->cookiezt = true;
+            }
+            return $this->failure($privilege, '大会员每日经验：权益状态读取失败');
+        }
+
+        $data = is_array($privilege['data'] ?? null) ? $privilege['data'] : [];
+        $activeVip = !empty($data['is_vip']) || (int)($data['vip_status'] ?? 0) === 1;
+        if (!$activeVip) {
+            return ['code' => 1, 'message' => '大会员每日经验：当前账号不是有效大会员，已安全跳过'];
+        }
+
+        $dailyBenefit = null;
+        foreach ($data['list'] ?? [] as $benefit) {
+            if (is_array($benefit) && (int)($benefit['type'] ?? 0) === 9) {
+                $dailyBenefit = $benefit;
+                break;
+            }
+        }
+        if ((int)($dailyBenefit['state'] ?? 0) === 1) {
+            return ['code' => 1, 'message' => '大会员每日经验：今日已经领取'];
+        }
+        if ((int)($dailyBenefit['state'] ?? 0) === 2) {
+            $watch = $this->watchAid();
+            if ((int)($watch['code'] ?? 0) !== 1) {
+                return ['code' => 0, 'message' => '大会员每日经验：前置观看任务失败；' . (string)($watch['message'] ?? '')];
+            }
+        }
+
+        $claim = $this->client->claimVipExperience();
+        $code = (int)($claim['code'] ?? -1);
+        if ($code === 0) {
+            return ['code' => 1, 'message' => '大会员每日经验：领取成功'];
+        }
+        if ($code === 69198) {
+            return ['code' => 1, 'message' => '大会员每日经验：今日已经领取'];
+        }
+        return $this->failure($claim, '大会员每日经验：领取失败');
+    }
+
     public function manga_sign(): array
     {
         if ($this->authenticatedNav() === null) {

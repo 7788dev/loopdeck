@@ -56,7 +56,7 @@ class Epic extends Common
                 $nextExecute = $friday_stmp;
             }
             $nextExecute = isset($timing) ? strtotime($timing, $nextExecute) : $nextExecute + 600; // 加上挂机时间 没设置00：10通知
-            Jobs::updateJobInfo($job['do'], $job['user_id'], [ // 更新任务执行信息
+            Jobs::updateJobInfo('epic', $job['do'], $job['user_id'], [ // 更新任务执行信息
                 'lastExecute' => date("Y-m-d H:i:s"),
                 'nextExecute' => $nextExecute,
             ]);

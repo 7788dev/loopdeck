@@ -264,7 +264,7 @@ class Console
                 ]);
                 break;
             case "info" :
-                $account = Accounts::findByUserId($user_id);
+                $account = Accounts::findByUserId('netease', $user_id);
                 if ($account) {
                     Jobs::refreshJob('netease', $user_id);
                 }
@@ -318,7 +318,7 @@ class Console
                 return view("console/heybox/list", ["list" => Accounts::getMyList("heybox")]);
                 break;
             case "info" :
-                return view("console/heybox/info", ["data" => Accounts::findByUserId($uid)]);
+                return view("console/heybox/info", ["data" => Accounts::findByUserId('heybox', $uid)]);
                 break;
         }
     }

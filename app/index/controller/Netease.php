@@ -179,10 +179,10 @@ class Netease
     private function delete()
     {
         $userId = Request::post('user_id');
-        if (!$userId || !Accounts::findByUserId($userId)) {
+        if (!$userId || !Accounts::findByUserId('netease', $userId)) {
             return resultJson(0, '账号不存在或无权操作');
         }
-        $accountDeleted = Accounts::delByUserId($userId);
+        $accountDeleted = Accounts::delByUserId('netease', $userId);
         $jobsDeleted = Jobs::delJob('netease', $userId);
         $logsDeleted = TaskLogs::deleteLogs('netease', $userId);
         return $accountDeleted && $jobsDeleted && $logsDeleted
@@ -194,7 +194,7 @@ class Netease
     {
         $data = Request::post();
         $userId = $data['user_id'] ?? null;
-        if (!$userId || !Accounts::findByUserId($userId)) {
+        if (!$userId || !Accounts::findByUserId('netease', $userId)) {
             return resultJson(0, '账号不存在或无权操作');
         }
 
@@ -204,7 +204,7 @@ class Netease
                 if (Tasks::checkTaskPower($data['do'] ?? '', 'netease') && empty(Session::get('user.vip_start'))) {
                     return resultJson(-1, '您需要开通VIP会员才可以使用该功能');
                 }
-                return Jobs::switchState($userId, $data['do'] ?? '')
+                return Jobs::switchState('netease', $userId, $data['do'] ?? '')
                     ? resultJson(1, '修改成功')
                     : resultJson(0, '修改失败');
 
@@ -241,7 +241,7 @@ class Netease
     private function logs()
     {
         $userId = Request::post('user_id');
-        if (!$userId || !Accounts::findByUserId($userId)) {
+        if (!$userId || !Accounts::findByUserId('netease', $userId)) {
             return resultJson(0, '账号不存在或无权操作');
         }
         return TaskLogs::searchLogs('netease', $userId);
@@ -250,7 +250,7 @@ class Netease
     private function reExecute()
     {
         $userId = Request::post('user_id');
-        $account = $userId ? Accounts::findByUserId($userId) : false;
+        $account = $userId ? Accounts::findByUserId('netease', $userId) : false;
         if (!$account) {
             return resultJson(0, '非法操作');
         }

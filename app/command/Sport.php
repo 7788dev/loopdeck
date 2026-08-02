@@ -47,8 +47,8 @@ class Sport extends Command
             }
             $account = Accounts::where('type', '=', 'sport')->where('user_id', '=', $job['user_id'])->find();
             if ($account == null) {
-                Accounts::delById($job['user_id']);
-                Jobs::delJob('netease',$job['user_id']);
+                Accounts::delById('sport', $job['user_id']);
+                Jobs::delJob('sport',$job['user_id']);
                 continue;
             }
             if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
@@ -71,7 +71,7 @@ class Sport extends Command
             }
             Info::where('sysid','=','100')->inc('times',1)->update();
             Info::where('sysid','=','100')->update(['last' => date('Y-m-d H:i:s')]);
-            Jobs::updateJobInfo($job['do'], $job['user_id'], [ // 更新任务执行信息
+            Jobs::updateJobInfo('sport', $job['do'], $job['user_id'], [ // 更新任务执行信息
                 'lastExecute' => date("Y-m-d H:i:s"),
                 'nextExecute' => AutomaticSchedule::nextExecution(
                     'sport',

@@ -8,6 +8,24 @@ use netease\Netease;
 use netease\sdk\Client;
 use netease\sdk\TransportInterface;
 
+final class InspectableNetease extends Netease
+{
+    public function scrobbleStarts(): int
+    {
+        return (int)$this->lastScrobbleStarts;
+    }
+
+    public function scrobbleSeconds(): int
+    {
+        return (int)$this->lastScrobbleSeconds;
+    }
+
+    public function scrobbleSongIds(): array
+    {
+        return $this->lastScrobbleSongIds;
+    }
+}
+
 final class NeteaseListenRecordingTransport implements TransportInterface
 {
     public array $requests = [];
@@ -42,6 +60,8 @@ $transport = new NeteaseListenRecordingTransport([
     ['body' => '{"code":200,"songs":[{"id":347230,"dt":180000}]}'],
     ['body' => '{"code":200}'],
     ['body' => '{"code":200}'],
+    ['body' => '{"code":200}'],
+    ['body' => '{"code":200}'],
 ]);
 $sdk = new Client([
     'user_id' => '1',
@@ -51,23 +71,29 @@ $sdk = new Client([
     'auto_anonymous_token' => false,
     'cache_dir' => '',
 ], $transport);
-$netease = new Netease('1', 'csrf-token', 'music-token', [
+$netease = new InspectableNetease('1', 'csrf-token', 'music-token', [
     'songid' => '347230',
     'times' => 2,
 ], $sdk);
 $result = $netease->listen();
 listenToolCheck((int)($result['code'] ?? 0) === 200, 'Listening tool did not report success');
 listenToolCheck(str_contains((string)$result['message'], '成功播放2次'), 'Listening tool returned the wrong success count');
+listenToolCheck(str_contains((string)$result['message'], '听歌时长提交约6分钟'), 'Listening tool did not report submitted listening minutes');
+listenToolCheck($netease->scrobbleStarts() === 2, 'Listening tool did not submit recent-play footprints');
+listenToolCheck($netease->scrobbleSeconds() === 360, 'Listening tool did not submit the real song durations');
+listenToolCheck($netease->scrobbleSongIds() === [347230, 347230], 'Listening tool did not retain accepted play IDs');
 $urls = array_column($transport->requests, 'url');
-listenToolCheck(count($urls) === 3, 'Listening tool sent an unexpected request count');
+listenToolCheck(count($urls) === 5, 'Listening tool sent an unexpected request count');
 listenToolCheck(str_contains($urls[0], '/weapi/v3/song/detail'), 'Listening tool did not resolve the song duration');
 listenToolCheck(
-    count(array_filter($urls, static fn(string $url): bool => str_contains($url, 'clientlog.music.163.com/eapi/feedback/weblog'))) === 2,
-    'Listening tool did not use the upstream startplay/play EAPI endpoint twice'
+    count(array_filter($urls, static fn(string $url): bool => str_contains($url, 'clientlog.music.163.com/eapi/feedback/weblog'))) === 4,
+    'Listening tool did not send one upstream startplay/play pair per play'
 );
 
 $failureTransport = new NeteaseListenRecordingTransport([
     ['body' => '{"code":200,"songs":[{"id":347230,"dt":180000}]}'],
+    ['body' => '{"code":500}'],
+    ['body' => '{"code":500}'],
     ['body' => '{"code":500}'],
     ['body' => '{"code":500}'],
 ]);

@@ -20,6 +20,8 @@ final class BilibiliTaskExecutor
         'watchaid',
         'shareaid',
         'coinadd',
+        'dailyexperience',
+        'vipexperience',
     ];
 
     public const OFFLINE_TASKS = [

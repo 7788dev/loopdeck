@@ -5,7 +5,12 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 use netease\Netease;
 use netease\sdk\Client;
 use netease\sdk\Crypto;
+use netease\sdk\GuzzleTransport;
 use netease\sdk\TransportInterface;
+use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 
 final class RecordingTransport implements TransportInterface
 {
@@ -189,6 +194,37 @@ $decryptedResponse = $encryptedClient->request('/api/test', [], 'eapi', [
 ]);
 $decryptedBody = json_decode($decryptedResponse['body'], true);
 check(($decryptedBody['encrypted'] ?? false) === true, 'Encrypted EAPI response was not decrypted');
+
+$manyTransport = new RecordingTransport([
+    ['body' => '{"code":200,"request":1}'],
+    ['body' => '{"code":200,"request":2}'],
+]);
+$manyClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+], $manyTransport);
+$manyResponses = $manyClient->requestMany([
+    'first' => ['uri' => '/api/test/one', 'data' => ['id' => 1]],
+    'second' => ['uri' => '/api/test/two', 'data' => ['id' => 2]],
+]);
+check(count($manyTransport->requests) === 2, 'Multi-request fallback did not keep requests independent');
+check((json_decode($manyResponses['first']['body'], true)['request'] ?? 0) === 1, 'Multi-request response order changed');
+check((json_decode($manyResponses['second']['body'], true)['request'] ?? 0) === 2, 'Multi-request response keys changed');
+
+$poolMock = new MockHandler([
+    new Response(200, [], '{"code":200,"request":"first"}'),
+    new Response(200, [], '{"code":200,"request":"second"}'),
+]);
+$poolClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+], new GuzzleTransport(new GuzzleClient(['handler' => HandlerStack::create($poolMock)])));
+$poolResponses = $poolClient->requestMany([
+    'first' => ['uri' => '/api/test/first'],
+    'second' => ['uri' => '/api/test/second'],
+], 2);
+check((json_decode($poolResponses['first']['body'], true)['request'] ?? '') === 'first', 'Concurrent response lost its first key');
+check((json_decode($poolResponses['second']['body'], true)['request'] ?? '') === 'second', 'Concurrent response lost its second key');
 
 $proxyTransport = new RecordingTransport();
 $proxyClient = new Client([], [

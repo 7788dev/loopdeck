@@ -245,6 +245,9 @@ $video = ['aid' => 170001, 'bvid' => 'BV17x411w7KC', 'cid' => 279786, 'duration'
 $protocolClient->nav();
 $protocolClient->dailyReward();
 $protocolClient->todayCoinExp();
+$protocolClient->experienceLog();
+$protocolClient->vipPrivilege();
+$protocolClient->claimVipExperience();
 $protocolClient->popular();
 $protocolClient->dynamicFeed();
 $protocolClient->videoDetail(170001);
@@ -272,6 +275,9 @@ $expectations = [
     '/x/web-interface/nav' => 'GET',
     '/x/member/web/exp/reward' => 'GET',
     '/x/web-interface/coin/today/exp' => 'GET',
+    '/x/member/web/exp/log' => 'GET',
+    '/x/vip/privilege/my' => 'GET',
+    '/x/vip/experience/add' => 'POST',
     '/x/web-interface/popular' => 'GET',
     '/x/polymer/web-dynamic/v1/feed/all' => 'GET',
     '/x/web-interface/wbi/view/detail' => 'GET',
@@ -304,6 +310,8 @@ $detailRequest = biliRequestByPath($protocolTransport->requests, '/x/web-interfa
 biliCheck(isset($detailRequest['options']['query']['w_rid'], $detailRequest['options']['query']['wts']), 'WBI detail request is unsigned');
 $historyRequest = biliRequestByPath($protocolTransport->requests, '/x/v2/history/report');
 biliCheck(($historyRequest['options']['form_params']['csrf'] ?? '') === 'csrf', 'History report is missing CSRF');
+$vipExperienceRequest = biliRequestByPath($protocolTransport->requests, '/x/vip/experience/add');
+biliCheck(($vipExperienceRequest['options']['form_params']['csrf'] ?? '') === 'csrf', 'VIP experience claim is missing CSRF');
 $mangaRequest = biliRequestByPath($protocolTransport->requests, '/twirp/activity.v1.Activity/ClockIn');
 biliCheck(($mangaRequest['options']['form_params']['platform'] ?? '') === 'android', 'Manga clock-in is missing platform=android');
 $legacyRequest = biliRequestByPath($protocolTransport->requests, '/AppBag/sendDaily');

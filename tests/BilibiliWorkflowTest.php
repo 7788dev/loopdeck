@@ -237,6 +237,44 @@ biliWorkflowCheck($coinDoneResult['code'] === 1, 'configured daily coin target w
 biliWorkflowCheck(str_contains($coinDoneResult['message'], '已达到配置数量'), 'configured daily coin target message is unclear');
 biliWorkflowCheck(!$coinDoneTransport->called('/x/web-interface/coin/add'), 'coinadd repeated spending after reaching configured daily target');
 
+[$dailyExperience, $dailyExperienceTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav()],
+    '/x/member/web/exp/reward' => [
+        ['code' => 0, 'data' => ['login' => true, 'watch' => true, 'share' => true, 'coins' => 20]],
+        ['code' => 0, 'data' => ['login' => true, 'watch' => true, 'share' => true, 'coins' => 20]],
+    ],
+    '/x/web-interface/coin/today/exp' => [['code' => 0, 'data' => 20]],
+    '/x/member/web/exp/log' => [[
+        'code' => 0,
+        'data' => ['list' => [['delta' => 15, 'time' => date('Y-m-d') . ' 08:00:00']]],
+    ]],
+]);
+$dailyExperienceResult = $dailyExperience->dailyexperience();
+biliWorkflowCheck($dailyExperienceResult['code'] === 1, 'daily experience workflow failed');
+biliWorkflowCheck(str_contains($dailyExperienceResult['message'], '投币经验20/50'), 'daily experience did not report coin experience');
+biliWorkflowCheck($dailyExperienceTransport->called('/x/member/web/exp/log'), 'daily experience did not verify the experience log');
+
+[$nonVipExperience, $nonVipExperienceTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav()],
+    '/x/vip/privilege/my' => [['code' => 0, 'data' => ['vip_status' => 0, 'is_vip' => false, 'list' => []]]],
+]);
+$nonVipExperienceResult = $nonVipExperience->vipexperience();
+biliWorkflowCheck($nonVipExperienceResult['code'] === 1, 'non-VIP account was treated as a task failure');
+biliWorkflowCheck(str_contains($nonVipExperienceResult['message'], '安全跳过'), 'non-VIP skip message is unclear');
+biliWorkflowCheck(!$nonVipExperienceTransport->called('/x/vip/experience/add'), 'non-VIP account attempted to claim VIP experience');
+
+[$vipExperience, $vipExperienceTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav()],
+    '/x/vip/privilege/my' => [[
+        'code' => 0,
+        'data' => ['vip_status' => 1, 'is_vip' => true, 'list' => [['type' => 9, 'state' => 0]]],
+    ]],
+    '/x/vip/experience/add' => [['code' => 0, 'data' => ['is_grant' => true]]],
+]);
+$vipExperienceResult = $vipExperience->vipexperience();
+biliWorkflowCheck($vipExperienceResult['code'] === 1, 'VIP experience claim workflow failed');
+biliWorkflowCheck($vipExperienceTransport->called('/x/vip/experience/add'), 'VIP experience claim endpoint was not used');
+
 [$globalRoom, $globalRoomTransport] = biliWorkflow([]);
 biliWorkflowCheck($globalRoom->globalroom()['code'] === 1, 'globalroom workflow failed');
 biliWorkflowCheck($globalRoomTransport->requests === [], 'globalroom unexpectedly performed a network request');

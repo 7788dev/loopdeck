@@ -86,19 +86,25 @@ class Accounts extends Model
         return false;
     }
 
-    public static function findByUserId($user_id)
+    public static function findByUserId($type, $user_id)
     {
         $self = new static();
-        if ($result = $self->where('user_id', $user_id)->where('uid', Session::get('user.uid'))->find()) {
+        if ($result = $self->where('type', $type)
+            ->where('user_id', $user_id)
+            ->where('uid', Session::get('user.uid'))
+            ->find()) {
             return $result;
         }
         return false;
     }
 
-    public static function delByUserId($user_id)
+    public static function delByUserId($type, $user_id)
     {
         $self = new static();
-        if($result = $self->where('user_id', $user_id)->where('uid', Session::get('user.uid'))->delete()){
+        if($result = $self->where('type', $type)
+            ->where('user_id', $user_id)
+            ->where('uid', Session::get('user.uid'))
+            ->delete()){
             return $result;
         }
         return false;
@@ -127,10 +133,10 @@ class Accounts extends Model
         return $result;
     }
     
-    public static function delById($id)
+    public static function delById($type, $id)
     {
         $self = new static();
-        if($result = $self->where('user_id', $id)->delete()){
+        if($result = $self->where('type', $type)->where('user_id', $id)->delete()){
             return $result;
         }
         return false;

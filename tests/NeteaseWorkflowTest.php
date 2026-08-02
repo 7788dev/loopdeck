@@ -205,6 +205,7 @@ $sdk = new Client([
 ], $transport);
 $netease = new Netease(1, 'csrf', 'music-u', [
     'daka_music_from' => 'personalized',
+    'daka_history_dir' => '',
     'musician_follows_id' => 2,
     'songid' => 101,
     'times' => 2,
@@ -234,6 +235,14 @@ foreach ($results as $name => $result) {
     workflowCheck(is_array($result), $name . ' did not return an array');
     workflowCheck((int)($result['code'] ?? 0) === 200, $name . ' did not complete successfully');
 }
+workflowCheck(
+    str_contains((string)($results['daka_new']['message'] ?? ''), '云村足迹起播提交'),
+    'Daily 300-song workflow did not report recent-play footprint submissions'
+);
+workflowCheck(
+    str_contains((string)($results['daka_new']['message'] ?? ''), '听歌时长提交约'),
+    'Daily 300-song workflow did not report listening-duration submissions'
+);
 
 $urls = array_column($transport->requests, 'url');
 workflowCheck(

@@ -139,24 +139,74 @@ final class Client
         try {
             $prepared = $this->prepare($uri, $data, $crypto, $options);
             $response = $this->transport->request('POST', $prepared['url'], $prepared['options']);
-            $this->captureXeapiSession($response['headers'] ?? []);
-            $body = (string)($response['body'] ?? '');
-
-            if ($prepared['crypto'] === 'xeapi') {
-                $body = $this->jsonEncode($this->crypto->decryptXeapiResponse($body));
-            } elseif ($prepared['encrypted_response']) {
-                $body = $this->jsonEncode($this->crypto->decryptEapiResponse($body));
-            }
-
-            return [
-                'header' => (string)($response['header'] ?? ''),
-                'body' => $body,
-                'status' => (int)($response['status'] ?? 0),
-                'set_cookie' => is_array($response['set_cookie'] ?? null) ? $response['set_cookie'] : [],
-            ];
+            return $this->normalizeResponse($prepared, $response);
         } catch (Throwable $exception) {
             return $this->errorResponse($exception->getMessage());
         }
+    }
+
+    /**
+     * Send multiple independent API requests. Guzzle-backed clients use a bounded
+     * pool; custom transports retain a deterministic sequential fallback.
+     *
+     * @param array<int|string,array{uri:string,data?:array,crypto?:string,options?:array}> $requests
+     * @return array<int|string,array{header:string,body:string,status:int,set_cookie:array<int,string>}>
+     */
+    public function requestMany(array $requests, int $concurrency = 8): array
+    {
+        $prepared = [];
+        $transportRequests = [];
+        $results = [];
+
+        foreach ($requests as $key => $request) {
+            try {
+                $prepared[$key] = $this->prepare(
+                    (string)($request['uri'] ?? ''),
+                    is_array($request['data'] ?? null) ? $request['data'] : [],
+                    (string)($request['crypto'] ?? 'eapi'),
+                    is_array($request['options'] ?? null) ? $request['options'] : []
+                );
+                $transportRequests[$key] = [
+                    'method' => 'POST',
+                    'url' => $prepared[$key]['url'],
+                    'options' => $prepared[$key]['options'],
+                ];
+            } catch (Throwable $exception) {
+                $results[$key] = $this->errorResponse($exception->getMessage());
+            }
+        }
+
+        if ($transportRequests !== []) {
+            if (method_exists($this->transport, 'requestMany')) {
+                $responses = $this->transport->requestMany($transportRequests, $concurrency);
+            } else {
+                $responses = [];
+                foreach ($transportRequests as $key => $request) {
+                    $responses[$key] = $this->transport->request(
+                        $request['method'],
+                        $request['url'],
+                        $request['options']
+                    );
+                }
+            }
+
+            foreach ($transportRequests as $key => $_request) {
+                try {
+                    $results[$key] = $this->normalizeResponse(
+                        $prepared[$key],
+                        is_array($responses[$key] ?? null) ? $responses[$key] : []
+                    );
+                } catch (Throwable $exception) {
+                    $results[$key] = $this->errorResponse($exception->getMessage());
+                }
+            }
+        }
+
+        $ordered = [];
+        foreach ($requests as $key => $_request) {
+            $ordered[$key] = $results[$key] ?? $this->errorResponse('Request did not complete');
+        }
+        return $ordered;
     }
 
     /**
@@ -273,6 +323,25 @@ final class Client
             'crypto' => $crypto,
             'encrypted_response' => in_array($crypto, ['eapi', 'weapi'], true) && $data['e_r'] === true,
             'options' => $requestOptions,
+        ];
+    }
+
+    private function normalizeResponse(array $prepared, array $response): array
+    {
+        $this->captureXeapiSession($response['headers'] ?? []);
+        $body = (string)($response['body'] ?? '');
+
+        if (($prepared['crypto'] ?? '') === 'xeapi') {
+            $body = $this->jsonEncode($this->crypto->decryptXeapiResponse($body));
+        } elseif (!empty($prepared['encrypted_response'])) {
+            $body = $this->jsonEncode($this->crypto->decryptEapiResponse($body));
+        }
+
+        return [
+            'header' => (string)($response['header'] ?? ''),
+            'body' => $body,
+            'status' => (int)($response['status'] ?? 0),
+            'set_cookie' => is_array($response['set_cookie'] ?? null) ? $response['set_cookie'] : [],
         ];
     }
 

@@ -250,10 +250,11 @@ class Jobs extends Model
      * @throws ModelNotFoundException
      * @author BadCen
      */
-    public static function switchState($user_id, $do)
+    public static function switchState($type, $user_id, $do)
     {
         $self = new static();
-        $sql = $self->where('user_id', $user_id)
+        $sql = $self->where('type', $type)
+            ->where('user_id', $user_id)
             ->where('do', $do)
             ->where('uid', Session::get('user.uid'));
         if ($ret = $sql->find()) {
@@ -328,10 +329,10 @@ class Jobs extends Model
      * @return Jobs|false
      * @author BadCen
      */
-    public static function updateJobInfo($do, $user_id, $data = [])
+    public static function updateJobInfo($type, $do, $user_id, $data = [])
     {
         $self = new static();
-        if ($result = $self->where(['do' => $do, 'user_id' => $user_id])->update($data)) {
+        if ($result = $self->where(['type' => $type, 'do' => $do, 'user_id' => $user_id])->update($data)) {
             return $result;
         }
         return false;

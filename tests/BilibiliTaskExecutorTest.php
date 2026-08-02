@@ -26,6 +26,16 @@ final class BilibiliTaskExecutorFake
         $this->cookiezt = true;
         return ['code' => 0, 'message' => '账号已失效'];
     }
+
+    public function dailyexperience(): array
+    {
+        return ['code' => 1, 'message' => '主站每日经验已执行'];
+    }
+
+    public function vipexperience(): array
+    {
+        return ['code' => 1, 'message' => '大会员每日经验已执行'];
+    }
 }
 
 function biliExecutorCheck(bool $condition, string $message): void
@@ -45,6 +55,8 @@ $expectedTasks = [
     'watchaid',
     'shareaid',
     'coinadd',
+    'dailyexperience',
+    'vipexperience',
 ];
 biliExecutorCheck(BilibiliTaskExecutor::TASKS === $expectedTasks, 'task allowlist changed unexpectedly');
 biliExecutorCheck(!BilibiliTaskExecutor::supports('globalroom'), 'globalroom must never be executable');
@@ -116,6 +128,8 @@ biliExecutorCheck($invalidAccount['account_invalid'], 'SDK account invalid state
 $cronSource = file_get_contents(dirname(__DIR__) . '/app/cron/controller/Bilibili.php');
 $taskSource = file_get_contents(dirname(__DIR__) . '/app/cron/controller/Task.php');
 $jobsSource = file_get_contents(dirname(__DIR__) . '/app/index/model/Jobs.php');
+$tasksModelSource = file_get_contents(dirname(__DIR__) . '/app/index/model/Tasks.php');
+$installSql = file_get_contents(dirname(__DIR__) . '/app/install/install.sql');
 foreach (['mid_md5', 'token', 'csrf', 'access_key'] as $credential) {
     biliExecutorCheck(
         !preg_match('/cron\/bilibili\/[^\r\n]*' . preg_quote($credential, '/') . '/', (string)$cronSource),
@@ -131,5 +145,9 @@ biliExecutorCheck(
     substr_count((string)$jobsSource, 'BilibiliTaskExecutor::offlineReason') >= 3,
     'job creation or account refresh can re-enable an offline Bilibili task'
 );
+biliExecutorCheck(str_contains((string)$tasksModelSource, "'execute_name' => 'dailyexperience'"), 'existing installs are missing the daily experience task');
+biliExecutorCheck(str_contains((string)$tasksModelSource, "'execute_name' => 'vipexperience'"), 'existing installs are missing the VIP experience task');
+biliExecutorCheck(str_contains((string)$installSql, "'dailyexperience'"), 'fresh installs are missing the daily experience task');
+biliExecutorCheck(str_contains((string)$installSql, "'vipexperience'"), 'fresh installs are missing the VIP experience task');
 
 echo "Bilibili task executor tests passed\n";

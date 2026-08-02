@@ -275,7 +275,7 @@ class Bilibili
             if ((int)$task['vip'] === 1 && empty(Session::get('user.vip_start'))) {
                 return resultJson(-1, '您需要开通VIP会员才可以使用该功能');
             }
-            return Jobs::switchState($userId, $do)
+            return Jobs::switchState('bilibili', $userId, $do)
                 ? resultJson(1, '修改成功')
                 : resultJson(0, '修改失败');
         }

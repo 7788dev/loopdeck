@@ -282,12 +282,16 @@ class Task extends Common
         $type = (string)($job['type'] ?? '');
         $userId = trim((string)($job['user_id'] ?? ''));
         $taskName = trim((string)($job['do'] ?? ''));
+        $scheduledAt = (int)($job['nextExecute'] ?? 0);
         $accountKey = $this->accountKey($type, $uid, $userId);
 
         try {
             if ($jobId <= 0 || $uid <= 0 || $userId === '' || !$this->supports($type, $taskName)) {
                 $this->disableJob($jobId, $type, $userId, $taskName, '任务数据不完整或功能已停用');
                 $summary['disabled']++;
+                return;
+            }
+            if (!Jobs::claimDueJob($jobId, $scheduledAt)) {
                 return;
             }
             if (isset($this->suppressedAccounts[$accountKey])) {

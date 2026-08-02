@@ -36,6 +36,9 @@ class Bilibili extends Common
             ->select();
 
         foreach ($jobs as $job) {
+            if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) {
+                continue;
+            }
             $userId = (string)$job['user_id'];
             $user = Users::where('uid', $job['uid'])->find();
             $account = Accounts::where('type', 'bilibili')

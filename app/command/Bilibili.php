@@ -46,6 +46,9 @@ class Bilibili extends Command
         foreach ($jobs as $job) {
             $userId = (string)$job['user_id'];
             $taskName = (string)$job['do'];
+            if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) {
+                continue;
+            }
             if (isset($vipExpiredAccounts[$userId])) {
                 continue;
             }

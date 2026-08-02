@@ -32,10 +32,12 @@ class Netease extends Command
     {
         $interval = trim($input->getArgument('interval'));
         $vip_expired_userIds = [];
+        $executed = 0;
         $jobs = Jobs::where([['type', '=', 'netease'], ['state', '=', 1], ['nextExecute', '>', 0], ['nextExecute', '<=', time()]])
             ->limit((int)$interval)
             ->select();
         foreach ($jobs as $job) {
+            if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) continue;
             if (in_array($job['user_id'], $vip_expired_userIds)) continue;
             $user = Users::where('uid' , '=' , $job['uid'])->find();
             $task = Tasks::where('type', '=', 'netease')->where('execute_name', '=', $job['do'])->find();
@@ -77,8 +79,9 @@ class Netease extends Command
                     (string)$account['timing']
                 ) ?? 0,
             ]);
+            $executed++;
         }
-        $count = count($jobs);
+        $count = $executed;
         $output->writeln("成功执行 {$count} 条任务：" . date("Y-m-d H:i:s"));
     }
 

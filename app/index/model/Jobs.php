@@ -16,6 +16,8 @@ class Jobs extends Model
 {
     protected $pk = 'id';
 
+    private const EXECUTION_LEASE_SECONDS = 1800;
+
     public static function add($type, $user_id)
     {
         $self = new static();
@@ -336,6 +338,35 @@ class Jobs extends Model
             return $result;
         }
         return false;
+    }
+
+    /**
+     * Atomically lease a due job before contacting an upstream service.
+     *
+     * The compare-and-swap on nextExecute prevents schedulers and CLI commands
+     * from executing the same selected row concurrently. If a worker exits,
+     * the lease expires and the job becomes eligible for a later retry.
+     */
+    public static function claimDueJob(int $id, int $expectedNextExecute, ?int $now = null): bool
+    {
+        if ($id <= 0 || $expectedNextExecute <= 0) {
+            return false;
+        }
+
+        $now = $now ?? time();
+        if ($expectedNextExecute > $now) {
+            return false;
+        }
+
+        $affected = (new static())
+            ->where('id', '=', $id)
+            ->where('state', '=', 1)
+            ->where('nextExecute', '=', $expectedNextExecute)
+            ->where('nextExecute', '>', 0)
+            ->where('nextExecute', '<=', $now)
+            ->update(['nextExecute' => $now + self::EXECUTION_LEASE_SECONDS]);
+
+        return (int)$affected === 1;
     }
 
     private static function nextExecutionForAccount(string $type, string $userId): int

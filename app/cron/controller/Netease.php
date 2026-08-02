@@ -29,6 +29,7 @@ class Netease extends Common
             return resultJson(-1002, '没有要执行的任务');
         }
         foreach ($jobs as $k => $job) {
+            if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) continue;
             if (in_array($job['user_id'], $vip_expired_userIds)) continue;
             $user = Users::where('uid' , '=' , $job['uid'])->find();
             if($user == null){

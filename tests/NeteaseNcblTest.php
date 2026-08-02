@@ -42,7 +42,7 @@ $payload = Ncbl::encrypt($meta, $recordBody, [
 ]);
 ncblCheck(strlen($payload) === 165, 'NCBL deterministic payload has the wrong length');
 ncblCheck(
-    hash('sha256', $payload) === '96ee9207e0e75b395bbb60a41eadc329b54f6999feb2ac4dcd65eff99cd39aed',
+    hash('sha256', $payload) === '6644e1f0de90632558477240ae525bf8fcc73ee43531da9f2259274ea5d8377d',
     'NCBL binary output does not match api-enhanced/util/ncbl.js'
 );
 ncblCheck(substr($payload, 0, 4) === Ncbl::MAGIC, 'NCBL magic header is missing');

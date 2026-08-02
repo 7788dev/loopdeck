@@ -120,6 +120,12 @@ final class Ncbl
         if (!is_string($compressed)) {
             throw new RuntimeException('NCBL gzip compression failed');
         }
+        // zlib writes a host-specific gzip OS marker (Windows=10, Unix=3).
+        // The production desktop-log implementation runs with the Unix marker;
+        // normalize it so deterministic vectors and deployed payloads agree.
+        if (strlen($compressed) >= 10) {
+            $compressed[9] = chr(3);
+        }
 
         $trailing = '';
         $sequence = $baseSeq;

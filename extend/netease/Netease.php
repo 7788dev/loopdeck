@@ -753,58 +753,66 @@ class Netease
     protected function dakaSongs(string $source, array $history, int $limit = 300): array
     {
         $songs = [];
-        if (in_array($source, ['daily_recommend', 'personalized', 'highquality'], true)) {
-            if ($source === 'daily_recommend') {
-                // Use the signed-in account's home-page daily songs first, then
-                // continue through its daily recommended playlists.
-                $this->appendSearchSongs(
-                    $songs,
-                    $this->daily_recommend_songs(),
-                    $history,
-                    min($limit, 50)
-                );
-                $playlists = $this->recommend_playlist();
-            } else {
-                $playlists = $source === 'highquality'
-                    ? $this->get_highquality_playlist(50)
-                    : $this->personalized(50);
-            }
+        if ($source === 'daily_recommend') {
+            // Fill the normal 300-song target directly from the signed-in
+            // account's daily songs and daily recommended playlists.
+            $this->appendSearchSongs($songs, $this->daily_recommend_songs(), $history, $limit);
+            $this->appendPlaylistSongs($songs, $this->recommend_playlist(), $history, $limit);
+
+            // Only use charts and requested popular artists when recommendations
+            // cannot fill the normal target.
+            $this->appendPopularDakaSongs($songs, $history, $limit);
+            return $songs;
+        }
+
+        if (in_array($source, ['personalized', 'highquality'], true)) {
+            $playlists = $source === 'highquality'
+                ? $this->get_highquality_playlist(50)
+                : $this->personalized(50);
             $this->appendPlaylistSongs($songs, $playlists, $history, min($limit, 140));
+        }
 
-            // Stable official chart playlist IDs: soaring, new songs, original,
-            // and hot songs. They keep the default selection recognizably popular.
-            foreach ([19723756, 3779629, 2884035, 3778678] as $chartPlaylistId) {
-                $chartTarget = min($limit, count($songs) + 20);
-                $this->appendPlaylistSongs(
-                    $songs,
-                    [$chartPlaylistId],
-                    $history,
-                    $chartTarget
-                );
-            }
+        $this->appendPopularDakaSongs($songs, $history, $limit);
 
-            // “坏女孩”与“幻听”分别对应徐良、许嵩；薛之谦是用户指定的
-            // 同类热门华语风格。每位歌手设置独立配额，避免某一位占满结果。
-            foreach (['徐良', '许嵩', '薛之谦'] as $artist) {
-                $artistTarget = min($limit, count($songs) + 20);
-                $this->appendSearchSongs(
-                    $songs,
-                    $this->search_songs($artist, 100, 0, $artist),
-                    $history,
-                    $artistTarget
-                );
-            }
+        return $songs;
+    }
 
-            // Use nearby mainstream artists to finish the normal 300-song mix.
-            foreach (['汪苏泷', '周杰伦', '林俊杰', '陈奕迅'] as $artist) {
-                $artistTarget = min($limit, count($songs) + 5);
-                $this->appendSearchSongs(
-                    $songs,
-                    $this->search_songs($artist, 100, 0, $artist),
-                    $history,
-                    $artistTarget
-                );
-            }
+    protected function appendPopularDakaSongs(
+        array &$songs,
+        array $history,
+        int $limit
+    ): void {
+        if (count($songs) >= $limit) {
+            return;
+        }
+
+        // Stable official chart playlist IDs: soaring, new songs, original,
+        // and hot songs.
+        foreach ([19723756, 3779629, 2884035, 3778678] as $chartPlaylistId) {
+            $chartTarget = min($limit, count($songs) + 20);
+            $this->appendPlaylistSongs($songs, [$chartPlaylistId], $history, $chartTarget);
+        }
+
+        // “坏女孩”与“幻听”分别对应徐良、许嵩；薛之谦是用户指定的
+        // 同类热门华语风格。每位歌手设置独立配额，避免某一位占满结果。
+        foreach (['徐良', '许嵩', '薛之谦'] as $artist) {
+            $artistTarget = min($limit, count($songs) + 20);
+            $this->appendSearchSongs(
+                $songs,
+                $this->search_songs($artist, 100, 0, $artist),
+                $history,
+                $artistTarget
+            );
+        }
+
+        foreach (['汪苏泷', '周杰伦', '林俊杰', '陈奕迅'] as $artist) {
+            $artistTarget = min($limit, count($songs) + 5);
+            $this->appendSearchSongs(
+                $songs,
+                $this->search_songs($artist, 100, 0, $artist),
+                $history,
+                $artistTarget
+            );
         }
 
         if (count($songs) < $limit) {
@@ -837,8 +845,6 @@ class Netease
             shuffle($fallback);
             $this->appendPlaylistSongs($songs, $fallback, $history, $limit);
         }
-
-        return $songs;
     }
 
     protected function appendSearchSongs(

@@ -11,6 +11,7 @@ final class NeteaseSelectionFixture extends Netease
     public array $artists = [];
     public int $dailySongRequests = 0;
     public int $dailyPlaylistRequests = 0;
+    public int $dailyPlaylistTrackCount = 160;
 
     public function __construct()
     {
@@ -50,8 +51,11 @@ final class NeteaseSelectionFixture extends Netease
     public function playlist_detail($playlist_id)
     {
         $start = (int)$playlist_id === 9000 ? 100000 : ((int)$playlist_id * 1000);
+        $trackCount = in_array((int)$playlist_id, [9100, 9101], true)
+            ? $this->dailyPlaylistTrackCount
+            : 160;
         $tracks = [];
-        for ($i = 1; $i <= 160; $i++) {
+        for ($i = 1; $i <= $trackCount; $i++) {
             $tracks[] = ['id' => $start + $i, 'dt' => 180000];
         }
         return ['code' => 200, 'playlist' => ['tracks' => $tracks]];
@@ -127,33 +131,13 @@ selectionCheck(
     count(array_filter(
         $songs,
         static fn(array $song): bool => in_array((int)$song['sourceId'], [9100, 9101], true)
-    )) === 110,
-    'Default selection did not fill its quota from home daily recommended playlists'
+    )) === 270,
+    'Default selection did not fill the target from home daily recommended playlists'
 );
 selectionCheck(
-    array_slice($fixture->artists, 0, 3) === ['徐良', '许嵩', '薛之谦'],
-    'Core artists requested by the user were not prioritized'
+    $fixture->artists === [],
+    'Popular artist fallback ran even though daily recommendations filled 300 songs'
 );
-selectionCheck(
-    array_slice($fixture->artists, 3, 4) === ['汪苏泷', '周杰伦', '林俊杰', '陈奕迅'],
-    'Similar mainstream artists were not used to complete the popular mix'
-);
-selectionCheck(
-    count(array_filter(
-        $songs,
-        static fn(array $song): bool => in_array((int)$song['sourceId'], [9100, 9101], true)
-    )) === 110,
-    'Default selection did not preserve the home daily playlist quota'
-);
-foreach ([19723756, 3779629, 2884035, 3778678] as $chartPlaylistId) {
-    selectionCheck(
-        count(array_filter(
-            $songs,
-            static fn(array $song): bool => (int)$song['sourceId'] === $chartPlaylistId
-        )) === 20,
-        'Each official chart must contribute its own 20-song quota'
-    );
-}
 
 $highqualityFixture = new NeteaseSelectionFixture();
 $highqualitySongs = $highqualityFixture->selectedSongs('highquality');
@@ -167,6 +151,32 @@ selectionCheck(
 selectionCheck(
     $highqualityFixture->dailySongRequests === 0 && $highqualityFixture->dailyPlaylistRequests === 0,
     'The optional high-quality playlist source unexpectedly called home daily recommendations'
+);
+selectionCheck(
+    array_slice($highqualityFixture->artists, 0, 3) === ['徐良', '许嵩', '薛之谦'],
+    'Core artists requested by the user were not prioritized in the popular fallback'
+);
+selectionCheck(
+    array_slice($highqualityFixture->artists, 3, 4) === ['汪苏泷', '周杰伦', '林俊杰', '陈奕迅'],
+    'Similar mainstream artists were not used in the popular fallback'
+);
+foreach ([19723756, 3779629, 2884035, 3778678] as $chartPlaylistId) {
+    selectionCheck(
+        count(array_filter(
+            $highqualitySongs,
+            static fn(array $song): bool => (int)$song['sourceId'] === $chartPlaylistId
+        )) === 20,
+        'Each official chart must contribute its own 20-song quota in the popular fallback'
+    );
+}
+
+$fallbackFixture = new NeteaseSelectionFixture();
+$fallbackFixture->dailyPlaylistTrackCount = 20;
+$fallbackSongs = $fallbackFixture->selectedSongs();
+selectionCheck(count($fallbackSongs) === 300, 'Daily recommendation fallback did not fill 300 songs');
+selectionCheck(
+    $fallbackFixture->artists !== [],
+    'Daily recommendation fallback did not use popular artists after recommendations ran short'
 );
 
 echo "Netease song selection tests passed\n";

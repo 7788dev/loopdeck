@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/vendor/autoload.php';
+require_once dirname(__DIR__) . '/app/common.php';
 
 function loginQrCheck(bool $condition, string $message): void
 {
@@ -58,11 +59,49 @@ foreach ($loginUrls as $provider => $url) {
 }
 
 $neteaseController = file_get_contents($root . '/app/index/controller/Netease.php');
+$neteaseAddView = file_get_contents($root . '/app/index/view/console/netease/add.html');
 loginQrCheck(
     is_string($neteaseController)
         && str_contains($neteaseController, 'catch (\\Throwable $exception)')
         && str_contains($neteaseController, "return resultJson(0, '二维码生成失败，请稍后重试');"),
     'NetEase QR endpoint can still turn renderer failures into HTTP 500 responses'
 );
+loginQrCheck(
+    is_string($neteaseController)
+        && str_contains($neteaseController, "case 'add':")
+        && str_contains($neteaseController, "return resultJson(0, '账号密码登录已关闭，请使用扫码登录');"),
+    'NetEase password-login endpoint is not explicitly disabled'
+);
+$passwordLoginResponse = (new \app\index\controller\Netease())->handle('add');
+$passwordLoginPayload = json_decode(
+    is_object($passwordLoginResponse) && method_exists($passwordLoginResponse, 'getContent')
+        ? (string)$passwordLoginResponse->getContent()
+        : (string)$passwordLoginResponse,
+    true
+);
+loginQrCheck(
+    is_array($passwordLoginPayload)
+        && ($passwordLoginPayload['code'] ?? null) === 0
+        && ($passwordLoginPayload['message'] ?? '') === '账号密码登录已关闭，请使用扫码登录',
+    'NetEase password-login endpoint did not reject the request at runtime'
+);
+foreach (["Request::post('username'", "Request::post('password'", 'loginByEmail(', 'md5($password)'] as $passwordLoginFragment) {
+    loginQrCheck(
+        !str_contains((string)$neteaseController, $passwordLoginFragment),
+        'NetEase controller still contains password-login behavior: ' . $passwordLoginFragment
+    );
+}
+foreach (['login-username', 'login-password', 'ajax_netease_login', '/index/ajax/netease/add', 'type="password"'] as $passwordViewFragment) {
+    loginQrCheck(
+        !str_contains((string)$neteaseAddView, $passwordViewFragment),
+        'NetEase account-add page still exposes password login: ' . $passwordViewFragment
+    );
+}
+foreach (['/index/ajax/netease/getQrimg', '/index/ajax/netease/qrLogin', '/index/ajax/netease/verifyCheck', 'ajax_netease_qrlogin', 'verify_unikey'] as $qrViewFragment) {
+    loginQrCheck(
+        str_contains((string)$neteaseAddView, $qrViewFragment),
+        'NetEase QR-only page lost required flow: ' . $qrViewFragment
+    );
+}
 
 echo "Login QR code tests passed\n";

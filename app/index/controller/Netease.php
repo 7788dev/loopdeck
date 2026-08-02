@@ -31,7 +31,7 @@ class Netease
     {
         switch ($act) {
             case 'add':
-                return $this->add();
+                return resultJson(0, '账号密码登录已关闭，请使用扫码登录');
             case 'getQrimg':
                 return $this->getQrimg();
             case 'qrLogin':
@@ -51,24 +51,6 @@ class Netease
             default:
                 return resultJson(0, '不支持的操作');
         }
-    }
-
-    private function add()
-    {
-        $username = trim((string)Request::post('username', ''));
-        $password = (string)Request::post('password', '');
-        if ($username === '' || $password === '') {
-            return resultJson(0, '参数错误');
-        }
-
-        $client = new NeteaseClient();
-        $login = strpos($username, '@') !== false
-            ? $client->loginByEmail($username, md5($password))
-            : $client->login($username, md5($password));
-        if (($login['code'] ?? 0) !== 200) {
-            return resultJson(0, $login['message'] ?? '登录失败');
-        }
-        return $this->storeAccount($login['data']);
     }
 
     private function getQrimg()

@@ -385,6 +385,7 @@ workflowCheck(@mkdir($batchCapDirectory, 0770, true), 'Daily daka cap test direc
 $batchCapProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
     'daka_limit' => 3,
     'daka_history_dir' => $batchCapDirectory,
+    'daka_max_batches_per_day' => 99,
 ], $sdk);
 $batchCapState = $batchCapDirectory . DIRECTORY_SEPARATOR . hash('sha256', '1') . '.daily.json';
 file_put_contents($batchCapState, json_encode([

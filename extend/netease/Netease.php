@@ -1318,7 +1318,9 @@ class Netease
         $attempts = $sameDay
             ? max(0, (int)($dailyState['attempts'] ?? ($submittedTotal > 0 ? 1 : 0)))
             : 0;
-        $maxBatches = max(1, min(20, (int)($this->config['daka_max_batches_per_day'] ?? 3)));
+        // Never allow a per-account configuration to exceed the requested
+        // three supplementary batches in one calendar day.
+        $maxBatches = max(1, min(3, (int)($this->config['daka_max_batches_per_day'] ?? 3)));
 
         if ($actualProgressBefore >= $target) {
             return $this->makeResult(200,

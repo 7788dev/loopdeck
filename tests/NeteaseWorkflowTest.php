@@ -380,6 +380,38 @@ foreach (glob($dailyDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $dailyFile) 
 }
 @rmdir($dailyDirectory);
 
+$batchCapDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-cap-' . bin2hex(random_bytes(6));
+workflowCheck(@mkdir($batchCapDirectory, 0770, true), 'Daily daka cap test directory could not be created');
+$batchCapProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
+    'daka_limit' => 3,
+    'daka_history_dir' => $batchCapDirectory,
+], $sdk);
+$batchCapState = $batchCapDirectory . DIRECTORY_SEPARATOR . hash('sha256', '1') . '.daily.json';
+file_put_contents($batchCapState, json_encode([
+    'date' => date('Y-m-d'),
+    'target' => 3,
+    'listen_songs_baseline' => 10,
+    'listen_songs_observed' => 10,
+    'actual_progress' => 0,
+    'submitted_total' => 9,
+    'startplay_accepted_total' => 9,
+    'play_accepted_total' => 9,
+    'attempts' => 3,
+]));
+$batchCapResult = $batchCapProbe->daka_new();
+workflowCheck((int)($batchCapResult['code'] ?? 0) === 201, 'Daily batch cap was reported as success');
+workflowCheck((int)($batchCapResult['data']['submitted'] ?? -1) === 0, 'Daily batch cap submitted another batch');
+workflowCheck((int)($batchCapResult['data']['retry_after_seconds'] ?? -1) === 0, 'Daily batch cap scheduled another retry');
+workflowCheck($batchCapProbe->scrobbleCalls === 0, 'Daily batch cap called the reporting protocol');
+workflowCheck(
+    str_contains((string)($batchCapResult['message'] ?? ''), '批次上限3次'),
+    'Daily batch cap did not report the three-batch limit'
+);
+foreach (glob($batchCapDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $batchCapFile) {
+    @unlink($batchCapFile);
+}
+@rmdir($batchCapDirectory);
+
 $results = [
     'login_work' => $netease->login_work(),
     'sign' => $netease->sign(),

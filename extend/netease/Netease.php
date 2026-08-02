@@ -3,6 +3,7 @@
 namespace netease;
 
 use netease\sdk\Client as CloudMusicClient;
+use netease\sdk\Ncbl;
 
 /**
  * NetEase Cloud Music client.
@@ -579,10 +580,9 @@ class Netease
     }
 
     /**
-     * Apply the upstream startplay/play weblog protocol. Requests are kept
-     * independent per song so accepted IDs can be retained for later de-duping.
-     * A transport-level acceptance is still not treated as a profile increment;
-     * daka_new() reconciles completion from the real listenSongs value.
+     * Apply the current desktop-client PLV/PLD protocol. Each phase is uploaded
+     * as an encrypted NCBL file, and a phase counts only when the response names
+     * that exact file in data.successfiles.
      */
     protected function scrobbleBatch(array $songs): int
     {
@@ -598,71 +598,134 @@ class Netease
             return 0;
         }
 
+        $context = $this->sdk->desktopLogContext();
+        if ((string)($context['auth']['token'] ?? '') === '') {
+            $this->cookiezt = true;
+            return 0;
+        }
+        $metaJson = Ncbl::buildMetaJson($context);
         $concurrency = max(1, min(16, (int)($this->config['daka_concurrency'] ?? 8)));
         $success = 0;
         foreach (array_chunk($songs, $concurrency, true) as $chunk) {
-            $startRequests = [];
-            $playRequests = [];
+            $plvRequests = [];
+            $plvFiles = [];
+            $preparedSongs = [];
             foreach ($chunk as $index => $song) {
                 $songId = (int)$song['id'];
                 $duration = max(1, (int)($song['time'] ?? 240));
-                $sourceId = (int)($song['sourceId'] ?? 0);
-                if ($sourceId <= 0) {
-                    $sourceId = $songId;
-                }
-                $base = [
+                $sourceId = (int)($song['sourceId'] ?? 0) > 0
+                    ? (string)(int)$song['sourceId']
+                    : (string)$songId;
+                $logSong = [
                     'id' => $songId,
-                    'type' => 'song',
-                    'mainsite' => '1',
-                    'mainsiteWeb' => '1',
-                    'content' => 'id=' . $sourceId,
+                    'bitrate' => max(1, (int)($song['bitrate'] ?? 320)),
+                    'level' => (string)($song['level'] ?? 'exhigh'),
+                    'vip' => !empty($song['vip']),
+                    'time' => $duration,
                 ];
-                $options = ['domain' => 'https://clientlog.music.163.com', 'os' => 'osx'];
-                $startRequests[$index] = [
-                    'uri' => '/api/feedback/weblog',
-                    'data' => [
-                        'logs' => $this->jsonEncode([['action' => 'startplay', 'json' => $base]]),
-                    ],
-                    'crypto' => 'eapi',
-                    'options' => $options,
+                $source = [
+                    'id' => $sourceId,
+                    'type' => 'track',
+                    'name' => (string)($song['source'] ?? 'list'),
                 ];
-                $playRequests[$index] = [
-                    'uri' => '/api/feedback/weblog',
-                    'data' => [
-                        'logs' => $this->jsonEncode([['action' => 'play', 'json' => $base + [
-                            'download' => 0,
-                            'end' => 'playend',
-                            'sourceId' => $sourceId,
-                            'time' => $duration,
-                            'wifi' => 0,
-                            'source' => 'list',
-                        ]]]),
-                    ],
-                    'crypto' => 'eapi',
-                    'options' => $options,
+                $timestamp = time();
+                $nowMs = (int)round(microtime(true) * 1000);
+                $plvBody = Ncbl::buildRecords([[
+                    'time' => $timestamp,
+                    'action' => '_plv',
+                    'data' => Ncbl::buildPlv($context, $logSong, $source, $nowMs),
+                ]]);
+                $upload = $this->prepareNcblUpload($context, $metaJson, $plvBody);
+                $plvRequests[$index] = $upload['request'];
+                $plvFiles[$index] = $upload['fileName'];
+                $preparedSongs[$index] = [
+                    'song' => $logSong,
+                    'source' => $source,
+                    'timestamp' => $timestamp,
+                    'nowMs' => $nowMs,
                 ];
             }
 
-            $startResponses = $this->sdk->requestMany($startRequests, $concurrency);
-            $playResponses = $this->sdk->requestMany($playRequests, $concurrency);
-            foreach ($chunk as $index => $song) {
-                $start = $this->decodeBody($startResponses[$index] ?? []);
-                $play = $this->decodeBody($playResponses[$index] ?? []);
-                if ((int)($start['code'] ?? 0) === 301 || (int)($play['code'] ?? 0) === 301) {
-                    $this->cookiezt = true;
+            $plvResponses = $this->sdk->rawRequestMany($plvRequests, $concurrency);
+            $pldRequests = [];
+            $pldFiles = [];
+            foreach ($preparedSongs as $index => $prepared) {
+                $response = $plvResponses[$index] ?? [];
+                $this->captureNcblAuthFailure($response);
+                if (!Ncbl::uploadAccepted($response, (string)$plvFiles[$index])) {
+                    continue;
                 }
-                if (in_array((int)($start['code'] ?? 0), [200, 250], true)) {
-                    $this->lastScrobbleStarts++;
+                $this->lastScrobbleStarts++;
+                $logSong = $prepared['song'];
+                $source = $prepared['source'];
+                $duration = max(1, (int)$logSong['time']);
+                $pldBody = Ncbl::buildRecords([[
+                    'time' => (int)$prepared['timestamp'],
+                    'action' => '_pld',
+                    'data' => Ncbl::buildPld(
+                        $context,
+                        $logSong,
+                        $source,
+                        $duration,
+                        (int)round(microtime(true) * 1000)
+                    ),
+                ]]);
+                $upload = $this->prepareNcblUpload($context, $metaJson, $pldBody);
+                $pldRequests[$index] = $upload['request'];
+                $pldFiles[$index] = $upload['fileName'];
+            }
+
+            if ($pldRequests === []) {
+                continue;
+            }
+            $pldResponses = $this->sdk->rawRequestMany($pldRequests, $concurrency);
+            foreach ($pldRequests as $index => $_request) {
+                $response = $pldResponses[$index] ?? [];
+                $this->captureNcblAuthFailure($response);
+                if (!Ncbl::uploadAccepted($response, (string)$pldFiles[$index])) {
+                    continue;
                 }
-                if (in_array((int)($play['code'] ?? 0), [200, 250], true)) {
-                    $success++;
-                    $this->lastScrobbleSeconds += max(1, (int)($song['time'] ?? 240));
-                    $this->lastScrobbleSongIds[] = (int)$song['id'];
-                }
+                $song = $preparedSongs[$index]['song'];
+                $success++;
+                $this->lastScrobbleSeconds += max(1, (int)($song['time'] ?? 240));
+                $this->lastScrobbleSongIds[] = (int)$song['id'];
             }
         }
         $this->lastScrobbleElapsedSeconds = microtime(true) - $startedAt;
         return $success;
+    }
+
+    /**
+     * @param array<string,mixed> $context
+     * @return array{request:array{method:string,url:string,options:array},fileName:string}
+     */
+    private function prepareNcblUpload(array $context, string $metaJson, string $body): array
+    {
+        $payload = Ncbl::encrypt($metaJson, $body);
+        $multipart = Ncbl::buildMultipart($payload);
+        return [
+            'request' => [
+                'method' => 'POST',
+                'url' => Ncbl::UPLOAD_URL,
+                'options' => [
+                    'cookie' => '',
+                    'headers' => Ncbl::uploadHeaders($context, $multipart['boundary']),
+                    'body' => $multipart['body'],
+                    'timeout' => (float)($this->config['daka_timeout'] ?? 15.0),
+                    'connect_timeout' => (float)($this->config['daka_connect_timeout'] ?? 8.0),
+                ],
+            ],
+            'fileName' => $multipart['fileName'],
+        ];
+    }
+
+    private function captureNcblAuthFailure(array $response): void
+    {
+        $body = json_decode((string)($response['body'] ?? ''), true);
+        $code = is_array($body) ? (int)($body['code'] ?? 0) : 0;
+        if (in_array($code, [301, 401], true)) {
+            $this->cookiezt = true;
+        }
     }
 
     /** @return array<int,array{id:int,sourceId:int,time:int}> */
@@ -742,80 +805,6 @@ class Netease
             $this->appendPlaylistSongs($songs, $fallback, $history, $limit);
         }
 
-        return $songs;
-    }
-
-    /**
-     * Build a follow-up batch after the first popular mix has already run.
-     * Local history removes every previously submitted ID; recent charts,
-     * current-year searches, and deeper artist results improve the chance that
-     * a long-lived account has not heard the replacement songs before.
-     *
-     * @return array<int,array{id:int,sourceId:int,time:int}>
-     */
-    protected function dakaSupplementSongs(array $history, int $limit = 300): array
-    {
-        $songs = [];
-
-        // Prefer the changing charts first. The first batch only consumes a
-        // small quota from each chart, so later tracks remain available here.
-        foreach ([3779629, 19723756, 2884035, 3778678] as $chartPlaylistId) {
-            $this->appendPlaylistSongs(
-                $songs,
-                [$chartPlaylistId],
-                $history,
-                min($limit, count($songs) + 30)
-            );
-        }
-
-        // Continue through the requested artists and nearby mainstream style,
-        // including deeper search pages that the initial popular mix did not use.
-        foreach (['徐良', '许嵩', '薛之谦', '汪苏泷', '周杰伦', '林俊杰', '陈奕迅'] as $artist) {
-            $artistTarget = min($limit, count($songs) + 15);
-            foreach ([0, 100, 200] as $offset) {
-                $this->appendSearchSongs(
-                    $songs,
-                    $this->search_songs($artist, 100, $offset, $artist),
-                    $history,
-                    $artistTarget
-                );
-                if (count($songs) >= $artistTarget) {
-                    break;
-                }
-            }
-            if (count($songs) >= $limit) {
-                return $songs;
-            }
-        }
-
-        $year = date('Y');
-        $terms = [
-            $year . '华语新歌', $year . '流行新歌', $year . '网络新歌',
-            '本周华语新歌', '新歌速递', '华语新锐', '宝藏华语新歌',
-            '流行新声', '影视新歌', '国风新歌',
-        ];
-        foreach ($terms as $term) {
-            foreach ([0, 100, 200] as $offset) {
-                $this->appendSearchSongs(
-                    $songs,
-                    $this->search_songs($term, 100, $offset),
-                    $history,
-                    $limit
-                );
-                if (count($songs) >= $limit) {
-                    return $songs;
-                }
-            }
-        }
-
-        $fallback = array_values(array_unique(array_merge(
-            $this->get_highquality_playlist(50),
-            $this->personalized(50),
-            $this->get_search_playlist($year . '华语新歌', 1000, 50),
-            $this->get_search_playlist('新歌速递', 1000, 50)
-        )));
-        shuffle($fallback);
-        $this->appendPlaylistSongs($songs, $fallback, $history, $limit);
         return $songs;
     }
 
@@ -992,17 +981,17 @@ class Netease
         }
         $success = $this->scrobbleBatch($songs);
         if ($success <= 0) {
-            return $this->makeResult(201, '歌曲ID：' . $songId . ' 的播放上报未获服务器接受，请稍后重试');
+            return $this->makeResult(201, '歌曲ID：' . $songId . ' 的NCBL日志未获服务器文件确认，请稍后重试');
         }
         return $this->makeResult(
             200,
-            '歌曲ID：' . $songId . ' 的播放请求接受' . $success . '/' . $times . '次；起播请求接受'
+            '歌曲ID：' . $songId . ' 的NCBL完播文件确认' . $success . '/' . $times . '次；起播文件确认'
             . $this->lastScrobbleStarts . '/' . $times . '次，提交时长约'
             . (int)ceil($this->lastScrobbleSeconds / 60) . '分钟，耗时约'
-            . round($this->lastScrobbleElapsedSeconds, 1) . '秒；请求接受不等同于累计统计已新增',
+            . round($this->lastScrobbleElapsedSeconds, 1) . '秒；文件确认不等同于累计统计已入账',
             [
-                'startplay_accepted' => $this->lastScrobbleStarts,
-                'play_accepted' => $success,
+                'plv_confirmed' => $this->lastScrobbleStarts,
+                'pld_confirmed' => $success,
                 'submitted_seconds' => $this->lastScrobbleSeconds,
                 'elapsed_seconds' => round($this->lastScrobbleElapsedSeconds, 3),
             ]
@@ -1027,42 +1016,20 @@ class Netease
         $today = date('Y-m-d');
         $dailyState = $this->loadDakaDailyState();
         $sameDay = (string)($dailyState['date'] ?? '') === $today;
-        $baseline = $sameDay
-            ? (int)($dailyState['listen_songs_baseline']
-                ?? $dailyState['listen_songs_before']
-                ?? $listenSongs)
-            : $listenSongs;
-        $observedBefore = max(
-            $listenSongs,
-            $sameDay ? (int)($dailyState['listen_songs_observed'] ?? $listenSongs) : $listenSongs
-        );
-        $actualProgressBefore = min($target, max(0, $observedBefore - $baseline));
-        $remainingBefore = max(0, $target - $actualProgressBefore);
-        $submittedTotal = $sameDay ? max(0, (int)($dailyState['submitted_total']
-            ?? $dailyState['submitted']
-            ?? 0)) : 0;
-        $acceptedTotal = $sameDay ? max(0, (int)($dailyState['play_accepted_total']
-            ?? $dailyState['pld_confirmed']
-            ?? 0)) : 0;
-        $startAcceptedTotal = $sameDay ? max(0, (int)($dailyState['startplay_accepted_total']
-            ?? $dailyState['plv_confirmed']
-            ?? 0)) : 0;
-        $attempts = $sameDay
-            ? max(0, (int)($dailyState['attempts'] ?? ($submittedTotal > 0 ? 1 : 0)))
+        $confirmedToday = $sameDay
+            ? max(0, min(300, (int)($dailyState['pld_confirmed'] ?? 0)))
             : 0;
-        $maxBatches = max(1, min(50, (int)($this->config['daka_max_batches_per_day'] ?? 20)));
-
-        if ($actualProgressBefore >= $target) {
+        if ($confirmedToday >= $target) {
             return $this->makeResult(200,
-                '今日累计听歌已实际新增' . $actualProgressBefore . '/' . $target
-                . '首，目标已完成。当前累计听歌' . $listenSongs . '首',
+                '今日已确认提交' . $confirmedToday . '/' . $target . '首，已跳过重复执行；'
+                . '网易云每天最多统计300次播放，累计听歌只会增加账号此前未听过的歌曲，'
+                . '所以同日重复执行不会按提交数继续增长。当前累计听歌' . $listenSongs . '首',
                 [
                     'submitted' => 0,
                     'daily_target' => $target,
-                    'daily_actual_progress' => $actualProgressBefore,
+                    'daily_confirmed' => $confirmedToday,
                     'daily_remaining' => 0,
-                    'target_reached' => true,
-                    'retry_after_seconds' => 0,
+                    'skipped_duplicate' => true,
                     'listen_songs_before' => $listenSongs,
                     'listen_songs_after' => $listenSongs,
                     'listen_songs_delta' => 0,
@@ -1070,30 +1037,8 @@ class Netease
             );
         }
 
-        if ($attempts >= $maxBatches) {
-            return $this->makeResult(201,
-                '今日累计听歌实际新增' . $actualProgressBefore . '/' . $target . '首，仍差'
-                . $remainingBefore . '首；已达到当日补齐批次上限' . $maxBatches
-                . '次，已停止继续提交以避免异常请求',
-                [
-                    'submitted' => 0,
-                    'daily_target' => $target,
-                    'daily_actual_progress' => $actualProgressBefore,
-                    'daily_remaining' => $remainingBefore,
-                    'target_reached' => false,
-                    'retry_after_seconds' => 0,
-                    'attempts' => $attempts,
-                ]
-            );
-        }
-
-        // Oversample the remaining count because songs heard before this tool
-        // was installed cannot be enumerated through the public play-record API.
-        $limit = min($target, max($remainingBefore, $remainingBefore * 2));
-        $history = $this->loadDakaHistory();
-        $songs = ($attempts > 0 || $submittedTotal > 0)
-            ? $this->dakaSupplementSongs($history, $limit)
-            : $this->dakaSongs($source, $history, $limit);
+        $limit = $target - $confirmedToday;
+        $songs = $this->dakaSongs($source, $this->loadDakaHistory(), $limit);
         if ($songs === []) {
             return $this->makeResult(201, '未获取到可用于打卡的新歌曲');
         }
@@ -1106,61 +1051,52 @@ class Netease
         $current = (int)($after['listenSongs'] ?? $listenSongs);
         $delta = max(0, $current - $listenSongs);
         $submitted = count($songs);
-        $observedAfter = max($observedBefore, $current);
-        $actualProgressAfter = min($target, max(0, $observedAfter - $baseline));
-        $remainingAfter = max(0, $target - $actualProgressAfter);
-        $attemptsAfter = $attempts + 1;
-        $submittedTotal += $submitted;
-        $acceptedTotal += $success;
-        $startAcceptedTotal += $this->lastScrobbleStarts;
-        $retryAfter = 0;
-        if ($remainingAfter > 0 && $success > 0 && $attemptsAfter < $maxBatches) {
-            $retryAfter = max(120, min(3600, (int)($this->config['daka_retry_seconds'] ?? 600)));
+        $dailyConfirmed = min(300, $confirmedToday + $success);
+        if ($success > 0) {
+            $initialListenSongs = $sameDay
+                ? (int)($dailyState['listen_songs_before'] ?? $listenSongs)
+                : $listenSongs;
+            $this->rememberDakaDailyState([
+                'date' => $today,
+                'target' => $target,
+                'submitted' => ($sameDay ? (int)($dailyState['submitted'] ?? 0) : 0) + $submitted,
+                'plv_confirmed' => ($sameDay ? (int)($dailyState['plv_confirmed'] ?? 0) : 0)
+                    + $this->lastScrobbleStarts,
+                'pld_confirmed' => $dailyConfirmed,
+                'submitted_seconds' => ($sameDay ? (int)($dailyState['submitted_seconds'] ?? 0) : 0)
+                    + $this->lastScrobbleSeconds,
+                'listen_songs_before' => $initialListenSongs,
+                'listen_songs_after' => $current,
+                'listen_songs_delta' => max(0, $current - $initialListenSongs),
+                'updated_at' => date('c'),
+            ]);
         }
-        $this->rememberDakaDailyState([
-            'date' => $today,
-            'target' => $target,
-            'listen_songs_baseline' => $baseline,
-            'listen_songs_observed' => $observedAfter,
-            'actual_progress' => $actualProgressAfter,
-            'submitted_total' => $submittedTotal,
-            'startplay_accepted_total' => $startAcceptedTotal,
-            'play_accepted_total' => $acceptedTotal,
-            'submitted_seconds' => ($sameDay ? (int)($dailyState['submitted_seconds'] ?? 0) : 0)
-                + $this->lastScrobbleSeconds,
-            'attempts' => $attemptsAfter,
-            'updated_at' => date('c'),
-        ]);
-
-        $message = '网易云累计听歌当前' . $current . '首；今日实际新增'
-            . $actualProgressAfter . '/' . $target . '首，仍差' . $remainingAfter . '首';
-        $message .= '；本批提交' . $submitted . '首，起播请求接受'
-            . $this->lastScrobbleStarts . '/' . $submitted . '首';
-        $message .= '，播放请求接受' . $success . '/' . $submitted . '首';
+        $prefix = $delta > 0
+            ? '网易云累计听歌已从' . $listenSongs . '增至' . $current . '首（实际查询+' . $delta . '）'
+            : '网易云累计听歌当前仍为' . $listenSongs . '首';
+        $message = $prefix . '；NCBL起播文件确认' . $this->lastScrobbleStarts . '/' . $submitted . '首';
+        $message .= '，完播文件确认' . $success . '/' . $submitted . '首';
         $message .= '，提交时长约' . (int)ceil($this->lastScrobbleSeconds / 60) . '分钟';
-        $message .= '，耗时约' . round($this->lastScrobbleElapsedSeconds, 1) . '秒';
-        if ($remainingAfter > 0) {
-            $message .= '；请求接受不等于新增，系统只按累计听歌真实增量完成任务';
-            if ($retryAfter > 0) {
-                $message .= '，将在约' . (int)ceil($retryAfter / 60) . '分钟后继续使用未提交过的新歌补齐';
-            }
+        $message .= '，上传耗时约' . round($this->lastScrobbleElapsedSeconds, 1) . '秒';
+        $message .= '；今日累计文件确认' . $dailyConfirmed . '/' . $target . '首';
+        if ($delta === 0) {
+            $message .= '；文件上传已确认，但累计统计尚未入账，不能把上传确认写成计数成功。'
+                . '网易云每天最多统计300次播放，且累计听歌只对账号此前未听过的歌曲去重增加，'
+                . '同日重复执行不会按提交数继续增长';
         }
         return $this->makeResult($success > 0 ? 200 : 201, $message, [
             'submitted' => $submitted,
-            'startplay_accepted' => $this->lastScrobbleStarts,
-            'play_accepted' => $success,
+            'plv_confirmed' => $this->lastScrobbleStarts,
+            'pld_confirmed' => $success,
             'submitted_seconds' => $this->lastScrobbleSeconds,
             'elapsed_seconds' => round($this->lastScrobbleElapsedSeconds, 3),
             'listen_songs_before' => $listenSongs,
             'listen_songs_after' => $current,
             'listen_songs_delta' => $delta,
             'daily_target' => $target,
-            'daily_baseline' => $baseline,
-            'daily_actual_progress' => $actualProgressAfter,
-            'daily_remaining' => $remainingAfter,
-            'target_reached' => $remainingAfter === 0,
-            'attempts' => $attemptsAfter,
-            'retry_after_seconds' => $retryAfter,
+            'daily_confirmed' => $dailyConfirmed,
+            'daily_remaining' => max(0, $target - $dailyConfirmed),
+            'skipped_duplicate' => false,
         ]);
     }
 

@@ -89,7 +89,7 @@ $netease = new InspectableNetease('1', 'csrf-token', 'music-token', [
 ], $sdk);
 $result = $netease->listen();
 listenToolCheck((int)($result['code'] ?? 0) === 200, 'Listening tool did not report success');
-listenToolCheck(str_contains((string)$result['message'], '播放请求接受2/2次'), 'Listening tool returned the wrong accepted count');
+listenToolCheck(str_contains((string)$result['message'], 'NCBL完播文件确认2/2次'), 'Listening tool returned the wrong confirmed count');
 listenToolCheck(str_contains((string)$result['message'], '提交时长约6分钟'), 'Listening tool did not report submitted listening minutes');
 listenToolCheck($netease->scrobbleStarts() === 2, 'Listening tool did not submit recent-play footprints');
 listenToolCheck($netease->scrobbleSeconds() === 360, 'Listening tool did not submit the real song durations');
@@ -98,13 +98,13 @@ $urls = array_column($transport->requests, 'url');
 listenToolCheck(count($urls) === 5, 'Listening tool sent an unexpected request count');
 listenToolCheck(str_contains($urls[0], '/weapi/v3/song/detail'), 'Listening tool did not resolve the song duration');
 listenToolCheck(
-    count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/eapi/feedback/weblog'))) === 4,
-    'Listening tool did not send one startplay/play pair per play'
+    count(array_filter($urls, static fn(string $url): bool => str_contains($url, 'clientlog3.music.163.com/api/clientlog/encrypt/upload'))) === 4,
+    'Listening tool did not send one NCBL PLV/PLD pair per play'
 );
 foreach (array_slice($transport->requests, 1) as $request) {
     listenToolCheck(
-        str_contains((string)($request['url'] ?? ''), 'clientlog.music.163.com'),
-        'Listening tool did not use the upstream client-log domain'
+        str_contains((string)($request['options']['body'] ?? ''), 'NCBL'),
+        'Listening tool did not upload an NCBL binary payload'
     );
 }
 
@@ -126,23 +126,22 @@ $failed = (new Netease('1', 'csrf-token', 'music-token', [
 ], $failureSdk))->listen();
 listenToolCheck((int)($failed['code'] ?? 0) === 201, 'Failed listening reports were treated as successful');
 
-$alternateAcceptedTransport = new NeteaseListenRecordingTransport([
+$silentDropTransport = new NeteaseListenRecordingTransport([
     ['body' => '{"code":200,"songs":[{"id":347230,"dt":180000}]}'],
-    ['body' => '{"code":250}'],
-    ['body' => '{"code":250}'],
+    ['body' => '{"code":200,"data":{"successfiles":[]}}'],
 ]);
-$alternateAcceptedSdk = new Client([
+$silentDropSdk = new Client([
     'user_id' => '1',
     'csrf' => 'csrf-token',
     'music_u' => 'music-token',
-], ['auto_anonymous_token' => false, 'cache_dir' => ''], $alternateAcceptedTransport);
-$alternateAccepted = (new Netease('1', 'csrf-token', 'music-token', [
+], ['auto_anonymous_token' => false, 'cache_dir' => ''], $silentDropTransport);
+$silentDrop = (new Netease('1', 'csrf-token', 'music-token', [
     'songid' => '347230',
     'times' => 1,
-], $alternateAcceptedSdk))->listen();
+], $silentDropSdk))->listen();
 listenToolCheck(
-    (int)($alternateAccepted['code'] ?? 0) === 200,
-    'Upstream alternate success code 250 was rejected'
+    (int)($silentDrop['code'] ?? 0) === 201,
+    'HTTP 200 without the uploaded file name was treated as a counted play'
 );
 
 $missingSongTransport = new NeteaseListenRecordingTransport([

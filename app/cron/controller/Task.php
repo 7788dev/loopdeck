@@ -364,14 +364,9 @@ class Task extends Common
                 return;
             }
 
-            $nextExecute = $this->nextExecuteAt($account, $jobId);
-            $retryAfter = max(0, (int)($result['retry_after_seconds'] ?? 0));
-            if ($result['success'] && $retryAfter > 0) {
-                $nextExecute = time() + max(60, min(3600, $retryAfter));
-            }
             Jobs::where('id', $jobId)->update([
                 'lastExecute' => date('Y-m-d H:i:s'),
-                'nextExecute' => $nextExecute,
+                'nextExecute' => $this->nextExecuteAt($account, $jobId),
             ]);
             $summary[$result['success'] ? 'succeeded' : 'failed']++;
         } catch (Throwable $exception) {
@@ -412,7 +407,6 @@ class Task extends Common
             'success' => (int)($response['code'] ?? 0) === 200,
             'message' => trim((string)($response['message'] ?? '')) ?: '网易云任务执行完成',
             'account_invalid' => !empty($client->cookiezt),
-            'retry_after_seconds' => max(0, (int)($response['data']['retry_after_seconds'] ?? 0)),
         ];
     }
 
@@ -423,7 +417,6 @@ class Task extends Common
             'success' => (int)$result['code'] === 1,
             'message' => trim((string)$result['message']) ?: '哔哩哔哩任务执行完成',
             'account_invalid' => (bool)$result['account_invalid'],
-            'retry_after_seconds' => 0,
         ];
     }
 

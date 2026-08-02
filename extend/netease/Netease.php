@@ -3,6 +3,7 @@
 namespace netease;
 
 use netease\sdk\Client as CloudMusicClient;
+use netease\sdk\Ncbl;
 
 /**
  * NetEase Cloud Music client.
@@ -28,6 +29,7 @@ class Netease
     protected $lastScrobbleStarts = 0;
     protected $lastScrobbleSeconds = 0;
     protected $lastScrobbleSongIds = [];
+    protected $lastScrobbleElapsedSeconds = 0.0;
 
     protected $resourceTypeMap = [
         0 => 'R_SO_4_',
@@ -570,43 +572,25 @@ class Netease
 
     protected function scrobbleSong($songId, $sourceId, $time): bool
     {
-        $base = [
+        return $this->scrobbleBatch([[
             'id' => (int)$songId,
-            'type' => 'song',
-            'mainsite' => '1',
-            'mainsiteWeb' => '1',
-            'content' => 'id=' . (string)$sourceId,
-        ];
-        $start = $this->decodeBody($this->requestApi('/api/feedback/weblog', [
-            'logs' => $this->jsonEncode([['action' => 'startplay', 'json' => $base]]),
-        ], 'eapi', ['domain' => 'https://clientlog.music.163.com', 'os' => 'osx']));
-        $playJson = $base + [
-            'download' => 0,
-            'end' => 'playend',
-            'sourceId' => $sourceId,
+            'sourceId' => (int)$sourceId,
             'time' => max(1, (int)$time),
-            'wifi' => 0,
-            'source' => 'list',
-        ];
-        $play = $this->decodeBody($this->requestApi('/api/feedback/weblog', [
-            'logs' => $this->jsonEncode([['action' => 'play', 'json' => $playJson]]),
-        ], 'eapi', ['domain' => 'https://clientlog.music.163.com', 'os' => 'osx']));
-        if ((int)($play['code'] ?? 0) === 301 || (int)($start['code'] ?? 0) === 301) {
-            $this->cookiezt = true;
-        }
-        return in_array((int)($play['code'] ?? 0), [200, 250], true);
+        ]]) === 1;
     }
 
     /**
-     * Apply the upstream two-phase startplay/play protocol. Each song remains an
-     * independent weblog request, matching the current upstream implementation;
-     * the HTTP transport only parallelizes those independent requests.
+     * Apply the current desktop-client PLV/PLD protocol. Each phase is uploaded
+     * as an encrypted NCBL file, and a phase counts only when the response names
+     * that exact file in data.successfiles.
      */
     protected function scrobbleBatch(array $songs): int
     {
+        $startedAt = microtime(true);
         $this->lastScrobbleStarts = 0;
         $this->lastScrobbleSeconds = 0;
         $this->lastScrobbleSongIds = [];
+        $this->lastScrobbleElapsedSeconds = 0.0;
         $songs = array_values(array_filter($songs, static fn($song): bool =>
             is_array($song) && (int)($song['id'] ?? 0) > 0
         ));
@@ -614,63 +598,134 @@ class Netease
             return 0;
         }
 
+        $context = $this->sdk->desktopLogContext();
+        if ((string)($context['auth']['token'] ?? '') === '') {
+            $this->cookiezt = true;
+            return 0;
+        }
+        $metaJson = Ncbl::buildMetaJson($context);
         $concurrency = max(1, min(16, (int)($this->config['daka_concurrency'] ?? 8)));
         $success = 0;
         foreach (array_chunk($songs, $concurrency, true) as $chunk) {
-            $startRequests = [];
-            $playRequests = [];
+            $plvRequests = [];
+            $plvFiles = [];
+            $preparedSongs = [];
             foreach ($chunk as $index => $song) {
-                $sourceId = (int)($song['sourceId'] ?? 0);
-                $base = [
-                    'id' => (int)$song['id'],
-                    'type' => 'song',
-                    'mainsite' => '1',
-                    'mainsiteWeb' => '1',
-                    'content' => 'id=' . (string)$sourceId,
+                $songId = (int)$song['id'];
+                $duration = max(1, (int)($song['time'] ?? 240));
+                $sourceId = (int)($song['sourceId'] ?? 0) > 0
+                    ? (string)(int)$song['sourceId']
+                    : (string)$songId;
+                $logSong = [
+                    'id' => $songId,
+                    'bitrate' => max(1, (int)($song['bitrate'] ?? 320)),
+                    'level' => (string)($song['level'] ?? 'exhigh'),
+                    'vip' => !empty($song['vip']),
+                    'time' => $duration,
                 ];
-                $options = ['domain' => 'https://clientlog.music.163.com', 'os' => 'osx'];
-                $startRequests[$index] = [
-                    'uri' => '/api/feedback/weblog',
-                    'data' => ['logs' => $this->jsonEncode([['action' => 'startplay', 'json' => $base]])],
-                    'crypto' => 'eapi',
-                    'options' => $options,
+                $source = [
+                    'id' => $sourceId,
+                    'type' => 'track',
+                    'name' => (string)($song['source'] ?? 'list'),
                 ];
-                $playRequests[$index] = [
-                    'uri' => '/api/feedback/weblog',
-                    'data' => ['logs' => $this->jsonEncode([['action' => 'play', 'json' => $base + [
-                        'download' => 0,
-                        'end' => 'playend',
-                        'sourceId' => $sourceId,
-                        'time' => max(1, (int)($song['time'] ?? 240)),
-                        'wifi' => 0,
-                        'source' => 'list',
-                    ]]])],
-                    'crypto' => 'eapi',
-                    'options' => $options,
+                $timestamp = time();
+                $nowMs = (int)round(microtime(true) * 1000);
+                $plvBody = Ncbl::buildRecords([[
+                    'time' => $timestamp,
+                    'action' => '_plv',
+                    'data' => Ncbl::buildPlv($context, $logSong, $source, $nowMs),
+                ]]);
+                $upload = $this->prepareNcblUpload($context, $metaJson, $plvBody);
+                $plvRequests[$index] = $upload['request'];
+                $plvFiles[$index] = $upload['fileName'];
+                $preparedSongs[$index] = [
+                    'song' => $logSong,
+                    'source' => $source,
+                    'timestamp' => $timestamp,
+                    'nowMs' => $nowMs,
                 ];
             }
 
-            // Keep each bounded group close to the upstream sequence: all songs
-            // in the group start first, then their matching play-end reports.
-            $startResponses = $this->sdk->requestMany($startRequests, $concurrency);
-            $playResponses = $this->sdk->requestMany($playRequests, $concurrency);
-            foreach ($chunk as $index => $song) {
-                $start = $this->decodeBody($startResponses[$index] ?? []);
-                $play = $this->decodeBody($playResponses[$index] ?? []);
-                if ((int)($start['code'] ?? 0) === 301 || (int)($play['code'] ?? 0) === 301) {
-                    $this->cookiezt = true;
+            $plvResponses = $this->sdk->rawRequestMany($plvRequests, $concurrency);
+            $pldRequests = [];
+            $pldFiles = [];
+            foreach ($preparedSongs as $index => $prepared) {
+                $response = $plvResponses[$index] ?? [];
+                $this->captureNcblAuthFailure($response);
+                if (!Ncbl::uploadAccepted($response, (string)$plvFiles[$index])) {
+                    continue;
                 }
-                if (in_array((int)($start['code'] ?? 0), [200, 250], true)) {
-                    $this->lastScrobbleStarts++;
+                $this->lastScrobbleStarts++;
+                $logSong = $prepared['song'];
+                $source = $prepared['source'];
+                $duration = max(1, (int)$logSong['time']);
+                $pldBody = Ncbl::buildRecords([[
+                    'time' => (int)$prepared['timestamp'],
+                    'action' => '_pld',
+                    'data' => Ncbl::buildPld(
+                        $context,
+                        $logSong,
+                        $source,
+                        $duration,
+                        (int)$prepared['nowMs']
+                    ),
+                ]]);
+                $upload = $this->prepareNcblUpload($context, $metaJson, $pldBody);
+                $pldRequests[$index] = $upload['request'];
+                $pldFiles[$index] = $upload['fileName'];
+            }
+
+            if ($pldRequests === []) {
+                continue;
+            }
+            $pldResponses = $this->sdk->rawRequestMany($pldRequests, $concurrency);
+            foreach ($pldRequests as $index => $_request) {
+                $response = $pldResponses[$index] ?? [];
+                $this->captureNcblAuthFailure($response);
+                if (!Ncbl::uploadAccepted($response, (string)$pldFiles[$index])) {
+                    continue;
                 }
-                if (in_array((int)($play['code'] ?? 0), [200, 250], true)) {
-                    $success++;
-                    $this->lastScrobbleSeconds += max(1, (int)($song['time'] ?? 240));
-                    $this->lastScrobbleSongIds[] = (int)$song['id'];
-                }
+                $song = $preparedSongs[$index]['song'];
+                $success++;
+                $this->lastScrobbleSeconds += max(1, (int)($song['time'] ?? 240));
+                $this->lastScrobbleSongIds[] = (int)$song['id'];
             }
         }
+        $this->lastScrobbleElapsedSeconds = microtime(true) - $startedAt;
         return $success;
+    }
+
+    /**
+     * @param array<string,mixed> $context
+     * @return array{request:array{method:string,url:string,options:array},fileName:string}
+     */
+    private function prepareNcblUpload(array $context, string $metaJson, string $body): array
+    {
+        $payload = Ncbl::encrypt($metaJson, $body);
+        $multipart = Ncbl::buildMultipart($payload);
+        return [
+            'request' => [
+                'method' => 'POST',
+                'url' => Ncbl::UPLOAD_URL,
+                'options' => [
+                    'cookie' => '',
+                    'headers' => Ncbl::uploadHeaders($context, $multipart['boundary']),
+                    'body' => $multipart['body'],
+                    'timeout' => (float)($this->config['daka_timeout'] ?? 15.0),
+                    'connect_timeout' => (float)($this->config['daka_connect_timeout'] ?? 8.0),
+                ],
+            ],
+            'fileName' => $multipart['fileName'],
+        ];
+    }
+
+    private function captureNcblAuthFailure(array $response): void
+    {
+        $body = json_decode((string)($response['body'] ?? ''), true);
+        $code = is_array($body) ? (int)($body['code'] ?? 0) : 0;
+        if (in_array($code, [301, 401], true)) {
+            $this->cookiezt = true;
+        }
     }
 
     /** @return array<int,array{id:int,sourceId:int,time:int}> */
@@ -886,13 +941,20 @@ class Netease
         }
         $success = $this->scrobbleBatch($songs);
         if ($success <= 0) {
-            return $this->makeResult(201, '歌曲ID：' . $songId . ' 播放上报失败，请稍后重试');
+            return $this->makeResult(201, '歌曲ID：' . $songId . ' 的NCBL日志未获服务器文件确认，请稍后重试');
         }
         return $this->makeResult(
             200,
-            '歌曲ID：' . $songId . ' 成功播放' . $success . '次；云村足迹起播提交'
-            . $this->lastScrobbleStarts . '次，听歌时长提交约'
-            . (int)ceil($this->lastScrobbleSeconds / 60) . '分钟'
+            '歌曲ID：' . $songId . ' 的NCBL完播文件确认' . $success . '/' . $times . '次；起播文件确认'
+            . $this->lastScrobbleStarts . '/' . $times . '次，提交时长约'
+            . (int)ceil($this->lastScrobbleSeconds / 60) . '分钟，耗时约'
+            . round($this->lastScrobbleElapsedSeconds, 1) . '秒；文件确认不等同于累计统计已入账',
+            [
+                'plv_confirmed' => $this->lastScrobbleStarts,
+                'pld_confirmed' => $success,
+                'submitted_seconds' => $this->lastScrobbleSeconds,
+                'elapsed_seconds' => round($this->lastScrobbleElapsedSeconds, 3),
+            ]
         );
     }
 
@@ -910,7 +972,8 @@ class Netease
             return $this->makeResult(201, '登录状态已失效');
         }
         $source = (string)($this->config['daka_music_from'] ?? 'highquality');
-        $songs = $this->dakaSongs($source, $this->loadDakaHistory(), 300);
+        $limit = max(1, min(300, (int)($this->config['daka_limit'] ?? 300)));
+        $songs = $this->dakaSongs($source, $this->loadDakaHistory(), $limit);
         if ($songs === []) {
             return $this->makeResult(201, '未获取到可用于打卡的新歌曲');
         }
@@ -924,15 +987,25 @@ class Netease
         $delta = max(0, $current - $listenSongs);
         $submitted = count($songs);
         $prefix = $delta > 0
-            ? '当前累计听歌' . $current . '首（本次查询较执行前+' . $delta . '）'
-            : '执行前累计听歌' . $listenSongs . '首';
-        $message = $prefix . '；已按官方单曲协议提交' . $success . '/' . $submitted . '首';
-        $message .= '；云村足迹起播提交' . $this->lastScrobbleStarts . '/' . $submitted . '首';
-        $message .= '，听歌时长提交约' . (int)ceil($this->lastScrobbleSeconds / 60) . '分钟';
+            ? '网易云累计听歌已从' . $listenSongs . '增至' . $current . '首（实际查询+' . $delta . '）'
+            : '网易云累计听歌当前仍为' . $listenSongs . '首';
+        $message = $prefix . '；NCBL起播文件确认' . $this->lastScrobbleStarts . '/' . $submitted . '首';
+        $message .= '，完播文件确认' . $success . '/' . $submitted . '首';
+        $message .= '，提交时长约' . (int)ceil($this->lastScrobbleSeconds / 60) . '分钟';
+        $message .= '，上传耗时约' . round($this->lastScrobbleElapsedSeconds, 1) . '秒';
         if ($delta === 0) {
-            $message .= '；网易云累计统计为异步更新，请稍后查看';
+            $message .= '；文件上传已确认，但累计统计尚未入账，不能把上传确认写成计数成功';
         }
-        return $this->makeResult($success > 0 ? 200 : 201, $message);
+        return $this->makeResult($success > 0 ? 200 : 201, $message, [
+            'submitted' => $submitted,
+            'plv_confirmed' => $this->lastScrobbleStarts,
+            'pld_confirmed' => $success,
+            'submitted_seconds' => $this->lastScrobbleSeconds,
+            'elapsed_seconds' => round($this->lastScrobbleElapsedSeconds, 3),
+            'listen_songs_before' => $listenSongs,
+            'listen_songs_after' => $current,
+            'listen_songs_delta' => $delta,
+        ]);
     }
 
     public function evaluate()

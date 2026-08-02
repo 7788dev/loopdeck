@@ -13,7 +13,15 @@ final class WorkflowTransport implements TransportInterface
     public function request(string $method, string $url, array $options = []): array
     {
         $this->requests[] = compact('method', 'url', 'options');
-        $body = $this->bodyFor($url);
+        if (str_contains($url, 'clientlog3.music.163.com')) {
+            preg_match('/filename="([^"]+)"/', (string)($options['body'] ?? ''), $match);
+            $body = [
+                'code' => 200,
+                'data' => ['successfiles' => [(string)($match[1] ?? '')]],
+            ];
+        } else {
+            $body = $this->bodyFor($url);
+        }
         if (str_contains($url, '/xeapi/')) {
             $body = openssl_encrypt(
                 json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -236,11 +244,11 @@ foreach ($results as $name => $result) {
     workflowCheck((int)($result['code'] ?? 0) === 200, $name . ' did not complete successfully');
 }
 workflowCheck(
-    str_contains((string)($results['daka_new']['message'] ?? ''), '云村足迹起播提交'),
+    str_contains((string)($results['daka_new']['message'] ?? ''), 'NCBL起播文件确认'),
     'Daily 300-song workflow did not report recent-play footprint submissions'
 );
 workflowCheck(
-    str_contains((string)($results['daka_new']['message'] ?? ''), '听歌时长提交约'),
+    str_contains((string)($results['daka_new']['message'] ?? ''), '提交时长约'),
     'Daily 300-song workflow did not report listening-duration submissions'
 );
 
@@ -262,8 +270,8 @@ workflowCheck(
     'Musician share task did not attach the v3 anti-cheat token'
 );
 workflowCheck(
-    count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/eapi/feedback/weblog'))) >= 2,
-    'Listening workflows did not use EAPI weblog reporting'
+    count(array_filter($urls, static fn(string $url): bool => str_contains($url, 'clientlog3.music.163.com/api/clientlog/encrypt/upload'))) >= 2,
+    'Listening workflows did not use NCBL client-log reporting'
 );
 workflowCheck(
     count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/weapi/vip-center-bff/task/sign'))) === 1,

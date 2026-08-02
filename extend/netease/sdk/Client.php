@@ -59,9 +59,12 @@ final class Client
     private Crypto $crypto;
     private array $config;
     private array $sessionCookies;
+    private string $userId;
     private string $deviceId;
     private string $nuid;
     private string $wnmcid;
+    private string $nmtid;
+    private string $nnid;
     private string $anonymousToken = '';
     private string $antiCheatTokenV3 = '';
     private ?array $xeapiPublicKey = null;
@@ -91,6 +94,7 @@ final class Client
         ], $config);
         $this->transport = $transport ?? new GuzzleTransport();
         $this->crypto = $crypto ?? new Crypto();
+        $this->userId = (string)($session['user_id'] ?? $session['uid'] ?? '');
 
         $csrf = (string)($session['csrf'] ?? $session['__csrf'] ?? '');
         $musicU = (string)($session['music_u'] ?? $session['musicu'] ?? $session['MUSIC_U'] ?? '');
@@ -120,8 +124,10 @@ final class Client
             $this->deviceId = $this->randomHex(52);
             $this->writeCache('device_id.txt', $this->deviceId);
         }
-        $this->nuid = (string)($config['nuid'] ?? strtolower($this->randomHex(64)));
-        $this->wnmcid = (string)($config['wnmcid'] ?? ($this->randomLowercase(6) . '.' . (string)round(microtime(true) * 1000) . '.01.0'));
+        $this->nuid = (string)($config['nuid'] ?? $this->sessionCookies['_ntes_nuid'] ?? strtolower($this->randomHex(64)));
+        $this->wnmcid = (string)($config['wnmcid'] ?? $this->sessionCookies['WNMCID'] ?? ($this->randomLowercase(6) . '.' . (string)round(microtime(true) * 1000) . '.01.0'));
+        $this->nmtid = (string)($config['nmtid'] ?? $this->sessionCookies['NMTID'] ?? strtolower($this->randomHex(32)));
+        $this->nnid = (string)($config['nnid'] ?? $this->sessionCookies['_ntes_nnid'] ?? ($this->nuid . ',' . (string)round(microtime(true) * 1000)));
         $this->anonymousToken = (string)($config['anonymous_token'] ?? '');
         $this->antiCheatTokenV3 = (string)($config['anti_cheat_token_v3'] ?? '');
         $this->xeapiPublicKey = isset($config['xeapi_public_key']) && is_array($config['xeapi_public_key'])
@@ -353,49 +359,66 @@ final class Client
     public function rawRequest(string $method, string $url, array $options = []): array
     {
         try {
-            $headers = [
-                'User-Agent' => (string)($options['user_agent'] ?? self::USER_AGENTS['weapi']),
-                'Referer' => (string)($options['referer'] ?? $this->config['domain'] . '/'),
-                'Accept' => '*/*',
-            ];
-            if (!empty($options['headers']) && is_array($options['headers'])) {
-                $headers = array_replace($headers, $options['headers']);
-            }
-            $cookieInput = array_key_exists('cookie', $options) && $options['cookie'] !== null
-                ? $options['cookie']
-                : $this->sessionCookies;
-            if ($cookieInput !== '') {
-                $cookies = $this->completeCookies($cookieInput, $this->resolveOsKey((string)($options['os'] ?? ''), 'api'), $url);
-                $headers['Cookie'] = $this->cookieString($cookies, true);
-            }
-
-            $this->addProxyAuthorization($headers, $options);
-            $requestOptions = $this->baseOptions($options);
-            $requestOptions['headers'] = $headers;
-            foreach (['body', 'json', 'multipart'] as $key) {
-                if (array_key_exists($key, $options)) {
-                    $requestOptions[$key] = $options[$key];
-                }
-            }
-            if (!array_key_exists('body', $requestOptions) && !array_key_exists('json', $requestOptions) && !array_key_exists('multipart', $requestOptions)) {
-                if (strtoupper($method) === 'GET') {
-                    if (!empty($options['params'])) {
-                        $requestOptions['query'] = $options['params'];
-                    }
-                } else {
-                    $requestOptions['form_params'] = $options['params'] ?? [];
-                }
-            }
-            $response = $this->transport->request($method, $url, $requestOptions);
-            return [
-                'header' => (string)($response['header'] ?? ''),
-                'body' => (string)($response['body'] ?? ''),
-                'status' => (int)($response['status'] ?? 0),
-                'set_cookie' => is_array($response['set_cookie'] ?? null) ? $response['set_cookie'] : [],
-            ];
+            $prepared = $this->prepareRawRequest($method, $url, $options);
+            return $this->normalizeRawResponse($this->transport->request(
+                $prepared['method'],
+                $prepared['url'],
+                $prepared['options']
+            ));
         } catch (Throwable $exception) {
             return $this->errorResponse($exception->getMessage());
         }
+    }
+
+    /**
+     * Send independent raw HTTP requests with the same bounded transport pool.
+     *
+     * @param array<int|string,array{method?:string,url:string,options?:array}> $requests
+     * @return array<int|string,array{header:string,body:string,status:int,set_cookie:array<int,string>}>
+     */
+    public function rawRequestMany(array $requests, int $concurrency = 8): array
+    {
+        $prepared = [];
+        $transportRequests = [];
+        $results = [];
+        foreach ($requests as $key => $request) {
+            try {
+                $prepared[$key] = $this->prepareRawRequest(
+                    (string)($request['method'] ?? 'GET'),
+                    (string)($request['url'] ?? ''),
+                    is_array($request['options'] ?? null) ? $request['options'] : []
+                );
+                $transportRequests[$key] = $prepared[$key];
+            } catch (Throwable $exception) {
+                $results[$key] = $this->errorResponse($exception->getMessage());
+            }
+        }
+
+        if ($transportRequests !== []) {
+            if (method_exists($this->transport, 'requestMany')) {
+                $responses = $this->transport->requestMany($transportRequests, $concurrency);
+            } else {
+                $responses = [];
+                foreach ($transportRequests as $key => $request) {
+                    $responses[$key] = $this->transport->request(
+                        $request['method'],
+                        $request['url'],
+                        $request['options']
+                    );
+                }
+            }
+            foreach ($transportRequests as $key => $_request) {
+                $results[$key] = $this->normalizeRawResponse(
+                    is_array($responses[$key] ?? null) ? $responses[$key] : []
+                );
+            }
+        }
+
+        $ordered = [];
+        foreach ($requests as $key => $_request) {
+            $ordered[$key] = $results[$key] ?? $this->errorResponse('Request did not complete');
+        }
+        return $ordered;
     }
 
     public function sessionCookie(): string
@@ -413,16 +436,122 @@ final class Client
         return $this->deviceId;
     }
 
+    /**
+     * Return a stable desktop-client context for NCBL client-log uploads.
+     *
+     * @return array<string,mixed>
+     */
+    public function desktopLogContext(): array
+    {
+        $cookies = $this->sessionCookies;
+        $version = (string)($this->config['desktop_app_version'] ?? '3.1.35');
+        $versionCode = (string)($this->config['desktop_version_code'] ?? '205293');
+        return [
+            'app' => [
+                'id' => (string)($cookies['appid'] ?? ''),
+                'urs' => '',
+                'pid' => '',
+                'nsm' => (string)($cookies['WEVNSM'] ?? '1.0.0'),
+                'cid' => (string)($cookies['WNMCID'] ?? $this->wnmcid),
+                'channel' => (string)($cookies['channel'] ?? 'netease'),
+                'version' => $version,
+                'versionCode' => $versionCode,
+                'buildCode' => (string)($cookies['buildver'] ?? ''),
+                'buildType' => 'release',
+                'packageId' => '',
+            ],
+            'device' => [
+                'id' => (string)($cookies['deviceId'] ?? $cookies['sDeviceId'] ?? $this->deviceId),
+                'ti' => (string)($cookies['NMTID'] ?? $this->nmtid),
+                'sign' => (string)($cookies['clientSign'] ?? ''),
+                'model' => (string)($cookies['mode'] ?? $cookies['mobilename'] ?? ''),
+                'nnid' => (string)($cookies['_ntes_nnid'] ?? $this->nnid),
+                'nuid' => (string)($cookies['_ntes_nuid'] ?? $this->nuid),
+                'csrf' => (string)($cookies['__csrf'] ?? ''),
+                'systemType' => 'pc',
+                'systemVersion' => (string)($cookies['osver'] ?? 'Microsoft-Windows-10-Professional-build-19045-64bit'),
+            ],
+            'auth' => [
+                'id' => (string)($cookies['uid'] ?? $this->userId),
+                'token' => (string)($cookies['MUSIC_U'] ?? ''),
+                'sessionId' => (string)($cookies['JSESSIONID-WYYY'] ?? ''),
+                'vipType' => $cookies['vipType'] ?? '',
+            ],
+            'startTime' => (int)round(microtime(true) * 1000),
+            'processId' => random_int(10000, 99999),
+        ];
+    }
+
+    /** @return array{method:string,url:string,options:array} */
+    private function prepareRawRequest(string $method, string $url, array $options): array
+    {
+        if ($url === '') {
+            throw new RuntimeException('Raw request URL cannot be empty');
+        }
+        $method = strtoupper($method);
+        $headers = [
+            'User-Agent' => (string)($options['user_agent'] ?? self::USER_AGENTS['weapi']),
+            'Referer' => (string)($options['referer'] ?? $this->config['domain'] . '/'),
+            'Accept' => '*/*',
+        ];
+        if (!empty($options['headers']) && is_array($options['headers'])) {
+            $headers = array_replace($headers, $options['headers']);
+        }
+        $cookieInput = array_key_exists('cookie', $options) && $options['cookie'] !== null
+            ? $options['cookie']
+            : $this->sessionCookies;
+        if ($cookieInput !== '') {
+            $cookies = $this->completeCookies(
+                $cookieInput,
+                $this->resolveOsKey((string)($options['os'] ?? ''), 'api'),
+                $url
+            );
+            $headers['Cookie'] = $this->cookieString($cookies, true);
+        }
+
+        $this->addProxyAuthorization($headers, $options);
+        $requestOptions = $this->baseOptions($options);
+        $requestOptions['headers'] = $headers;
+        foreach (['body', 'json', 'multipart'] as $key) {
+            if (array_key_exists($key, $options)) {
+                $requestOptions[$key] = $options[$key];
+            }
+        }
+        if (!array_key_exists('body', $requestOptions)
+            && !array_key_exists('json', $requestOptions)
+            && !array_key_exists('multipart', $requestOptions)) {
+            if ($method === 'GET') {
+                if (!empty($options['params'])) {
+                    $requestOptions['query'] = $options['params'];
+                }
+            } else {
+                $requestOptions['form_params'] = $options['params'] ?? [];
+            }
+        }
+
+        return ['method' => $method, 'url' => $url, 'options' => $requestOptions];
+    }
+
+    /** @return array{header:string,body:string,status:int,set_cookie:array<int,string>} */
+    private function normalizeRawResponse(array $response): array
+    {
+        return [
+            'header' => (string)($response['header'] ?? ''),
+            'body' => (string)($response['body'] ?? ''),
+            'status' => (int)($response['status'] ?? 0),
+            'set_cookie' => is_array($response['set_cookie'] ?? null) ? $response['set_cookie'] : [],
+        ];
+    }
+
     private function completeCookies($cookie, string $osKey, string $uri, bool $skipAnonymous = false): array
     {
         $cookies = $this->parseCookie($cookie);
         $profile = self::PROFILES[$osKey] ?? self::PROFILES['pc'];
-        $now = (string)round(microtime(true) * 1000);
         $cookies += [
             '__remember_me' => 'true',
             'ntes_kaola_ad' => '1',
             '_ntes_nuid' => $this->nuid,
-            '_ntes_nnid' => $this->nuid . ',' . $now,
+            '_ntes_nnid' => $this->nnid,
             'WNMCID' => $this->wnmcid,
             'WEVNSM' => '1.0.0',
             'osver' => $profile['osver'],
@@ -432,7 +561,7 @@ final class Client
             'appver' => $profile['appver'],
         ];
         if (strpos($uri, 'login') === false) {
-            $cookies['NMTID'] = strtolower($this->randomHex(32));
+            $cookies['NMTID'] = $cookies['NMTID'] ?? $this->nmtid;
         }
         if (empty($cookies['MUSIC_U']) && !$skipAnonymous && !empty($this->config['auto_anonymous_token'])) {
             $token = $this->ensureAnonymousToken();

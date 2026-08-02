@@ -9,10 +9,18 @@ use netease\sdk\TransportInterface;
 final class WorkflowTransport implements TransportInterface
 {
     public array $requests = [];
+    public int $listenSongs = 10;
+    private int $weblogRequests = 0;
 
     public function request(string $method, string $url, array $options = []): array
     {
         $this->requests[] = compact('method', 'url', 'options');
+        if (str_contains($url, '/feedback/weblog')) {
+            $this->weblogRequests++;
+            if ($this->weblogRequests % 2 === 0) {
+                $this->listenSongs++;
+            }
+        }
         if (str_contains($url, 'clientlog3.music.163.com')) {
             preg_match('/filename="([^"]+)"/', (string)($options['body'] ?? ''), $match);
             $body = [
@@ -50,7 +58,7 @@ final class WorkflowTransport implements TransportInterface
         if (str_contains($url, '/v1/user/detail/')) {
             return [
                 'code' => 200,
-                'listenSongs' => 10,
+                'listenSongs' => $this->listenSongs,
                 'profile' => [
                     'userId' => 1,
                     'mainAuthType' => ['desc' => "\u{7F51}\u{6613}\u{97F3}\u{4E50}\u{4EBA}"],
@@ -219,13 +227,39 @@ final class DakaLimitProbe extends Netease
 final class DailyDakaProbe extends Netease
 {
     public int $scrobbleCalls = 0;
+    public int $listenSongs = 10;
+
+    public function detail($uid)
+    {
+        return [
+            'status' => 200,
+            'headers' => [],
+            'body' => json_encode([
+                'code' => 200,
+                'listenSongs' => $this->listenSongs,
+            ], JSON_UNESCAPED_SLASHES),
+            'header' => '',
+            'set_cookie' => [],
+        ];
+    }
 
     protected function dakaSongs(string $source, array $history, int $limit = 300): array
     {
+        return $this->probeSongs($limit);
+    }
+
+    protected function dakaSupplementSongs(array $history, int $limit = 300): array
+    {
+        return $this->probeSongs($limit);
+    }
+
+    private function probeSongs(int $limit): array
+    {
         $songs = [];
         for ($index = 1; $index <= $limit; $index++) {
-            $songs[7000 + $index] = [
-                'id' => 7000 + $index,
+            $id = 7000 + ($this->scrobbleCalls * 100) + $index;
+            $songs[$id] = [
+                'id' => $id,
                 'sourceId' => 10,
                 'time' => 180,
             ];
@@ -233,7 +267,7 @@ final class DailyDakaProbe extends Netease
         return $songs;
     }
 
-    protected function legacyScrobbleBatch(array $songs): int
+    protected function weblogScrobbleBatch(array $songs): int
     {
         $this->scrobbleCalls++;
         $this->lastScrobbleStarts = count($songs);
@@ -272,6 +306,7 @@ $sdk = new Client([
 ], $transport);
 $netease = new Netease(1, 'csrf', 'music-u', [
     'daka_music_from' => 'personalized',
+    'daka_limit' => 1,
     'daka_history_dir' => '',
     'musician_follows_id' => 2,
     'songid' => 101,
@@ -309,20 +344,36 @@ $dailyProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
     'daka_limit' => 3,
     'daka_history_dir' => $dailyDirectory,
 ], $sdk);
-$dailyFirst = $dailyProbe->daka_new();
-$dailySecond = $dailyProbe->daka_new();
-workflowCheck((int)($dailyFirst['data']['submitted'] ?? 0) === 3, 'Daily daka target was not submitted');
-workflowCheck((int)($dailyFirst['data']['daily_confirmed'] ?? 0) === 3, 'Daily daka state lost confirmed plays');
-workflowCheck(!empty($dailySecond['data']['skipped_duplicate']), 'Same-day daka rerun was not skipped');
-workflowCheck((int)($dailySecond['data']['submitted'] ?? -1) === 0, 'Same-day daka rerun still submitted songs');
-workflowCheck($dailyProbe->scrobbleCalls === 1, 'Same-day daka rerun called the reporting protocol again');
+$legacyDailyState = $dailyDirectory . DIRECTORY_SEPARATOR . hash('sha256', '1') . '.daily.json';
+file_put_contents($legacyDailyState, json_encode([
+    'date' => date('Y-m-d'),
+    'target' => 3,
+    'submitted' => 3,
+    'plv_confirmed' => 3,
+    'pld_confirmed' => 3,
+    'listen_songs_before' => 10,
+    'listen_songs_after' => 10,
+]));
+$dailySupplement = $dailyProbe->daka_new();
+workflowCheck((int)($dailySupplement['code'] ?? 0) === 201, 'Unconfirmed daily progress was reported as complete');
+workflowCheck((int)($dailySupplement['data']['submitted'] ?? 0) === 3, 'Accepted legacy uploads incorrectly completed the daily target');
+workflowCheck((int)($dailySupplement['data']['daily_actual_progress'] ?? -1) === 0, 'Daily progress was not based on listenSongs');
+workflowCheck((int)($dailySupplement['data']['retry_after_seconds'] ?? 0) > 0, 'Incomplete daily progress did not request a retry');
+workflowCheck($dailyProbe->scrobbleCalls === 1, 'Incomplete daily progress did not submit a supplement batch');
 workflowCheck(
-    (string)($dailyFirst['message'] ?? '') === '上次累计听歌10首，本次10首，已打卡3首',
-    'Daily daka response did not use the concise listening-count summary'
+    str_contains((string)($dailySupplement['message'] ?? ''), '未等待歌曲播放'),
+    'Daily daka did not explain that reporting is immediate'
 );
+
+$dailyProbe->listenSongs = 13;
+$dailyComplete = $dailyProbe->daka_new();
+workflowCheck((int)($dailyComplete['code'] ?? 0) === 200, 'Actual listenSongs progress did not complete the target');
+workflowCheck(!empty($dailyComplete['data']['target_reached']), 'Completed daily target lost its completion flag');
+workflowCheck((int)($dailyComplete['data']['submitted'] ?? -1) === 0, 'Completed actual progress still submitted songs');
+workflowCheck($dailyProbe->scrobbleCalls === 1, 'Completed actual progress called the reporting protocol again');
 workflowCheck(
-    (string)($dailySecond['message'] ?? '') === '上次累计听歌10首，本次10首，已打卡0首',
-    'Same-day daka skip did not use the concise listening-count summary'
+    str_contains((string)($dailyComplete['message'] ?? ''), '实际新增3/3首'),
+    'Completed daily daka did not report the actual listenSongs increase'
 );
 foreach (glob($dailyDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $dailyFile) {
     @unlink($dailyFile);
@@ -354,8 +405,9 @@ foreach ($results as $name => $result) {
     workflowCheck((int)($result['code'] ?? 0) === 200, $name . ' did not complete successfully');
 }
 workflowCheck(
-    (string)($results['daka_new']['message'] ?? '') === '上次累计听歌10首，本次10首，已打卡1首',
-    'Daily 300-song workflow did not use the concise listening-count summary'
+    str_contains((string)($results['daka_new']['message'] ?? ''), '本批即时上报1首')
+        && str_contains((string)($results['daka_new']['message'] ?? ''), '未等待歌曲播放'),
+    'Daily 300-song workflow did not use immediate api-enhanced reporting'
 );
 
 $urls = array_column($transport->requests, 'url');
@@ -414,5 +466,10 @@ $installSql = file_get_contents(dirname(__DIR__) . '/app/install/install.sql');
 workflowCheck(str_contains($schedulerSource, "'vip_growth_task'"), 'Unified scheduler is missing the VIP growth task');
 workflowCheck(str_contains($taskModelSource, "'execute_name' => 'vip_growth_task'"), 'Existing installs cannot sync the VIP growth task');
 workflowCheck(str_contains($installSql, "'vip_growth_task'"), 'Fresh installs are missing the VIP growth task');
+workflowCheck(
+    str_contains($schedulerSource, "'retry_after_seconds'")
+        && str_contains($schedulerSource, '$nextExecute = time() +'),
+    'Incomplete daily listening progress is not rescheduled for verification and supplementation'
+);
 
 echo "Netease project workflow tests passed\n";

@@ -9,6 +9,7 @@ use netease\Netease;
 final class NeteaseSelectionFixture extends Netease
 {
     public array $artists = [];
+    public array $playlistQueries = [];
     public int $dailySongRequests = 0;
     public int $dailyPlaylistRequests = 0;
     public int $dailyPlaylistTrackCount = 160;
@@ -20,6 +21,11 @@ final class NeteaseSelectionFixture extends Netease
     public function selectedSongs(string $source = 'daily_recommend', int $limit = 300): array
     {
         return $this->dakaSongs($source, [], $limit);
+    }
+
+    public function supplementSongs(array $history = [], int $limit = 300): array
+    {
+        return $this->dakaSupplementSongs($history, $limit);
     }
 
     public function daily_recommend_songs(): array
@@ -46,6 +52,17 @@ final class NeteaseSelectionFixture extends Netease
     public function personalized($limit)
     {
         return [9001];
+    }
+
+    public function get_search_playlist($keywords = '冷门', $type = 1000, $limit = 100)
+    {
+        $this->playlistQueries[] = (string)$keywords;
+        return [9200 + count($this->playlistQueries)];
+    }
+
+    public function get_new_songs()
+    {
+        return [];
     }
 
     public function playlist_detail($playlist_id)
@@ -177,6 +194,25 @@ selectionCheck(count($fallbackSongs) === 300, 'Daily recommendation fallback did
 selectionCheck(
     $fallbackFixture->artists !== [],
     'Daily recommendation fallback did not use popular artists after recommendations ran short'
+);
+
+$supplementFixture = new NeteaseSelectionFixture();
+$supplementSongs = $supplementFixture->supplementSongs([], 300);
+selectionCheck(count($supplementSongs) === 300, 'Supplement selection did not fill 300 unique songs');
+selectionCheck(
+    count(array_filter(
+        $supplementSongs,
+        static fn(array $song): bool => in_array((int)$song['sourceId'], [9201, 9202], true)
+    )) === 300,
+    'Supplement selection did not retain real playlist source IDs'
+);
+selectionCheck(
+    str_contains((string)($supplementFixture->playlistQueries[0] ?? ''), date('Y')),
+    'Supplement selection did not prioritize current-year new-song playlists'
+);
+selectionCheck(
+    $supplementFixture->artists === [],
+    'Supplement selection used generic search songs before new-song playlists were exhausted'
 );
 
 echo "Netease song selection tests passed\n";

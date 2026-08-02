@@ -717,6 +717,91 @@ class Netease
     }
 
     /**
+     * Report the daily unique-song task through the weblog endpoint that
+     * actually updates NetEase listening records. NCBL upload acceptance only
+     * confirms receipt of a client-log file and is not a listening-count ack.
+     */
+    protected function legacyScrobbleBatch(array $songs): int
+    {
+        $startedAt = microtime(true);
+        $this->lastScrobbleStarts = 0;
+        $this->lastScrobbleSeconds = 0;
+        $this->lastScrobbleSongIds = [];
+        $this->lastScrobbleElapsedSeconds = 0.0;
+        $songs = array_values(array_filter($songs, static fn($song): bool =>
+            is_array($song) && (int)($song['id'] ?? 0) > 0
+        ));
+        if ($songs === []) {
+            return 0;
+        }
+
+        $concurrency = max(1, min(16, (int)($this->config['daka_concurrency'] ?? 8)));
+        $success = 0;
+        foreach (array_chunk($songs, $concurrency, true) as $chunk) {
+            $startRequests = [];
+            $playRequests = [];
+            foreach ($chunk as $index => $song) {
+                $sourceId = (int)($song['sourceId'] ?? 0);
+                $base = [
+                    'id' => (int)$song['id'],
+                    'type' => 'song',
+                    'mainsite' => '1',
+                    'mainsiteWeb' => '1',
+                    'content' => 'id=' . (string)$sourceId,
+                ];
+                $options = [
+                    'domain' => 'https://clientlog.music.163.com',
+                    'os' => 'osx',
+                ];
+                $startRequests[$index] = [
+                    'uri' => '/api/feedback/weblog',
+                    'data' => [
+                        'logs' => $this->jsonEncode([['action' => 'startplay', 'json' => $base]]),
+                    ],
+                    'crypto' => 'eapi',
+                    'options' => $options,
+                ];
+                $playRequests[$index] = [
+                    'uri' => '/api/feedback/weblog',
+                    'data' => [
+                        'logs' => $this->jsonEncode([['action' => 'play', 'json' => $base + [
+                            'download' => 0,
+                            'end' => 'playend',
+                            'sourceId' => $sourceId,
+                            'time' => max(1, (int)($song['time'] ?? 240)),
+                            'wifi' => 0,
+                            'source' => 'list',
+                        ]]]),
+                    ],
+                    'crypto' => 'eapi',
+                    'options' => $options,
+                ];
+            }
+
+            $startResponses = $this->sdk->requestMany($startRequests, $concurrency);
+            $playResponses = $this->sdk->requestMany($playRequests, $concurrency);
+            foreach ($chunk as $index => $song) {
+                $start = $this->decodeBody($startResponses[$index] ?? []);
+                $play = $this->decodeBody($playResponses[$index] ?? []);
+                if (in_array((int)($start['code'] ?? 0), [301, 401], true)
+                    || in_array((int)($play['code'] ?? 0), [301, 401], true)) {
+                    $this->cookiezt = true;
+                }
+                if (in_array((int)($start['code'] ?? 0), [200, 250], true)) {
+                    $this->lastScrobbleStarts++;
+                }
+                if (in_array((int)($play['code'] ?? 0), [200, 250], true)) {
+                    $success++;
+                    $this->lastScrobbleSeconds += max(1, (int)($song['time'] ?? 240));
+                    $this->lastScrobbleSongIds[] = (int)$song['id'];
+                }
+            }
+        }
+        $this->lastScrobbleElapsedSeconds = microtime(true) - $startedAt;
+        return $success;
+    }
+
+    /**
      * @param array<string,mixed> $context
      * @return array{request:array{method:string,url:string,options:array},fileName:string}
      */
@@ -922,6 +1007,23 @@ class Netease
         return $history;
     }
 
+    /** @return array<int,true> */
+    protected function loadRemoteDakaHistory(): array
+    {
+        $body = $this->decodeBody($this->requestApi('/api/v1/play/record', [
+            'uid' => $this->userId,
+            'type' => 0,
+        ], 'weapi'));
+        $history = [];
+        foreach ($body['allData'] ?? [] as $record) {
+            $id = (int)($record['song']['id'] ?? 0);
+            if ($id > 0) {
+                $history[$id] = true;
+            }
+        }
+        return $history;
+    }
+
     protected function rememberDakaSongs(array $songIds): void
     {
         $path = $this->dakaHistoryPath();
@@ -1060,9 +1162,7 @@ class Netease
             : 0;
         if ($confirmedToday >= $target) {
             return $this->makeResult(200,
-                '今日已确认提交' . $confirmedToday . '/' . $target . '首，已跳过重复执行；'
-                . '网易云每天最多统计300次播放，累计听歌只会增加账号此前未听过的歌曲，'
-                . '所以同日重复执行不会按提交数继续增长。当前累计听歌' . $listenSongs . '首',
+                '上次累计听歌' . $listenSongs . '首，本次' . $listenSongs . '首，已打卡0首',
                 [
                     'submitted' => 0,
                     'daily_target' => $target,
@@ -1077,12 +1177,13 @@ class Netease
         }
 
         $limit = $target - $confirmedToday;
-        $songs = $this->dakaSongs($source, $this->loadDakaHistory(), $limit);
+        $history = $this->loadDakaHistory() + $this->loadRemoteDakaHistory();
+        $songs = $this->dakaSongs($source, $history, $limit);
         if ($songs === []) {
             return $this->makeResult(201, '未获取到可用于打卡的新歌曲');
         }
 
-        $success = $this->scrobbleBatch($songs);
+        $success = $this->legacyScrobbleBatch($songs);
         if ($success > 0) {
             $this->rememberDakaSongs($this->lastScrobbleSongIds);
         }
@@ -1110,19 +1211,7 @@ class Netease
                 'updated_at' => date('c'),
             ]);
         }
-        $prefix = $delta > 0
-            ? '网易云累计听歌已从' . $listenSongs . '增至' . $current . '首（实际查询+' . $delta . '）'
-            : '网易云累计听歌当前仍为' . $listenSongs . '首';
-        $message = $prefix . '；NCBL起播文件确认' . $this->lastScrobbleStarts . '/' . $submitted . '首';
-        $message .= '，完播文件确认' . $success . '/' . $submitted . '首';
-        $message .= '，提交时长约' . (int)ceil($this->lastScrobbleSeconds / 60) . '分钟';
-        $message .= '，上传耗时约' . round($this->lastScrobbleElapsedSeconds, 1) . '秒';
-        $message .= '；今日累计文件确认' . $dailyConfirmed . '/' . $target . '首';
-        if ($delta === 0) {
-            $message .= '；文件上传已确认，但累计统计尚未入账，不能把上传确认写成计数成功。'
-                . '网易云每天最多统计300次播放，且累计听歌只对账号此前未听过的歌曲去重增加，'
-                . '同日重复执行不会按提交数继续增长';
-        }
+        $message = '上次累计听歌' . $listenSongs . '首，本次' . $current . '首，已打卡' . $success . '首';
         return $this->makeResult($success > 0 ? 200 : 201, $message, [
             'submitted' => $submitted,
             'plv_confirmed' => $this->lastScrobbleStarts,

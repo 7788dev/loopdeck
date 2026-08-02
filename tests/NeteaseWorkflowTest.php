@@ -233,7 +233,7 @@ final class DailyDakaProbe extends Netease
         return $songs;
     }
 
-    protected function scrobbleBatch(array $songs): int
+    protected function legacyScrobbleBatch(array $songs): int
     {
         $this->scrobbleCalls++;
         $this->lastScrobbleStarts = count($songs);
@@ -317,8 +317,12 @@ workflowCheck(!empty($dailySecond['data']['skipped_duplicate']), 'Same-day daka 
 workflowCheck((int)($dailySecond['data']['submitted'] ?? -1) === 0, 'Same-day daka rerun still submitted songs');
 workflowCheck($dailyProbe->scrobbleCalls === 1, 'Same-day daka rerun called the reporting protocol again');
 workflowCheck(
-    str_contains((string)($dailySecond['message'] ?? ''), '同日重复执行不会按提交数继续增长'),
-    'Same-day daka skip did not explain NetEase daily accounting'
+    (string)($dailyFirst['message'] ?? '') === '上次累计听歌10首，本次10首，已打卡3首',
+    'Daily daka response did not use the concise listening-count summary'
+);
+workflowCheck(
+    (string)($dailySecond['message'] ?? '') === '上次累计听歌10首，本次10首，已打卡0首',
+    'Same-day daka skip did not use the concise listening-count summary'
 );
 foreach (glob($dailyDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $dailyFile) {
     @unlink($dailyFile);
@@ -350,12 +354,8 @@ foreach ($results as $name => $result) {
     workflowCheck((int)($result['code'] ?? 0) === 200, $name . ' did not complete successfully');
 }
 workflowCheck(
-    str_contains((string)($results['daka_new']['message'] ?? ''), 'NCBL起播文件确认'),
-    'Daily 300-song workflow did not report recent-play footprint submissions'
-);
-workflowCheck(
-    str_contains((string)($results['daka_new']['message'] ?? ''), '提交时长约'),
-    'Daily 300-song workflow did not report listening-duration submissions'
+    (string)($results['daka_new']['message'] ?? '') === '上次累计听歌10首，本次10首，已打卡1首',
+    'Daily 300-song workflow did not use the concise listening-count summary'
 );
 
 $urls = array_column($transport->requests, 'url');
@@ -376,8 +376,12 @@ workflowCheck(
     'Musician share task did not attach the v3 anti-cheat token'
 );
 workflowCheck(
+    count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/eapi/feedback/weblog'))) >= 2,
+    'Daily listening workflow did not use the countable EAPI weblog protocol'
+);
+workflowCheck(
     count(array_filter($urls, static fn(string $url): bool => str_contains($url, 'clientlog3.music.163.com/api/clientlog/encrypt/upload'))) >= 2,
-    'Listening workflows did not use NCBL client-log reporting'
+    'Single-song listening workflow did not retain NCBL client-log reporting'
 );
 workflowCheck(
     count(array_filter($urls, static fn(string $url): bool => str_contains($url, '/weapi/vip-center-bff/task/sign'))) === 1,

@@ -81,7 +81,7 @@ $sdk = new Client([
     'music_u' => 'music-token',
 ], ['auto_anonymous_token' => false, 'cache_dir' => ''], $transport);
 $probe = new DakaScrobbleProbe('1', 'csrf-token', 'music-token', [
-    'daka_report_batch_size' => 10,
+    'daka_concurrency' => 10,
 ], $sdk);
 $songs = [];
 for ($id = 1001; $id <= 1025; $id++) {
@@ -89,14 +89,21 @@ for ($id = 1001; $id <= 1025; $id++) {
 }
 
 $accepted = $probe->report($songs);
-dakaProtocolCheck($accepted === 25, 'Batched weblog reporting lost accepted songs');
-dakaProtocolCheck($probe->acceptedStarts() === 25, 'Batched weblog reporting lost startplay records');
-dakaProtocolCheck($probe->reportedSeconds() === 4500, 'Batched weblog reporting lost the upstream time fields');
+dakaProtocolCheck($accepted === 25, 'Concurrent weblog reporting lost accepted songs');
+dakaProtocolCheck($probe->acceptedStarts() === 25, 'Concurrent weblog reporting lost startplay records');
+dakaProtocolCheck($probe->reportedSeconds() === 4500, 'Concurrent weblog reporting lost the upstream time fields');
 dakaProtocolCheck($probe->acceptedSongIds() === range(1001, 1025), 'Accepted song IDs were not retained');
 dakaProtocolCheck($probe->elapsedSeconds() < 1.0, 'The immediate protocol introduced a playback wait');
-dakaProtocolCheck(count($transport->requests) === 6, 'Twenty-five songs did not use three startplay/play request pairs');
+dakaProtocolCheck(count($transport->requests) === 50, 'Twenty-five songs did not use independent startplay/play requests');
 
-$expectedCounts = [10, 10, 10, 10, 5, 5];
+$expectedActions = array_merge(
+    array_fill(0, 10, 'startplay'),
+    array_fill(0, 10, 'play'),
+    array_fill(0, 10, 'startplay'),
+    array_fill(0, 10, 'play'),
+    array_fill(0, 5, 'startplay'),
+    array_fill(0, 5, 'play')
+);
 foreach ($transport->requests as $index => $request) {
     dakaProtocolCheck(
         $request['url'] === 'https://clientlog.music.163.com/eapi/feedback/weblog',
@@ -111,8 +118,8 @@ foreach ($transport->requests as $index => $request) {
     $payload = dakaProtocolPayload($request);
     $logs = json_decode((string)($payload['logs'] ?? ''), true);
     dakaProtocolCheck(is_array($logs), 'Daily reporting logs were not valid JSON');
-    dakaProtocolCheck(count($logs) === $expectedCounts[$index], 'Daily reporting used the wrong batch size');
-    $expectedAction = $index % 2 === 0 ? 'startplay' : 'play';
+    dakaProtocolCheck(count($logs) === 1, 'Daily reporting did not match api-enhanced one-log request semantics');
+    $expectedAction = $expectedActions[$index];
     dakaProtocolCheck(
         count(array_filter($logs, static fn(array $log): bool => ($log['action'] ?? '') === $expectedAction))
             === count($logs),
@@ -120,7 +127,7 @@ foreach ($transport->requests as $index => $request) {
     );
 }
 
-$playPayload = dakaProtocolPayload($transport->requests[1]);
+$playPayload = dakaProtocolPayload($transport->requests[10]);
 $playLogs = json_decode((string)$playPayload['logs'], true);
 $firstPlay = $playLogs[0]['json'] ?? [];
 dakaProtocolCheck(($firstPlay['id'] ?? null) === '1001', 'Song ID did not match api-enhanced query-string semantics');
@@ -140,7 +147,7 @@ $retrySdk = new Client([
     'music_u' => 'music-token',
 ], ['auto_anonymous_token' => false, 'cache_dir' => ''], $retryTransport);
 $retryProbe = new DakaScrobbleProbe('1', 'csrf-token', 'music-token', [
-    'daka_report_batch_size' => 10,
+    'daka_concurrency' => 10,
 ], $retrySdk);
 $retryAccepted = $retryProbe->report([['id' => 2001, 'sourceId' => 9002, 'time' => 200]]);
 dakaProtocolCheck($retryAccepted === 0, 'A non-200 play response was reported as accepted');

@@ -721,9 +721,9 @@ class Netease
      * The two weblog phases are submitted immediately; the `time` value is only
      * a protocol field and this method never waits for real playback.
      *
-     * NetEase's weblog endpoint accepts an array of logs. Sending small batches
-     * keeps the exact startplay -> play ordering while avoiding 600 independent
-     * HTTP requests for a normal 300-song run.
+     * api-enhanced submits exactly one log per request. Keep that wire shape for
+     * compatibility, but send the independent requests concurrently so a normal
+     * 300-song run reports immediately instead of simulating playback time.
      */
     protected function weblogScrobbleBatch(array $songs): int
     {
@@ -739,7 +739,7 @@ class Netease
             return 0;
         }
 
-        $batchSize = max(1, min(50, (int)($this->config['daka_report_batch_size'] ?? 20)));
+        $concurrency = max(1, min(16, (int)($this->config['daka_concurrency'] ?? 8)));
         $options = [
             'domain' => 'https://clientlog.music.163.com',
             'os' => 'osx',
@@ -747,60 +747,74 @@ class Netease
             'connect_timeout' => max(1.0, min(15.0, (float)($this->config['daka_connect_timeout'] ?? 4.0))),
         ];
         $success = 0;
-
-        foreach (array_chunk($songs, $batchSize) as $chunk) {
-            $startLogs = [];
-            $playLogs = [];
-            $reportedSeconds = 0;
-            foreach ($chunk as $song) {
+        foreach (array_chunk($songs, $concurrency, true) as $chunk) {
+            $startRequests = [];
+            $playRequests = [];
+            foreach ($chunk as $index => $song) {
                 // api-enhanced receives HTTP query values, so these identifiers
                 // are strings in the upstream JSON payload as well.
                 $songId = (string)(int)$song['id'];
                 $sourceId = (string)(int)($song['sourceId'] ?? 0);
                 $playedSeconds = max(1, (int)($song['time'] ?? 240));
-                $startLogs[] = [
-                    'action' => 'startplay',
-                    'json' => [
-                        'id' => $songId,
-                        'type' => 'song',
-                        'mainsite' => '1',
-                        'mainsiteWeb' => '1',
-                        'content' => 'id=' . $sourceId,
+                $startRequests[$index] = [
+                    'uri' => '/api/feedback/weblog',
+                    'data' => [
+                        'logs' => $this->jsonEncode([[
+                            'action' => 'startplay',
+                            'json' => [
+                                'id' => $songId,
+                                'type' => 'song',
+                                'mainsite' => '1',
+                                'mainsiteWeb' => '1',
+                                'content' => 'id=' . $sourceId,
+                            ],
+                        ]]),
                     ],
+                    'crypto' => 'eapi',
+                    'options' => $options,
                 ];
-                $playLogs[] = [
-                    'action' => 'play',
-                    'json' => [
-                        'download' => 0,
-                        'end' => 'playend',
-                        'id' => $songId,
-                        'sourceId' => $sourceId,
-                        'time' => (string)$playedSeconds,
-                        'type' => 'song',
-                        'wifi' => 0,
-                        'source' => 'list',
-                        'mainsite' => '1',
-                        'mainsiteWeb' => '1',
-                        'content' => 'id=' . $sourceId,
+                $playRequests[$index] = [
+                    'uri' => '/api/feedback/weblog',
+                    'data' => [
+                        'logs' => $this->jsonEncode([[
+                            'action' => 'play',
+                            'json' => [
+                                'download' => 0,
+                                'end' => 'playend',
+                                'id' => $songId,
+                                'sourceId' => $sourceId,
+                                'time' => (string)$playedSeconds,
+                                'type' => 'song',
+                                'wifi' => 0,
+                                'source' => 'list',
+                                'mainsite' => '1',
+                                'mainsiteWeb' => '1',
+                                'content' => 'id=' . $sourceId,
+                            ],
+                        ]]),
                     ],
+                    'crypto' => 'eapi',
+                    'options' => $options,
                 ];
-                $reportedSeconds += $playedSeconds;
             }
 
-            $start = $this->sendDakaWeblog($startLogs, $options);
-            if ($this->isDakaWeblogAccepted($start)) {
-                $this->lastScrobbleStarts += count($chunk);
+            $startResponses = $this->sendDakaWeblogMany($startRequests, $concurrency);
+            foreach ($startResponses as $response) {
+                if ($this->isDakaWeblogAccepted($response)) {
+                    $this->lastScrobbleStarts++;
+                }
             }
 
             // Upstream always sends play after startplay, even if the first
             // response is rejected. Preserve that behavior for compatibility.
-            $play = $this->sendDakaWeblog($playLogs, $options);
-            if ($this->isDakaWeblogAccepted($play)) {
-                $success += count($chunk);
-                $this->lastScrobbleSeconds += $reportedSeconds;
-                foreach ($chunk as $song) {
-                    $this->lastScrobbleSongIds[] = (int)$song['id'];
+            $playResponses = $this->sendDakaWeblogMany($playRequests, $concurrency);
+            foreach ($chunk as $index => $song) {
+                if (!$this->isDakaWeblogAccepted($playResponses[$index] ?? [])) {
+                    continue;
                 }
+                $success++;
+                $this->lastScrobbleSeconds += max(1, (int)($song['time'] ?? 240));
+                $this->lastScrobbleSongIds[] = (int)$song['id'];
             }
 
             if ($this->cookiezt) {
@@ -812,25 +826,36 @@ class Netease
         return $success;
     }
 
-    /** @param array<int,array<string,mixed>> $logs */
-    private function sendDakaWeblog(array $logs, array $options): array
+    /**
+     * @param array<int|string,array{uri:string,data:array,crypto:string,options:array}> $requests
+     * @return array<int|string,array>
+     */
+    private function sendDakaWeblogMany(array $requests, int $concurrency): array
     {
-        $last = [];
-        for ($attempt = 0; $attempt < 2; $attempt++) {
-            $last = $this->requestApi('/api/feedback/weblog', [
-                'logs' => $this->jsonEncode($logs),
-            ], 'eapi', $options);
-            $body = $this->decodeBody($last);
+        $responses = $this->sdk->requestMany($requests, $concurrency);
+        $retryRequests = [];
+        foreach ($requests as $index => $request) {
+            $body = $this->decodeBody($responses[$index] ?? []);
             $code = (int)($body['code'] ?? 0);
             if (in_array($code, [301, 401], true)) {
                 $this->cookiezt = true;
-                break;
-            }
-            if ($code === 200) {
-                break;
+            } elseif ($code !== 200) {
+                $retryRequests[$index] = $request;
             }
         }
-        return $last;
+
+        if ($retryRequests !== []) {
+            $retried = $this->sdk->requestMany($retryRequests, $concurrency);
+            foreach ($retryRequests as $index => $_request) {
+                $responses[$index] = $retried[$index] ?? [];
+                $code = (int)($this->decodeBody($responses[$index])['code'] ?? 0);
+                if (in_array($code, [301, 401], true)) {
+                    $this->cookiezt = true;
+                }
+            }
+        }
+
+        return $responses;
     }
 
     private function isDakaWeblogAccepted(array $response): bool

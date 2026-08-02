@@ -19,14 +19,14 @@ function updaterCheck(bool $condition, string $message): void
     }
 }
 
-updaterCheck(ApplicationVersion::current() === '1.1.14', 'Local VERSION was not loaded');
-updaterCheck(app_version() === '1.1.14', 'Template asset version was not loaded');
+updaterCheck(ApplicationVersion::current() === '1.1.15', 'Local VERSION was not loaded');
+updaterCheck(app_version() === '1.1.15', 'Template asset version was not loaded');
 updaterCheck(ApplicationVersion::normalize('v1.2.3') === '1.2.3', 'Version normalization failed');
 updaterCheck(ApplicationVersion::normalize('latest') === null, 'Invalid version was accepted');
 
 $history = [];
 $stack = HandlerStack::create(new MockHandler([
-    new Response(200, ['Content-Type' => 'text/plain'], "1.1.15\n"),
+    new Response(200, ['Content-Type' => 'text/plain'], "1.1.16\n"),
     new Response(202, ['Content-Type' => 'application/json'], '{"status":"accepted"}'),
 ]));
 $stack->push(Middleware::history($history));
@@ -39,8 +39,8 @@ $updater = new SystemUpdater($client, [
 ]);
 
 $status = $updater->status();
-updaterCheck($status['current_version'] === '1.1.14', 'Status returned the wrong local version');
-updaterCheck($status['latest_version'] === '1.1.15', 'Status returned the wrong remote version');
+updaterCheck($status['current_version'] === '1.1.15', 'Status returned the wrong local version');
+updaterCheck($status['latest_version'] === '1.1.16', 'Status returned the wrong remote version');
 updaterCheck($status['update_available'] === true, 'Newer remote version was not detected');
 updaterCheck($status['updater_available'] === true, 'Configured updater was reported unavailable');
 

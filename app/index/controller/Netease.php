@@ -31,7 +31,7 @@ class Netease
     {
         switch ($act) {
             case 'add':
-                return resultJson(0, '账号密码登录已关闭，请使用扫码登录');
+                return resultJson(0, '账号密码登录维护中，请使用扫码登录');
             case 'getQrimg':
                 return $this->getQrimg();
             case 'qrLogin':

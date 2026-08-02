@@ -69,8 +69,8 @@ loginQrCheck(
 loginQrCheck(
     is_string($neteaseController)
         && str_contains($neteaseController, "case 'add':")
-        && str_contains($neteaseController, "return resultJson(0, '账号密码登录已关闭，请使用扫码登录');"),
-    'NetEase password-login endpoint is not explicitly disabled'
+        && str_contains($neteaseController, "return resultJson(0, '账号密码登录维护中，请使用扫码登录');"),
+    'NetEase password-login endpoint is not explicitly parked in maintenance'
 );
 $passwordLoginResponse = (new \app\index\controller\Netease())->handle('add');
 $passwordLoginPayload = json_decode(
@@ -82,7 +82,7 @@ $passwordLoginPayload = json_decode(
 loginQrCheck(
     is_array($passwordLoginPayload)
         && ($passwordLoginPayload['code'] ?? null) === 0
-        && ($passwordLoginPayload['message'] ?? '') === '账号密码登录已关闭，请使用扫码登录',
+        && ($passwordLoginPayload['message'] ?? '') === '账号密码登录维护中，请使用扫码登录',
     'NetEase password-login endpoint did not reject the request at runtime'
 );
 foreach (["Request::post('username'", "Request::post('password'", 'loginByEmail(', 'md5($password)'] as $passwordLoginFragment) {
@@ -91,12 +91,31 @@ foreach (["Request::post('username'", "Request::post('password'", 'loginByEmail(
         'NetEase controller still contains password-login behavior: ' . $passwordLoginFragment
     );
 }
-foreach (['login-username', 'login-password', 'ajax_netease_login', '/index/ajax/netease/add', 'type="password"'] as $passwordViewFragment) {
+// 账号密码登录组件保留在页面上，但必须处于禁用的维护状态。
+foreach (['login-username', 'login-password', 'ajax_netease_login', 'type="password"', '维护中'] as $passwordViewFragment) {
     loginQrCheck(
-        !str_contains((string)$neteaseAddView, $passwordViewFragment),
-        'NetEase account-add page still exposes password login: ' . $passwordViewFragment
+        str_contains((string)$neteaseAddView, $passwordViewFragment),
+        'NetEase account-add page lost the password-login component: ' . $passwordViewFragment
     );
 }
+foreach ([
+    'placeholder="请输入手机号" disabled',
+    'placeholder="请输入密码" disabled',
+    'onclick="ajax_netease_login();" disabled',
+] as $disabledViewFragment) {
+    loginQrCheck(
+        str_contains((string)$neteaseAddView, $disabledViewFragment),
+        'NetEase password-login component is not disabled during maintenance: ' . $disabledViewFragment
+    );
+}
+loginQrCheck(
+    !str_contains((string)$neteaseAddView, '/index/ajax/netease/add'),
+    'NetEase account-add page still submits credentials while password login is under maintenance'
+);
+loginQrCheck(
+    !str_contains((string)$neteaseAddView, '账号密码登录已关闭'),
+    'NetEase account-add page still shows the retired password-login shutdown notice'
+);
 foreach (['/index/ajax/netease/getQrimg', '/index/ajax/netease/qrLogin', '/index/ajax/netease/verifyCheck', 'ajax_netease_qrlogin', 'verify_unikey'] as $qrViewFragment) {
     loginQrCheck(
         str_contains((string)$neteaseAddView, $qrViewFragment),

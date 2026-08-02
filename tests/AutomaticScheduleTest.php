@@ -55,5 +55,9 @@ automaticScheduleCheck(
         && str_contains($bilibiliView, 'data-allow-input="true"'),
     'Schedule inputs cannot be cleared to disable automatic execution'
 );
+automaticScheduleCheck(
+    str_contains($neteaseView, '<option value="daily_recommend">首页每日推荐（默认）</option>'),
+    'NetEase daily listening source does not default to home daily recommendations'
+);
 
 echo "Automatic schedule opt-in tests passed\n";

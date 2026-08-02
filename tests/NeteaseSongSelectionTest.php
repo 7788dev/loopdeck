@@ -9,14 +9,32 @@ use netease\Netease;
 final class NeteaseSelectionFixture extends Netease
 {
     public array $artists = [];
+    public int $dailySongRequests = 0;
+    public int $dailyPlaylistRequests = 0;
 
     public function __construct()
     {
     }
 
-    public function selectedSongs(int $limit = 300): array
+    public function selectedSongs(string $source = 'daily_recommend', int $limit = 300): array
     {
-        return $this->dakaSongs('highquality', [], $limit);
+        return $this->dakaSongs($source, [], $limit);
+    }
+
+    public function daily_recommend_songs(): array
+    {
+        $this->dailySongRequests++;
+        $songs = [];
+        for ($i = 1; $i <= 30; $i++) {
+            $songs[] = ['id' => 700000 + $i, 'sourceId' => 0, 'time' => 180];
+        }
+        return $songs;
+    }
+
+    public function recommend_playlist()
+    {
+        $this->dailyPlaylistRequests++;
+        return [9100, 9101];
     }
 
     public function get_highquality_playlist($limit, $before = 0)
@@ -55,6 +73,26 @@ final class NeteaseSelectionFixture extends Netease
     }
 }
 
+final class NeteaseDailyResponseFixture extends Netease
+{
+    public function __construct()
+    {
+    }
+
+    public function recommand_songs()
+    {
+        return [
+            'code' => 200,
+            'data' => [
+                'dailySongs' => [
+                    ['id' => 801, 'dt' => 181000],
+                    ['song' => ['id' => 802, 'duration' => 202000]],
+                ],
+            ],
+        ];
+    }
+}
+
 function selectionCheck(bool $condition, string $message): void
 {
     if (!$condition) {
@@ -65,7 +103,33 @@ function selectionCheck(bool $condition, string $message): void
 $fixture = new NeteaseSelectionFixture();
 $songs = $fixture->selectedSongs();
 
+$dailyResponseFixture = new NeteaseDailyResponseFixture();
+$normalizedDailySongs = $dailyResponseFixture->daily_recommend_songs();
+selectionCheck(
+    $normalizedDailySongs === [
+        ['id' => 801, 'sourceId' => 0, 'time' => 181],
+        ['id' => 802, 'sourceId' => 0, 'time' => 202],
+    ],
+    'Home daily recommendation response was not normalized into playable songs'
+);
+
 selectionCheck(count($songs) === 300, 'Popular song selection did not fill 300 unique songs');
+selectionCheck($fixture->dailySongRequests === 1, 'Default selection did not request home daily songs');
+selectionCheck($fixture->dailyPlaylistRequests === 1, 'Default selection did not request home daily playlists');
+selectionCheck(
+    count(array_filter(
+        $songs,
+        static fn(array $song): bool => (int)$song['id'] >= 700001 && (int)$song['id'] <= 700030
+    )) === 30,
+    'Default selection did not retain all available daily recommended songs'
+);
+selectionCheck(
+    count(array_filter(
+        $songs,
+        static fn(array $song): bool => in_array((int)$song['sourceId'], [9100, 9101], true)
+    )) === 110,
+    'Default selection did not fill its quota from home daily recommended playlists'
+);
 selectionCheck(
     array_slice($fixture->artists, 0, 3) === ['徐良', '许嵩', '薛之谦'],
     'Core artists requested by the user were not prioritized'
@@ -75,8 +139,11 @@ selectionCheck(
     'Similar mainstream artists were not used to complete the popular mix'
 );
 selectionCheck(
-    count(array_filter($songs, static fn(array $song): bool => (int)$song['sourceId'] === 9000)) === 140,
-    'Default selection did not preserve the精品歌单 quota'
+    count(array_filter(
+        $songs,
+        static fn(array $song): bool => in_array((int)$song['sourceId'], [9100, 9101], true)
+    )) === 110,
+    'Default selection did not preserve the home daily playlist quota'
 );
 foreach ([19723756, 3779629, 2884035, 3778678] as $chartPlaylistId) {
     selectionCheck(
@@ -87,5 +154,19 @@ foreach ([19723756, 3779629, 2884035, 3778678] as $chartPlaylistId) {
         'Each official chart must contribute its own 20-song quota'
     );
 }
+
+$highqualityFixture = new NeteaseSelectionFixture();
+$highqualitySongs = $highqualityFixture->selectedSongs('highquality');
+selectionCheck(
+    count(array_filter(
+        $highqualitySongs,
+        static fn(array $song): bool => (int)$song['sourceId'] === 9000
+    )) === 140,
+    'The optional high-quality playlist source no longer preserves its quota'
+);
+selectionCheck(
+    $highqualityFixture->dailySongRequests === 0 && $highqualityFixture->dailyPlaylistRequests === 0,
+    'The optional high-quality playlist source unexpectedly called home daily recommendations'
+);
 
 echo "Netease song selection tests passed\n";

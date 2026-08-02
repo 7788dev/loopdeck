@@ -332,7 +332,7 @@ $details = [
             closeBtn: 0,
             shadeClose: true,
             area: ['25%'],
-            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><select class="form-select"id="daka_music_from"name="daka_music_from"aria-label="daka_music_from"><option value="highquality">精品歌单（默认）</option><option value="personalized">首页推荐</option></select><label class="form-label"for="daka_music_from">歌曲来源</label></div><div class="form-text text-muted">说明：默认混合精品歌单、飙升榜/新歌榜/原创榜/热歌榜，以及徐良（《坏女孩》）、许嵩（《幻听》）、薛之谦和相近热门歌手的歌曲，并避开本系统已上报历史；不足300首时继续用热门华语歌曲补足。任务会分别提交云村足迹和实际歌曲时长，网易云累计统计存在延迟。</div></div></div></form>',
+            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><select class="form-select"id="daka_music_from"name="daka_music_from"aria-label="daka_music_from"><option value="daily_recommend">首页每日推荐（默认）</option><option value="highquality">精品歌单</option><option value="personalized">首页个性推荐歌单</option></select><label class="form-label"for="daka_music_from">歌曲来源</label></div><div class="form-text text-muted">说明：默认优先使用当前账号首页的每日推荐歌曲和每日推荐歌单，再用飙升榜/新歌榜/原创榜/热歌榜，以及徐良（《坏女孩》）、许嵩（《幻听》）、薛之谦和相近热门歌手的歌曲补足300首，并避开本系统已上报历史。任务会分别提交云村足迹和实际歌曲时长，网易云累计统计存在延迟。</div></div></div></form>',
             success: function (res, index) {
                 config = JSON.parse(config);
                 // console.log(config)

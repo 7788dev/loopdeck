@@ -528,6 +528,27 @@ class Netease
         return $this->decodeBody($this->requestApi('/api/v3/discovery/recommend/songs', [], 'weapi'));
     }
 
+    /** @return array<int,array{id:int,sourceId:int,time:int}> */
+    public function daily_recommend_songs(): array
+    {
+        $body = $this->recommand_songs();
+        $items = $body['data']['dailySongs'] ?? ($body['recommend'] ?? []);
+        $songs = [];
+        foreach (is_array($items) ? $items : [] as $item) {
+            $song = is_array($item['song'] ?? null) ? $item['song'] : $item;
+            $id = (int)($song['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $songs[] = [
+                'id' => $id,
+                'sourceId' => 0,
+                'time' => max(30, (int)ceil(($song['dt'] ?? $song['duration'] ?? 240000) / 1000)),
+            ];
+        }
+        return $songs;
+    }
+
     public function recommend_playlist()
     {
         $body = $this->decodeBody($this->requestApi('/api/v1/discovery/recommend/resource', [], 'weapi'));
@@ -732,10 +753,22 @@ class Netease
     protected function dakaSongs(string $source, array $history, int $limit = 300): array
     {
         $songs = [];
-        if (in_array($source, ['personalized', 'highquality'], true)) {
-            $playlists = $source === 'highquality'
-                ? $this->get_highquality_playlist(50)
-                : $this->personalized(50);
+        if (in_array($source, ['daily_recommend', 'personalized', 'highquality'], true)) {
+            if ($source === 'daily_recommend') {
+                // Use the signed-in account's home-page daily songs first, then
+                // continue through its daily recommended playlists.
+                $this->appendSearchSongs(
+                    $songs,
+                    $this->daily_recommend_songs(),
+                    $history,
+                    min($limit, 50)
+                );
+                $playlists = $this->recommend_playlist();
+            } else {
+                $playlists = $source === 'highquality'
+                    ? $this->get_highquality_playlist(50)
+                    : $this->personalized(50);
+            }
             $this->appendPlaylistSongs($songs, $playlists, $history, min($limit, 140));
 
             // Stable official chart playlist IDs: soaring, new songs, original,
@@ -1011,7 +1044,7 @@ class Netease
             $this->cookiezt = true;
             return $this->makeResult(201, '登录状态已失效');
         }
-        $source = (string)($this->config['daka_music_from'] ?? 'highquality');
+        $source = (string)($this->config['daka_music_from'] ?? 'daily_recommend');
         $target = max(1, min(300, (int)($this->config['daka_limit'] ?? 300)));
         $today = date('Y-m-d');
         $dailyState = $this->loadDakaDailyState();

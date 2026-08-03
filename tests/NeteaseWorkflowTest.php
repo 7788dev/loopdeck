@@ -356,13 +356,14 @@ file_put_contents($legacyDailyState, json_encode([
 ]));
 $dailySupplement = $dailyProbe->daka_new();
 workflowCheck((int)($dailySupplement['code'] ?? 0) === 201, 'Unconfirmed daily progress was reported as complete');
-workflowCheck((int)($dailySupplement['data']['submitted'] ?? 0) === 3, 'Accepted legacy uploads incorrectly completed the daily target');
+workflowCheck((int)($dailySupplement['data']['submitted'] ?? -1) === 0, 'Exhausted daily event budget still submitted songs');
+workflowCheck(!empty($dailySupplement['data']['verification_only']), 'Exhausted daily event budget did not switch to verification');
 workflowCheck((int)($dailySupplement['data']['daily_actual_progress'] ?? -1) === 0, 'Daily progress was not based on listenSongs');
 workflowCheck((int)($dailySupplement['data']['retry_after_seconds'] ?? 0) > 0, 'Incomplete daily progress did not request a retry');
-workflowCheck($dailyProbe->scrobbleCalls === 1, 'Incomplete daily progress did not submit a supplement batch');
+workflowCheck($dailyProbe->scrobbleCalls === 0, 'Exhausted daily event budget called the reporting protocol');
 workflowCheck(
-    str_contains((string)($dailySupplement['message'] ?? ''), '未等待歌曲播放'),
-    'Daily daka did not explain that reporting is immediate'
+    str_contains((string)($dailySupplement['message'] ?? ''), '额度已用尽'),
+    'Daily daka did not explain that the daily event budget was consumed'
 );
 
 $dailyProbe->listenSongs = 13;
@@ -370,7 +371,7 @@ $dailyComplete = $dailyProbe->daka_new();
 workflowCheck((int)($dailyComplete['code'] ?? 0) === 200, 'Actual listenSongs progress did not complete the target');
 workflowCheck(!empty($dailyComplete['data']['target_reached']), 'Completed daily target lost its completion flag');
 workflowCheck((int)($dailyComplete['data']['submitted'] ?? -1) === 0, 'Completed actual progress still submitted songs');
-workflowCheck($dailyProbe->scrobbleCalls === 1, 'Completed actual progress called the reporting protocol again');
+workflowCheck($dailyProbe->scrobbleCalls === 0, 'Completed actual progress called the reporting protocol');
 workflowCheck(
     str_contains((string)($dailyComplete['message'] ?? ''), '实际新增3/3首'),
     'Completed daily daka did not report the actual listenSongs increase'
@@ -398,15 +399,28 @@ file_put_contents($batchCapState, json_encode([
     'startplay_accepted_total' => 9,
     'play_accepted_total' => 9,
     'attempts' => 3,
+    'stalled_runs' => 0,
 ]));
 $batchCapResult = $batchCapProbe->daka_new();
-workflowCheck((int)($batchCapResult['code'] ?? 0) === 201, 'Daily batch cap was reported as success');
-workflowCheck((int)($batchCapResult['data']['submitted'] ?? -1) === 0, 'Daily batch cap submitted another batch');
-workflowCheck((int)($batchCapResult['data']['retry_after_seconds'] ?? -1) === 0, 'Daily batch cap scheduled another retry');
-workflowCheck($batchCapProbe->scrobbleCalls === 0, 'Daily batch cap called the reporting protocol');
+workflowCheck((int)($batchCapResult['code'] ?? 0) === 201, 'Exhausted event budget was reported as success');
+workflowCheck((int)($batchCapResult['data']['submitted'] ?? -1) === 0, 'Exhausted event budget submitted another batch');
+workflowCheck((int)($batchCapResult['data']['retry_after_seconds'] ?? -1) > 0, 'First verification did not schedule another check');
+workflowCheck($batchCapProbe->scrobbleCalls === 0, 'Exhausted event budget called the reporting protocol');
 workflowCheck(
-    str_contains((string)($batchCapResult['message'] ?? ''), '批次上限3次'),
-    'Daily batch cap did not report the three-batch limit'
+    str_contains((string)($batchCapResult['message'] ?? ''), '额度已用尽'),
+    'Exhausted event budget did not report the daily cap'
+);
+$batchCapStateData = json_decode((string)file_get_contents($batchCapState), true);
+workflowCheck((int)($batchCapStateData['stalled_runs'] ?? -1) === 1, 'Verification stall counter did not advance');
+
+file_put_contents($batchCapState, json_encode(array_replace($batchCapStateData, [
+    'stalled_runs' => 1,
+])));
+$batchCapStopped = $batchCapProbe->daka_new();
+workflowCheck((int)($batchCapStopped['data']['retry_after_seconds'] ?? -1) === 0, 'Repeated unchanged verification kept retrying');
+workflowCheck(
+    str_contains((string)($batchCapStopped['message'] ?? ''), '已停止自动复核'),
+    'Repeated unchanged verification did not stop'
 );
 foreach (glob($batchCapDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $batchCapFile) {
     @unlink($batchCapFile);

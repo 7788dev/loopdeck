@@ -148,8 +148,15 @@ selectionCheck(
     count(array_filter(
         $songs,
         static fn(array $song): bool => in_array((int)$song['sourceId'], [9100, 9101], true)
-    )) === 270,
-    'Default selection did not fill the target from home daily recommended playlists'
+    )) === 110,
+    'Default selection did not fill the remaining target from home daily recommended playlists'
+);
+selectionCheck(
+    count(array_filter(
+        $songs,
+        static fn(array $song): bool => (int)$song['sourceId'] === 3779629
+    )) === 160,
+    'Default selection did not prioritize the fresh new-song chart'
 );
 selectionCheck(
     $fixture->artists === [],
@@ -202,9 +209,16 @@ selectionCheck(count($supplementSongs) === 300, 'Supplement selection did not fi
 selectionCheck(
     count(array_filter(
         $supplementSongs,
-        static fn(array $song): bool => in_array((int)$song['sourceId'], [9201, 9202], true)
+        static fn(array $song): bool => in_array((int)$song['sourceId'], [3779629, 9201], true)
     )) === 300,
     'Supplement selection did not retain real playlist source IDs'
+);
+selectionCheck(
+    count(array_filter(
+        $supplementSongs,
+        static fn(array $song): bool => (int)$song['sourceId'] === 3779629
+    )) === 160,
+    'Supplement selection did not start from the fresh new-song chart'
 );
 selectionCheck(
     str_contains((string)($supplementFixture->playlistQueries[0] ?? ''), date('Y')),

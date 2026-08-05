@@ -1,0 +1,313 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+<style>
+    #qr-img {
+        min-height: 190px;
+        cursor: pointer;
+    }
+    #qr-img img {
+        width: 145px;
+        height: 145px;
+        object-fit: contain;
+    }
+    .douyin-verification-frame {
+        width: 100%;
+        height: min(72vh, 680px);
+        border: 0;
+        background: #fff;
+    }
+    @media (max-width: 767.98px) {
+        .douyin-verification-frame {
+            height: 68vh;
+        }
+    }
+</style>
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="block block-rounded h-100 mb-0">
+            <div class="block-header block-header-default">
+                <h3 class="block-title">抖音扫码添加</h3>
+                <div class="block-options">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="douyin-check-login">
+                        扫码完成，点击验证
+                    </button>
+                </div>
+            </div>
+            <div class="block-content text-center">
+                <div class="alert alert-primary d-flex align-items-center" id="qr-notice" role="alert">
+                    <i class="si si-magic-wand me-2" id="qr-alert-icon"></i>
+                    <p class="mb-0 text-start" id="qr-alert">点击图片即可获取二维码</p>
+                </div>
+                <div class="block d-flex align-items-center justify-content-center" id="qr-img" login-id="" aria-live="polite">
+                    <p class="mt-4">
+                        <i class="si si-camera fa-4x text-muted"></i>
+                    </p>
+                </div>
+                <button type="button" class="btn btn-alt-warning d-none mb-4" id="douyin-open-verification">
+                    <i class="fa fa-shield-alt me-1"></i> 完成人机验证
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="douyin-verification-modal" tabindex="-1" aria-labelledby="douyin-verification-title" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="douyin-verification-title">人机验证</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe
+                    class="douyin-verification-frame"
+                    id="douyin-verification-frame"
+                    src="about:blank"
+                    title="抖音人机验证"
+                    referrerpolicy="strict-origin-when-cross-origin"
+                    sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
+                ></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/douyin-captcha-runtime.js"></script>
+<script>
+    (function () {
+        var loginId = '';
+        var requestPending = false;
+        var verificationUrl = '';
+        var verificationData = '';
+        var completedVerificationData = '';
+        var verificationModal = null;
+        var turingReady = null;
+
+        function setAlert(message, tone) {
+            var color = tone || 'primary';
+            $('#qr-notice')
+                .removeClass('alert-primary alert-success alert-warning alert-danger')
+                .addClass('alert-' + color);
+            $('#qr-alert').text(message || '等待扫码');
+        }
+
+        function renderQr(base64) {
+            if (!base64) return;
+            $('#qr-img').html(
+                $('<img>', {
+                    src: 'data:image/png;base64,' + base64,
+                    alt: '抖音登录二维码'
+                })
+            );
+        }
+
+        function resetVerification() {
+            verificationUrl = '';
+            verificationData = '';
+            completedVerificationData = '';
+            $('#douyin-open-verification').addClass('d-none');
+            $('#douyin-verification-frame').attr('src', 'about:blank');
+            if (verificationModal) verificationModal.hide();
+        }
+
+        function ensureTuring() {
+            if (turingReady) return turingReady;
+            if (!window.TTGCaptcha || typeof window.TTGCaptcha.init !== 'function') {
+                return Promise.reject(new Error('captcha runtime unavailable'));
+            }
+            turingReady = Promise.resolve(window.TTGCaptcha.init({
+                commonOptions: {
+                    repoId: 579047,
+                    aid: 6383,
+                    did: '0',
+                    iid: '0'
+                },
+                captchaOptions: {
+                    sideSlide: false,
+                    lang: 'zh',
+                    showMode: 'mask',
+                    region: 'cn',
+                    app_name: '抖音'
+                },
+                secondVerifyWebOptions: {
+                    scene: '4'
+                }
+            }));
+            return turingReady;
+        }
+
+        function renderTuring(verifyData) {
+            if (!verifyData || verifyData === completedVerificationData) return;
+            var completed = function () {
+                completedVerificationData = verifyData;
+                $('#douyin-open-verification').addClass('d-none');
+                setAlert('验证完成，正在确认登录状态', 'primary');
+                setTimeout(checkLogin, 300);
+            };
+            ensureTuring().then(function () {
+                var payload = verifyData;
+                try {
+                    payload = JSON.parse(verifyData);
+                } catch (error) {}
+                window.TTGCaptcha.render({
+                    verify_data: payload,
+                    captchaOptions: {
+                        successCb: completed,
+                        closeCb: function () {}
+                    },
+                    secondVerifyWebOptions: {
+                        scene: '4',
+                        callBack: completed,
+                        closeCallBack: function () {}
+                    }
+                });
+            }).catch(function () {
+                setAlert('人机验证加载失败，请重新验证', 'danger');
+            });
+        }
+
+        function showVerification(verification) {
+            var required = verification && verification.required;
+            var mode = required ? (verification.mode || '') : '';
+            var url = required ? (verification.url || '') : '';
+            var verifyData = required ? (verification.verify_data || '') : '';
+            $('#douyin-open-verification').toggleClass('d-none', !url && !verifyData);
+            if (!required) return;
+
+            setAlert(verification.description || '请完成人机验证后继续登录', 'warning');
+            if (mode === 'turing' && verifyData) {
+                verificationData = verifyData;
+                verificationUrl = '';
+                renderTuring(verifyData);
+                return;
+            }
+            if (!url || url === verificationUrl) return;
+            verificationUrl = url;
+            verificationData = '';
+            $('#douyin-verification-frame').attr('src', url);
+            verificationModal = verificationModal || new bootstrap.Modal(document.getElementById('douyin-verification-modal'));
+            verificationModal.show();
+        }
+
+        function completeLogin(message) {
+            requestPending = false;
+            loginId = '';
+            $('#qr-img').attr('login-id', '');
+            resetVerification();
+            setAlert(message || '登录成功', 'success');
+            x.notify(message || '登录成功', 'success');
+            setTimeout(function () {
+                window.location.href = '{:url("/index/console/douyin/list")}';
+            }, 600);
+        }
+
+        function checkLogin() {
+            loginId = $('#qr-img').attr('login-id') || loginId;
+            if (!loginId) {
+                x.notify('请先获取二维码', 'warning');
+                return;
+            }
+            if (requestPending) return;
+            requestPending = true;
+            setAlert('正在验证扫码状态', 'primary');
+            x.ajax('/index/ajax/douyin/poll', {login_id: loginId}, function (response) {
+                requestPending = false;
+                var data = response.data || {};
+                if (data.qrimg) renderQr(data.qrimg);
+                showVerification(data.verification || null);
+
+                if (response.code == 1 && data.authenticated) {
+                    completeLogin(response.message);
+                    return;
+                }
+                if (data.status === 'expired' || data.status === 'refused') {
+                    loginId = '';
+                    $('#qr-img').attr('login-id', '');
+                    setAlert(response.message || '二维码已过期，点击图片重新获取', 'warning');
+                    return;
+                }
+                if (response.code == 1) {
+                    setAlert(response.message, data.status === 'scanned' ? 'warning' : 'primary');
+                    return;
+                }
+                setAlert(response.message || '登录状态验证失败', 'danger');
+                x.notify(response.message || '登录状态验证失败', 'warning');
+            }, function () {
+                requestPending = false;
+                setAlert('登录状态验证失败，请重试', 'danger');
+            });
+        }
+
+        function beginQrRequest() {
+            requestPending = true;
+            resetVerification();
+            setAlert('正在生成二维码', 'primary');
+            $('#qr-img').html('<i class="fa fa-spinner fa-spin fa-3x text-muted" aria-label="加载中"></i>');
+            Codebase.block('state_loading', '#qr-img');
+            x.ajax('/index/ajax/douyin/start', {}, function (response) {
+                requestPending = false;
+                Codebase.block('state_normal', '#qr-img');
+                var data = response.data || {};
+                if (response.code != 1 || !data.login_id || !data.qrimg) {
+                    loginId = '';
+                    $('#qr-img').attr('login-id', '');
+                    $('#qr-img').html('<i class="fa fa-exclamation-circle fa-3x text-danger"></i>');
+                    setAlert(response.message || '二维码生成失败', 'danger');
+                    return;
+                }
+                loginId = data.login_id;
+                $('#qr-img').attr('login-id', loginId);
+                renderQr(data.qrimg);
+                showVerification(data.verification || null);
+                setAlert('请使用抖音 APP 扫码并确认登录', 'primary');
+            }, function () {
+                requestPending = false;
+                Codebase.block('state_normal', '#qr-img');
+                $('#qr-img').html('<i class="fa fa-exclamation-circle fa-3x text-danger"></i>');
+                setAlert('二维码生成失败，请重试', 'danger');
+            });
+        }
+
+        function requestQr() {
+            if (requestPending) return;
+            var previous = $('#qr-img').attr('login-id') || loginId;
+            loginId = '';
+            $('#qr-img').attr('login-id', '');
+            if (!previous) {
+                beginQrRequest();
+                return;
+            }
+            requestPending = true;
+            x.ajax('/index/ajax/douyin/cancel', {login_id: previous}, function () {
+                requestPending = false;
+                beginQrRequest();
+            }, function () {
+                requestPending = false;
+                beginQrRequest();
+            });
+        }
+
+        $('#qr-img').off('click.douyin').on('click.douyin', requestQr);
+        $('#douyin-check-login').off('click.douyin').on('click.douyin', checkLogin);
+        $('#douyin-open-verification').off('click.douyin').on('click.douyin', function () {
+            if (verificationData) {
+                renderTuring(verificationData);
+                return;
+            }
+            if (!verificationUrl) return;
+            verificationModal = verificationModal || new bootstrap.Modal(document.getElementById('douyin-verification-modal'));
+            verificationModal.show();
+        });
+        $(document).one('pjax:beforeReplace.douyin', function () {
+            var previous = $('#qr-img').attr('login-id') || loginId;
+            if (previous) {
+                x.ajax('/index/ajax/douyin/cancel', {login_id: previous}, function () {});
+            }
+        });
+
+        Codebase.block('state_normal', '#qr-img');
+    })();
+</script>
+{/block}

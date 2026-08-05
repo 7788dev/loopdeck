@@ -67,6 +67,47 @@ class Console
         }
     }
 
+    public function douyin($act = "")
+    {
+        switch ($act) {
+            case 'login':
+            case 'add':
+                return view('console/douyin/login');
+            case 'list':
+                return view('console/douyin/list', ['list' => $this->douyinAccountList()]);
+        }
+        return view('common/alert', ['msg' => '页面不存在', 'url' => '/index/console']);
+    }
+
+    private function douyinAccountList(): array
+    {
+        $result = [];
+        $accounts = Accounts::getMyList('douyin');
+        if (!$accounts) {
+            return $result;
+        }
+
+        foreach ($accounts as $account) {
+            try {
+                $profile = safe_unserialize_array((string)$account['data']);
+            } catch (Throwable $exception) {
+                continue;
+            }
+            $userId = trim((string)($profile['user_id'] ?? $account['user_id'] ?? ''));
+            if ($userId === '') {
+                continue;
+            }
+            $result[] = [
+                'user_id' => $userId,
+                'nickname' => trim((string)($profile['nickname'] ?? '')) ?: '抖音用户 ' . substr($userId, 0, 8),
+                'avatar' => (string)($profile['avatar'] ?? ''),
+                'state' => (int)$account['state'],
+                'addtime' => (string)$account['addtime'],
+            ];
+        }
+        return $result;
+    }
+
     public function bilibili($act = "", $mid = "")
     {
         switch ($act) {

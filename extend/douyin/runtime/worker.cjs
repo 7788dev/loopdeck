@@ -532,11 +532,16 @@ async function sign(input) {
     xhr.setRequestHeader('content-type', 'application/x-www-form-urlencoded');
   }
   xhr.send(request.body || null);
-  await new Promise((resolve) => setTimeout(resolve, 25));
 
-  const signed = [...requests]
-    .reverse()
-    .find((candidate) => candidate.url.startsWith(LOGIN_ORIGIN + '/passport/'));
+  // DTrait finishes its header work asynchronously before forwarding the XHR.
+  const signedRequestDeadline = Date.now() + 10000;
+  let signed = null;
+  do {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    signed = [...requests]
+      .reverse()
+      .find((candidate) => candidate.url.startsWith(LOGIN_ORIGIN + '/passport/')) || null;
+  } while (!signed && Date.now() < signedRequestDeadline);
   if (!signed) throw new Error('BDMS did not emit the passport request');
 
   const signedUrl = new URL(signed.url);

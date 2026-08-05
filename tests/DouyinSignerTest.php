@@ -52,7 +52,7 @@ $msToken = $passport->randomMsToken();
 douyinCheck(strlen($msToken) === 184, 'random msToken has the wrong length');
 douyinCheck((bool)preg_match('/^[A-Za-z0-9_-]{183}=$/', $msToken), 'random msToken has the wrong alphabet');
 
-$nodeSigner = new NodeSigner(timeout: 12.0);
+$nodeSigner = new NodeSigner(timeout: 30.0);
 $signedUrl = $nodeSigner->sign(
     'https://login.douyin.com/passport/web/get_qrcode/?aid=6383&msToken=LOCAL_FIXTURE_TOKEN'
 );

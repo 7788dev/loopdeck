@@ -48,8 +48,7 @@ douyinCheck(str_contains((string)$controller, "'cookie' => \$cookieHeader"), 'ac
 douyinCheck(!str_contains((string)$controller, "'cookies' => \$client"), 'controller exposes login cookies in an AJAX response');
 douyinCheck(str_contains((string)$controller, "Request::post('login_id'"), 'controller does not use an opaque login ID');
 douyinCheck(!str_contains((string)$controller, "Request::post('session_id'"), 'controller collides with the PHP session ID parameter');
-douyinCheck(is_string($navigation) && str_contains($navigation, 'aria-disabled="true"'), 'Douyin navigation is not disabled');
-douyinCheck(str_contains((string)$navigation, '>开发中</span>'), 'Douyin navigation is missing its development status');
+douyinCheck(is_string($navigation) && !str_contains($navigation, '>抖音</span>'), 'Douyin navigation is still exposed while pages are unfinished');
 douyinCheck(!str_contains((string)$navigation, "href=\"{:url('/index/console/douyin/"), 'Douyin navigation still links to unfinished pages');
 douyinCheck(is_string($view) && str_contains($view, '/index/ajax/douyin/poll'), 'QR page does not poll the protocol endpoint');
 douyinCheck(str_contains((string)$view, "x.ajax('/index/ajax/douyin/start', {}"), 'QR session creation is not sent with POST');

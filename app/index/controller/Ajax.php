@@ -53,6 +53,63 @@ class Ajax extends Common
 		return $this->accountAction("heybox", $act);
 	}
 
+	public function epic($act = null)
+	{
+		if ($act === "setEmail") {
+			$email = trim((string)Request::post("email", ""));
+			$timing = trim((string)Request::post("timing", ""));
+			if ($email === "" || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 255) {
+				return resultJson(0, "邮箱格式错误");
+			}
+			if (!AutomaticSchedule::isConfigured($timing)) {
+				return resultJson(0, "时间格式应为 HH:MM");
+			}
+			$job = $this->epicJob();
+			if (!$job) {
+				return resultJson(0, "订阅任务不存在，请刷新页面重试");
+			}
+			$job->save([
+				"user_id" => $email,
+				"data" => serialize(["timing" => $timing]),
+				"nextExecute" => time(),
+			]);
+			return resultJson(1, "保存成功");
+		}
+		if ($act === "funcSwitch") {
+			$job = $this->epicJob();
+			if (!$job) {
+				return resultJson(0, "订阅任务不存在，请刷新页面重试");
+			}
+			if ((int)$job["state"] === 1) {
+				$job->save(["state" => 0]);
+				return resultJson(1, "已关闭推送");
+			}
+			$email = trim((string)($job["user_id"] ?? ""));
+			$timing = (string)(safe_unserialize_array($job["data"])["timing"] ?? "");
+			if ($email === "" || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+				return resultJson(0, "请先填写并保存邮箱地址");
+			}
+			if (!AutomaticSchedule::isConfigured($timing)) {
+				return resultJson(0, "请先设置通知时间");
+			}
+			$job->save([
+				"state" => 1,
+				"nextExecute" => time(),
+			]);
+			return resultJson(1, "已开启推送");
+		}
+		return resultJson(0, "未知操作");
+	}
+
+	private function epicJob()
+	{
+		return Jobs::where("zid", "=", WEB_ID)
+			->where("uid", "=", Session::get("user.uid"))
+			->where("type", "=", "epic")
+			->where("do", "=", "weeklyGameNotify")
+			->find();
+	}
+
 	public function qrcode($act = null)
 	{
 		if ($act === "uploads") {

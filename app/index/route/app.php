@@ -41,6 +41,7 @@ Route::group('ajax', function () {
     Route::rule('douyin/[:act]', 'douyin/handle');
     Route::rule('bilibili/[:act]', 'bilibili/handle');
     Route::rule('heybox/[:act]', 'ajax/heybox');
+    Route::rule('epic/act/[:act]', 'ajax/epic');
     Route::rule('qrcode/[:act]', 'ajax/qrcode');
 
     Route::rule('user/[:act]', 'ajax/user');

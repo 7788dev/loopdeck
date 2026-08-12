@@ -658,12 +658,35 @@ class Task extends Common
                     break;
                 }
             }
+            $this->pruneDakaStateFiles();
             @touch($stamp);
         } catch (Throwable $exception) {
             @touch($stamp);
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
+        }
+    }
+
+    /**
+     * The daily NetEase task keeps two JSON files per account under
+     * `runtime/netease-daka/`. Nothing removed them when an account went away,
+     * so the directory grew without bound.
+     */
+    private function pruneDakaStateFiles(): void
+    {
+        $directory = rtrim(runtime_path(), '/\\') . DIRECTORY_SEPARATOR . 'netease-daka';
+        if (!is_dir($directory)) {
+            return;
+        }
+
+        $retentionDays = $this->envInt('DAKA_STATE_RETENTION_DAYS', 30, 1, 3650);
+        $cutoff = time() - ($retentionDays * 86400);
+        foreach (glob($directory . DIRECTORY_SEPARATOR . '*.json') ?: [] as $file) {
+            clearstatcache(true, $file);
+            if (is_file($file) && (int)@filemtime($file) < $cutoff) {
+                @unlink($file);
+            }
         }
     }
 

@@ -13,8 +13,9 @@ class Epic extends Common
 {
     public function index()
     {
-        $cronkey = Request::get('cronkey');
-        if (empty($cronkey) || $cronkey != config('sys.cronkey')) {
+        $cronkey = (string)Request::get('cronkey', '');
+        $expected = (string)config('sys.cronkey');
+        if ($cronkey === '' || $expected === '' || !hash_equals($expected, $cronkey)) {
             $res = ['code' => -1000, 'message' => 'CronKey Access Denied!'];
             exit(json_encode($res, JSON_UNESCAPED_UNICODE));
         }
@@ -68,7 +69,7 @@ class Epic extends Common
     public function notify()
     {
         $data = Request::get();
-        if (isset($data['runkey']) && $data['runkey'] == RUN_KEY) {
+        if (hash_equals((string)RUN_KEY, (string)($data['runkey'] ?? ''))) {
             $this->send_mail($data['user_id'], 'Epic游戏商城周免领取通知', $this->get_email_template($data['zid']), $data['zid']);
         } else {
             return resultJson(-1001, 'RunKey Access Denied!');

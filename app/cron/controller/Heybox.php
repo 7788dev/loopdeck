@@ -17,8 +17,9 @@ class Heybox extends Common
 {
     public function index()
     {
-        $cronkey = Request::get('cronkey');
-        if (empty($cronkey) || $cronkey != config('sys.cronkey')) {
+        $cronkey = (string)Request::get('cronkey', '');
+        $expected = (string)config('sys.cronkey');
+        if ($cronkey === '' || $expected === '' || !hash_equals($expected, $cronkey)) {
             $res = ['code' => -1000, 'message' => 'CronKey Access Denied!'];
             exit(json_encode($res, JSON_UNESCAPED_UNICODE));
         }
@@ -72,7 +73,7 @@ class Heybox extends Common
     public function execute($do)
     {
         $data = Request::get();
-        if (isset($data['runkey']) && $data['runkey'] == RUN_KEY) {
+        if (hash_equals((string)RUN_KEY, (string)($data['runkey'] ?? ''))) {
             $account = Accounts::where('type', 'heybox')->where('user_id', $data['user_id'])->find();
             if (!$account || !AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
                 return resultJson(0, '请先设置挂机时间');

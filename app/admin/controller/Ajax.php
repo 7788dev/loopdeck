@@ -191,23 +191,36 @@ class Ajax extends Common
             case 'set':
                 switch ($act) {
                     default:
+                        if (WEB_ID != 1) {
+                            return resultJson(0, '无权修改任务定义');
+                        }
                         $task = new Tasks();
                         $jobs = new Jobs();
                         $data = Request::post();
+                        // Raw POST used to be written straight into the row, so
+                        // columns the form never exposes (execute_name, type)
+                        // were writable by anyone reaching this endpoint.
+                        $editable = array_intersect_key($data, array_flip([
+                            'name', 'describe', 'icon', 'execute_rate', 'more', 'state', 'vip', 'order',
+                        ]));
+                        foreach ($editable as $value) {
+                            if (!is_scalar($value) && $value !== null) {
+                                return resultJson(0, '任务配置格式无效');
+                            }
+                        }
                         $oTask = $task->where('id', '=', $data['id'])->find();
-                        $up_task = $task->where('id', '=', $data['id'])->update($data);
+                        if (!$oTask || $editable === []) {
+                            return resultJson(0, '任务不存在或没有可修改的内容');
+                        }
+                        $up_task = $task->where('id', '=', $data['id'])->update($editable);
                         if ($up_task == 0) {  // 无修改
                             return resultJson(1, '保存成功');
                         } else {
-                            $job = $jobs->where('do', '=', $oTask['execute_name'])->select();
-                            foreach ($job as $key => $value) {
+                            $requiresVip = (int)($editable['vip'] ?? $oTask['vip']) === 1;
+                            foreach ($jobs->where('do', '=', $oTask['execute_name'])->select() as $value) {
                                 $user = Users::findByUid($value['uid']);
-                                $data['vip'] == 1 && empty($user['vip_start']) ? $state = 0 : $state = 1;
-                                $jobs->where('do', '=', $oTask['execute_name'])->update([
-                                    'type' => $data['type'],
-                                    'do' => $oTask['execute_name'],
-                                    'state' => $state,
-                                ]);
+                                $state = ($requiresVip && empty($user['vip_start'])) ? 0 : 1;
+                                $jobs->where('id', '=', $value['id'])->update(['state' => $state]);
                             }
                             return resultJson(1, '保存成功');
                         }
@@ -244,6 +257,9 @@ class Ajax extends Common
                         return Accounts::getAccountList();
                         break;
                     case 'sites':
+                        if (WEB_ID != 1) {
+                            return resultJson(0, '无权管理分站');
+                        }
                         return Weblist::getSitesList();
                         break;
                 }
@@ -282,6 +298,9 @@ class Ajax extends Common
                         return Notice::add($data);
                         break;
                     case 'site':
+                        if (WEB_ID != 1) {
+                            return resultJson(0, '无权管理分站');
+                        }
                         $data = Request::post();
                         try {
                             validate(WeblistValidate::class)->scene('add')->check($data);
@@ -300,10 +319,10 @@ class Ajax extends Common
                         if ($id == 1) {
                             return resultJson(0, '不能删除管理员');
                         }
-                        if (Users::delByUid($id)) {
+                        if (Users::adminDelByUid($id)) {
                             return resultJson(1, '删除成功');
                         } else {
-                            return resultJson(0, '删除失败');
+                            return resultJson(0, '删除失败或无权操作该用户');
                         }
                         break;
                     case 'km':
@@ -330,7 +349,13 @@ class Ajax extends Common
                         }
                         break;
                     case 'site':
+                        if (WEB_ID != 1) {
+                            return resultJson(0, '无权管理分站');
+                        }
                         $id = Request::post('id');
+                        if ($id == 1) {
+                            return resultJson(0, '无法删除主站');
+                        }
                         $web_data = Weblist::findByWebid($id);
                         $table = $web_data ? Weblist::configTableName($web_data['prefix']) : null;
                         if ($table === null) {
@@ -356,6 +381,7 @@ class Ajax extends Common
                 switch ($do) {
                     case 'user':
                         $data = Request::post();
+                        $up = [];
                         if (!empty($data['password'])) {
                             try {
                                 validate(UsersValidate::class)->scene('edit')->check($data);
@@ -365,30 +391,39 @@ class Ajax extends Common
                             }
                            $up['password'] = password_hash((string)$data['password'], PASSWORD_DEFAULT);
                         }
-                        if ($data['vip_start'] == '') {
-                            $up['vip_start'] = NULL;
-                        } else {
-                            $up['vip_start'] = $data['vip_start'];
+                        foreach (['vip_start' => 'vip_start', 'vip_end' => 'vip_end'] as $field) {
+                            $value = trim((string)($data[$field] ?? ''));
+                            if ($value !== '' && !strtotime($value)) {
+                                return resultJson(0, '会员时间格式无效');
+                            }
+                            $up[$field] = $value === '' ? null : $value;
                         }
-                        if ($data['vip_end'] == '') {
-                            $up['vip_end'] = NULL;
-                        } else {
-                            $up['vip_end'] = $data['vip_end'];
+                        foreach (['agent' => 3, 'quota' => 100000, 'state' => 1] as $field => $max) {
+                            $value = trim((string)($data[$field] ?? '0'));
+                            if ($value !== '' && (!ctype_digit($value) || (int)$value > $max)) {
+                                return resultJson(0, '用户属性取值超出允许范围');
+                            }
+                            $up[$field] = (int)$value;
                         }
-                        if (!empty($data['agent'])) {
-                            $up['agent'] = $data['agent'];
-                        } else {
-                            $up['agent'] = 0;
+                        $money = trim((string)($data['money'] ?? '0'));
+                        if ($money !== '' && !is_numeric($money)) {
+                            return resultJson(0, '余额必须是数字');
                         }
-                        $up['money'] = $data['money'];
-                        $up['quota'] = $data['quota'];
-                        $up['state'] = $data['state'];
-                        $up['qq'] = $data['qq'];
-                        $up['mail'] = $data['mail'];
-                        if (Users::updateByUid($data['id'], $up)) {
+                        $up['money'] = round((float)$money, 2);
+                        $qq = trim((string)($data['qq'] ?? ''));
+                        if ($qq !== '' && (!ctype_digit($qq) || strlen($qq) > 15)) {
+                            return resultJson(0, 'QQ号格式无效');
+                        }
+                        $up['qq'] = $qq;
+                        $mail = trim((string)($data['mail'] ?? ''));
+                        if ($mail !== '' && !check_mail($mail)) {
+                            return resultJson(0, '邮箱格式无效');
+                        }
+                        $up['mail'] = $mail;
+                        if (Users::adminUpdateByUid($data['id'] ?? 0, $up)) {
                             return resultJson(1, '编辑用户成功');
                         } else {
-                            return resultJson(0, '编辑失败，无修改');
+                            return resultJson(0, '编辑失败，无修改或无权操作该用户');
                         }
                         break;
                     case 'notice':
@@ -399,6 +434,9 @@ class Ajax extends Common
                         }
                         break;
                     case 'site':
+                        if (WEB_ID != 1) {
+                            return resultJson(0, '无权管理分站');
+                        }
                         $id = Request::post('web_id');
                         if ($id == 1) {
                             return resultJson(0, '无法操作');
@@ -413,20 +451,20 @@ class Ajax extends Common
             case 'info':
                 switch ($do) {
                     case 'user':
-                        $users = new Users();
                         $data = Request::post();
-                        return $users->findByUid($data['id']);
-                        break;
+                        return Users::adminFindByUid($data['id'] ?? 0)
+                            ?: resultJson(0, '用户不存在或无权查看');
                     case 'notice':
                         $notices = new Notice();
                         $data = Request::post();
                         return $notices->findById($data['id']);
-                        break;
                     case 'site':
+                        if (WEB_ID != 1) {
+                            return resultJson(0, '无权管理分站');
+                        }
                         $weblist = new Weblist();
                         $data = Request::post();
                         return $weblist->findByWebid($data['id']);
-                        break;
                 }
                 break;
         }

@@ -27,7 +27,7 @@ class Notice extends Model
     public static function findById($id)
     {
         $self = new static();
-        if ($result = $self->where('id', $id)->find()) {
+        if ($result = $self->where('id', $id)->where('zid', '=', WEB_ID)->find()) {
             return $result;
         }
         return false;
@@ -35,6 +35,24 @@ class Notice extends Model
 
     public static function updateByid($id, $data)
     {
+        if (!is_array($data)) {
+            return false;
+        }
+        // Only the fields the notice form owns; `zid` in particular must not be
+        // writable or a tenant could move a notice onto another site.
+        $data = array_intersect_key($data, array_flip(['type', 'title', 'content', 'alert']));
+        if ($data === []) {
+            return false;
+        }
+        foreach ($data as $value) {
+            if (!is_scalar($value) && $value !== null) {
+                return false;
+            }
+        }
+        if (isset($data['type']) && (int)$data['type'] === 2 && (int)WEB_ID !== 1) {
+            return false;
+        }
+
         $self = new static();
         return ($self->where('id', '=', $id)->where('zid', '=', WEB_ID)->update($data) !== false);
     }
@@ -42,7 +60,7 @@ class Notice extends Model
     public static function delByid($id)
     {
         $self = new static();
-        if ($self->where('id', '=', $id)->delete()) {
+        if ($self->where('id', '=', $id)->where('zid', '=', WEB_ID)->delete()) {
             return true;
         }
         return false;

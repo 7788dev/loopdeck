@@ -10,69 +10,61 @@ class Pays extends Model
     public static function YpayVip($data)
     {
         Users::updateMyInfo(); //更新用户信息
-        $res_price = config('sys.' . $data['shop'] . '_price_' . $data['shopid']);
-        if ($res_price <= Session::get('user.money')) {
-            //开通时间
-            $vip_start = date('Y-m-d H:i:s');
-            //计算开通的vip时长
-            if (Session::get('user.vip_end')) {
-                $vip_end = date("Y-m-d", strtotime("+" . is_Vip_Day($data['shopid']) . " day", strtotime(Session::get('user.vip_end'))));
-            } else {
-                $vip_end = date("Y-m-d", strtotime("+" . is_Vip_Day($data['shopid']) . " day"));
-            }
-            $new_money = Session::get('user.money') - $res_price;
-            //修改用户信息
-            $up_user = Users::where('uid', '=', Session::get('user.uid'))
-                ->field('vip_start,vip_end,money')
-                ->update([
-                    'vip_start' => $vip_start,
-                    'vip_end' => $vip_end,
-                    'money' => $new_money
-                ]);
-            if ($up_user) {
-                Users::updateMyInfo(); //更新用户信息
-                return resultJson(1, '开通会员成功，感谢您的购买', ['success' => '']);
-            } else {
-                return resultJson(0, '购买失败，服务器繁忙');
-            }
-        } else {
+        $uid = (int)Session::get('user.uid');
+        $days = is_Vip_Day($data['shopid']);
+        if ($days <= 0) {
+            return resultJson(0, '商品不存在');
+        }
+        $price = round((float)config('sys.' . $data['shop'] . '_price_' . $data['shopid']), 2);
+        // The balance check and the debit must be one statement, otherwise two
+        // concurrent purchases both see the pre-purchase balance.
+        if (!Users::spendBalance($uid, $price)) {
             return resultJson(0, '您的账户余额不足，请先充值或选择其它支付方式', ['success' => 'money','error' => '交易取消']);
         }
+
+        $user = Users::findByUid($uid);
+        $current = $user ? strtotime((string)($user['vip_end'] ?? '')) : false;
+        $base = ($current !== false && $current > time()) ? $current : time();
+        $updated = Users::where('uid', '=', $uid)->update([
+            'vip_start' => date('Y-m-d H:i:s'),
+            'vip_end' => date('Y-m-d', strtotime('+' . $days . ' day', $base)),
+        ]);
+        if ($updated === false) {
+            Users::where('uid', '=', $uid)->inc('money', $price)->update();
+            return resultJson(0, '购买失败，服务器繁忙');
+        }
+        Users::updateMyInfo(); //更新用户信息
+        return resultJson(1, '开通会员成功，感谢您的购买', ['success' => '']);
     }
 
     public static function YpayQuota($data)
     {
         Users::updateMyInfo(); //更新用户信息
-        $res_price = config('sys.' . $data['shop'] . '_price_' . $data['shopid']);
-        if ($res_price <= Session::get('user.money')) {
-            //获取购买配额数量
-            $res_peie = is_Quota_Num($data['shopid']);
-            //计算用户配额总数
-            $all_peie = Session::get('user.quota') + $res_peie;
-            //计算用户剩下的余额
-            $new_money = Session::get('user.money') - $res_price;
-            //修改用户信息
-            $up_user = Users::where('uid', '=', Session::get('user.uid'))
-                ->field('quota,money')
-                ->update([
-                    'quota' => $all_peie,
-                    'money' => $new_money
-                ]);
-            if ($up_user) {
-                Users::updateMyInfo(); //更新用户信息
-                return resultJson(1, '购买额度成功，感谢您的购买', ['success' => '']);
-            } else {
-                return resultJson(0, '购买失败，服务器繁忙');
-            }
-        } else {
+        $uid = (int)Session::get('user.uid');
+        $quota = is_Quota_Num($data['shopid']);
+        if ($quota <= 0) {
+            return resultJson(0, '商品不存在');
+        }
+        $price = round((float)config('sys.' . $data['shop'] . '_price_' . $data['shopid']), 2);
+        if (!Users::spendBalance($uid, $price)) {
             return resultJson(0, '您的账户余额不足，请先充值或选择其它支付方式', ['success' => 'money','error' => '交易取消']);
         }
+
+        if (Users::where('uid', '=', $uid)->inc('quota', $quota)->update() === false) {
+            Users::where('uid', '=', $uid)->inc('money', $price)->update();
+            return resultJson(0, '购买失败，服务器繁忙');
+        }
+        Users::updateMyInfo(); //更新用户信息
+        return resultJson(1, '购买额度成功，感谢您的购买', ['success' => '']);
     }
 
     public static function Submit_Pay($data)
     {
         Users::updateMyInfo(); //更新用户信息
         $self = new static();
+        if (!in_array((string)($data['shop'] ?? ''), ['vip', 'quota', 'agent', 'money', 'site'], true)) {
+            return resultJson(0, '未知的商品类型');
+        }
         switch ($data['shop']) {
             case 'vip':
                 $name = is_Vip_Month($data['shopid']) . '杯快乐水';
@@ -87,14 +79,20 @@ class Pays extends Model
                 $res_money = config('sys.' . $data['shop'] . '_price_' . $data['shopid']); //计算价格
                 break;
             case 'money':
-                $name = $data['shopid'] . '元';
-                $res_money = $data['shopid'];
-                if ($res_money > 1000) {
-                    return resultJson(0, '请输入小于1000的充值金额');
+                $res_money = round((float)$data['shopid'], 2);
+                if (!is_numeric($data['shopid']) || $res_money < 0.01 || $res_money > 1000) {
+                    return resultJson(0, '充值金额需要在 0.01 到 1000 元之间');
                 }
+                $name = $res_money . '元';
                 break;
             case 'site':
-                $siteUrl = $data['prefix'] . '.' . $data['domain'];
+                $siteUrl = strtolower(trim((string)$data['prefix']) . '.' . trim((string)$data['domain']));
+                // The callback provisions the sub-site from this value, so it
+                // has to be a plain host name and nothing else.
+                if (strlen($siteUrl) > 190
+                    || preg_match('/\A[a-z0-9]([a-z0-9.-]*[a-z0-9])?\z/', $siteUrl) !== 1) {
+                    return resultJson(0, '分站域名格式不正确');
+                }
                 $name = $data['webname'] . "（{$siteUrl}）";
                 if ($siteUrl == $_SERVER['HTTP_HOST']) {
                     return resultJson(0,'分站域名不能和主站相同');
@@ -110,7 +108,9 @@ class Pays extends Model
         $insert = [
             'uid' => Session::get('user.uid'),
             'qq' => Session::get('user.qq'),
-            'orderid' => date("YmdHis") . rand(111, 999),
+            // Sequential, guessable order numbers let one user address another
+            // user's order; use an unguessable suffix instead.
+            'orderid' => date("YmdHis") . strtolower(getRandStr(12, 2)),
             'addtime' => date('Y-m-d H:i:s'),
             'name' => $name,
             'money' => $res_money,
@@ -121,10 +121,11 @@ class Pays extends Model
             'zid' => config('web.web_id')
         ];
         if ($self->insert($insert)) {
-            $row = $self->where('uid', '=', Session::get('user.uid'))->order('addtime desc')->find();
-            $pay_url = '/index/epay/submit?orderid=' . $row['orderid'] . '&type=' . $data['pay_type'];
+            $pay_url = '/index/epay/submit?orderid=' . rawurlencode($insert['orderid'])
+                . '&type=' . rawurlencode((string)$data['pay_type']);
             return resultJson('1', '订单创建成功，是否现在前往付款？', ['success' => $pay_url, 'error' => '交易取消']);
         }
+        return resultJson(0, '订单创建失败，请稍后再试');
     }
 
     /**

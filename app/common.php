@@ -69,17 +69,135 @@ if (!function_exists('real_ip')) {
 }
 
 if (!function_exists('get_Domain')) {
+    /**
+     * Absolute base URL for links this application hands to third parties
+     * (password-reset mails, payment gateway callbacks, scheduler self-calls).
+     *
+     * `Host` is attacker controlled, so it is only echoed back when it matches
+     * a domain this site is actually registered under. Anything else falls back
+     * to the registered domain, which turns Host header poisoning into a no-op.
+     */
     function get_Domain(): string
     {
         $https = ($_SERVER['HTTPS'] ?? '') === 'on'
             || ($_SERVER['REQUEST_SCHEME'] ?? '') === 'https'
             || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443;
-        $host = $_SERVER['HTTP_HOST'] ?? '127.0.0.1';
+
+        $host = (string)($_SERVER['HTTP_HOST'] ?? '');
         if (!preg_match('/^[a-z0-9.:\-\[\]]+$/i', $host)) {
+            $host = '';
+        }
+
+        $registered = array_values(array_filter(array_map(
+            static fn($value): string => trim((string)$value),
+            [config('web.domain'), config('web.domain2')]
+        ), static fn(string $value): bool => $value !== ''));
+
+        $isLoopback = $host !== ''
+            && preg_match('/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i', $host) === 1;
+        $trusted = $host !== ''
+            && ($registered === [] || $isLoopback || in_array($host, $registered, true));
+
+        if (!$trusted) {
+            $host = (string)($registered[0] ?? '');
+        }
+        if ($host === '') {
             $host = '127.0.0.1';
         }
 
         return ($https ? 'https://' : 'http://') . $host . '/';
+    }
+}
+
+if (!function_exists('safe_html')) {
+    /**
+     * Render operator-authored rich text.
+     *
+     * Notices are written by administrators and may contain simple formatting,
+     * but a sub-station owner is a paying, self-service role, so the content is
+     * still untrusted. Keep the formatting tags and remove everything that can
+     * execute: unknown tags, event handlers, inline styles and script URLs.
+     */
+    function safe_html(?string $value): string
+    {
+        $value = trim((string)$value);
+        if ($value === '') {
+            return '';
+        }
+
+        $value = strip_tags($value, '<p><br><b><strong><i><em><u><s><ul><ol><li><h4><h5><h6><span><div><a><code><pre><blockquote>');
+        $value = preg_replace('/\son[a-z-]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $value) ?? '';
+        $value = preg_replace('/\sstyle\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $value) ?? '';
+        $value = preg_replace(
+            '/\s(?:href|src|xlink:href|formaction|action)\s*=\s*(["\']?)\s*(?:javascript|vbscript|data)\s*:[^"\'>\s]*\1/i',
+            '',
+            $value
+        ) ?? '';
+
+        return $value;
+    }
+}
+
+if (!function_exists('js_string')) {
+    /**
+     * Quote a value for direct interpolation into a JavaScript string literal.
+     */
+    function js_string(?string $value): string
+    {
+        $encoded = json_encode(
+            (string)$value,
+            JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP
+        );
+        return $encoded === false ? '""' : $encoded;
+    }
+}
+
+if (!function_exists('safe_http_url')) {
+    /**
+     * Accept only absolute http(s) URLs, so a stored value can never turn a
+     * redirect or a link into `javascript:` execution.
+     */
+    function safe_http_url(?string $value): string
+    {
+        $value = trim((string)$value);
+        if ($value === '' || strlen($value) > 2048) {
+            return '';
+        }
+        if (!preg_match('#\Ahttps?://#i', $value) || !filter_var($value, FILTER_VALIDATE_URL)) {
+            return '';
+        }
+        return $value;
+    }
+}
+
+if (!function_exists('is_cross_origin_request')) {
+    /**
+     * True only when the browser positively reported a foreign origin.
+     *
+     * Endpoints reached by a plain HTML form carry no AJAX header and no CSRF
+     * token. A missing `Origin`/`Referer` is not treated as an attack, because
+     * the SameSite=Lax session cookie already blocks cross-site form posts;
+     * this check exists to reject the cases the browser does tell us about.
+     */
+    function is_cross_origin_request(): bool
+    {
+        $source = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
+        if ($source === '') {
+            $source = (string)($_SERVER['HTTP_REFERER'] ?? '');
+        }
+        if ($source === '') {
+            return false;
+        }
+
+        $parts = parse_url($source);
+        if (!is_array($parts) || empty($parts['host'])) {
+            return true;
+        }
+        $host = strtolower((string)$parts['host']);
+        $candidate = $host . (isset($parts['port']) ? ':' . $parts['port'] : '');
+        $current = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+
+        return $candidate !== $current && $host !== explode(':', $current, 2)[0];
     }
 }
 

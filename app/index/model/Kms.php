@@ -13,6 +13,9 @@ use think\response\Json;
 
 class Kms extends Model
 {
+    /** Upper bound for one card-generation request. */
+    private const MAX_BATCH = 1000;
+
     /**
      * activate 卡密激活
      * @param $data
@@ -25,101 +28,77 @@ class Kms extends Model
     public static function activate($data)
     {
         $self = new static();
-        $row = $self->where('km', $data['km'])->where('zid', '=', WEB_ID)->find();
+        $uid = (int)Session::get('user.uid');
+        $km = (string)($data['km'] ?? '');
+        $row = $self->where('km', $km)->where('zid', '=', WEB_ID)->find();
         if (!$row) {
             return resultJson(-1, '系统不存在这张卡密，请检查是否输入错误!');
-        } else {
-            switch ($row['type']) {
+        }
+        if ((int)$row['useid'] !== 0) {
+            return resultJson(-1, '该卡密已经被使用');
+        }
+        if (!in_array((string)$row['type'], ['vip', 'quota', 'agent'], true)) {
+            return resultJson(-1, '未知的卡密类型');
+        }
+        if ((string)$row['type'] === 'agent' && Session::get('user.agent') >= $row['value']) {
+            return resultJson(0, '兑换权限小于或等于当前权限');
+        }
+
+        // Claiming the card and granting it used to be two statements, so the
+        // same card could be redeemed twice by two concurrent requests. Claim
+        // first with a conditional update and only then grant.
+        $claimed = (int)$self->where('km', '=', $km)
+            ->where('zid', '=', WEB_ID)
+            ->where('useid', '=', 0)
+            ->update([
+                'useid' => $uid,
+                'usetime' => date("Y-m-d H:i:s"),
+            ]);
+        if ($claimed !== 1) {
+            return resultJson(-1, '该卡密已经被使用');
+        }
+
+        try {
+            switch ((string)$row['type']) {
                 case 'vip':
-                    if ($row['useid'] == 0) {
-                        $user = Users::findByUid(Session::get('user.uid'));
-                        $vip_start = date("Y-m-d"); //VIP开通时间
-                        //计算应开通时间
-                        if ($user['vip_end']) {
-                            $vip_end = date("Y-m-d", strtotime("+" . $row['value'] . " day", strtotime($user['vip_end'])));
-                            $message = '恭喜您通过卡密成功续费会员，到期时间：' . $vip_end . '';
-                        } else {
-                            $vip_end = date("Y-m-d", strtotime("+" . $row['value'] . " day"));
-                            $message = '恭喜您通过卡密成功开通会员，到期时间：' . $vip_end . '';
-                        }
-                        //修改卡密信息
-                        $up_kms = $self->where('km', '=', $data['km'])
-                            ->update([
-                                'useid' => Session::get('user.uid'),
-                                'usetime' => date("Y-m-d H:i:s")
-                            ]);
-                        //修改用户信息
-                        $up_user = Users::where('uid', '=', Session::get('user.uid'))
-                            ->update([
-                                'vip_start' => $vip_start,
-                                'vip_end' => $vip_end
-                            ]);
-                        //成功返回信息
-                        if ($up_user && $up_kms) {
-                            return resultJson(1, $message);
-                        } else {
-                            return resultJson(0, '未知错误');
-                        }
-                    } else {
-                        return resultJson(-1, '该卡密已经被使用');
-                    }
+                    $user = Users::findByUid($uid);
+                    $current = $user ? strtotime((string)($user['vip_end'] ?? '')) : false;
+                    $renewal = ($current !== false && $current > time());
+                    $vip_end = date("Y-m-d", strtotime("+" . (int)$row['value'] . " day", $renewal ? $current : time()));
+                    $granted = Users::where('uid', '=', $uid)->update([
+                        'vip_start' => date("Y-m-d"),
+                        'vip_end' => $vip_end,
+                    ]) !== false;
+                    $message = $renewal
+                        ? '恭喜您通过卡密成功续费会员，到期时间：' . $vip_end
+                        : '恭喜您通过卡密成功开通会员，到期时间：' . $vip_end;
                     break;
+
                 case 'quota':
-                    if ($row['useid'] == 0) {
-                        $user = Users::findByUid(Session::get('user.uid'));
-                        //当前的配额
-                        $now_quota = $user['quota'];
-                        //增加后的配额
-                        $add_peie = $now_quota + $row['value'];
-                        //修改用户配额信息
-                        $up_user = Users::where('uid', '=', Session::get('user.uid'))
-                            ->update([
-                                'quota' => $add_peie,
-                            ]);
-                        //修改卡密信息
-                        $up_kms = $self->where('km', '=', $data['km'])
-                            ->update([
-                                'useid' => Session::get('user.uid'),
-                                'usetime' => date("Y-m-d H:i:s")
-                            ]);
-                        //成功返回信息
-                        if ($up_kms && $up_user) {
-                            return resultJson(1, '恭喜您成功通过卡密购买了：' . $row['value'] . '个配额，当前配额：' . $add_peie . '个');
-                        } else {
-                            return resultJson(0, '未知错误');
-                        }
-                    } else {
-                        return resultJson(-1, '该卡密已经被使用');
-                    }
+                    $granted = Users::where('uid', '=', $uid)->inc('quota', (int)$row['value'])->update() !== false;
+                    $message = '恭喜您成功通过卡密购买了：' . $row['value'] . '个配额';
                     break;
-                case 'agent':
-                    if ($row['useid'] == 0) {
-                        if (Session::get('user.agent') >= $row['value']) {
-                            return resultJson(0, '兑换权限小于或等于当前权限');
-                        }
-                        //修改用户配额信息
-                        $up_user = Users::where('uid', '=', Session::get('user.uid'))
-                            ->update([
-                                'agent' => $row['value'],
-                            ]);
-                        //修改卡密信息
-                        $up_kms = $self->where('km', '=', $data['km'])
-                            ->update([
-                                'useid' => Session::get('user.uid'),
-                                'usetime' => date("Y-m-d H:i:s")
-                            ]);
-                        //成功返回信息
-                        if ($up_kms && $up_user) {
-                            return resultJson(1, '恭喜您通过卡密成功购买了：' . is_Agent_Name($row['value']) . '，代理后台权限已开通！');
-                        } else {
-                            return resultJson(0, '未知错误');
-                        }
-                    } else {
-                        return resultJson(-1, '该卡密已经被使用');
-                    }
+
+                default:
+                    $granted = Users::where('uid', '=', $uid)->update(['agent' => $row['value']]) !== false;
+                    $message = '恭喜您通过卡密成功购买了：' . is_Agent_Name($row['value']) . '，代理后台权限已开通！';
                     break;
             }
+        } catch (\Throwable $exception) {
+            $granted = false;
+            $message = '';
         }
+
+        if (!$granted) {
+            // Put the card back so a failed grant does not consume it.
+            $self->where('km', '=', $km)
+                ->where('useid', '=', $uid)
+                ->update(['useid' => 0, 'usetime' => null]);
+            return resultJson(0, '未知错误');
+        }
+
+        Users::updateMyInfo();
+        return resultJson(1, $message);
     }
 
     /**
@@ -134,65 +113,69 @@ class Kms extends Model
     public static function agent_add($data)
     {
         Users::updateMyInfo(); //更新用户信息
-        switch ($data['type']) {
-            case 'vip':
-            case 'quota':
-            case 'agent':
-                $oprice = $data['num'] * config('sys.' . $data['type'] . '_price_' . $data['value'] . '');
-                $zk = config('sys.agent_give_z_' . Session::get('user.agent') . '');
-                $price = round($oprice * $zk / 10, 2);
-                if (Session::get('user.money') >= $price) {
-                    $new_money = Session::get('user.money') - $price;
-                    $up_user = Users::where('uid', '=', Session::get('user.uid'))
-                        ->update(['money' => $new_money]);
-                    if ($data['type'] == 'vip') {
-                        $value = is_Vip_Day($data['value']);
-                    } elseif ($data['type'] == 'quota') {
-                        $value = is_Quota_Num($data['value']);
-                    } elseif ($data['type'] == 'agent') {
-                        if (Session::get('user.agent') > $data['value']) {
-                            $value = $data['value'];
-                        } else {
-                            return resultJson(0, '权限不足');
-                        }
-                    }
-                    if ($up_user !== false) {
-                        for ($i = 0; $i < $data['num']; $i++) {
-                            $km = getRandStr();
-                            $km_data[] = [
-                                'uid' => Session::get('user.uid'),
-                                'type' => $data['type'],
-                                'km' => $km,
-                                'value' => $value,
-                                'addtime' => date("Y-m-d H:i:s"),
-                                'zid' => WEB_ID
-                            ];
-                        }
-                        $km_data = array_chunk($km_data, 1000);
-                        foreach ($km_data as $datas) {
-                            $i++;
-                            Db::table('cloud_kms')->insertAll($datas);
-                        }
-                        $list = Kms::where('uid', '=', Session::get('user.uid'))
-                            ->where('type', $data['type'])
-                            ->order('addtime desc')
-                            ->limit($data['num'])
-                            ->select();
-                        $success = '';
-                        $copy = '';
-                        foreach ($list as $k => $v) {
-                            $success .= '<p class="fs-lg fw-semibold mb-1">' . $v['km'] . '</p>';
-                            $copy .= $v['km'] . "\n";
-                        }
-                        return resultJson(1, '生成成功', ['km' => $success, 'copy' => $copy]);
-                    } else {
-                        return resultJson(0, '生成失败，未知错误');
-                    }
-                } else {
-                    return resultJson(0, '您的账户余额不足，请先充值');
-                }
-                break;
+        $type = (string)($data['type'] ?? '');
+        if (!in_array($type, ['vip', 'quota', 'agent'], true)) {
+            return resultJson(0, '未知的卡密类型');
         }
+        $count = (int)($data['num'] ?? 0);
+        if ($count < 1 || $count > self::MAX_BATCH) {
+            return resultJson(0, '生成数量需要在 1 到 ' . self::MAX_BATCH . ' 之间');
+        }
+
+        // Resolve the product before spending anything, so a rejected request
+        // can never leave the balance debited.
+        if ($type === 'vip') {
+            $value = is_Vip_Day($data['value']);
+        } elseif ($type === 'quota') {
+            $value = is_Quota_Num($data['value']);
+        } else {
+            if (Session::get('user.agent') <= $data['value']) {
+                return resultJson(0, '权限不足');
+            }
+            $value = $data['value'];
+        }
+
+        $oprice = $count * (float)config('sys.' . $type . '_price_' . $data['value']);
+        $zk = (float)config('sys.agent_give_z_' . Session::get('user.agent'));
+        $price = round($oprice * $zk / 10, 2);
+        if (!Users::spendBalance(Session::get('user.uid'), $price)) {
+            return resultJson(0, '您的账户余额不足，请先充值');
+        }
+        Users::updateMyInfo();
+
+        return self::issueCards($type, $value, $count);
+    }
+
+    /**
+     * @return \think\response\Json
+     */
+    private static function issueCards(string $type, $value, int $count)
+    {
+        $codes = [];
+        $rows = [];
+        for ($index = 0; $index < $count; $index++) {
+            $code = getRandStr();
+            $codes[] = $code;
+            $rows[] = [
+                'uid' => Session::get('user.uid'),
+                'type' => $type,
+                'km' => $code,
+                'value' => $value,
+                'addtime' => date("Y-m-d H:i:s"),
+                'zid' => WEB_ID,
+            ];
+        }
+        foreach (array_chunk($rows, 500) as $chunk) {
+            Db::table('cloud_kms')->insertAll($chunk);
+        }
+
+        $success = '';
+        $copy = '';
+        foreach ($codes as $code) {
+            $success .= '<p class="fs-lg fw-semibold mb-1">' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . '</p>';
+            $copy .= $code . "\n";
+        }
+        return resultJson(1, '生成成功', ['km' => $success, 'copy' => $copy]);
     }
 
     /**
@@ -253,52 +236,24 @@ class Kms extends Model
 
     public static function admin_add($data)
     {
-        $self = new static();
-        switch ($data['type']) {
-            case 'vip':
-            case 'quota':
-            case 'agent':
-                if ($data['type'] == 'vip') {
-                    $value = is_Vip_Day($data['value']);
-                } elseif ($data['type'] == 'quota') {
-                    $value = is_Quota_Num($data['value']);
-                } elseif ($data['type'] == 'agent') {
-                    $value = $data['value'];
-                }
-                if (Session::get('user.money')) {
-                    for ($i = 0; $i < $data['num']; $i++) {
-                        $km = getRandStr();
-                        $km_data[] = [
-                            'uid' => Session::get('user.uid'),
-                            'type' => $data['type'],
-                            'km' => $km,
-                            'value' => $value,
-                            'addtime' => date("Y-m-d H:i:s"),
-                            'zid' => WEB_ID
-                        ];
-                    }
-                    $km_data = array_chunk($km_data, 1000);
-                    foreach ($km_data as $datas) {
-                        $i++;
-                        Db::table('cloud_kms')->insertAll($datas);
-                    }
-                    $list = Kms::where('uid', '=', Session::get('user.uid'))
-                        ->where('type', $data['type'])
-                        ->order('addtime desc')
-                        ->limit($data['num'])
-                        ->select();
-                    $success = '';
-                    $copy = '';
-                    foreach ($list as $k => $v) {
-                        $success .= '<p class="fs-lg fw-semibold mb-1">' . $v['km'] . '</p>';
-                        $copy .= $v['km'] . "\n";
-                    }
-                    return resultJson(1, '生成成功', ['km' => $success, 'copy' => $copy]);
-                } else {
-                    return resultJson(0, '生成失败，未知错误');
-                }
-                break;
+        $type = (string)($data['type'] ?? '');
+        if (!in_array($type, ['vip', 'quota', 'agent'], true)) {
+            return resultJson(0, '未知的卡密类型');
         }
+        $count = (int)($data['num'] ?? 0);
+        if ($count < 1 || $count > self::MAX_BATCH) {
+            return resultJson(0, '生成数量需要在 1 到 ' . self::MAX_BATCH . ' 之间');
+        }
+
+        if ($type === 'vip') {
+            $value = is_Vip_Day($data['value']);
+        } elseif ($type === 'quota') {
+            $value = is_Quota_Num($data['value']);
+        } else {
+            $value = $data['value'];
+        }
+
+        return self::issueCards($type, $value, $count);
     }
 
     public static function AdminDelUse()

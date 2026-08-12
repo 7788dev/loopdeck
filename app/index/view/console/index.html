@@ -116,7 +116,7 @@
                     {/php}
                     <div class="border-start border-4 rounded-2 border-primary mb-2">
                         <div class="rounded p-2 text-pulse-light" id="notice">
-                            <p class="m-1">{:htmlspecialchars_decode($arr.content)}</p>
+                            <p class="m-1">{:safe_html($arr.content)}</p>
                             <br/>
                             <p class="m-2 text-muted">{:date("Y-m-d H:i", $arr.addtime)}</p>
                         </div>
@@ -222,7 +222,7 @@
     })
     {if condition="isset($alert)"}
     if (getCookie('alert_msg') !== '0') {
-        layer.alert('{:htmlspecialchars_decode($alert)}', {
+        layer.alert({:js_string(safe_html($alert))}, {
             time: 10*1000
             ,success: function(layero, index){
                 var timeNum = this.time/1000, setText = function(start){

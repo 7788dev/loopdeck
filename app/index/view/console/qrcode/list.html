@@ -40,16 +40,16 @@
                         <i class="fa fa-circle text-success me-1"></i> {$v.name}
                     </h3>
                     <p class="fs-sm mb-2">
-                        <button type="button" class="btn btn-sm btn-alt-primary mb-2 me-2" data-bs-toggle="modal" data-bs-target="#address" data-address="支付宝收款地址：<br>{$v.alipay_url}">支付宝收款地址</button>
-                        <button type="button" class="btn btn-sm btn-alt-info mb-2 me-2" data-bs-toggle="modal" data-bs-target="#address" data-address="QQ收款地址：<br>{$v.qq_url}">QQ收款地址</button>
-                        <button type="button" class="btn btn-sm btn-alt-success mb-2 me-2" data-bs-toggle="modal" data-bs-target="#address" data-address="微信收款地址：<br>{$v.wechat_url}">微信收款地址</button>
+                        <button type="button" class="btn btn-sm btn-alt-primary mb-2 me-2" data-bs-toggle="modal" data-bs-target="#address" data-address-label="支付宝收款地址：" data-address="{$v.alipay_url}">支付宝收款地址</button>
+                        <button type="button" class="btn btn-sm btn-alt-info mb-2 me-2" data-bs-toggle="modal" data-bs-target="#address" data-address-label="QQ收款地址：" data-address="{$v.qq_url}">QQ收款地址</button>
+                        <button type="button" class="btn btn-sm btn-alt-success mb-2 me-2" data-bs-toggle="modal" data-bs-target="#address" data-address-label="微信收款地址：" data-address="{$v.wechat_url}">微信收款地址</button>
                     </p>
                     <p class="fs-sm text-muted mb-0">
                         生成时间：{:date("Y-m-d H:i",strtotime($value.addtime))}
                     </p>
                 </div>
                 <div class="col-sm-6 py-2 text-md-end">
-                    <a class="btn btn-sm btn-outline-secondary me-1 my-1" data-bs-toggle="modal" data-bs-target="#address" data-address="三合一收款地址：<br>{:get_Domain()}index/index/qrcode.html?name={$v.name}">
+                    <a class="btn btn-sm btn-outline-secondary me-1 my-1" data-bs-toggle="modal" data-bs-target="#address" data-address-label="三合一收款地址：" data-address="{:get_Domain()}index/index/qrcode.html?name={:urlencode($v.name)}">
                         <i class="si si-tag opacity-50 me-1"></i> 地址
                     </a>
                     <a class="btn btn-sm btn-outline-danger me-1 my-1" onclick="ajax_qrcode_delete('{$user_id}')">
@@ -89,7 +89,14 @@
     const modal = document.getElementById('address');
     modal.addEventListener('show.bs.modal', function (event) {
         const button = event.relatedTarget;
-        modal.querySelector('#address-content').innerHTML = button.getAttribute('data-address');
+        const content = modal.querySelector('#address-content');
+        // The addresses are user supplied, so they are inserted as text.
+        content.textContent = '';
+        const label = document.createElement('strong');
+        label.textContent = button.getAttribute('data-address-label') || '';
+        content.appendChild(label);
+        content.appendChild(document.createElement('br'));
+        content.appendChild(document.createTextNode(button.getAttribute('data-address') || ''));
     });
 
     function ajax_qrcode_delete(user_id)

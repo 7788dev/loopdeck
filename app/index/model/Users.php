@@ -17,6 +17,13 @@ use think\response\Json;
 
 class Users extends Model
 {
+    /** How long a password-reset link stays usable, in seconds. */
+    public const RESET_TOKEN_TTL = 1800;
+
+    /** Failed logins allowed per username and per IP inside the window. */
+    private const LOGIN_ATTEMPT_LIMIT = 8;
+    private const LOGIN_ATTEMPT_WINDOW = 900;
+
     protected $pk = 'uid';
 
     /**
@@ -122,11 +129,14 @@ class Users extends Model
             return resultJson(-1, '邮箱不存在');
         } else {
             $user_data = $self->where('mail', '=', $data['mail'])->find();
-            $token = md5($user_data['uid'] . $user_data['username'] . $user_data['password'] . time() . real_ip());
+            // The old token was md5() over predictable material; use a token
+            // that cannot be reconstructed from anything an attacker knows.
+            $token = bin2hex(random_bytes(24));
             Users::updateByUid($user_data['uid'], [
                 'sid' => $token
             ]);
-            $sign = get_Domain() . 'index/login/reset/?mail=' . $data['mail'] . '&token=' . $token . '&access=' . get_os();
+            $sign = get_Domain() . 'index/login/reset/?mail=' . rawurlencode((string)$data['mail'])
+                . '&token=' . $token . '&access=' . rawurlencode(get_os());
             $content = get_mail_tempale(2, $user_data, $sign);
             if ($result = Captcha::send_captcha($data['mail'], '找回密码', $content)) {
                 Captcha::add([
@@ -174,29 +184,48 @@ class Users extends Model
             return resultJson(-1, $e->getMessage());
         }
         $self = new static();
-        $captcha = new Captcha();
         $row = $self->where('mail', '=', $data['mail'])->find();
-        $captcha = $captcha->where('type', '=', '2')->where('send', '=', $data['mail'])->order('id', 'desc')->find();
-        $token = $captcha['code'];
         if (!$row) {
             return resultJson(-1, '邮箱不存在');
-        } elseif ($data['token'] != $token || !isset($token) || !isset($data['token'])) {
-            return resultJson(-1, 'Token错误');
-        } else {
-            $new_pass = self::hashLoginPassword((string)$data['repass']);
-            if (Users::where('uid', '=', $row['uid'])->update([
-                'password' => $new_pass
-            ])) {
-                $login = [
-                    'username' => $row['username'],
-                    'password' => $data['password']
-                ];
-                Users::login($login);
-                return resultJson(1, '重置密码成功，登录中');
-            } else {
-                return resultJson(0, '重置密码失败，请重新操作！');
-            }
         }
+
+        $captcha = (new Captcha())
+            ->where('type', '=', '2')
+            ->where('send', '=', $data['mail'])
+            ->order('id', 'desc')
+            ->find();
+        $token = (string)($captcha['code'] ?? '');
+        $supplied = (string)($data['token'] ?? '');
+        if ($token === '' || $supplied === '' || !hash_equals($token, $supplied)) {
+            return resultJson(-1, 'Token错误');
+        }
+        // A reset link used to work forever and could be replayed; bind it to
+        // the same 30 minute window the mail promises and burn it after use.
+        if ((int)($captcha['status'] ?? 0) > 0 || (int)($captcha['time'] ?? 0) < time() - self::RESET_TOKEN_TTL) {
+            return resultJson(-1, '重置链接已失效，请重新获取');
+        }
+
+        $burned = (int)(new Captcha())
+            ->where('id', '=', $captcha['id'])
+            ->where('status', '=', 0)
+            ->update(['status' => 1]);
+        if ($burned !== 1) {
+            return resultJson(-1, '重置链接已失效，请重新获取');
+        }
+
+        $updated = Users::where('uid', '=', $row['uid'])->update([
+            'password' => self::hashLoginPassword((string)$data['repass']),
+            'sid' => null,
+        ]);
+        if ($updated === false) {
+            return resultJson(0, '重置密码失败，请重新操作！');
+        }
+
+        Users::login([
+            'username' => $row['username'],
+            'password' => $data['password'],
+        ]);
+        return resultJson(1, '重置密码成功，登录中');
     }
 
     /**
@@ -217,37 +246,78 @@ class Users extends Model
             //验证失败 输出错误信息
             return resultJson(-1, $e->getError());
         }
+        if (self::loginThrottled((string)$data['username'])) {
+            return resultJson(-1, '登录尝试过于频繁，请稍后再试');
+        }
+
         $self = new static();
         $row = $self->where('username', $data['username'])->find();
-        if (!$row) {
-            return resultJson(-1, '用户名不存在');
-        } elseif ($row['state'] !== 1) {
+        // "user does not exist" and "wrong password" are the same answer on
+        // purpose: distinct messages let anyone enumerate valid accounts.
+        if (!$row || !self::verifyLoginPassword((string)$data['password'], (string)$row['password'])) {
+            self::recordFailedLogin((string)$data['username']);
+            return resultJson(-1, '用户名或密码错误');
+        }
+        if ($row['state'] !== 1) {
+            self::recordFailedLogin((string)$data['username']);
             return resultJson(-1, '该账号已被封禁');
-        } elseif (!self::verifyLoginPassword((string)$data['password'], (string)$row['password'])) {
-            return resultJson(-1, '密码错误');
-        } elseif ($row['web_id'] !== WEB_ID) {
+        }
+        if ($row['web_id'] !== WEB_ID) {
             $site = Weblist::where('web_id', '=', $row['web_id'])->find();
             return resultJson(-1001, '该账号不属于当前站点，正在跳转到' . $site['domain'] . '进行登录', ['url' => $site['domain']]);
-        } else {
-            $storedPassword = (string)$row['password'];
-            if (!self::isModernPasswordHash($storedPassword)) {
-                $storedPassword = self::hashLoginPassword((string)$data['password']);
-                $self->where('uid', $row['uid'])->update(['password' => $storedPassword]);
-            } elseif (password_needs_rehash($storedPassword, PASSWORD_DEFAULT)) {
-                $storedPassword = self::hashLoginPassword((string)$data['password']);
-                $self->where('uid', $row['uid'])->update(['password' => $storedPassword]);
+        }
+
+        self::clearFailedLogins((string)$data['username']);
+        $storedPassword = (string)$row['password'];
+        if (!self::isModernPasswordHash($storedPassword)
+            || password_needs_rehash($storedPassword, PASSWORD_DEFAULT)) {
+            $storedPassword = self::hashLoginPassword((string)$data['password']);
+            $self->where('uid', $row['uid'])->update(['password' => $storedPassword]);
+        }
+        $self->where('uid', $row['uid'])
+            ->update([
+                'sid' => bin2hex(random_bytes(24)),
+                'login_ip' => real_ip(),
+                'login_city' => get_ip_city(real_ip()),
+                'login_time' => time()
+            ]);
+        // A fresh session id on privilege change closes session fixation.
+        Session::regenerate();
+        $session_data = $self->where('uid', $row['uid'])->withoutField('password')->find();
+        Session::set('user', $session_data->toArray());
+        return resultJson(1, '登录成功');
+    }
+
+    /** @return array<int,string> */
+    private static function loginAttemptKeys(string $username): array
+    {
+        return [
+            'login_fail_u_' . sha1(strtolower(trim($username))),
+            'login_fail_i_' . sha1(real_ip()),
+        ];
+    }
+
+    private static function loginThrottled(string $username): bool
+    {
+        foreach (self::loginAttemptKeys($username) as $key) {
+            if ((int)Cache::get($key, 0) >= self::LOGIN_ATTEMPT_LIMIT) {
+                return true;
             }
-            $sign = md5($row['uid'] . $row['username'] . $storedPassword . time() . real_ip());
-            $self->where('uid', $row['uid'])
-                ->update([
-                    'sid' => $sign,
-                    'login_ip' => real_ip(),
-                    'login_city' => get_ip_city(real_ip()),
-                    'login_time' => time()
-                ]);
-            $session_data = $self->where('uid', $row['uid'])->withoutField('password')->find();
-            Session::set('user', $session_data->toArray());
-            return resultJson(1, '登录成功');
+        }
+        return false;
+    }
+
+    private static function recordFailedLogin(string $username): void
+    {
+        foreach (self::loginAttemptKeys($username) as $key) {
+            Cache::set($key, (int)Cache::get($key, 0) + 1, self::LOGIN_ATTEMPT_WINDOW);
+        }
+    }
+
+    private static function clearFailedLogins(string $username): void
+    {
+        foreach (self::loginAttemptKeys($username) as $key) {
+            Cache::delete($key);
         }
     }
 
@@ -416,6 +486,82 @@ class Users extends Model
         } else {
             return false;
         }
+    }
+
+    /**
+     * Atomically take an amount off the account balance.
+     *
+     * Reading the balance, comparing it and writing back an absolute value in
+     * PHP lets two concurrent requests both pass the check and both write
+     * `balance - price`, so the second purchase is effectively free. The check
+     * and the decrement have to happen in the same statement.
+     */
+    public static function spendBalance($uid, float $amount): bool
+    {
+        $uid = (int)$uid;
+        if ($uid <= 0 || $amount < 0) {
+            return false;
+        }
+        if ($amount === 0.0) {
+            return true;
+        }
+
+        return (int)(new static())
+            ->where('uid', '=', $uid)
+            ->where('money', '>=', $amount)
+            ->dec('money', $amount)
+            ->update() === 1;
+    }
+
+    /**
+     * Administrative reads and writes are limited to the accounts of the site
+     * the operator administers. Buying a sub-station grants `power = 6`, so
+     * without this scope any tenant could reach the main site's accounts.
+     */
+    private static function adminScopedQuery()
+    {
+        $query = (new static())->where('uid', '>', 0);
+        if (!defined('WEB_ID') || (int)WEB_ID !== 1) {
+            $query->where('web_id', '=', defined('WEB_ID') ? (int)WEB_ID : -1);
+        }
+        return $query;
+    }
+
+    /**
+     * The super administrator may only ever be edited or removed by itself.
+     */
+    private static function adminMayManage($uid): bool
+    {
+        return (int)$uid !== 1 || (int)Session::get('user.uid') === 1;
+    }
+
+    public static function adminFindByUid($uid)
+    {
+        return self::adminScopedQuery()
+            ->withoutField('password,sid')
+            ->where('uid', '=', $uid)
+            ->find() ?: false;
+    }
+
+    public static function adminUpdateByUid($uid, array $data)
+    {
+        if (!self::adminMayManage($uid) || $data === []) {
+            return false;
+        }
+        // An out-of-scope uid updates zero rows, which must be reported as a
+        // failure rather than as "saved, nothing changed".
+        if (!self::adminScopedQuery()->where('uid', '=', $uid)->find()) {
+            return false;
+        }
+        return self::adminScopedQuery()->where('uid', '=', $uid)->update($data) !== false;
+    }
+
+    public static function adminDelByUid($uid)
+    {
+        if ((int)$uid === 1 || !self::adminMayManage($uid)) {
+            return false;
+        }
+        return (int)self::adminScopedQuery()->where('uid', '=', $uid)->delete() > 0;
     }
 
     public static function delBySiteid($id)

@@ -440,8 +440,15 @@ class Console
 
     public function bind(Request $request)
     {
-        $openid = $request->post("openid");
-        if (empty($openid)) return view("common/alert", ["msg" => "非法请求", "url" => "/index/console"]);
+        // A plain cross-site form used to be able to bind an attacker-chosen
+        // shortcut to the victim's account, permanently.
+        if (!$request->isPost() || is_cross_origin_request()) {
+            return view("common/alert", ["msg" => "非法请求", "url" => "/index/console"]);
+        }
+        $openid = trim((string)$request->post("openid", ""));
+        if ($openid === "" || strlen($openid) > 128 || preg_match('/\A[A-Za-z0-9_-]+\z/', $openid) !== 1) {
+            return view("common/alert", ["msg" => "非法请求", "url" => "/index/console"]);
+        }
         if (session("user.token") != "") return view("common/alert", ["msg" => "请勿重复绑定", "url" => "/index/console"]);
         $row = Users::where("token", "=", $openid)->find();
         if ($row) return view("common/alert", ["msg" => "该快捷方式已被其他用户绑定", "url" => "/index/console"]);

@@ -143,9 +143,11 @@ class Ajax extends Common
 				return resultJson(0, "收款识别码长度应为 1 到 40 个字符");
 			}
 			foreach (["alipay_url", "qq_url", "wechat_url"] as $field) {
-				$value = trim((string)($data[$field] ?? ""));
-				if ($value === "" || strlen($value) > 2048 || preg_match('/[\x00-\x1F]/', $value)) {
-					return resultJson(0, "收款码内容格式错误");
+				// These end up in a public redirect and in the console UI, so
+				// only absolute http(s) URLs are accepted.
+				$value = safe_http_url((string)($data[$field] ?? ""));
+				if ($value === "" || preg_match('/[\x00-\x1F]/', $value)) {
+					return resultJson(0, "收款码内容必须是 http/https 开头的收款链接");
 				}
 				$data[$field] = $value;
 			}
@@ -392,8 +394,14 @@ class Ajax extends Common
 	}
 	public function clearCache()
 	{
-		if (opcache_reset()) {
-			return resultJson(1, "清理缓存成功");
+		// Flushing the opcode cache makes every subsequent request recompile
+		// the whole application, so it must stay an administrator action.
+		if ((int)Session::get("user.power") !== 6 || (int)Session::get("user.web_id") !== (int)WEB_ID) {
+			return resultJson(0, "权限不足");
 		}
+		if (!function_exists("opcache_reset") || !opcache_reset()) {
+			return resultJson(0, "清理缓存失败");
+		}
+		return resultJson(1, "清理缓存成功");
 	}
 }

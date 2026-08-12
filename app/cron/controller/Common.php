@@ -83,17 +83,33 @@ class Common
         }
         curl_setopt($curl, CURLOPT_URL, $url);
         curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 5);
-        curl_setopt($curl, CURLOPT_TIMEOUT, 1);
+        // A one second cap could not even cover the connect timeout above, so
+        // scheduler calls were being killed before the worker had answered.
+        curl_setopt($curl, CURLOPT_TIMEOUT, 30);
         curl_setopt($curl, CURLOPT_NOBODY, 1);
         curl_setopt($curl, CURLOPT_NOSIGNAL, true);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($curl, CURLOPT_AUTOREFERER, 1);
         curl_setopt($curl, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.152 Safari/537.36');
-        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+        $this->applyTlsOptions($curl, $url);
         $ret = curl_exec($curl);
         curl_close($curl);
         return $ret;
+    }
+
+    /**
+     * Verify TLS for every remote hop. Loopback self-calls keep verification
+     * off because a local deployment normally terminates TLS with a
+     * self-signed certificate.
+     *
+     * @param \CurlHandle $handle
+     */
+    protected function applyTlsOptions($handle, string $url): void
+    {
+        $host = strtolower((string)parse_url($url, PHP_URL_HOST));
+        $loopback = in_array($host, ['127.0.0.1', 'localhost', '::1'], true);
+        curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, !$loopback);
+        curl_setopt($handle, CURLOPT_SSL_VERIFYHOST, $loopback ? 0 : 2);
     }
 
     public function curl_mulit($urls)
@@ -114,12 +130,13 @@ class Common
             //ua
             curl_setopt($conn[$i], CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/40.0.2214.93 Safari/537.36');
             //ssl验证
-            curl_setopt($conn[$i], CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($conn[$i], CURLOPT_SSL_VERIFYHOST, false);
+            $this->applyTlsOptions($conn[$i], $url);
             curl_setopt($conn[$i], CURLOPT_URL, $url);
             curl_setopt($conn[$i], CURLOPT_HEADER, 0);
             curl_setopt($conn[$i], CURLOPT_RETURNTRANSFER, 1);
-            curl_setopt($conn[$i], CURLOPT_TIMEOUT, 10);
+            // Long-running task workers must not have the connection dropped
+            // mid-run; PHP aborts the worker script when the client goes away.
+            curl_setopt($conn[$i], CURLOPT_TIMEOUT, 300);
             //302跳转
             curl_setopt($conn[$i], CURLOPT_FOLLOWLOCATION, 1);
             // 增加句柄

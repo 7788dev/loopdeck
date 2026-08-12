@@ -66,13 +66,19 @@ class Index extends Common
         }
         $agent = strtolower((string)Request::server('HTTP_USER_AGENT', ''));
         if (str_contains($agent, 'alipayclient')) {
-            return redirect((string)$data['alipay_url']);
+            // This route is public and the target is stored by an ordinary
+            // user, so only real http(s) payment links may be followed.
+            $target = safe_http_url((string)($data['alipay_url'] ?? ''));
+            if ($target === '') {
+                return response('收款地址无效', 400);
+            }
+            return redirect($target);
         }
         $type = str_contains($agent, 'micromessenger') ? 'wechat' : 'qq';
         return View::fetch('index/default/qrcode', [
             'type' => $type,
-            'url' => (string)$data[$type . '_url'],
-            'name' => (string)$data['name'],
+            'url' => safe_http_url((string)($data[$type . '_url'] ?? '')),
+            'name' => (string)($data['name'] ?? ''),
         ]);
     }
 

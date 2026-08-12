@@ -4,6 +4,7 @@ namespace netease;
 
 use netease\sdk\Client as CloudMusicClient;
 use netease\sdk\Ncbl;
+use Throwable;
 
 /**
  * NetEase Cloud Music client.
@@ -15,6 +16,16 @@ use netease\sdk\Ncbl;
  */
 class Netease
 {
+    /**
+     * Official chart playlists used as the last-resort candidate pool for the
+     * daily task: 热歌榜, 飙升榜, 新歌榜 and 原创榜. 热歌榜 alone carries more
+     * tracks than a full 300-song day.
+     */
+    protected const DAKA_CHART_PLAYLISTS = [3778678, 19723756, 3779629, 2884035];
+
+    /** Same-day submissions kept in the state file, bounded to keep it small. */
+    protected const DAKA_SAME_DAY_MEMORY = 1200;
+
     public $cookiezt = false;
 
     protected $musician_song_id;
@@ -23,13 +34,20 @@ class Netease
     protected $userId;
     protected $csrf;
     protected $musicu;
-    protected $config;
+    protected $config = [];
     protected $cookie;
     protected $sdk;
     protected $lastScrobbleStarts = 0;
     protected $lastScrobbleSeconds = 0;
     protected $lastScrobbleSongIds = [];
     protected $lastScrobbleElapsedSeconds = 0.0;
+    protected $lastScrobbleRejections = [];
+
+    /** @var array<int,array<int,array{id:int,time:int}>> */
+    protected $dakaTrackCache = [];
+
+    /** @var array<int,true>|null */
+    protected $dakaHistoryCache = null;
 
     protected $resourceTypeMap = [
         0 => 'R_SO_4_',
@@ -500,11 +518,16 @@ class Netease
         return $ids;
     }
 
+    /**
+     * `n` used to be 100000, which pulls every track of a large playlist and
+     * can be several megabytes of JSON. The daily task never needs more than a
+     * few hundred, so ask for a bounded slice.
+     */
     public function playlist_detail($playlist_id)
     {
         return $this->decodeBody($this->requestApi('/api/v6/playlist/detail', [
             'id' => $playlist_id,
-            'n' => 100000,
+            'n' => max(1, min(100000, (int)($this->config['playlist_track_limit'] ?? 600))),
             's' => 8,
         ], 'eapi'));
     }
@@ -732,6 +755,7 @@ class Netease
         $this->lastScrobbleSeconds = 0;
         $this->lastScrobbleSongIds = [];
         $this->lastScrobbleElapsedSeconds = 0.0;
+        $this->lastScrobbleRejections = [];
         $songs = array_values(array_filter($songs, static fn($song): bool =>
             is_array($song) && (int)($song['id'] ?? 0) > 0
         ));
@@ -739,7 +763,7 @@ class Netease
             return 0;
         }
 
-        $concurrency = max(1, min(16, (int)($this->config['daka_concurrency'] ?? 8)));
+        $concurrency = max(1, min(16, (int)($this->config['daka_concurrency'] ?? 12)));
         $options = [
             'domain' => 'https://clientlog.music.163.com',
             'os' => 'osx',
@@ -802,6 +826,8 @@ class Netease
             foreach ($startResponses as $response) {
                 if ($this->isDakaWeblogAccepted($response)) {
                     $this->lastScrobbleStarts++;
+                } else {
+                    $this->recordDakaRejection('startplay', $response);
                 }
             }
 
@@ -810,6 +836,7 @@ class Netease
             $playResponses = $this->sendDakaWeblogMany($playRequests, $concurrency);
             foreach ($chunk as $index => $song) {
                 if (!$this->isDakaWeblogAccepted($playResponses[$index] ?? [])) {
+                    $this->recordDakaRejection('play', $playResponses[$index] ?? []);
                     continue;
                 }
                 $success++;
@@ -864,6 +891,29 @@ class Netease
     }
 
     /**
+     * Keep a tally of the codes NetEase answered with so an operator can tell
+     * "reported but not counted" apart from "the request was refused".
+     */
+    private function recordDakaRejection(string $phase, array $response): void
+    {
+        $code = (int)($this->decodeBody($response)['code'] ?? 0);
+        $key = $phase . ':' . $code;
+        $this->lastScrobbleRejections[$key] = ($this->lastScrobbleRejections[$key] ?? 0) + 1;
+    }
+
+    protected function dakaRejectionSummary(): string
+    {
+        if ($this->lastScrobbleRejections === []) {
+            return '';
+        }
+        $parts = [];
+        foreach ($this->lastScrobbleRejections as $key => $count) {
+            $parts[] = $key . '×' . $count;
+        }
+        return implode(' ', $parts);
+    }
+
+    /**
      * @param array<string,mixed> $context
      * @return array{request:array{method:string,url:string,options:array},fileName:string}
      */
@@ -896,244 +946,209 @@ class Netease
         }
     }
 
-    /** @return array<int,array{id:int,sourceId:int,time:int}> */
-    protected function dakaSongs(string $source, array $history, int $limit = 300): array
+    /**
+     * Ordered playlist pools for the daily task.
+     *
+     * Upstream reports `sourceid=<playlist>`, so every candidate has to come
+     * from a real playlist. Sources that cannot name one (search results, the
+     * personalised new-song feed) are deliberately not used here.
+     *
+     * Each pool is resolved lazily so a configured playlist that already
+     * covers the target never triggers a recommendation request.
+     *
+     * @return array<int,callable():array<int,int>>
+     */
+    protected function dakaPlaylistPools(string $source): array
     {
-        $songs = [];
-        if ($source === 'daily_recommend') {
-            // Fill the daily target with the account's own recommendations
-            // first, then fresh chart releases. NetEase only counts songs the
-            // account has never heard before, so brand-new releases are far
-            // more valuable than popular charts for high-history accounts.
-            $this->appendSearchSongs($songs, $this->daily_recommend_songs(), $history, $limit);
-            $this->appendPlaylistSongs($songs, [3779629], $history, $limit);
-            $this->appendSearchSongs($songs, $this->get_new_songs(), $history, $limit);
-            $this->appendPlaylistSongs($songs, $this->recommend_playlist(), $history, $limit);
-
-            $this->appendPopularDakaSongs($songs, $history, $limit);
-            return $songs;
+        $pools = [];
+        $configured = $this->configuredDakaPlaylistIds();
+        if ($configured !== []) {
+            $pools[] = static fn(): array => $configured;
         }
 
-        if (in_array($source, ['personalized', 'highquality'], true)) {
-            $playlists = $source === 'highquality'
-                ? $this->get_highquality_playlist(50)
-                : $this->personalized(50);
-            $this->appendPlaylistSongs($songs, $playlists, $history, min($limit, 140));
+        if ($source === 'highquality') {
+            $pools[] = fn(): array => $this->get_highquality_playlist(50);
+        } elseif ($source === 'personalized') {
+            $pools[] = fn(): array => $this->personalized(50);
+        } else {
+            $pools[] = fn(): array => $this->recommend_playlist();
         }
+        $pools[] = static fn(): array => self::DAKA_CHART_PLAYLISTS;
 
-        $this->appendPopularDakaSongs($songs, $history, $limit);
-
-        return $songs;
+        return $pools;
     }
 
-    /** @return array<int,array{id:int,sourceId:int,time:int}> */
-    protected function dakaSupplementSongs(array $history, int $limit = 300): array
+    /**
+     * @param mixed $playlists
+     * @return array<int,int>
+     */
+    protected function normalizePlaylistIds($playlists): array
     {
+        $ids = [];
+        foreach (is_array($playlists) ? $playlists : [] as $playlistId) {
+            $playlistId = (int)$playlistId;
+            if ($playlistId > 0 && !in_array($playlistId, $ids, true)) {
+                $ids[] = $playlistId;
+            }
+        }
+        return $ids;
+    }
+
+    /** @return array<int,int> */
+    protected function configuredDakaPlaylistIds(): array
+    {
+        $raw = trim((string)($this->config['daka_playlist_ids'] ?? ''));
+        if ($raw === '') {
+            return [];
+        }
+        $ids = [];
+        foreach (preg_split('/[^0-9]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $value) {
+            $id = (int)$value;
+            if ($id > 0 && !in_array($id, $ids, true)) {
+                $ids[] = $id;
+            }
+        }
+        return array_slice($ids, 0, 10);
+    }
+
+    /**
+     * Collect candidates for one batch.
+     *
+     * `$exclude` only holds the songs already submitted today: a play has to
+     * be unique within the day to be counted, so songs used on earlier days
+     * stay eligible. Songs that were never reported before are still ranked
+     * first so the batch also satisfies a stricter lifetime-unique rule
+     * whenever fresh material is available.
+     *
+     * @param array<int,true> $exclude
+     * @return array<int,array{id:int,sourceId:int,time:int}>
+     */
+    protected function dakaCandidates(string $source, array $exclude, int $limit): array
+    {
+        $pools = $this->dakaPlaylistPools($source);
+        $resolved = [];
         $songs = [];
-        $year = date('Y');
-
-        // Later batches must leave the first-run pool. New-release charts and
-        // search playlists are the most reliable source of genuinely unheard
-        // songs for accounts with a long listening history.
-        $this->appendPlaylistSongs($songs, [3779629], $history, $limit);
-        if (count($songs) >= $limit) {
-            return $songs;
+        $floors = [$this->dakaMinimumSongSeconds()];
+        $relaxed = 30;
+        if ($relaxed < $floors[0]) {
+            // Second pass only widens the duration filter; the track cache
+            // means it costs no additional requests.
+            $floors[] = $relaxed;
         }
-        $this->appendSearchSongs($songs, $this->get_new_songs(), $history, $limit);
-        if (count($songs) >= $limit) {
-            return $songs;
-        }
-
-        foreach ([
-            $year . '华语新歌',
-            $year . '新歌速递',
-            $year . '新歌首发',
-            '本周新歌',
-            '新歌榜',
-            '原创歌曲',
-            '小众新歌',
-            '冷门宝藏歌曲',
-        ] as $term) {
-            $this->appendPlaylistSongs(
-                $songs,
-                $this->get_search_playlist($term, 1000, 30),
-                $history,
-                $limit
-            );
-            if (count($songs) >= $limit) {
-                return $songs;
-            }
-        }
-
-        $this->appendSearchSongs($songs, $this->get_new_songs(), $history, $limit);
-        if (count($songs) >= $limit) {
-            return $songs;
-        }
-
-        foreach ([19723756, 2884035, 3778678] as $chartPlaylistId) {
-            $this->appendPlaylistSongs($songs, [$chartPlaylistId], $history, $limit);
-            if (count($songs) >= $limit) {
-                return $songs;
-            }
-        }
-
-        foreach (['华语新声', '宝藏华语', '独立音乐', '影视新歌', '国风新歌', '新歌首发', '每日新歌'] as $term) {
-            foreach ([0, 100, 200, 300] as $offset) {
-                $this->appendSearchSongs(
-                    $songs,
-                    $this->search_songs($term, 100, $offset),
-                    $history,
-                    $limit
-                );
+        foreach ($floors as $minimumSeconds) {
+            foreach ($pools as $index => $pool) {
+                if (!array_key_exists($index, $resolved)) {
+                    try {
+                        $resolved[$index] = $this->normalizePlaylistIds($pool());
+                    } catch (Throwable $exception) {
+                        $resolved[$index] = [];
+                    }
+                }
+                $this->appendPlaylistSongs($songs, $resolved[$index], $exclude, $limit, $minimumSeconds);
                 if (count($songs) >= $limit) {
-                    return $songs;
+                    return $this->orderDakaCandidates($songs);
                 }
             }
         }
-
-        $fallback = array_values(array_unique(array_merge(
-            $this->get_highquality_playlist(50),
-            $this->personalized(50)
-        )));
-        shuffle($fallback);
-        $this->appendPlaylistSongs($songs, $fallback, $history, $limit);
-        return $songs;
+        return $this->orderDakaCandidates($songs);
     }
 
-    protected function appendPopularDakaSongs(
-        array &$songs,
-        array $history,
-        int $limit
-    ): void {
-        if (count($songs) >= $limit) {
-            return;
+    /**
+     * @param array<int,array{id:int,sourceId:int,time:int}> $songs
+     * @return array<int,array{id:int,sourceId:int,time:int}>
+     */
+    protected function orderDakaCandidates(array $songs): array
+    {
+        $history = $this->dakaHistory();
+        if ($history === [] || $songs === []) {
+            return $songs;
         }
-
-        // Stable official chart playlist IDs: soaring, new songs, original,
-        // and hot songs.
-        foreach ([19723756, 3779629, 2884035, 3778678] as $chartPlaylistId) {
-            $chartTarget = min($limit, count($songs) + 20);
-            $this->appendPlaylistSongs($songs, [$chartPlaylistId], $history, $chartTarget);
+        $fresh = [];
+        $repeat = [];
+        foreach ($songs as $id => $song) {
+            if (isset($history[(int)$id])) {
+                $repeat[$id] = $song;
+            } else {
+                $fresh[$id] = $song;
+            }
         }
+        return $fresh + $repeat;
+    }
 
-        // “坏女孩”与“幻听”分别对应徐良、许嵩；薛之谦是用户指定的
-        // 同类热门华语风格。每位歌手设置独立配额，避免某一位占满结果。
-        foreach (['徐良', '许嵩', '薛之谦'] as $artist) {
-            $artistTarget = min($limit, count($songs) + 20);
-            $this->appendSearchSongs(
-                $songs,
-                $this->search_songs($artist, 100, 0, $artist),
-                $history,
-                $artistTarget
-            );
+    /**
+     * Playlist tracks, fetched at most once per run.
+     *
+     * @return array<int,array{id:int,time:int}>
+     */
+    protected function dakaPlaylistTracks(int $playlistId): array
+    {
+        if (isset($this->dakaTrackCache[$playlistId])) {
+            return $this->dakaTrackCache[$playlistId];
         }
-
-        foreach (['汪苏泷', '周杰伦', '林俊杰', '陈奕迅'] as $artist) {
-            $artistTarget = min($limit, count($songs) + 5);
-            $this->appendSearchSongs(
-                $songs,
-                $this->search_songs($artist, 100, 0, $artist),
-                $history,
-                $artistTarget
-            );
+        try {
+            $playlist = $this->playlist_detail($playlistId);
+        } catch (Throwable $exception) {
+            return $this->dakaTrackCache[$playlistId] = [];
         }
-
-        if (count($songs) < $limit) {
-            $terms = [
-                '华语流行', '网易云热歌', '经典华语', '网络热歌', '流行男声',
-                '流行女声', '伤感情歌', '影视金曲', 'KTV热歌', '国风热歌',
-                '热门翻唱', '青春回忆',
+        $tracks = [];
+        foreach (is_array($playlist['playlist']['tracks'] ?? null) ? $playlist['playlist']['tracks'] : [] as $song) {
+            $id = (int)($song['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $tracks[] = [
+                'id' => $id,
+                'time' => max(1, (int)ceil(($song['dt'] ?? $song['duration'] ?? 240000) / 1000)),
             ];
-            shuffle($terms);
-            foreach ($terms as $term) {
-                $offsets = [0, 100, 200];
-                shuffle($offsets);
-                $this->appendSearchSongs(
-                    $songs,
-                    $this->search_songs($term, 100, $offsets[0]),
-                    $history,
-                    $limit
-                );
-                if (count($songs) >= $limit) {
-                    break;
-                }
-            }
         }
+        shuffle($tracks);
+        return $this->dakaTrackCache[$playlistId] = $tracks;
+    }
 
-        if (count($songs) < $limit) {
-            $fallback = array_values(array_unique(array_merge(
-                $this->get_highquality_playlist(50),
-                $this->personalized(50)
-            )));
-            shuffle($fallback);
-            $this->appendPlaylistSongs($songs, $fallback, $history, $limit);
-        }
+    protected function dakaMinimumSongSeconds(): int
+    {
+        // Plays shorter than a minute are not counted by NetEase. Upstream
+        // applies no filter at all, so stay just above that floor instead of
+        // shrinking the candidate pool.
+        return max(30, min(600, (int)($this->config['daka_min_song_seconds'] ?? 60)));
     }
 
     protected function isDakaSongDurationEligible(int $duration): bool
     {
-        $minimum = max(60, min(600, (int)($this->config['daka_min_song_seconds'] ?? 120)));
-        return $duration >= $minimum;
+        return $duration >= $this->dakaMinimumSongSeconds();
     }
 
-    protected function appendSearchSongs(
-        array &$songs,
-        array $candidates,
-        array $history,
-        int $limit
-    ): void {
-        if (count($songs) >= $limit) {
-            return;
-        }
-        shuffle($candidates);
-        foreach ($candidates as $song) {
-            $id = (int)($song['id'] ?? 0);
-            if ($id <= 0 || isset($songs[$id]) || isset($history[$id])) {
-                continue;
-            }
-            $duration = max(1, (int)ceil(($song['dt'] ?? $song['duration'] ?? 240000) / 1000));
-            if (!$this->isDakaSongDurationEligible($duration)) {
-                continue;
-            }
-            $songs[$id] = [
-                'id' => $id,
-                'sourceId' => max(0, (int)($song['sourceId'] ?? 0)),
-                'time' => $duration,
-            ];
-            if (count($songs) >= $limit) {
-                return;
-            }
-        }
-    }
-
+    /**
+     * @param array<int,array{id:int,sourceId:int,time:int}> $songs
+     * @param array<int,int> $playlists
+     * @param array<int,true> $exclude
+     */
     protected function appendPlaylistSongs(
         array &$songs,
         array $playlists,
-        array $history,
-        int $limit
+        array $exclude,
+        int $limit,
+        ?int $minimumSeconds = null
     ): void {
         if (count($songs) >= $limit) {
             return;
         }
+        $minimumSeconds ??= $this->dakaMinimumSongSeconds();
         shuffle($playlists);
         foreach ($playlists as $playlistId) {
-            $playlist = $this->playlist_detail($playlistId);
-            $tracks = is_array($playlist['playlist']['tracks'] ?? null)
-                ? $playlist['playlist']['tracks']
-                : [];
-            shuffle($tracks);
-            foreach ($tracks as $song) {
-                $id = (int)($song['id'] ?? 0);
-                if ($id <= 0 || isset($songs[$id]) || isset($history[$id])) {
-                    continue;
-                }
-                $duration = max(1, (int)ceil(($song['dt'] ?? $song['duration'] ?? 240000) / 1000));
-                if (!$this->isDakaSongDurationEligible($duration)) {
+            $playlistId = (int)$playlistId;
+            if ($playlistId <= 0) {
+                continue;
+            }
+            foreach ($this->dakaPlaylistTracks($playlistId) as $track) {
+                $id = (int)$track['id'];
+                $duration = (int)$track['time'];
+                if (isset($songs[$id]) || isset($exclude[$id]) || $duration < $minimumSeconds) {
                     continue;
                 }
                 $songs[$id] = [
                     'id' => $id,
-                    'sourceId' => (int)$playlistId,
+                    'sourceId' => $playlistId,
                     'time' => $duration,
                 ];
                 if (count($songs) >= $limit) {
@@ -1143,6 +1158,21 @@ class Netease
         }
     }
 
+    /**
+     * Songs reported on earlier days. This is a ranking hint only; it must
+     * never exclude a candidate, otherwise the pool starves after a few days.
+     *
+     * @return array<int,true>
+     */
+    protected function dakaHistory(): array
+    {
+        if ($this->dakaHistoryCache === null) {
+            $this->dakaHistoryCache = $this->loadDakaHistory();
+        }
+        return $this->dakaHistoryCache;
+    }
+
+    /** @return array<int,true> */
     protected function loadDakaHistory(): array
     {
         $path = $this->dakaHistoryPath();
@@ -1163,60 +1193,27 @@ class Netease
         return $history;
     }
 
-    /** @return array<int,true> */
-    protected function loadRemoteDakaHistory(): array
-    {
-        $history = [];
-        foreach ([
-            ['uri' => '/api/v1/play/record', 'data' => ['uid' => $this->userId, 'type' => 0]],
-            ['uri' => '/api/play-record/song/list', 'data' => ['limit' => 300, 'offset' => 0]],
-        ] as $source) {
-            try {
-                $body = $this->decodeBody($this->requestApi(
-                    (string)$source['uri'],
-                    is_array($source['data'] ?? null) ? $source['data'] : [],
-                    'weapi'
-                ));
-            } catch (Throwable $exception) {
-                continue;
-            }
-            if ((int)($body['code'] ?? 0) !== 200) {
-                continue;
-            }
-            foreach ($body['allData'] ?? [] as $record) {
-                $id = (int)($record['song']['id'] ?? 0);
-                if ($id > 0) {
-                    $history[$id] = true;
-                }
-            }
-            foreach ($body['data']['list'] ?? [] as $record) {
-                $type = (string)($record['resourceType'] ?? '');
-                $id = (int)($record['resourceId'] ?? 0);
-                if ($id <= 0) {
-                    $id = (int)($record['data']['song']['id'] ?? 0);
-                }
-                if ($id > 0 && ($type === '' || $type === 'song' || $type === '1')) {
-                    $history[$id] = true;
-                }
-            }
-        }
-        return $history;
-    }
-
     protected function rememberDakaSongs(array $songIds): void
     {
+        $history = $this->dakaHistory();
+        foreach ($songIds as $songId) {
+            $id = (int)$songId;
+            if ($id > 0) {
+                $history[$id] = true;
+            }
+        }
+        if (count($history) > 30000) {
+            $history = array_slice($history, -30000, null, true);
+        }
+        $this->dakaHistoryCache = $history;
+
         $path = $this->dakaHistoryPath();
         if ($path === null) {
             return;
         }
-        $existing = array_keys($this->loadDakaHistory());
-        $merged = array_values(array_unique(array_map('intval', array_merge($existing, $songIds))));
-        if (count($merged) > 30000) {
-            $merged = array_slice($merged, -30000);
-        }
         @file_put_contents(
             $path,
-            json_encode($merged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
+            json_encode(array_keys($history), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
             LOCK_EX
         );
     }
@@ -1253,6 +1250,25 @@ class Netease
             return null;
         }
         return substr($historyPath, 0, -5) . '.daily.json';
+    }
+
+    /**
+     * Remove the per-account state files. Account deletion used to leave both
+     * JSON files behind forever.
+     */
+    public function forgetDakaState(): void
+    {
+        $path = $this->dakaHistoryPath();
+        if ($path === null) {
+            return;
+        }
+        $this->dakaHistoryCache = [];
+        $this->dakaTrackCache = [];
+        foreach ([$path, substr($path, 0, -5) . '.daily.json'] as $file) {
+            if (is_file($file)) {
+                @unlink($file);
+            }
+        }
     }
 
     protected function dakaHistoryPath(): ?string
@@ -1370,22 +1386,32 @@ class Netease
         $reportedSecondsTotal = $sameDay ? max(0, (int)($dailyState['reported_play_seconds']
             ?? $dailyState['submitted_seconds']
             ?? 0)) : 0;
+        $repeatSubmittedTotal = $sameDay ? max(0, (int)($dailyState['repeat_submitted_total'] ?? 0)) : 0;
         $attempts = $sameDay
             ? max(0, (int)($dailyState['attempts'] ?? ($submittedTotal > 0 ? 1 : 0)))
             : 0;
         $stalledRuns = $sameDay ? max(0, (int)($dailyState['stalled_runs'] ?? 0)) : 0;
         $lastProgress = $sameDay ? max(0, (int)($dailyState['actual_progress'] ?? 0)) : 0;
         $progressChanged = $actualProgressBefore > $lastProgress;
+        $submittedToday = [];
+        if ($sameDay && is_array($dailyState['submitted_song_ids'] ?? null)) {
+            foreach ($dailyState['submitted_song_ids'] as $songId) {
+                $songId = (int)$songId;
+                if ($songId > 0) {
+                    $submittedToday[$songId] = true;
+                }
+            }
+        }
 
-        // NetEase counts at most 300 play events per account per day, and a
-        // play only increases 累计听歌 when the song was never heard before.
-        // The event budget (target - submitted_total) therefore limits how
-        // many additional songs may ever count today.
+        // A play only counts when the song has not already been played today,
+        // so the remaining work is whatever 累计听歌 has not moved yet. Counting
+        // submitted events against the daily cap would permanently lock out the
+        // shortfall whenever an event is reported but not counted.
         $maxBatches = max(1, min(30, (int)($this->config['daka_max_batches_per_day'] ?? 20)));
-        $maxVerificationRuns = max(1, min(10, (int)($this->config['daka_max_verification_runs'] ?? 2)));
+        $maxIdleRuns = max(1, min(10, (int)($this->config['daka_max_verification_runs'] ?? 4)));
         $retryInterval = max(120, min(3600, (int)($this->config['daka_retry_seconds'] ?? 900)));
-        $submitBudget = max(0, $target - $submittedTotal);
-        $submitLimit = min($remainingBefore, $submitBudget);
+        $stalledAfter = $progressChanged ? 0 : $stalledRuns + 1;
+        $submitLimit = $remainingBefore;
 
         if ($actualProgressBefore >= $target) {
             return $this->makeResult(200,
@@ -1409,12 +1435,12 @@ class Netease
             );
         }
 
-        // Verification-only run: the daily event budget is consumed or no new
-        // songs remain, so this run only waits for NetEase's asynchronous
-        // counting to land. Stop after a few unchanged checks.
-        if ($submitLimit <= 0) {
-            $stalledAfter = $progressChanged ? 0 : $stalledRuns + 1;
-            $stop = $stalledAfter >= $maxVerificationRuns;
+        // Give up for the day when the account stopped counting: either the
+        // batch cap was reached, or 累计听歌 has not moved across several
+        // consecutive top-up runs.
+        $batchCapReached = $attempts >= $maxBatches;
+        $countingStalled = $stalledAfter > $maxIdleRuns;
+        if ($batchCapReached || $countingStalled) {
             $this->rememberDakaDailyState([
                 'date' => $today,
                 'target' => $target,
@@ -1422,23 +1448,21 @@ class Netease
                 'listen_songs_observed' => $observedBefore,
                 'actual_progress' => $actualProgressBefore,
                 'submitted_total' => $submittedTotal,
+                'submitted_song_ids' => array_keys($submittedToday),
                 'startplay_accepted_total' => $startAcceptedTotal,
                 'play_accepted_total' => $playAcceptedTotal,
                 'reported_play_seconds' => $reportedSecondsTotal,
+                'repeat_submitted_total' => $repeatSubmittedTotal,
                 'attempts' => $attempts,
                 'stalled_runs' => $stalledAfter,
                 'updated_at' => date('c'),
             ]);
             $message = '网易云累计听歌当前' . $listenSongs . '首；今日实际新增'
                 . $actualProgressBefore . '/' . $target . '首，仍差' . $remainingBefore . '首';
-            $message .= $submittedTotal >= $target
-                ? '；今日已提交' . $submittedTotal . '首上报事件，网易云每天最多统计300次播放且只统计未听过的歌曲，本日额度已用尽'
-                : '；已无可上报的新歌候选';
-            if (!$stop && !$this->cookiezt) {
-                $message .= '，累计统计可能仍在异步更新，约' . (int)ceil($retryInterval / 60) . '分钟后复核';
-            } else {
-                $message .= '，已停止自动复核';
-            }
+            $message .= $batchCapReached
+                ? '；已达到当日补齐批次上限' . $maxBatches . '次，已停止自动重试'
+                : '；已提交' . $submittedTotal . '首上报事件但累计值连续' . $stalledRuns
+                    . '轮未变化，已停止自动重试';
             return $this->makeResult(201, $message, [
                 'submitted' => 0,
                 'verification_only' => true,
@@ -1447,45 +1471,23 @@ class Netease
                 'daily_confirmed' => $actualProgressBefore,
                 'daily_actual_progress' => $actualProgressBefore,
                 'daily_remaining' => $remainingBefore,
+                'daily_submitted_total' => $submittedTotal,
                 'target_reached' => false,
                 'attempts' => $attempts,
                 'stalled_runs' => $stalledAfter,
-                'retry_after_seconds' => (!$stop && !$this->cookiezt) ? $retryInterval : 0,
+                'retry_after_seconds' => 0,
                 'protocol_wait_seconds' => 0,
             ]);
         }
 
-        if ($attempts >= $maxBatches) {
-            return $this->makeResult(201,
-                '网易云累计听歌当前' . $listenSongs . '首；今日实际新增'
-                . $actualProgressBefore . '/' . $target . '首，仍差' . $remainingBefore
-                . '首；已达到当日补齐批次上限' . $maxBatches . '次',
-                [
-                    'submitted' => 0,
-                    'daily_target' => $target,
-                    'daily_confirmed' => $actualProgressBefore,
-                    'daily_actual_progress' => $actualProgressBefore,
-                    'daily_remaining' => $remainingBefore,
-                    'target_reached' => false,
-                    'attempts' => $attempts,
-                    'retry_after_seconds' => 0,
-                    'protocol_wait_seconds' => 0,
-                ]
-            );
-        }
-
         $candidateLimit = min(450, $submitLimit + max(30, (int)ceil($submitLimit * 0.25)));
-        $history = $this->loadDakaHistory() + $this->loadRemoteDakaHistory();
-        $candidates = ($attempts > 0 || $submittedTotal > 0)
-            ? $this->dakaSupplementSongs($history, $candidateLimit)
-            : $this->dakaSongs($source, $history, $candidateLimit);
+        $candidates = $this->dakaCandidates($source, $submittedToday, $candidateLimit);
         $candidateCount = count($candidates);
         $songs = array_slice($candidates, 0, $submitLimit, true);
         if ($songs === []) {
             $attemptsAfter = $attempts + 1;
-            $stalledAfter = $progressChanged ? 0 : $stalledRuns + 1;
             $retryAfter = ($attemptsAfter < $maxBatches
-                && $stalledAfter < $maxVerificationRuns
+                && $stalledAfter < $maxIdleRuns
                 && !$this->cookiezt)
                 ? $retryInterval
                 : 0;
@@ -1496,14 +1498,16 @@ class Netease
                 'listen_songs_observed' => $observedBefore,
                 'actual_progress' => $actualProgressBefore,
                 'submitted_total' => $submittedTotal,
+                'submitted_song_ids' => array_keys($submittedToday),
                 'startplay_accepted_total' => $startAcceptedTotal,
                 'play_accepted_total' => $playAcceptedTotal,
                 'reported_play_seconds' => $reportedSecondsTotal,
+                'repeat_submitted_total' => $repeatSubmittedTotal,
                 'attempts' => $attemptsAfter,
                 'stalled_runs' => $stalledAfter,
                 'updated_at' => date('c'),
             ]);
-            $message = '未获取到新的候选歌曲，本次未上报';
+            $message = '未获取到可上报的候选歌曲（今日已用' . count($submittedToday) . '首），本次未上报';
             $message .= $retryAfter > 0
                 ? '，约' . (int)ceil($retryAfter / 60) . '分钟后重试'
                 : '，已停止自动重试';
@@ -1514,6 +1518,7 @@ class Netease
                 'daily_confirmed' => $actualProgressBefore,
                 'daily_actual_progress' => $actualProgressBefore,
                 'daily_remaining' => $remainingBefore,
+                'daily_submitted_total' => $submittedTotal,
                 'target_reached' => false,
                 'attempts' => $attemptsAfter,
                 'stalled_runs' => $stalledAfter,
@@ -1522,7 +1527,25 @@ class Netease
             ]);
         }
 
+        // Diagnostic only: how much of this batch the account already reported
+        // on an earlier day. Comparing this against the measured increase tells
+        // an operator whether NetEase counts per day or per lifetime.
+        $history = $this->dakaHistory();
+        $repeatSubmitted = 0;
+        foreach ($songs as $song) {
+            if (isset($history[(int)$song['id']])) {
+                $repeatSubmitted++;
+            }
+        }
+
         $success = $this->weblogScrobbleBatch($songs);
+        $submitted = count($songs);
+        foreach ($songs as $song) {
+            $submittedToday[(int)$song['id']] = true;
+        }
+        if (count($submittedToday) > self::DAKA_SAME_DAY_MEMORY) {
+            $submittedToday = array_slice($submittedToday, -self::DAKA_SAME_DAY_MEMORY, null, true);
+        }
         if ($success > 0) {
             $this->rememberDakaSongs($this->lastScrobbleSongIds);
         }
@@ -1535,7 +1558,6 @@ class Netease
             ? (int)($after['listenSongs'] ?? $listenSongs)
             : $listenSongs;
         $delta = max(0, $current - $listenSongs);
-        $submitted = count($songs);
         $observedAfter = max($observedBefore, $current);
         $actualProgressAfter = min($target, max(0, $observedAfter - $baseline));
         $remainingAfter = max(0, $target - $actualProgressAfter);
@@ -1544,18 +1566,17 @@ class Netease
         $startAcceptedTotal += $this->lastScrobbleStarts;
         $playAcceptedTotal += $success;
         $reportedSecondsTotal += $this->lastScrobbleSeconds;
-        $submitBudgetAfter = max(0, $target - $submittedTotal);
-        $retryAfter = 0;
-        if ($remainingAfter > 0 && !$this->cookiezt) {
-            if ($attemptsAfter < $maxBatches && $submitBudgetAfter > 0) {
-                // More songs may still count today; fetch a fresh batch later.
-                $retryAfter = $retryInterval;
-            } elseif ($submitBudgetAfter <= 0) {
-                // The daily event budget is consumed; the next run only
-                // verifies whether the asynchronous count finally landed.
-                $retryAfter = $retryInterval;
-            }
-        }
+        $repeatSubmittedTotal += $repeatSubmitted;
+        // 累计听歌 lands asynchronously, so a run that reports nothing new is
+        // only treated as stalled once the counter also failed to move.
+        $stalledAfterRun = ($progressChanged || $delta > 0) ? 0 : $stalledAfter;
+        $retryAfter = ($remainingAfter > 0
+            && !$this->cookiezt
+            && $attemptsAfter < $maxBatches
+            && $stalledAfterRun < $maxIdleRuns)
+            ? $retryInterval
+            : 0;
+        $rejections = $this->dakaRejectionSummary();
         $this->rememberDakaDailyState([
             'date' => $today,
             'target' => $target,
@@ -1563,12 +1584,13 @@ class Netease
             'listen_songs_observed' => $observedAfter,
             'actual_progress' => $actualProgressAfter,
             'submitted_total' => $submittedTotal,
+            'submitted_song_ids' => array_keys($submittedToday),
             'startplay_accepted_total' => $startAcceptedTotal,
             'play_accepted_total' => $playAcceptedTotal,
             'reported_play_seconds' => $reportedSecondsTotal,
+            'repeat_submitted_total' => $repeatSubmittedTotal,
             'attempts' => $attemptsAfter,
-            'stalled_runs' => 0,
-            'submit_budget' => $submitBudgetAfter,
+            'stalled_runs' => $stalledAfterRun,
             // Keep legacy fields readable during a rolling deployment.
             'submitted' => $submittedTotal,
             'plv_confirmed' => $startAcceptedTotal,
@@ -1582,25 +1604,27 @@ class Netease
 
         $message = '网易云累计听歌' . $listenSongs . '→' . $current . '首；今日实际新增'
             . $actualProgressAfter . '/' . $target . '首';
-        $message .= '；本批即时上报' . $submitted . '首，起播记录接受'
-            . $this->lastScrobbleStarts . '/' . $submitted . '首，听歌记录接受'
-            . $success . '/' . $submitted . '首';
+        $message .= '；本批即时上报' . $submitted . '首（其中往日用过' . $repeatSubmitted
+            . '首），起播记录接受' . $this->lastScrobbleStarts . '/' . $submitted
+            . '首，听歌记录接受' . $success . '/' . $submitted . '首，本批累计值+' . $delta . '首';
         $message .= '，协议耗时约' . round($this->lastScrobbleElapsedSeconds, 1)
             . '秒，未等待歌曲播放';
+        if ($rejections !== '') {
+            $message .= '；被拒响应' . $rejections;
+        }
         if ($remainingAfter > 0) {
             $message .= '；仍差' . $remainingAfter . '首';
-            if ($submitBudgetAfter <= 0) {
-                $message .= '，今日300首上报额度已用尽（网易云只统计未听过的歌曲），将仅复核最终累计值';
-            } elseif ($afterCode !== 200) {
+            if ($afterCode !== 200) {
                 $message .= '，本次未能读取更新后的累计值';
             } elseif ($delta === 0 && $success > 0) {
                 $message .= '，累计统计可能异步更新';
             }
             if ($retryAfter > 0) {
-                $message .= '，约' . (int)ceil($retryAfter / 60) . '分钟后'
-                    . ($submitBudgetAfter <= 0 ? '复核' : '换一批新歌继续补齐');
+                $message .= '，约' . (int)ceil($retryAfter / 60) . '分钟后换一批继续补齐';
             } elseif ($attemptsAfter >= $maxBatches) {
                 $message .= '，已达到当日批次上限' . $maxBatches . '次，已停止自动重试';
+            } else {
+                $message .= '，累计值连续' . $stalledAfterRun . '轮未变化，已停止自动重试';
             }
         }
 
@@ -1623,11 +1647,14 @@ class Netease
             'daily_confirmed' => $actualProgressAfter,
             'daily_actual_progress' => $actualProgressAfter,
             'daily_remaining' => $remainingAfter,
+            'daily_submitted_total' => $submittedTotal,
+            'repeat_submitted' => $repeatSubmitted,
+            'repeat_submitted_total' => $repeatSubmittedTotal,
+            'rejections' => $this->lastScrobbleRejections,
             'target_reached' => $remainingAfter === 0,
             'attempts' => $attemptsAfter,
-            'stalled_runs' => 0,
+            'stalled_runs' => $stalledAfterRun,
             'retry_after_seconds' => $retryAfter,
-            'submit_budget' => $submitBudgetAfter,
             'skipped_duplicate' => false,
         ]);
     }

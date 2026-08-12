@@ -8,6 +8,7 @@ use app\index\model\Jobs;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\service\AutomaticSchedule;
+use InvalidArgumentException;
 use netease\Netease as NeteaseClient;
 use netease\QRcode;
 use think\exception\ValidateException;
@@ -167,6 +168,8 @@ class Netease
         $accountDeleted = Accounts::delByUserId('netease', $userId);
         $jobsDeleted = Jobs::delJob('netease', $userId);
         $logsDeleted = TaskLogs::deleteLogs('netease', $userId);
+        // Otherwise the daily-task state files stay behind as orphans.
+        (new NeteaseClient($userId))->forgetDakaState();
         return $accountDeleted && $jobsDeleted && $logsDeleted
             ? resultJson(1, '删除成功')
             : resultJson(0, '删除失败');
@@ -211,6 +214,11 @@ class Netease
                 if (!is_array($config)) {
                     return resultJson(0, '任务配置格式错误');
                 }
+                try {
+                    $config = self::sanitizeJobConfig($config);
+                } catch (InvalidArgumentException $exception) {
+                    return resultJson(0, $exception->getMessage());
+                }
                 $updated = Jobs::where('type', 'netease')
                     ->where('user_id', $userId)
                     ->where('uid', Session::get('user.uid'))
@@ -218,6 +226,92 @@ class Netease
                     ->update(['data' => serialize($config)]);
                 return $updated !== false ? resultJson(1, '保存成功') : resultJson(0, '保存失败');
         }
+    }
+
+    /**
+     * Only keys the task layer actually reads may reach the serialized job
+     * config; anything else would be attacker-controlled input flowing into
+     * `netease\Netease::$config`.
+     *
+     * @param array<string,mixed> $config
+     * @return array<string,mixed>
+     */
+    private static function sanitizeJobConfig(array $config): array
+    {
+        $clean = [];
+        foreach ($config as $key => $value) {
+            if (is_array($value) || is_object($value)) {
+                throw new InvalidArgumentException('任务配置格式错误');
+            }
+            $value = trim((string)$value);
+            switch ($key) {
+                case 'daka_music_from':
+                    if (!in_array($value, ['daily_recommend', 'highquality', 'personalized'], true)) {
+                        throw new InvalidArgumentException('歌曲来源不合法');
+                    }
+                    $clean[$key] = $value;
+                    break;
+
+                case 'daka_playlist_ids':
+                    if ($value === '') {
+                        break;
+                    }
+                    if (!preg_match('/^\d[\d,\s]{0,199}$/', $value)) {
+                        throw new InvalidArgumentException('歌单ID只能填写数字，多个用英文逗号分隔');
+                    }
+                    $ids = array_slice(array_unique(preg_split('/[^0-9]+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: []), 0, 10);
+                    $clean[$key] = implode(',', $ids);
+                    break;
+
+                case 'daka_limit':
+                    if ($value === '') {
+                        break;
+                    }
+                    $limit = (int)$value;
+                    if (!ctype_digit($value) || $limit < 1 || $limit > 300) {
+                        throw new InvalidArgumentException('每日目标首数需要在 1 到 300 之间');
+                    }
+                    $clean[$key] = $limit;
+                    break;
+
+                case 'evaluate_star':
+                    if ($value === '') {
+                        break;
+                    }
+                    if (!preg_match('/^[1-5](?:,[1-5])?$/', $value)) {
+                        throw new InvalidArgumentException('评分星数只能填写 1 到 5，例如 2,3');
+                    }
+                    $clean[$key] = $value;
+                    break;
+
+                case 'musician_song_id':
+                case 'musician_follows_id':
+                    if ($value === '') {
+                        break;
+                    }
+                    if (!ctype_digit($value) || strlen($value) > 20) {
+                        throw new InvalidArgumentException('ID只能填写数字');
+                    }
+                    $clean[$key] = $value;
+                    break;
+
+                case 'musician_follows_msg':
+                    if ($value === '') {
+                        break;
+                    }
+                    if (mb_strlen($value) > 200) {
+                        throw new InvalidArgumentException('私信内容不能超过 200 字');
+                    }
+                    $clean[$key] = $value;
+                    break;
+
+                default:
+                    // `daka_history_dir` and the SDK block must never be
+                    // settable from a request; reject anything unexpected.
+                    throw new InvalidArgumentException('未知的任务配置项：' . $key);
+            }
+        }
+        return $clean;
     }
 
     private function logs()

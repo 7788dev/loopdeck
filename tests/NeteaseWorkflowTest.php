@@ -200,24 +200,27 @@ final class DakaLimitProbe extends Netease
 {
     public int $playlistDetailCalls = 0;
 
-    public function appendSearchForTest(array &$songs, array $candidates, array $history, int $limit): void
+    /**
+     * @param array<int,array{id:int,sourceId:int,time:int}> $songs
+     * @param array<int,int> $playlists
+     * @param array<int,true> $exclude
+     */
+    public function appendPlaylistForTest(array &$songs, array $playlists, array $exclude, int $limit): void
     {
-        $this->appendSearchSongs($songs, $candidates, $history, $limit);
-    }
-
-    public function appendPlaylistForTest(array &$songs, array $playlists, array $history, int $limit): void
-    {
-        $this->appendPlaylistSongs($songs, $playlists, $history, $limit);
+        $this->appendPlaylistSongs($songs, $playlists, $exclude, $limit);
     }
 
     public function playlist_detail($playlist_id)
     {
         $this->playlistDetailCalls++;
+        $base = (int)$playlist_id * 1000;
         return [
             'code' => 200,
             'playlist' => [
                 'tracks' => [
-                    ['id' => 9000 + $this->playlistDetailCalls, 'dt' => 180000],
+                    ['id' => $base + 1, 'dt' => 180000],
+                    ['id' => $base + 2, 'dt' => 180000],
+                    ['id' => $base + 3, 'dt' => 180000],
                 ],
             ],
         ];
@@ -228,6 +231,10 @@ final class DailyDakaProbe extends Netease
 {
     public int $scrobbleCalls = 0;
     public int $listenSongs = 10;
+    /** How many of a submitted batch NetEase actually counts. */
+    public int $countedPerBatch = 0;
+    /** @var array<int,array<int,int>> */
+    public array $submittedBatches = [];
 
     public function detail($uid)
     {
@@ -243,26 +250,16 @@ final class DailyDakaProbe extends Netease
         ];
     }
 
-    protected function dakaSongs(string $source, array $history, int $limit = 300): array
-    {
-        return $this->probeSongs($limit);
-    }
-
-    protected function dakaSupplementSongs(array $history, int $limit = 300): array
-    {
-        return $this->probeSongs($limit);
-    }
-
-    private function probeSongs(int $limit): array
+    protected function dakaCandidates(string $source, array $exclude, int $limit): array
     {
         $songs = [];
-        for ($index = 1; $index <= $limit; $index++) {
-            $id = 7000 + ($this->scrobbleCalls * 100) + $index;
-            $songs[$id] = [
-                'id' => $id,
-                'sourceId' => 10,
-                'time' => 180,
-            ];
+        $id = 7000;
+        while (count($songs) < $limit && $id < 9000) {
+            $id++;
+            if (isset($exclude[$id])) {
+                continue;
+            }
+            $songs[$id] = ['id' => $id, 'sourceId' => 10, 'time' => 180];
         }
         return $songs;
     }
@@ -270,6 +267,10 @@ final class DailyDakaProbe extends Netease
     protected function weblogScrobbleBatch(array $songs): int
     {
         $this->scrobbleCalls++;
+        $this->submittedBatches[] = array_values(array_map(
+            static fn(array $song): int => (int)$song['id'],
+            $songs
+        ));
         $this->lastScrobbleStarts = count($songs);
         $this->lastScrobbleSeconds = count($songs) * 180;
         $this->lastScrobbleSongIds = array_values(array_map(
@@ -277,6 +278,7 @@ final class DailyDakaProbe extends Netease
             $songs
         ));
         $this->lastScrobbleElapsedSeconds = 0.25;
+        $this->listenSongs += min(count($songs), $this->countedPerBatch);
         return count($songs);
     }
 }
@@ -313,80 +315,111 @@ $netease = new Netease(1, 'csrf', 'music-u', [
     'times' => 2,
 ], $sdk);
 
-$limitProbe = new DakaLimitProbe(1, 'csrf', 'music-u', [], $sdk);
+$limitProbe = new DakaLimitProbe(1, 'csrf', 'music-u', ['daka_history_dir' => ''], $sdk);
 $alreadyFull = [101 => ['id' => 101, 'sourceId' => 10, 'time' => 180]];
-$limitProbe->appendSearchForTest(
-    $alreadyFull,
-    [['id' => 102, 'sourceId' => 10, 'time' => 180]],
-    [],
-    1
-);
-workflowCheck(count($alreadyFull) === 1, 'Search candidates exceeded an already reached daka limit');
 $limitProbe->appendPlaylistForTest($alreadyFull, [10], [], 1);
 workflowCheck(count($alreadyFull) === 1, 'Playlist candidates exceeded an already reached daka limit');
 workflowCheck($limitProbe->playlistDetailCalls === 0, 'Reached daka limit still fetched another playlist');
 
 $oneSong = [];
-$limitProbe->appendSearchForTest(
-    $oneSong,
-    [
-        ['id' => 102, 'sourceId' => 10, 'time' => 180],
-        ['id' => 103, 'sourceId' => 10, 'time' => 180],
-    ],
-    [],
-    1
-);
-workflowCheck(count($oneSong) === 1, 'Search candidates did not stop exactly at the daka limit');
+$limitProbe->appendPlaylistForTest($oneSong, [11], [], 1);
+workflowCheck(count($oneSong) === 1, 'Playlist candidates did not stop exactly at the daka limit');
+workflowCheck($limitProbe->playlistDetailCalls === 1, 'Filling one song needed more than one playlist request');
 
-$dailyDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-daily-' . bin2hex(random_bytes(6));
-workflowCheck(@mkdir($dailyDirectory, 0770, true), 'Daily daka test directory could not be created');
-$dailyProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
-    'daka_limit' => 3,
-    'daka_history_dir' => $dailyDirectory,
+$excludedSongs = [];
+$limitProbe->appendPlaylistForTest($excludedSongs, [11], [11001 => true], 3);
+workflowCheck(!isset($excludedSongs[11001]), 'A song already submitted today was offered again');
+workflowCheck(count($excludedSongs) === 2, 'Excluding one track did not leave the rest of the playlist available');
+workflowCheck($limitProbe->playlistDetailCalls === 1, 'The per-run playlist track cache was not reused');
+
+/**
+ * A day that only partially counts must keep topping up. This is the case the
+ * old event-budget logic could not recover from: it charged the daily cap for
+ * every event it sent, so a run that reported 300 but only gained 180 was
+ * locked out of the remaining 120 for the rest of the day.
+ */
+$topUpDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-topup-' . bin2hex(random_bytes(6));
+workflowCheck(@mkdir($topUpDirectory, 0770, true), 'Daily daka test directory could not be created');
+$topUpProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
+    'daka_limit' => 10,
+    'daka_history_dir' => $topUpDirectory,
 ], $sdk);
-$legacyDailyState = $dailyDirectory . DIRECTORY_SEPARATOR . hash('sha256', '1') . '.daily.json';
-file_put_contents($legacyDailyState, json_encode([
-    'date' => date('Y-m-d'),
-    'target' => 3,
-    'submitted' => 3,
-    'plv_confirmed' => 3,
-    'pld_confirmed' => 3,
-    'listen_songs_before' => 10,
-    'listen_songs_after' => 10,
-]));
-$dailySupplement = $dailyProbe->daka_new();
-workflowCheck((int)($dailySupplement['code'] ?? 0) === 201, 'Unconfirmed daily progress was reported as complete');
-workflowCheck((int)($dailySupplement['data']['submitted'] ?? -1) === 0, 'Exhausted daily event budget still submitted songs');
-workflowCheck(!empty($dailySupplement['data']['verification_only']), 'Exhausted daily event budget did not switch to verification');
-workflowCheck((int)($dailySupplement['data']['daily_actual_progress'] ?? -1) === 0, 'Daily progress was not based on listenSongs');
-workflowCheck((int)($dailySupplement['data']['retry_after_seconds'] ?? 0) > 0, 'Incomplete daily progress did not request a retry');
-workflowCheck($dailyProbe->scrobbleCalls === 0, 'Exhausted daily event budget called the reporting protocol');
+$topUpProbe->countedPerBatch = 6;
+
+$firstRun = $topUpProbe->daka_new();
+workflowCheck((int)($firstRun['code'] ?? 0) === 201, 'A partially counted first run was reported as complete');
+workflowCheck((int)($firstRun['data']['submitted'] ?? -1) === 10, 'The first run did not submit the whole target');
+workflowCheck((int)($firstRun['data']['listen_songs_delta'] ?? -1) === 6, 'The measured increase was not reported');
+workflowCheck((int)($firstRun['data']['daily_actual_progress'] ?? -1) === 6, 'Progress was not based on listenSongs');
+workflowCheck((int)($firstRun['data']['daily_remaining'] ?? -1) === 4, 'The shortfall was not carried forward');
+workflowCheck((int)($firstRun['data']['retry_after_seconds'] ?? 0) > 0, 'A partially counted run did not schedule a top-up');
+
+$secondRun = $topUpProbe->daka_new();
 workflowCheck(
-    str_contains((string)($dailySupplement['message'] ?? ''), '额度已用尽'),
-    'Daily daka did not explain that the daily event budget was consumed'
+    (int)($secondRun['data']['submitted'] ?? -1) === 4,
+    'The top-up run did not submit exactly the measured shortfall'
+);
+workflowCheck((int)($secondRun['code'] ?? 0) === 200, 'The top-up run did not complete the target');
+workflowCheck(!empty($secondRun['data']['target_reached']), 'The completed target lost its completion flag');
+workflowCheck((int)($secondRun['data']['daily_remaining'] ?? -1) === 0, 'The completed target still reported a shortfall');
+workflowCheck($topUpProbe->scrobbleCalls === 2, 'The top-up did not reuse the reporting protocol exactly once more');
+workflowCheck(
+    array_intersect($topUpProbe->submittedBatches[0], $topUpProbe->submittedBatches[1]) === [],
+    'The top-up batch repeated songs already submitted today'
 );
 
-$dailyProbe->listenSongs = 13;
-$dailyComplete = $dailyProbe->daka_new();
-workflowCheck((int)($dailyComplete['code'] ?? 0) === 200, 'Actual listenSongs progress did not complete the target');
-workflowCheck(!empty($dailyComplete['data']['target_reached']), 'Completed daily target lost its completion flag');
-workflowCheck((int)($dailyComplete['data']['submitted'] ?? -1) === 0, 'Completed actual progress still submitted songs');
-workflowCheck($dailyProbe->scrobbleCalls === 0, 'Completed actual progress called the reporting protocol');
-workflowCheck(
-    str_contains((string)($dailyComplete['message'] ?? ''), '实际新增3/3首'),
-    'Completed daily daka did not report the actual listenSongs increase'
-);
-foreach (glob($dailyDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $dailyFile) {
-    @unlink($dailyFile);
+$thirdRun = $topUpProbe->daka_new();
+workflowCheck((int)($thirdRun['code'] ?? 0) === 200, 'A completed day was not reported as complete');
+workflowCheck((int)($thirdRun['data']['submitted'] ?? -1) === 0, 'A completed day submitted more songs');
+workflowCheck($topUpProbe->scrobbleCalls === 2, 'A completed day called the reporting protocol again');
+foreach (glob($topUpDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $topUpFile) {
+    @unlink($topUpFile);
 }
-@rmdir($dailyDirectory);
+@rmdir($topUpDirectory);
 
+// When nothing counts at all the task must stop by itself instead of
+// resubmitting for the rest of the day.
+$idleDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-idle-' . bin2hex(random_bytes(6));
+workflowCheck(@mkdir($idleDirectory, 0770, true), 'Daily daka test directory could not be created');
+$idleProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
+    'daka_limit' => 5,
+    'daka_history_dir' => $idleDirectory,
+    'daka_max_verification_runs' => 3,
+], $sdk);
+$idleProbe->countedPerBatch = 0;
+
+for ($run = 1; $run <= 3; $run++) {
+    $idleResult = $idleProbe->daka_new();
+    workflowCheck((int)($idleResult['data']['submitted'] ?? -1) === 5, 'An idle run stopped submitting too early');
+    workflowCheck(
+        (int)($idleResult['data']['stalled_runs'] ?? -1) === $run,
+        'The stall counter did not advance once per unproductive run'
+    );
+    $expectedRetry = $run < 3;
+    workflowCheck(
+        ((int)($idleResult['data']['retry_after_seconds'] ?? 0) > 0) === $expectedRetry,
+        'The idle run retry decision did not follow the stall limit'
+    );
+}
+workflowCheck($idleProbe->scrobbleCalls === 3, 'The stall limit did not bound how often a dead day resubmits');
+$idleStopped = $idleProbe->daka_new();
+workflowCheck((int)($idleStopped['data']['submitted'] ?? -1) === 0, 'A stalled day submitted another batch');
+workflowCheck(
+    str_contains((string)($idleStopped['message'] ?? ''), '已停止自动重试'),
+    'A stalled day did not report that it stopped'
+);
+foreach (glob($idleDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $idleFile) {
+    @unlink($idleFile);
+}
+@rmdir($idleDirectory);
+
+// The per-day batch cap remains an independent safety net.
 $batchCapDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-cap-' . bin2hex(random_bytes(6));
 workflowCheck(@mkdir($batchCapDirectory, 0770, true), 'Daily daka cap test directory could not be created');
 $batchCapProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
     'daka_limit' => 3,
     'daka_history_dir' => $batchCapDirectory,
-    'daka_max_batches_per_day' => 99,
+    'daka_max_batches_per_day' => 3,
 ], $sdk);
 $batchCapState = $batchCapDirectory . DIRECTORY_SEPARATOR . hash('sha256', '1') . '.daily.json';
 file_put_contents($batchCapState, json_encode([
@@ -402,25 +435,13 @@ file_put_contents($batchCapState, json_encode([
     'stalled_runs' => 0,
 ]));
 $batchCapResult = $batchCapProbe->daka_new();
-workflowCheck((int)($batchCapResult['code'] ?? 0) === 201, 'Exhausted event budget was reported as success');
-workflowCheck((int)($batchCapResult['data']['submitted'] ?? -1) === 0, 'Exhausted event budget submitted another batch');
-workflowCheck((int)($batchCapResult['data']['retry_after_seconds'] ?? -1) > 0, 'First verification did not schedule another check');
-workflowCheck($batchCapProbe->scrobbleCalls === 0, 'Exhausted event budget called the reporting protocol');
+workflowCheck((int)($batchCapResult['code'] ?? 0) === 201, 'An unfinished day was reported as success');
+workflowCheck((int)($batchCapResult['data']['submitted'] ?? -1) === 0, 'The batch cap submitted another batch');
+workflowCheck((int)($batchCapResult['data']['retry_after_seconds'] ?? -1) === 0, 'The batch cap kept retrying');
+workflowCheck($batchCapProbe->scrobbleCalls === 0, 'The batch cap called the reporting protocol');
 workflowCheck(
-    str_contains((string)($batchCapResult['message'] ?? ''), '额度已用尽'),
-    'Exhausted event budget did not report the daily cap'
-);
-$batchCapStateData = json_decode((string)file_get_contents($batchCapState), true);
-workflowCheck((int)($batchCapStateData['stalled_runs'] ?? -1) === 1, 'Verification stall counter did not advance');
-
-file_put_contents($batchCapState, json_encode(array_replace($batchCapStateData, [
-    'stalled_runs' => 1,
-])));
-$batchCapStopped = $batchCapProbe->daka_new();
-workflowCheck((int)($batchCapStopped['data']['retry_after_seconds'] ?? -1) === 0, 'Repeated unchanged verification kept retrying');
-workflowCheck(
-    str_contains((string)($batchCapStopped['message'] ?? ''), '已停止自动复核'),
-    'Repeated unchanged verification did not stop'
+    str_contains((string)($batchCapResult['message'] ?? ''), '批次上限'),
+    'The batch cap did not explain why it stopped'
 );
 foreach (glob($batchCapDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $batchCapFile) {
     @unlink($batchCapFile);

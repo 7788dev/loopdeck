@@ -35,6 +35,12 @@ final class DakaScrobbleProbe extends Netease
     {
         return (float)$this->lastScrobbleElapsedSeconds;
     }
+
+    /** @return array<string,int> */
+    public function rejections(): array
+    {
+        return $this->lastScrobbleRejections;
+    }
 }
 
 final class DakaScrobbleTransport implements TransportInterface
@@ -127,6 +133,16 @@ foreach ($transport->requests as $index => $request) {
     );
 }
 
+$startPayload = dakaProtocolPayload($transport->requests[0]);
+$startLogs = json_decode((string)$startPayload['logs'], true);
+$firstStart = $startLogs[0]['json'] ?? [];
+dakaProtocolCheck(($firstStart['id'] ?? null) === '1001', 'Startplay song ID did not match api-enhanced semantics');
+dakaProtocolCheck(($firstStart['type'] ?? null) === 'song', 'Startplay did not report a song resource');
+dakaProtocolCheck(
+    ($firstStart['content'] ?? null) === 'id=9001',
+    'Startplay did not carry the real playlist source in content'
+);
+
 $playPayload = dakaProtocolPayload($transport->requests[10]);
 $playLogs = json_decode((string)$playPayload['logs'], true);
 $firstPlay = $playLogs[0]['json'] ?? [];
@@ -134,6 +150,34 @@ dakaProtocolCheck(($firstPlay['id'] ?? null) === '1001', 'Song ID did not match 
 dakaProtocolCheck(($firstPlay['sourceId'] ?? null) === '9001', 'Source ID did not match api-enhanced query-string semantics');
 dakaProtocolCheck(($firstPlay['time'] ?? null) === '180', 'Reported time did not match api-enhanced query-string semantics');
 dakaProtocolCheck(($firstPlay['end'] ?? null) === 'playend', 'Play report did not use the upstream playend marker');
+dakaProtocolCheck(
+    ($firstPlay['content'] ?? null) === 'id=9001',
+    'Play did not carry the real playlist source in content'
+);
+dakaProtocolCheck(($firstPlay['source'] ?? null) === 'list', 'Play did not use the upstream list source marker');
+
+// A rejected batch has to be visible to the operator, otherwise "reported but
+// not counted" is indistinguishable from "refused by NetEase".
+$rejectTransport = new DakaScrobbleTransport([
+    ['body' => '{"code":400}'],
+    ['body' => '{"code":400}'],
+    ['body' => '{"code":400}'],
+    ['body' => '{"code":400}'],
+]);
+$rejectSdk = new Client([
+    'user_id' => '1',
+    'csrf' => 'csrf-token',
+    'music_u' => 'music-token',
+], ['auto_anonymous_token' => false, 'cache_dir' => ''], $rejectTransport);
+$rejectProbe = new DakaScrobbleProbe('1', 'csrf-token', 'music-token', [
+    'daka_concurrency' => 10,
+], $rejectSdk);
+dakaProtocolCheck($rejectProbe->report([['id' => 3001, 'sourceId' => 9003, 'time' => 200]]) === 0,
+    'A fully rejected batch was reported as accepted');
+dakaProtocolCheck(
+    $rejectProbe->rejections() === ['startplay:400' => 1, 'play:400' => 1],
+    'Rejection codes were not recorded for diagnosis'
+);
 
 $retryTransport = new DakaScrobbleTransport([
     ['body' => '{"code":500}'],

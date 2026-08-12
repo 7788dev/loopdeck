@@ -6,91 +6,74 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 use netease\Netease;
 
-final class NeteaseSelectionFixture extends Netease
+class NeteaseSelectionFixture extends Netease
 {
-    public array $artists = [];
-    public array $playlistQueries = [];
-    public int $dailySongRequests = 0;
-    public int $dailyPlaylistRequests = 0;
-    public int $dailyPlaylistTrackCount = 160;
+    /** @var array<int,int> */
+    public array $playlistDetailCalls = [];
+    public int $recommendPlaylistCalls = 0;
+    public int $highqualityCalls = 0;
+    public int $personalizedCalls = 0;
+    /** @var array<int,int> */
+    public array $recommendPlaylists = [9100, 9101];
+    /** @var array<int,array<int,array<string,int>>> */
+    public array $tracksByPlaylist = [];
+    /** @var array<int,true> */
+    public array $history = [];
+    public bool $strictTracks = false;
+    public int $defaultTrackCount = 160;
 
-    public function __construct()
+    public function __construct(array $config = [])
     {
+        $this->config = array_replace(['daka_history_dir' => ''], $config);
     }
 
-    public function selectedSongs(string $source = 'daily_recommend', int $limit = 300): array
+    /**
+     * @param array<int,true> $exclude
+     * @return array<int,array{id:int,sourceId:int,time:int}>
+     */
+    public function candidates(array $exclude = [], int $limit = 300, string $source = 'daily_recommend'): array
     {
-        return $this->dakaSongs($source, [], $limit);
+        return $this->dakaCandidates($source, $exclude, $limit);
     }
 
-    public function supplementSongs(array $history = [], int $limit = 300): array
+    protected function loadDakaHistory(): array
     {
-        return $this->dakaSupplementSongs($history, $limit);
-    }
-
-    public function daily_recommend_songs(): array
-    {
-        $this->dailySongRequests++;
-        $songs = [];
-        for ($i = 1; $i <= 30; $i++) {
-            $songs[] = ['id' => 700000 + $i, 'sourceId' => 0, 'time' => 180];
-        }
-        return $songs;
+        return $this->history;
     }
 
     public function recommend_playlist()
     {
-        $this->dailyPlaylistRequests++;
-        return [9100, 9101];
+        $this->recommendPlaylistCalls++;
+        return $this->recommendPlaylists;
     }
 
     public function get_highquality_playlist($limit, $before = 0)
     {
+        $this->highqualityCalls++;
         return [9000];
     }
 
     public function personalized($limit)
     {
+        $this->personalizedCalls++;
         return [9001];
-    }
-
-    public function get_search_playlist($keywords = '冷门', $type = 1000, $limit = 100)
-    {
-        $this->playlistQueries[] = (string)$keywords;
-        return [9200 + count($this->playlistQueries)];
-    }
-
-    public function get_new_songs()
-    {
-        return [];
     }
 
     public function playlist_detail($playlist_id)
     {
-        $start = (int)$playlist_id === 9000 ? 100000 : ((int)$playlist_id * 1000);
-        $trackCount = in_array((int)$playlist_id, [9100, 9101], true)
-            ? $this->dailyPlaylistTrackCount
-            : 160;
+        $playlistId = (int)$playlist_id;
+        $this->playlistDetailCalls[] = $playlistId;
+        if (array_key_exists($playlistId, $this->tracksByPlaylist)) {
+            return ['code' => 200, 'playlist' => ['tracks' => $this->tracksByPlaylist[$playlistId]]];
+        }
+        if ($this->strictTracks) {
+            return ['code' => 200, 'playlist' => ['tracks' => []]];
+        }
         $tracks = [];
-        for ($i = 1; $i <= $trackCount; $i++) {
-            $tracks[] = ['id' => $start + $i, 'dt' => 180000];
+        for ($i = 1; $i <= $this->defaultTrackCount; $i++) {
+            $tracks[] = ['id' => $playlistId * 1000 + $i, 'dt' => 180000];
         }
         return ['code' => 200, 'playlist' => ['tracks' => $tracks]];
-    }
-
-    public function search_songs(
-        string $keywords,
-        int $limit = 100,
-        int $offset = 0,
-        ?string $preferredArtist = null
-    ): array {
-        $this->artists[] = $preferredArtist ?? $keywords;
-        $base = 500000 + count($this->artists) * 1000;
-        $songs = [];
-        for ($i = 1; $i <= 100; $i++) {
-            $songs[] = ['id' => $base + $i, 'sourceId' => 0, 'time' => 200];
-        }
-        return $songs;
     }
 }
 
@@ -121,112 +104,145 @@ function selectionCheck(bool $condition, string $message): void
     }
 }
 
-$fixture = new NeteaseSelectionFixture();
-$songs = $fixture->selectedSongs();
-
 $dailyResponseFixture = new NeteaseDailyResponseFixture();
-$normalizedDailySongs = $dailyResponseFixture->daily_recommend_songs();
 selectionCheck(
-    $normalizedDailySongs === [
+    $dailyResponseFixture->daily_recommend_songs() === [
         ['id' => 801, 'sourceId' => 0, 'time' => 181],
         ['id' => 802, 'sourceId' => 0, 'time' => 202],
     ],
     'Home daily recommendation response was not normalized into playable songs'
 );
 
-selectionCheck(count($songs) === 300, 'Popular song selection did not fill 300 unique songs');
-selectionCheck($fixture->dailySongRequests === 1, 'Default selection did not request home daily songs');
-selectionCheck($fixture->dailyPlaylistRequests === 1, 'Default selection did not request home daily playlists');
+// A full day must be reachable, and every candidate has to name the playlist
+// it came from because upstream reports `sourceid=<playlist>`.
+$fixture = new NeteaseSelectionFixture();
+$songs = $fixture->candidates([], 300);
+selectionCheck(count($songs) === 300, 'Playlist-driven selection did not fill 300 songs');
+foreach ($songs as $song) {
+    selectionCheck((int)$song['sourceId'] > 0, 'A candidate was produced without a real playlist source id');
+    selectionCheck((int)$song['id'] > 0, 'A candidate was produced without a song id');
+    selectionCheck((int)$song['time'] >= 60, 'A candidate below the duration floor was selected');
+}
 selectionCheck(
-    count(array_filter(
-        $songs,
-        static fn(array $song): bool => (int)$song['id'] >= 700001 && (int)$song['id'] <= 700030
-    )) === 30,
-    'Default selection did not retain all available daily recommended songs'
+    count($fixture->playlistDetailCalls) === count(array_unique($fixture->playlistDetailCalls)),
+    'The same playlist was fetched more than once in a single run'
 );
 selectionCheck(
-    count(array_filter(
-        $songs,
-        static fn(array $song): bool => in_array((int)$song['sourceId'], [9100, 9101], true)
-    )) === 110,
-    'Default selection did not fill the remaining target from home daily recommended playlists'
+    count($fixture->playlistDetailCalls) <= 3,
+    'Filling 300 songs required more than three playlist requests'
 );
 selectionCheck(
-    count(array_filter(
-        $songs,
-        static fn(array $song): bool => (int)$song['sourceId'] === 3779629
-    )) === 160,
-    'Default selection did not prioritize the fresh new-song chart'
-);
-selectionCheck(
-    $fixture->artists === [],
-    'Popular artist fallback ran even though daily recommendations filled 300 songs'
+    array_diff($fixture->playlistDetailCalls, [9100, 9101]) === [],
+    'The default source did not start from the account home recommendations'
 );
 
-$highqualityFixture = new NeteaseSelectionFixture();
-$highqualitySongs = $highqualityFixture->selectedSongs('highquality');
+// Songs already reported today must not be offered again, and re-running the
+// selection must not re-download the playlists.
+$firstBatch = $fixture->candidates([], 50);
+$exclude = array_fill_keys(array_keys($firstBatch), true);
+$detailCallsBefore = count($fixture->playlistDetailCalls);
+$secondBatch = $fixture->candidates($exclude, 50);
+selectionCheck(count($secondBatch) === 50, 'The top-up batch could not be filled');
+selectionCheck(
+    array_intersect_key($secondBatch, $exclude) === [],
+    'Songs already submitted today were offered again'
+);
+selectionCheck(
+    count($fixture->playlistDetailCalls) === $detailCallsBefore,
+    'A second batch re-downloaded playlists instead of using the per-run cache'
+);
+
+// Songs used on earlier days stay eligible; they are only ranked last.
+$rankFixture = new NeteaseSelectionFixture(['daka_playlist_ids' => '555']);
+$rankFixture->strictTracks = true;
+$rankFixture->tracksByPlaylist = [555 => [
+    ['id' => 11, 'dt' => 180000],
+    ['id' => 12, 'dt' => 180000],
+    ['id' => 13, 'dt' => 180000],
+    ['id' => 14, 'dt' => 180000],
+]];
+$rankFixture->history = [11 => true, 12 => true];
+$ranked = $rankFixture->candidates([], 4);
+selectionCheck(count($ranked) === 4, 'Songs reported on earlier days were excluded instead of reused');
+$rankedOrder = array_keys($ranked);
+selectionCheck(
+    array_slice($rankedOrder, 0, 2) === array_values(array_diff($rankedOrder, [11, 12])),
+    'Never-reported songs were not ranked ahead of previously reported ones'
+);
+selectionCheck(
+    $rankFixture->recommendPlaylistCalls === 0,
+    'A configured playlist that already fills the target still queried recommendations'
+);
+selectionCheck($rankFixture->playlistDetailCalls === [555], 'The configured playlist was not used first');
+
+// The duration floor relaxes when the pool cannot fill the target, but plays
+// too short for NetEase to count are still refused.
+$shortFixture = new NeteaseSelectionFixture(['daka_playlist_ids' => '777']);
+$shortFixture->strictTracks = true;
+$shortFixture->recommendPlaylists = [];
+$shortFixture->tracksByPlaylist = [777 => [
+    ['id' => 21, 'dt' => 20000],
+    ['id' => 22, 'dt' => 45000],
+    ['id' => 23, 'dt' => 180000],
+]];
+$relaxed = $shortFixture->candidates([], 3);
+selectionCheck(isset($relaxed[23]), 'A normal-length song was dropped');
+selectionCheck(isset($relaxed[22]), 'The duration floor did not relax when candidates ran short');
+selectionCheck(!isset($relaxed[21]), 'A song too short to be counted was selected');
+
+$plentyFixture = new NeteaseSelectionFixture(['daka_playlist_ids' => '778']);
+$plentyFixture->strictTracks = true;
+$plentyFixture->recommendPlaylists = [];
+$plentyFixture->tracksByPlaylist = [778 => [
+    ['id' => 31, 'dt' => 45000],
+    ['id' => 32, 'dt' => 180000],
+]];
+$strict = $plentyFixture->candidates([], 1);
+selectionCheck($strict === [32 => ['id' => 32, 'sourceId' => 778, 'time' => 180]],
+    'The duration floor relaxed even though the target was already reachable');
+
+// Optional sources keep working and never fall back to the home feed.
+$highquality = new NeteaseSelectionFixture();
+$highqualitySongs = $highquality->candidates([], 300, 'highquality');
+selectionCheck(count($highqualitySongs) === 300, 'The high-quality source did not fill the target');
+selectionCheck($highquality->highqualityCalls === 1, 'The high-quality source was not queried');
+selectionCheck($highquality->recommendPlaylistCalls === 0, 'The high-quality source queried home recommendations');
 selectionCheck(
     count(array_filter(
         $highqualitySongs,
         static fn(array $song): bool => (int)$song['sourceId'] === 9000
-    )) === 140,
-    'The optional high-quality playlist source no longer preserves its quota'
+    )) === 160,
+    'The high-quality playlist did not contribute its tracks'
 );
+
+$personalized = new NeteaseSelectionFixture();
+$personalizedSongs = $personalized->candidates([], 300, 'personalized');
+selectionCheck(count($personalizedSongs) === 300, 'The personalized source did not fill the target');
+selectionCheck($personalized->personalizedCalls === 1, 'The personalized source was not queried');
+selectionCheck($personalized->recommendPlaylistCalls === 0, 'The personalized source queried home recommendations');
+
+// Official charts are the last resort and must be able to finish a day alone.
+$chartsOnly = new NeteaseSelectionFixture();
+$chartsOnly->recommendPlaylists = [];
+$chartSongs = $chartsOnly->candidates([], 300);
+selectionCheck(count($chartSongs) === 300, 'The official chart fallback could not fill the target');
 selectionCheck(
-    $highqualityFixture->dailySongRequests === 0 && $highqualityFixture->dailyPlaylistRequests === 0,
-    'The optional high-quality playlist source unexpectedly called home daily recommendations'
+    array_intersect($chartsOnly->playlistDetailCalls, [3778678, 19723756, 3779629, 2884035])
+        === $chartsOnly->playlistDetailCalls,
+    'The fallback used playlists outside the official charts'
 );
-selectionCheck(
-    array_slice($highqualityFixture->artists, 0, 3) === ['徐良', '许嵩', '薛之谦'],
-    'Core artists requested by the user were not prioritized in the popular fallback'
-);
-selectionCheck(
-    array_slice($highqualityFixture->artists, 3, 4) === ['汪苏泷', '周杰伦', '林俊杰', '陈奕迅'],
-    'Similar mainstream artists were not used in the popular fallback'
-);
-foreach ([19723756, 3779629, 2884035, 3778678] as $chartPlaylistId) {
-    selectionCheck(
-        count(array_filter(
-            $highqualitySongs,
-            static fn(array $song): bool => (int)$song['sourceId'] === $chartPlaylistId
-        )) === 20,
-        'Each official chart must contribute its own 20-song quota in the popular fallback'
-    );
+
+// A playlist request that blows up must not take the whole run down.
+final class NeteaseSelectionFailureFixture extends NeteaseSelectionFixture
+{
+    public function recommend_playlist()
+    {
+        throw new RuntimeException('recommendation endpoint down');
+    }
 }
 
-$fallbackFixture = new NeteaseSelectionFixture();
-$fallbackFixture->dailyPlaylistTrackCount = 20;
-$fallbackSongs = $fallbackFixture->selectedSongs();
-selectionCheck(count($fallbackSongs) === 300, 'Daily recommendation fallback did not fill 300 songs');
-selectionCheck(
-    $fallbackFixture->artists !== [],
-    'Daily recommendation fallback did not use popular artists after recommendations ran short'
-);
-
-$supplementFixture = new NeteaseSelectionFixture();
-$supplementSongs = $supplementFixture->supplementSongs([], 300);
-selectionCheck(count($supplementSongs) === 300, 'Supplement selection did not fill 300 unique songs');
-selectionCheck(
-    count(array_filter(
-        $supplementSongs,
-        static fn(array $song): bool => in_array((int)$song['sourceId'], [3779629, 9201], true)
-    )) === 300,
-    'Supplement selection did not retain real playlist source IDs'
-);
-selectionCheck(
-    count(array_filter(
-        $supplementSongs,
-        static fn(array $song): bool => (int)$song['sourceId'] === 3779629
-    )) === 160,
-    'Supplement selection did not start from the fresh new-song chart'
-);
-selectionCheck(
-    str_contains((string)($supplementFixture->playlistQueries[0] ?? ''), date('Y')),
-    'Supplement selection did not prioritize current-year new-song playlists'
-);
-selectionCheck(
-    $supplementFixture->artists === [],
-    'Supplement selection used generic search songs before new-song playlists were exhausted'
-);
+$failing = new NeteaseSelectionFailureFixture();
+$failingSongs = $failing->candidates([], 300);
+selectionCheck(count($failingSongs) === 300, 'A failing pool prevented the official charts from filling the target');
 
 echo "Netease song selection tests passed\n";

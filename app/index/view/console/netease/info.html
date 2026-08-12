@@ -331,13 +331,19 @@ $details = [
             btnAlign: 'c',
             closeBtn: 0,
             shadeClose: true,
-            area: ['25%'],
-            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><select class="form-select"id="daka_music_from"name="daka_music_from"aria-label="daka_music_from"><option value="daily_recommend">首页每日推荐（默认）</option><option value="highquality">精品歌单</option><option value="personalized">首页个性推荐歌单</option></select><label class="form-label"for="daka_music_from">歌曲来源</label></div></div></div></form>',
+            area: ['32%'],
+            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><select class="form-select"id="daka_music_from"name="daka_music_from"aria-label="daka_music_from"><option value="daily_recommend">首页每日推荐（默认）</option><option value="highquality">精品歌单</option><option value="personalized">首页个性推荐歌单</option></select><label class="form-label"for="daka_music_from">歌曲来源</label><div class="form-text text-muted">填写下方歌单ID后以歌单为准，此项仅作为补充</div></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating"><input type="text"class="form-control"id="daka_playlist_ids"name="daka_playlist_ids"placeholder="歌单ID"><label class="form-label"for="daka_playlist_ids">自定义歌单ID</label><div class="form-text text-muted">推荐填写一个曲目数超过300首的歌单，多个用英文逗号分隔，留空使用官方榜单</div></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating"><input type="number"min="1"max="300"class="form-control"id="daka_limit"name="daka_limit"placeholder="每日目标首数"><label class="form-label"for="daka_limit">每日目标首数</label><div class="form-text text-muted">1-300，留空按 300 首执行</div></div></div></div></form>',
             success: function (res, index) {
                 config = JSON.parse(config);
                 // console.log(config)
                 if (typeof (config['daka_music_from']) !== 'undefined') {
                     $("#daka_music_from").val(config['daka_music_from']);
+                }
+                if (typeof (config['daka_playlist_ids']) !== 'undefined') {
+                    $("#daka_playlist_ids").val(config['daka_playlist_ids']);
+                }
+                if (typeof (config['daka_limit']) !== 'undefined') {
+                    $("#daka_limit").val(config['daka_limit']);
                 }
             },
             yes: function (index, dom) {

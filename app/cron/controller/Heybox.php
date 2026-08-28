@@ -84,7 +84,7 @@ class Heybox extends Common
                 $user = Users::where('uid', '=', $account['uid'])->find();
                 $this->accountInvalid('heybox', $user, $data['user_id']); // 账号失效处理
             } else {
-                TaskLogs::operateExecuteLog('heybox', $data['user_id'], $do, $execute['message']); // 写入运行日志
+                TaskLogs::operateExecuteLog('heybox', $data['user_id'], $do, '[' . $this->statusTag($execute) . '] ' . (string)($execute['message'] ?? '小黑盒任务执行完成')); // 写入运行日志
             }
         } else {
             return resultJson(-1001, 'RunKey Access Denied!');
@@ -97,7 +97,7 @@ class Heybox extends Common
         try {
             $job_data = safe_unserialize_array($job['data']);
         } catch (Exception $e) {
-            TaskLogs::operateExecuteLog('heybox', $user_id, $do, '获取功能配置失败，请重新添加账号'); // 写入运行日志
+            TaskLogs::operateExecuteLog('heybox', $user_id, $do, '[失败] 获取功能配置失败，请重新添加账号'); // 写入运行日志
             Jobs::where(['user_id' => $user_id, 'do' => $do])-> update(['state' => 0]);
             return false;
         }

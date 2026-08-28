@@ -16,6 +16,33 @@ use think\facade\Request;
 
 class Common
 {
+    /**
+     * Short status tag rendered as a badge in the log list. Accepts every
+     * result shape the cron controllers produce: raw adapter results
+     * (`code` 200 / 1, optional `data.retry_after_seconds`), normalized
+     * scheduler results (`success` bool, optional `retry_after_seconds`)
+     * and anything non-array, which counts as failed.
+     *
+     * @param mixed $result
+     */
+    public function statusTag(mixed $result): string
+    {
+        if (!is_array($result)) {
+            return '失败';
+        }
+        $success = array_key_exists('success', $result)
+            ? !empty($result['success'])
+            : in_array((int)($result['code'] ?? 0), [1, 200], true);
+        if ($success) {
+            return '成功';
+        }
+        $retryAfter = (int)($result['data']['retry_after_seconds']
+            ?? $result['retry_after_seconds']
+            ?? 0);
+
+        return $retryAfter > 0 ? '重试中' : '失败';
+    }
+
     public function vipExpired($type, $uid, $user_id)
     {
         $membershipChanged = Users::where('uid', '=', $uid)
@@ -27,7 +54,7 @@ class Common
             'type' => $type,
             'user_id' => $user_id,
             'do' => '系统提示',
-            'response' => '会员过期，请开通会员后再试',
+            'response' => '[失败] 会员过期，请开通会员后再试',
         ];
         TaskLogs::operateLog($data);
         if ($membershipChanged > 0 && config('sys.mail_invalid') == 1) {

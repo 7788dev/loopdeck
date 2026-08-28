@@ -98,7 +98,7 @@ class Netease extends Common
     private function runJob(string $do, $account, $user, string $jobData): void
     {
         if (!in_array($do, self::TASKS, true)) {
-            TaskLogs::operateExecuteLog('netease', $account['user_id'], $do, '未知的任务名称，已跳过');
+            TaskLogs::operateExecuteLog('netease', $account['user_id'], $do, '[失败] 未知的任务名称，已跳过');
             return;
         }
 
@@ -121,7 +121,7 @@ class Netease extends Common
             'netease',
             $account['user_id'],
             $do,
-            (string)($execute['message'] ?? '网易云任务执行完成')
+            '[' . $this->statusTag($execute) . '] ' . (string)($execute['message'] ?? '网易云任务执行完成')
         ); // 写入运行日志
     }
 }

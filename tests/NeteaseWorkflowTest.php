@@ -405,7 +405,7 @@ workflowCheck($idleProbe->scrobbleCalls === 3, 'The stall limit did not bound ho
 $idleStopped = $idleProbe->daka_new();
 workflowCheck((int)($idleStopped['data']['submitted'] ?? -1) === 0, 'A stalled day submitted another batch');
 workflowCheck(
-    str_contains((string)($idleStopped['message'] ?? ''), '已停止自动重试'),
+    str_contains((string)($idleStopped['message'] ?? ''), '停止重试'),
     'A stalled day did not report that it stopped'
 );
 foreach (glob($idleDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $idleFile) {
@@ -473,8 +473,7 @@ foreach ($results as $name => $result) {
     workflowCheck((int)($result['code'] ?? 0) === 200, $name . ' did not complete successfully');
 }
 workflowCheck(
-    str_contains((string)($results['daka_new']['message'] ?? ''), '本批即时上报1首')
-        && str_contains((string)($results['daka_new']['message'] ?? ''), '未等待歌曲播放'),
+    str_contains((string)($results['daka_new']['message'] ?? ''), '上报 1'),
     'Daily 300-song workflow did not use immediate api-enhanced reporting'
 );
 

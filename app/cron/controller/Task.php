@@ -351,12 +351,12 @@ class Task extends Common
                     : $this->executeBilibili($taskName, $accountData, $jobConfig);
             } catch (Throwable $exception) {
                 $this->retryJob($jobId);
-                $this->writeLog($type, $userId, $taskName, '任务执行异常，已安排稍后重试');
+                $this->writeLog($type, $userId, $taskName, '任务执行异常，已安排稍后重试', '重试中');
                 $summary['failed']++;
                 return;
             }
 
-            $this->writeLog($type, $userId, $taskName, $result['message']);
+            $this->writeLog($type, $userId, $taskName, (string)$result['message'], $this->statusTag($result));
             if ($result['account_invalid']) {
                 $this->invalidateAccount($type, $uid, $userId);
                 $summary['invalid_accounts']++;
@@ -378,7 +378,7 @@ class Task extends Common
             if ($jobId > 0) {
                 $this->retryJob($jobId);
             }
-            $this->writeLog($type, $userId, $taskName, '任务调度异常，已安排稍后重试');
+            $this->writeLog($type, $userId, $taskName, '任务调度异常，已安排稍后重试', '重试中');
             $summary['failed']++;
         }
     }
@@ -700,14 +700,14 @@ class Task extends Common
         return max($minimum, min($maximum, (int)$value));
     }
 
-    private function writeLog(string $type, string $userId, string $task, string $message): void
+    private function writeLog(string $type, string $userId, string $task, string $message, string $status = '失败'): void
     {
         if ($type === '' || $userId === '') {
             return;
         }
 
         try {
-            TaskLogs::operateExecuteLog($type, $userId, $task ?: '系统提示', $message);
+            TaskLogs::operateExecuteLog($type, $userId, $task ?: '系统提示', "[{$status}] " . $message);
         } catch (Throwable $exception) {
             // A log write failure must not cause the external task to run twice.
         }

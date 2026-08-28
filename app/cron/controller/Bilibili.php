@@ -127,7 +127,7 @@ class Bilibili extends Common
             $globalConfig = $this->globalConfig((int)$job['uid'], $userId);
             if ($accountData === null || $jobConfig === null || $globalConfig === null) {
                 Jobs::where('id', $job['id'])->update(['state' => 0]);
-                TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '账号或任务配置损坏');
+                TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[失败] 账号或任务配置损坏');
                 return resultJson(0, '账号或任务配置损坏，请重新配置');
             }
 
@@ -136,7 +136,12 @@ class Bilibili extends Common
                 $accountData,
                 array_replace($globalConfig, $jobConfig)
             );
-            TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, $result['message']);
+            TaskLogs::operateExecuteLog(
+                'bilibili',
+                $userId,
+                $taskName,
+                '[' . $this->statusTag($result) . '] ' . (string)$result['message']
+            );
 
             if ($result['account_invalid']) {
                 $this->accountInvalid('bilibili', $user, $userId);
@@ -151,7 +156,7 @@ class Bilibili extends Common
             ]);
             return resultJson($result['code'] === 1 ? 1 : 0, $result['message']);
         } catch (Throwable $exception) {
-            TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '任务调度异常：' . $exception->getMessage());
+            TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[失败] 任务调度异常：' . $exception->getMessage());
             return resultJson(0, '任务执行异常，请查看运行日志');
         }
     }

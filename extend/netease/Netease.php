@@ -1415,8 +1415,7 @@ class Netease
 
         if ($actualProgressBefore >= $target) {
             return $this->makeResult(200,
-                '网易云累计听歌当前' . $listenSongs . '首；今日实际新增'
-                . $actualProgressBefore . '/' . $target . '首，目标已完成',
+                '进度 ' . $actualProgressBefore . '/' . $target . ' | 今日已完成 | 累计 ' . $listenSongs,
                 [
                     'submitted' => 0,
                     'daily_target' => $target,
@@ -1457,12 +1456,11 @@ class Netease
                 'stalled_runs' => $stalledAfter,
                 'updated_at' => date('c'),
             ]);
-            $message = '网易云累计听歌当前' . $listenSongs . '首；今日实际新增'
-                . $actualProgressBefore . '/' . $target . '首，仍差' . $remainingBefore . '首';
-            $message .= $batchCapReached
-                ? '；已达到当日补齐批次上限' . $maxBatches . '次，已停止自动重试'
-                : '；已提交' . $submittedTotal . '首上报事件但累计值连续' . $stalledRuns
-                    . '轮未变化，已停止自动重试';
+            $message = '进度 ' . $actualProgressBefore . '/' . $target . ' | 累计 ' . $listenSongs
+                . ' | 上报累计 ' . $submittedTotal . ' | '
+                . ($batchCapReached
+                    ? '已达批次上限(' . $maxBatches . '次)，停止重试'
+                    : '累计连续' . $stalledRuns . '轮无增量，停止重试');
             return $this->makeResult(201, $message, [
                 'submitted' => 0,
                 'verification_only' => true,
@@ -1507,10 +1505,9 @@ class Netease
                 'stalled_runs' => $stalledAfter,
                 'updated_at' => date('c'),
             ]);
-            $message = '未获取到可上报的候选歌曲（今日已用' . count($submittedToday) . '首），本次未上报';
-            $message .= $retryAfter > 0
-                ? '，约' . (int)ceil($retryAfter / 60) . '分钟后重试'
-                : '，已停止自动重试';
+            $message = '进度 ' . $actualProgressBefore . '/' . $target . ' | 今日已上报 ' . count($submittedToday)
+                . ' | 无候选歌曲'
+                . ($retryAfter > 0 ? ' | ' . (int)ceil($retryAfter / 60) . '分钟后重试' : ' | 已停止重试');
             return $this->makeResult(201, $message, [
                 'submitted' => 0,
                 'candidate_count' => $candidateCount,
@@ -1602,29 +1599,30 @@ class Netease
             'updated_at' => date('c'),
         ]);
 
-        $message = '网易云累计听歌' . $listenSongs . '→' . $current . '首；今日实际新增'
-            . $actualProgressAfter . '/' . $target . '首';
-        $message .= '；本批即时上报' . $submitted . '首（其中往日用过' . $repeatSubmitted
-            . '首），起播记录接受' . $this->lastScrobbleStarts . '/' . $submitted
-            . '首，听歌记录接受' . $success . '/' . $submitted . '首，本批累计值+' . $delta . '首';
-        $message .= '，协议耗时约' . round($this->lastScrobbleElapsedSeconds, 1)
-            . '秒，未等待歌曲播放';
+        $message = '进度 ' . $actualProgressAfter . '/' . $target
+            . ' | 累计 ' . $listenSongs . '→' . $current . '(+' . $delta . ')'
+            . ' | 批次 ' . $attemptsAfter . '/' . $maxBatches
+            . ' 上报 ' . $submitted . ' 复用 ' . $repeatSubmitted
+            . ' 起播 ' . $this->lastScrobbleStarts . '/' . $submitted
+            . ' 听歌 ' . $success . '/' . $submitted;
+        if ($this->lastScrobbleElapsedSeconds > 0) {
+            $message .= ' | 耗时 ' . round($this->lastScrobbleElapsedSeconds, 1) . 's';
+        }
         if ($rejections !== '') {
-            $message .= '；被拒响应' . $rejections;
+            $message .= ' | 拒绝 ' . $rejections;
         }
         if ($remainingAfter > 0) {
-            $message .= '；仍差' . $remainingAfter . '首';
             if ($afterCode !== 200) {
-                $message .= '，本次未能读取更新后的累计值';
+                $message .= ' | 累计读取失败';
             } elseif ($delta === 0 && $success > 0) {
-                $message .= '，累计统计可能异步更新';
+                $message .= ' | 累计可能异步延迟';
             }
             if ($retryAfter > 0) {
-                $message .= '，约' . (int)ceil($retryAfter / 60) . '分钟后换一批继续补齐';
+                $message .= ' | ' . (int)ceil($retryAfter / 60) . '分钟后重试';
             } elseif ($attemptsAfter >= $maxBatches) {
-                $message .= '，已达到当日批次上限' . $maxBatches . '次，已停止自动重试';
+                $message .= ' | 已达批次上限，停止重试';
             } else {
-                $message .= '，累计值连续' . $stalledAfterRun . '轮未变化，已停止自动重试';
+                $message .= ' | 累计' . $stalledAfterRun . '轮无增量，停止重试';
             }
         }
 

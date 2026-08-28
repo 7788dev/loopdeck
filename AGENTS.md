@@ -2,9 +2,17 @@
 
 ## Project Structure & Module Organization
 
-LoopDeck is a PHP 8.1+ ThinkPHP 8 application. Code lives in `app/`: `index/` serves users, `admin/` provides administration, `cron/` runs scheduled work, and `service/`, `middleware/`, and `command/` hold shared behavior. Platform adapters are under `extend/`. Configuration belongs in `config/`; templates sit in each app's `view/`; browser assets and the front controller are in `public/`. Container scripts live in `docker/`, and regression checks in `tests/`.
+LoopDeck is a PHP 8.1+ ThinkPHP 8 cloud-task panel (NetEase Cloud Music, Bilibili, Douyin, Epic, etc. daily/level tasks). Code lives in `app/`: `index/` serves users, `admin/` provides administration, `cron/` runs scheduled work, `install/` handles first-run setup, and `service/`, `middleware/`, and `command/` hold shared behavior. Platform adapters are under `extend/`. Configuration belongs in `config/`; templates sit in each app's `view/`; browser assets and the front controller are in `public/`. Container scripts live in `docker/`, and regression checks in `tests/`.
 
 Do not edit generated or local-state directories such as `vendor/` and `runtime/`. Treat `public/static/uploads/` as runtime data.
+
+## Architecture & Security Gotchas
+
+- `extend/` is loaded via composer **classmap** (not the `app\` PSR-4 root) and adapters use their own namespaces (e.g. `namespace netease;`, `bilibili\sdk`). After adding or renaming classes there, run `composer dump-autoload`.
+- Scheduling is in-process: `cron/` plus `app\service\AutomaticSchedule` execute task classes directly behind a task-name whitelist. Never reintroduce URL self-invocation that puts cookies, `RUN_KEY`, or other secrets into query strings — that pattern was deliberately removed for security.
+- `runtime/netease-daka/` holds per-account task state files; deleting an account must remove its state file, and the scheduler prunes orphans after `DAKA_STATE_RETENTION_DAYS` (default 30).
+- User-facing templates, copy, and README are Simplified Chinese; keep new UI text consistent.
+- `DOCKER.md` covers container deployment and the updater flow; consult it before touching `docker/`, `compose.yaml`, or `app/service/SystemUpdater.php`.
 
 ## Build, Test, and Development Commands
 
@@ -12,7 +20,7 @@ Do not edit generated or local-state directories such as `vendor/` and `runtime/
 - `php think run` starts the ThinkPHP development server (after configuring the database).
 - `php tests/AutomaticScheduleTest.php` runs one offline regression test.
 - `for test_file in tests/*Test.php; do php "$test_file"; done` runs the same offline suite used by the Docker build.
-- `docker compose build` validates dependencies, runs tests, and builds the image.
+- `docker compose build` validates dependencies, runs tests, and builds the image. GitHub Actions only builds/publishes the image — the offline tests run here, not in a separate CI job.
 - `docker compose up --wait` starts the app, scheduler, updater, and MySQL services; the default app port is `8001`.
 
 Copy `.env.example` to `.env` for containers; use `config/Db.example.php` for local database configuration.

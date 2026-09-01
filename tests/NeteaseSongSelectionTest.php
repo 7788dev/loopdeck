@@ -13,8 +13,11 @@ class NeteaseSelectionFixture extends Netease
     public int $recommendPlaylistCalls = 0;
     public int $highqualityCalls = 0;
     public int $personalizedCalls = 0;
+    public int $searchPlaylistCalls = 0;
     /** @var array<int,int> */
     public array $recommendPlaylists = [9100, 9101];
+    /** @var array<int,int> */
+    public array $searchPlaylists = [];
     /** @var array<int,array<int,array<string,int>>> */
     public array $tracksByPlaylist = [];
     /** @var array<int,true> */
@@ -57,6 +60,12 @@ class NeteaseSelectionFixture extends Netease
     {
         $this->personalizedCalls++;
         return [9001];
+    }
+
+    public function get_search_playlist2($keywords = '冷门', $type = 1000, $limit = 50): array
+    {
+        $this->searchPlaylistCalls++;
+        return $this->searchPlaylists;
     }
 
     public function playlist_detail($playlist_id)
@@ -230,6 +239,28 @@ selectionCheck(
     array_intersect($chartsOnly->playlistDetailCalls, [3778678, 19723756, 3779629, 2884035])
         === $chartsOnly->playlistDetailCalls,
     'The fallback used playlists outside the official charts'
+);
+selectionCheck($chartsOnly->searchPlaylistCalls === 0, 'The official charts still triggered the obscure-search fallback');
+
+// When every regular pool runs dry the obscure-playlist search tier keeps the
+// day fillable; its songs still name the playlist they came from.
+$starvedFixture = new NeteaseSelectionFixture(['daka_playlist_ids' => '779']);
+$starvedFixture->strictTracks = true;
+$starvedFixture->recommendPlaylists = [];
+$starvedFixture->tracksByPlaylist = [
+    779 => [['id' => 41, 'dt' => 180000]],
+    880 => [['id' => 42, 'dt' => 180000]],
+];
+$starvedFixture->searchPlaylists = [880];
+$starved = $starvedFixture->candidates([], 2);
+selectionCheck($starvedFixture->searchPlaylistCalls === 1, 'The obscure-search fallback pool was not consulted when earlier pools ran dry');
+selectionCheck(
+    isset($starved[41], $starved[42]) && count($starved) === 2,
+    'The obscure-search fallback did not contribute playlist-sourced tracks'
+);
+selectionCheck(
+    (int)($starved[42]['sourceId'] ?? 0) === 880,
+    'A search-fallback candidate did not name the playlist it came from'
 );
 
 // A playlist request that blows up must not take the whole run down.

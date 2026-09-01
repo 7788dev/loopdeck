@@ -12,6 +12,7 @@ Do not edit generated or local-state directories such as `vendor/` and `runtime/
 - Scheduling is in-process: `cron/` plus `app\service\AutomaticSchedule` execute task classes directly behind a task-name whitelist. Never reintroduce URL self-invocation that puts cookies, `RUN_KEY`, or other secrets into query strings — that pattern was deliberately removed for security.
 - `runtime/netease-daka/` holds per-account task state files; deleting an account must remove its state file, and the scheduler prunes orphans after `DAKA_STATE_RETENTION_DAYS` (default 30).
 - User-facing templates, copy, and README are Simplified Chinese; keep new UI text consistent.
+- Cron task-log entries have a fixed shape: a `[成功]`/`[重试中]`/`[失败]` prefix derived from `Common::statusTag()` in `app/cron/controller/Common.php`, followed by compact pipe-separated key-value response text. Route every task result through that helper instead of hand-formatting status prefixes, and map scheduler exceptions that reschedule a job to `[重试中]`.
 - `DOCKER.md` covers container deployment and the updater flow; consult it before touching `docker/`, `compose.yaml`, or `app/service/SystemUpdater.php`.
 
 ## Build, Test, and Development Commands

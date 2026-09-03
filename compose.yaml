@@ -9,7 +9,7 @@ x-logging: &default-logging
 services:
   app:
     image: "${APP_IMAGE:-ghcr.io/7788dev/loopdeck:latest}"
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8001}:8080"
@@ -28,10 +28,8 @@ services:
       TASK_LOG_RETENTION_DAYS: "${TASK_LOG_RETENTION_DAYS:-30}"
       TASK_LOG_PRUNE_BATCH_SIZE: "${TASK_LOG_PRUNE_BATCH_SIZE:-5000}"
       DAKA_STATE_RETENTION_DAYS: "${DAKA_STATE_RETENTION_DAYS:-30}"
-      UPDATE_VERSION_URL: "${UPDATE_VERSION_URL:-https://api.github.com/repos/7788dev/loopdeck/contents/VERSION?ref=main}"
-      UPDATE_API_URL: "http://updater:8080/v1/update"
-      UPDATE_IMAGE: "${APP_IMAGE:-ghcr.io/7788dev/loopdeck:latest}"
-      UPDATE_TOKEN: "${UPDATE_TOKEN:?Set UPDATE_TOKEN in .env}"
+      AUTO_UPDATE_ENABLED: "${AUTO_UPDATE_ENABLED:-true}"
+      AUTO_UPDATE_STATE_FILE: "/var/lib/loopdeck/runtime/auto-updater-state.json"
     volumes:
       - app_data:/var/lib/loopdeck
     depends_on:
@@ -53,8 +51,6 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    labels:
-      com.centurylinklabs.watchtower.enable: "true"
     mem_limit: "${APP_MEMORY_LIMIT:-448m}"
     memswap_limit: "${APP_MEMORY_SWAP_LIMIT:-512m}"
     cpus: "${APP_CPU_LIMIT:-1.50}"
@@ -63,7 +59,7 @@ services:
 
   scheduler:
     image: "${APP_IMAGE:-ghcr.io/7788dev/loopdeck:latest}"
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     entrypoint:
       - /usr/local/bin/loopdeck-scheduler
@@ -84,8 +80,6 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    labels:
-      com.centurylinklabs.watchtower.enable: "true"
     mem_limit: "${SCHEDULER_MEMORY_LIMIT:-32m}"
     memswap_limit: "${SCHEDULER_MEMORY_LIMIT:-32m}"
     cpus: "${SCHEDULER_CPU_LIMIT:-0.10}"
@@ -93,17 +87,26 @@ services:
     logging: *default-logging
 
   updater:
-    image: nickfedor/watchtower:1.14.2@sha256:db1fef2dca3e1d435a704ad22bcdc64529c3b3e1d4b4e04aa8a565193d60057b
+    image: "${APP_IMAGE:-ghcr.io/7788dev/loopdeck:latest}"
     restart: unless-stopped
-    command:
-      - --http-api-update
-      - --label-enable
-      - --cleanup
-      - --no-startup-message
+    entrypoint:
+      - /usr/local/bin/loopdeck-auto-updater
+    user: "0:0"
     environment:
-      WATCHTOWER_HTTP_API_TOKEN: "${UPDATE_TOKEN:?Set UPDATE_TOKEN in .env}"
+      AUTO_UPDATE_ENABLED: "${AUTO_UPDATE_ENABLED:-true}"
+      AUTO_UPDATE_STATE_FILE: "/var/lib/loopdeck/runtime/auto-updater-state.json"
+      UPDATE_PROJECT_DIR: "/opt/loopdeck"
+      APP_IMAGE: "${APP_IMAGE:-ghcr.io/7788dev/loopdeck:latest}"
+      UPDATE_VERSION_SOURCES: "${UPDATE_VERSION_SOURCES:-https://api.github.com/repos/7788dev/loopdeck/contents/VERSION?ref=main,https://cdn.jsdelivr.net/gh/7788dev/loopdeck@main/VERSION,https://raw.githubusercontent.com/7788dev/loopdeck/main/VERSION,https://gh-proxy.com/raw.githubusercontent.com/7788dev/loopdeck/main/VERSION,https://ghfast.top/https://raw.githubusercontent.com/7788dev/loopdeck/main/VERSION}"
+      UPDATE_IMAGE_REPOSITORIES: "${UPDATE_IMAGE_REPOSITORIES:-ghcr.io/7788dev/loopdeck,ghcr.nju.edu.cn/7788dev/loopdeck,ghcr.1ms.run/7788dev/loopdeck,docker.1ms.run/ghcr.io/7788dev/loopdeck}"
+      UPDATE_CHECK_INTERVAL_SECONDS: "${UPDATE_CHECK_INTERVAL_SECONDS:-21600}"
+      UPDATE_RETRY_INTERVAL_SECONDS: "${UPDATE_RETRY_INTERVAL_SECONDS:-300}"
+      UPDATE_PROBE_TIMEOUT_SECONDS: "${UPDATE_PROBE_TIMEOUT_SECONDS:-8}"
+      UPDATE_PULL_TIMEOUT_SECONDS: "${UPDATE_PULL_TIMEOUT_SECONDS:-900}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - .:/opt/loopdeck:ro
+      - app_data:/var/lib/loopdeck
     read_only: true
     tmpfs:
       - /tmp:size=8m,noexec,nosuid,nodev
@@ -111,8 +114,6 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    labels:
-      com.centurylinklabs.watchtower.enable: "false"
     mem_limit: "${UPDATER_MEMORY_LIMIT:-64m}"
     memswap_limit: "${UPDATER_MEMORY_LIMIT:-64m}"
     cpus: "${UPDATER_CPU_LIMIT:-0.20}"

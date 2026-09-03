@@ -26,6 +26,7 @@ class Jobs extends Model
         foreach ($tasks as $key => $value) {
             $offline = $type === 'bilibili'
                 && BilibiliTaskExecutor::offlineReason((string)$value['execute_name']) !== null;
+            $taskNextExecute = $offline ? 0 : $nextExecute;
             if ($offline || ($value['vip'] == 1 && empty(Session::get('user.vip_start')))) {
                 $self->insert([
                     'uid' => Session::get('user.uid'),
@@ -33,7 +34,7 @@ class Jobs extends Model
                     'user_id' => $user_id,
                     'do' => $value['execute_name'],
                     'state' => 0,
-                    'nextExecute' => $nextExecute,
+                    'nextExecute' => $taskNextExecute,
                 ]);
             } else {
                 $self->insert([
@@ -42,7 +43,7 @@ class Jobs extends Model
                     'user_id' => $user_id,
                     'do' => $value['execute_name'],
                     'state' => 1,
-                    'nextExecute' => $nextExecute,
+                    'nextExecute' => $taskNextExecute,
                 ]);
             }
         }
@@ -69,20 +70,21 @@ class Jobs extends Model
         $tasks = Tasks::getTaskList($type);
         $nextExecute = self::nextExecutionForAccount((string)$type, (string)$user_id, $uid);
         foreach ($tasks as $key => $value) {
+            $taskName = (string)$value['execute_name'];
+            $offline = $type === 'bilibili'
+                && BilibiliTaskExecutor::offlineReason($taskName) !== null;
             if (!$self::getJobInfo($type, $user_id, $value['execute_name'], $uid)) {
                 $self->create([
                     'uid' => $uid,
                     'type' => $type,
                     'user_id' => $user_id,
                     'do' => $value['execute_name'],
-                    'state' => $type === 'bilibili'
-                        && BilibiliTaskExecutor::offlineReason((string)$value['execute_name']) !== null
-                        ? 0
-                        : 1,
-                    'nextExecute' => $nextExecute,
+                    'state' => $offline ? 0 : 1,
+                    'nextExecute' => $offline ? 0 : $nextExecute,
                 ]);
             }
         }
+        self::disableOfflineBilibiliJobs($type, (string)$user_id, $uid);
         return true;
     }
 
@@ -163,7 +165,7 @@ class Jobs extends Model
                 'user_id' => $data['mid'],
                 'do' => $value['execute_name'],
                 'state' => $offline ? 0 : 1,
-                'nextExecute' => $nextExecute,
+                'nextExecute' => $offline ? 0 : $nextExecute,
             ]);
         }
         if ($result) {
@@ -226,7 +228,7 @@ class Jobs extends Model
                     ->where('user_id', '=', $user_id)
                     ->where('uid', '=', $uid)
                     ->where('do', '=', $value['execute_name'])
-                    ->update(['state' => 0]);
+                    ->update(['state' => 0, 'nextExecute' => 0]);
                 continue;
             }
             if ($value['vip'] == 1 && Session::get('user.vip_start')) {
@@ -245,6 +247,7 @@ class Jobs extends Model
                     ->update(['state' => 1, 'nextExecute' => $nextExecute]);
             }
         }
+        self::disableOfflineBilibiliJobs((string)$type, (string)$user_id, $uid);
         return true;
     }
 
@@ -284,6 +287,10 @@ class Jobs extends Model
             ->where('do', $do)
             ->where('uid', Session::get('user.uid'));
         if ($ret = $sql->find()) {
+            if ($type === 'bilibili'
+                && BilibiliTaskExecutor::offlineReason((string)$do) !== null) {
+                return $sql->update(['state' => 0, 'nextExecute' => 0]);
+            }
             if ($ret->state == -1) {
                 $result = $sql->update(['state' => 1]);
             } else {
@@ -308,7 +315,11 @@ class Jobs extends Model
     public static function getUnexecutedList($type = null, $filter = [])
     {
         $self = new static();
-        $result = $self->where($filter)->where([['type', '=', $type], ['state', '=', 1], ['nextExecute', '>', 0], ['nextExecute', '<=', time()]])
+        $query = $self->where($filter)->where([['type', '=', $type], ['state', '=', 1], ['nextExecute', '>', 0], ['nextExecute', '<=', time()]]);
+        if ($type === 'bilibili') {
+            $query->whereIn('do', BilibiliTaskExecutor::executableTasks());
+        }
+        $result = $query
             ->limit((int)config('sys.interval') ?? 0)
             ->select();
         if ($result) {
@@ -424,6 +435,25 @@ class Jobs extends Model
             $userId,
             is_string($timing) ? $timing : null
         ) ?? 0;
+    }
+
+    private static function disableOfflineBilibiliJobs(string $type, string $userId, int $uid): void
+    {
+        if ($type !== 'bilibili' || $userId === '' || $uid <= 0) {
+            return;
+        }
+
+        $offlineTasks = array_keys(BilibiliTaskExecutor::OFFLINE_TASKS);
+        if ($offlineTasks === []) {
+            return;
+        }
+
+        (new static())
+            ->where('type', 'bilibili')
+            ->where('user_id', $userId)
+            ->where('uid', $uid)
+            ->whereIn('do', $offlineTasks)
+            ->update(['state' => 0, 'nextExecute' => 0]);
     }
 
     /**

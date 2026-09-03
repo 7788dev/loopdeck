@@ -12,6 +12,7 @@ use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
 use app\service\BarkNotificationService;
+use app\service\BilibiliTaskExecutor;
 use app\service\UserNotificationSettings;
 use netease\Qrcode;
 use think\exception\ValidateException;
@@ -231,6 +232,9 @@ class Ajax extends Common
 				->where("user_id", "=", $userId)
 				->where("uid", "=", Session::get("user.uid"))
 				->where("state", "=", 1);
+			if ($type === 'bilibili') {
+				$query->whereIn('do', BilibiliTaskExecutor::executableTasks());
+			}
 			if (count($query->select()) === 0) {
 				return resultJson(1, "没有需要补挂的任务");
 			}
@@ -246,10 +250,20 @@ class Ajax extends Common
 					return resultJson(0, "时间格式应为 HH:MM");
 				}
 				Accounts::where("id", "=", $account["id"])->update(["timing" => $timing ?: null]);
-				Jobs::where("type", "=", $type)
+				$timingJobs = Jobs::where("type", "=", $type)
 					->where("user_id", "=", $userId)
-					->where("uid", "=", Session::get("user.uid"))
-					->update(["nextExecute" => $next ?? 0]);
+					->where("uid", "=", Session::get("user.uid"));
+				if ($type === 'bilibili') {
+					$timingJobs->whereNotIn('do', array_keys(BilibiliTaskExecutor::OFFLINE_TASKS));
+				}
+				$timingJobs->update(["nextExecute" => $next ?? 0]);
+				if ($type === 'bilibili') {
+					Jobs::where("type", "=", $type)
+						->where("user_id", "=", $userId)
+						->where("uid", "=", Session::get("user.uid"))
+						->whereIn('do', array_keys(BilibiliTaskExecutor::OFFLINE_TASKS))
+						->update(['state' => 0, 'nextExecute' => 0]);
+				}
 				return resultJson(1, $next === null ? "已关闭自动挂机" : "保存成功");
 			}
 			$do = trim((string)Request::post("do", ""));
@@ -260,6 +274,11 @@ class Ajax extends Common
 				->find();
 			if (!$job) {
 				return resultJson(0, "任务不存在");
+			}
+			if ($type === 'bilibili'
+				&& BilibiliTaskExecutor::offlineReason($do) !== null) {
+				$job->save(['state' => 0, 'nextExecute' => 0]);
+				return resultJson(0, BilibiliTaskExecutor::offlineReason($do));
 			}
 			if ($mode === "zt") {
 				if (Tasks::checkTaskPower($do) && empty(Session::get("user.vip_start"))) {

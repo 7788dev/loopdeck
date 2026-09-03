@@ -8,7 +8,7 @@ PHP 依赖由根目录的 `composer.json` 声明、由 `composer.lock` 精确锁
 
 ## 首次启动
 
-1. 推荐直接运行自动部署脚本。它会生成随机数据库密钥、根据宿主机 CPU/内存调整资源参数，并且只拉取 GitHub 镜像：
+1. 推荐直接运行自动部署脚本。它会生成随机数据库密钥、根据宿主机 CPU/内存调整资源参数，并拉取应用镜像：
 
    ```bash
    chmod +x docker/deploy.sh docker/tune-env.sh
@@ -17,7 +17,7 @@ PHP 依赖由根目录的 `composer.json` 声明、由 `composer.lock` 精确锁
 
    已有 `.env` 时，脚本会保留自定义密钥，只更新性能参数。也可以单独运行 `./docker/tune-env.sh .env`。
 
-2. 若手工部署，复制配置并至少修改以下四项，且不要提交 `.env`：
+2. 若手工部署，复制配置并至少修改以下三项，且不要提交 `.env`：
 
    ```bash
    cp .env.example .env
@@ -26,7 +26,6 @@ PHP 依赖由根目录的 `composer.json` 声明、由 `composer.lock` 精确锁
    - `MYSQL_PASSWORD`
    - `MYSQL_ROOT_PASSWORD`
    - `CRON_KEY`（建议使用 48 字节以上随机值）
-   - `UPDATE_TOKEN`（后台一键更新服务的内网鉴权密钥，建议使用 48 字节以上随机值）
 
 3. 手工拉取 GitHub 镜像并启动：
 
@@ -83,11 +82,30 @@ docker compose down
 
 不要在有数据时执行 `docker compose down --volumes`，该命令会永久删除应用和数据库卷。
 
-## 后台一键更新
+## 自动更新
 
-仓库根目录的 `VERSION` 是程序版本号。管理员进入“站长后台 → 程序更新”时，应用会读取本地版本，并通过 GitHub API 获取 `main` 分支上的 `VERSION` 进行比较；如果主版本源不可用，会自动回退到 jsDelivr 和 GitHub Raw。
+更新由同一个 LoopDeck 镜像中的 `updater` 容器负责，默认每 6 小时检查一次，不依赖后台按钮或 HTTP 触发接口。更新器挂载 Docker socket、只读项目目录和 `app_data` 状态卷，但只会操作 `app`、`scheduler`、`updater` 三个服务，绝不会删除 MySQL、数据库卷或应用数据卷。
 
-检测到新版本后，后台会通过 Docker 内网调用 `updater` 容器。更新器只选择带 `com.centurylinklabs.watchtower.enable=true` 标签的 `app` 和 `scheduler`，拉取 `APP_IMAGE` 对应的新镜像并重建容器；MySQL、应用数据卷和数据库卷不会被删除。更新器端口不会映射到宿主机，调用还必须携带 `.env` 中的 `UPDATE_TOKEN`。
+每次检查会并行读取多个 `VERSION` 源，选择最高语义版本；同一版本有多个来源时使用延迟最低的来源。随后并行探测多个 GHCR 镜像代理，按延迟顺序拉取并校验 `org.opencontainers.image.version` 标签，避免使用缓存过旧或标签错误的镜像。新容器通过 `/healthcheck` 后才会提交；失败会重新标记旧镜像并回滚。
+
+默认版本源和镜像代理已经写入 `.env.example`。可按服务器网络情况覆盖：
+
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `AUTO_UPDATE_ENABLED` | `true` | 是否启用定时更新 |
+| `UPDATE_CHECK_INTERVAL_SECONDS` | `21600` | 成功检查间隔（6 小时） |
+| `UPDATE_RETRY_INTERVAL_SECONDS` | `300` | 失败重试间隔（5 分钟） |
+| `UPDATE_PROBE_TIMEOUT_SECONDS` | `8` | 版本源/镜像源探测超时 |
+| `UPDATE_PULL_TIMEOUT_SECONDS` | `900` | 单个镜像拉取超时 |
+| `UPDATE_VERSION_SOURCES` | 多个 GitHub 镜像地址 | 逗号分隔，可增删来源 |
+| `UPDATE_IMAGE_REPOSITORIES` | 多个 GHCR 代理 | 逗号分隔，使用仓库名而非标签 |
+
+后台“自动更新状态”页面只读展示最近检查、版本源、镜像源和回滚结果。状态文件位于 `app_data` 卷的 `runtime/auto-updater-state.json`，也可直接查看 updater 日志：
+
+```bash
+docker compose ps
+docker compose logs --tail=100 updater
+```
 
 发布新版本时应同时：
 
@@ -95,7 +113,7 @@ docker compose down
 2. 将代码推送到 `main`；
 3. 等待 GitHub Actions 完成 `latest` 和版本号镜像标签的构建。
 
-如果升级内容修改了 `compose.yaml`、卷挂载或环境变量，仍需先在宿主机执行一次 `git pull` 和 `./docker/deploy.sh`，让 Compose 配置本身生效。普通应用代码更新可以直接从后台完成。
+如果升级内容修改了 `compose.yaml`、卷挂载或环境变量，仍需先在宿主机执行一次 `git pull` 和 `./docker/deploy.sh`，让新的 Compose 配置生效；普通应用代码和镜像更新会由 updater 自动完成。发布后应确认 GitHub Actions 的多架构镜像构建已经成功，更新器会在镜像可用后自动重试。
 
 ## 容器内测试
 

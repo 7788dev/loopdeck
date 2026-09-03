@@ -224,7 +224,7 @@ class Console
             ->where('user_id', $mid)
             ->where('uid', $uid)
             ->whereIn('do', array_keys(BilibiliTaskExecutor::OFFLINE_TASKS))
-            ->update(['state' => 0]);
+            ->update(['state' => 0, 'nextExecute' => 0]);
         $jobsByTask = [];
         foreach (Jobs::where('type', 'bilibili')->where('user_id', $mid)->where('uid', $uid)->select() as $job) {
             $jobsByTask[(string)$job['do']] = $job;
@@ -242,7 +242,9 @@ class Console
             $taskRows[] = [
                 'execute_name' => $taskName,
                 'name' => (string)$task['name'],
-                'describe' => (string)$task['describe'],
+                'describe' => $offlineReason !== null
+                    ? $offlineReason
+                    : (string)$task['describe'],
                 'icon' => (string)$task['icon'],
                 'more' => !empty($task['more']),
                 'is_global' => $taskName === 'globalroom',

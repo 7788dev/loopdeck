@@ -90,6 +90,7 @@ class Task extends Common
         ];
 
         try {
+            $this->disableOfflineBilibiliJobs();
             $this->pauseLegacyUnscheduledJobs();
             $this->normalizeLegacyNeteaseSchedules();
             $configuredLimit = (int)config('sys.interval');
@@ -125,7 +126,7 @@ class Task extends Common
         $jobs = [];
         $taskMap = [
             'netease' => self::NETEASE_TASKS,
-            'bilibili' => BilibiliTaskExecutor::TASKS,
+            'bilibili' => BilibiliTaskExecutor::executableTasks(),
         ];
         $now = time();
 
@@ -566,6 +567,23 @@ class Task extends Common
         }
     }
 
+    /**
+     * Retire rows created by older releases before selecting due work. This is
+     * deliberately unconditional for the known offline names so a stale row
+     * cannot be re-enabled by an account refresh or a manual retry request.
+     */
+    private function disableOfflineBilibiliJobs(): void
+    {
+        $offlineTasks = array_keys(BilibiliTaskExecutor::OFFLINE_TASKS);
+        if ($offlineTasks === []) {
+            return;
+        }
+
+        Jobs::where('type', 'bilibili')
+            ->whereIn('do', $offlineTasks)
+            ->update(['state' => 0, 'nextExecute' => 0]);
+    }
+
     private function stableJitter(int $seed, int $maximum): int
     {
         if ($maximum <= 0) {
@@ -578,7 +596,7 @@ class Task extends Common
     private function disableJob(int $jobId, string $type, string $userId, string $task, string $message): void
     {
         if ($jobId > 0) {
-            Jobs::where('id', $jobId)->update(['state' => 0]);
+            Jobs::where('id', $jobId)->update(['state' => 0, 'nextExecute' => 0]);
         }
         $this->writeLog($type, $userId, $task, $message);
     }

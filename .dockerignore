@@ -21,7 +21,6 @@ DOCKER.md
 docker/apache-vhost.conf
 docker/deploy.sh
 docker/tune-env.sh
-搭建教程.txt
 
 # Font Awesome development sources are not used at runtime. Keep only the
 # minified stylesheet and modern webfont formats to reduce the image context.

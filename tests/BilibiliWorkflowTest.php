@@ -195,15 +195,11 @@ biliWorkflowCheck($watch->watchAid()['code'] === 1, 'watchaid workflow failed');
 biliWorkflowCheck($watchTransport->called('/x/click-interface/web/heartbeat'), 'watchaid heartbeat did not use SDK');
 biliWorkflowCheck($watchTransport->called('/x/v2/history/report'), 'watchaid history did not use SDK');
 
-[$share, $shareTransport] = biliWorkflow([
-    '/x/web-interface/nav' => [biliNav()],
-    '/x/member/web/exp/reward' => [['code' => 0, 'data' => ['share' => false]]],
-    '/x/web-interface/popular' => [['code' => 0, 'data' => ['list' => [['aid' => 170001, 'bvid' => 'BV17x411w7KC']]]]],
-    '/x/web-interface/wbi/view/detail' => [biliVideo(170001, 'BV17x411w7KC', 279786)],
-    '/x/web-interface/share/add' => [['code' => 0, 'message' => '0']],
-]);
-biliWorkflowCheck($share->shareAid()['code'] === 1, 'shareaid workflow failed');
-biliWorkflowCheck($shareTransport->called('/x/web-interface/share/add'), 'shareaid did not use SDK');
+[$share, $shareTransport] = biliWorkflow([]);
+$shareResult = $share->shareAid();
+biliWorkflowCheck($shareResult['code'] === 0, 'retired share workflow was reported as successful');
+biliWorkflowCheck(str_contains($shareResult['message'], '已下架'), 'retired share message is unclear');
+biliWorkflowCheck(!$shareTransport->called('/x/web-interface/share/add'), 'retired share workflow performed a network request');
 
 [$coin, $coinTransport] = biliWorkflow([
     '/x/web-interface/nav' => [biliNav(5)],
@@ -240,8 +236,8 @@ biliWorkflowCheck(!$coinDoneTransport->called('/x/web-interface/coin/add'), 'coi
 [$dailyExperience, $dailyExperienceTransport] = biliWorkflow([
     '/x/web-interface/nav' => [biliNav()],
     '/x/member/web/exp/reward' => [
-        ['code' => 0, 'data' => ['login' => true, 'watch' => true, 'share' => true, 'coins' => 20]],
-        ['code' => 0, 'data' => ['login' => true, 'watch' => true, 'share' => true, 'coins' => 20]],
+        ['code' => 0, 'data' => ['login' => true, 'watch' => true, 'share' => false, 'coins' => 20]],
+        ['code' => 0, 'data' => ['login' => true, 'watch' => true, 'share' => false, 'coins' => 20]],
     ],
     '/x/web-interface/coin/today/exp' => [['code' => 0, 'data' => 20]],
     '/x/member/web/exp/log' => [[
@@ -252,6 +248,9 @@ biliWorkflowCheck(!$coinDoneTransport->called('/x/web-interface/coin/add'), 'coi
 $dailyExperienceResult = $dailyExperience->dailyexperience();
 biliWorkflowCheck($dailyExperienceResult['code'] === 1, 'daily experience workflow failed');
 biliWorkflowCheck(str_contains($dailyExperienceResult['message'], '投币经验20/50'), 'daily experience did not report coin experience');
+biliWorkflowCheck(str_contains($dailyExperienceResult['message'], '分享已下架'), 'daily experience did not report retired share task');
+biliWorkflowCheck(substr_count($dailyExperienceResult['message'], '分享已下架') === 1, 'daily experience duplicated retired share status');
+biliWorkflowCheck(!$dailyExperienceTransport->called('/x/web-interface/share/add'), 'daily experience attempted the retired share request');
 biliWorkflowCheck($dailyExperienceTransport->called('/x/member/web/exp/log'), 'daily experience did not verify the experience log');
 
 [$nonVipExperience, $nonVipExperienceTransport] = biliWorkflow([

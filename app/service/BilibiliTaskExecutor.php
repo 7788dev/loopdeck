@@ -26,6 +26,7 @@ final class BilibiliTaskExecutor
 
     public const OFFLINE_TASKS = [
         'dailytask' => '直播签到功能已下线',
+        'shareaid' => '每日分享功能已下架',
     ];
 
     private Closure $helperFactory;
@@ -46,7 +47,25 @@ final class BilibiliTaskExecutor
 
     public static function supports(string $task): bool
     {
-        return in_array($task, self::TASKS, true);
+        return in_array($task, self::TASKS, true)
+            && self::offlineReason($task) === null;
+    }
+
+    /**
+     * Return task names which are still allowed to reach an adapter.
+     *
+     * TASKS intentionally keeps retired names so existing database rows and
+     * the console can show an explicit "已下架" state. All execution queries
+     * must use this filtered list instead of the historical allow-list.
+     *
+     * @return list<string>
+     */
+    public static function executableTasks(): array
+    {
+        return array_values(array_filter(
+            self::TASKS,
+            static fn(string $task): bool => self::offlineReason($task) === null
+        ));
     }
 
     public static function offlineReason(string $task): ?string

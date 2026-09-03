@@ -171,7 +171,7 @@ class System extends Common
             exit(View::fetch('common/alert'));
         }
         View::assign((new SystemUpdater())->status());
-        View::assign('webTitle', '系统更新');
+        View::assign('webTitle', '自动更新状态');
         return View::fetch('system/update');
     }
 

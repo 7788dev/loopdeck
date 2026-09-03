@@ -262,7 +262,7 @@ class Bilibili
                 ->where('user_id', $userId)
                 ->where('uid', Session::get('user.uid'))
                 ->where('do', $do)
-                ->update(['state' => 0]);
+                ->update(['state' => 0, 'nextExecute' => 0]);
             return resultJson(0, $offlineReason);
         }
         $task = $this->activeTask($do);
@@ -309,7 +309,13 @@ class Bilibili
         Jobs::where('type', 'bilibili')
             ->where('user_id', $userId)
             ->where('uid', Session::get('user.uid'))
+            ->whereNotIn('do', array_keys(BilibiliTaskExecutor::OFFLINE_TASKS))
             ->update(['nextExecute' => $next ?? 0]);
+        Jobs::where('type', 'bilibili')
+            ->where('user_id', $userId)
+            ->where('uid', Session::get('user.uid'))
+            ->whereIn('do', array_keys(BilibiliTaskExecutor::OFFLINE_TASKS))
+            ->update(['state' => 0, 'nextExecute' => 0]);
         return resultJson(1, $next === null ? '已关闭自动挂机' : '保存成功');
     }
 
@@ -353,7 +359,7 @@ class Bilibili
             ->where('user_id', $userId)
             ->where('uid', Session::get('user.uid'))
             ->where('state', 1)
-            ->whereIn('do', BilibiliTaskExecutor::TASKS);
+            ->whereIn('do', BilibiliTaskExecutor::executableTasks());
         if ($query->count() === 0) {
             return resultJson(1, '没有需要补挂的任务');
         }

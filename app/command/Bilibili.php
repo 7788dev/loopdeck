@@ -32,13 +32,14 @@ class Bilibili extends Command
     {
         $limit = max(1, min(1000, (int)$input->getArgument('interval')));
         $executor = new BilibiliTaskExecutor();
+        $this->disableOfflineJobs();
         $vipExpiredAccounts = [];
         $executed = 0;
         $jobs = Jobs::where('type', 'bilibili')
             ->where('state', 1)
             ->where('nextExecute', '>', 0)
             ->where('nextExecute', '<=', time())
-            ->whereIn('do', BilibiliTaskExecutor::TASKS)
+            ->whereIn('do', BilibiliTaskExecutor::executableTasks())
             ->order('nextExecute', 'asc')
             ->limit($limit)
             ->select();
@@ -65,7 +66,7 @@ class Bilibili extends Command
                     ->where('state', 1)
                     ->find();
                 if (!$task) {
-                    Jobs::where('id', $job['id'])->update(['state' => 0]);
+                    Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
                     $this->writeLog($userId, $taskName, '任务不存在或已停用');
                     continue;
                 }
@@ -96,7 +97,7 @@ class Bilibili extends Command
                 $accountData = BilibiliTaskExecutor::decodeSerializedArray((string)$account['data']);
                 $jobConfig = BilibiliTaskExecutor::decodeSerializedArray((string)($job['data'] ?? ''));
                 if ($accountData === null || $jobConfig === null) {
-                    Jobs::where('id', $job['id'])->update(['state' => 0]);
+                    Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
                     $this->writeLog($userId, $taskName, '账号或任务配置损坏，请重新登录后配置');
                     continue;
                 }
@@ -143,6 +144,18 @@ class Bilibili extends Command
             $userId,
             (string)($account['timing'] ?? '')
         ) ?? 0;
+    }
+
+    private function disableOfflineJobs(): void
+    {
+        $offlineTasks = array_keys(BilibiliTaskExecutor::OFFLINE_TASKS);
+        if ($offlineTasks === []) {
+            return;
+        }
+
+        Jobs::where('type', 'bilibili')
+            ->whereIn('do', $offlineTasks)
+            ->update(['state' => 0, 'nextExecute' => 0]);
     }
 
     private function writeLog(string $userId, string $task, string $message): void

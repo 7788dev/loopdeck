@@ -4,49 +4,66 @@ declare(strict_types=1);
 
 namespace app\service;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Exception\ConnectException;
-use RuntimeException;
 use Throwable;
 
+/**
+ * Read-only view of the in-container automatic updater state.
+ *
+ * Updating is intentionally owned by docker/auto-updater.php. Keeping the
+ * web process read-only removes the old privileged POST endpoint and makes a
+ * compromised admin session unable to invoke Docker through the application.
+ */
 final class SystemUpdater
 {
-    private const CURL_OPERATION_TIMED_OUT = 28;
-    private const DISPATCH_TIMEOUT_SECONDS = 1.5;
-    private const VERSION_CONNECT_TIMEOUT_SECONDS = 2.0;
-    private const VERSION_TIMEOUT_SECONDS = 4.0;
-    private const DEFAULT_VERSION_URL = 'https://api.github.com/repos/7788dev/loopdeck/contents/VERSION?ref=main';
-    private const VERSION_FALLBACK_URLS = [
-        'https://cdn.jsdelivr.net/gh/7788dev/loopdeck@main/VERSION',
-        'https://raw.githubusercontent.com/7788dev/loopdeck/main/VERSION',
-    ];
-    private const DEFAULT_UPDATE_URL = 'http://updater:8080/v1/update';
-    private const DEFAULT_IMAGE = 'ghcr.io/7788dev/loopdeck:latest';
+    private const DEFAULT_STATE_FILE = '/var/lib/loopdeck/runtime/auto-updater-state.json';
+    private const DEFAULT_VERSION_SOURCE = 'https://api.github.com/repos/7788dev/loopdeck/contents/VERSION?ref=main';
+    private const DEFAULT_INTERVAL_SECONDS = 21600;
 
-    private ClientInterface $client;
-    private string $versionUrl;
-    private array $versionUrls;
-    private string $updateUrl;
-    private string $updateToken;
-    private string $image;
+    private string $stateFile;
+    private bool $enabled;
+    private int $checkInterval;
 
-    public function __construct(?ClientInterface $client = null, array $config = [])
+    /**
+     * The first argument is kept intentionally loose for compatibility with
+     * older integrations that passed an HTTP client. Such clients are ignored;
+     * status is now read from the shared updater state file only.
+     */
+    public function __construct($stateFile = null, array $config = [])
     {
-        $this->client = $client ?? new Client();
-        $this->versionUrl = trim((string)($config['version_url'] ?? getenv('UPDATE_VERSION_URL') ?: self::DEFAULT_VERSION_URL));
-        $fallbackUrls = $config['version_fallback_urls'] ?? self::VERSION_FALLBACK_URLS;
-        $this->versionUrls = $this->versionUrl === ''
-            ? []
-            : $this->uniqueVersionUrls(array_merge(
-                [$this->versionUrl],
-                is_array($fallbackUrls) ? $fallbackUrls : []
-            ));
-        $this->updateUrl = trim((string)($config['update_url'] ?? getenv('UPDATE_API_URL') ?: self::DEFAULT_UPDATE_URL));
-        $this->updateToken = trim((string)($config['update_token'] ?? getenv('UPDATE_TOKEN') ?: ''));
-        $this->image = trim((string)($config['image'] ?? getenv('UPDATE_IMAGE') ?: self::DEFAULT_IMAGE));
+        if (is_array($stateFile) && $config === []) {
+            $config = $stateFile;
+            $stateFile = null;
+        }
+
+        $configuredPath = $config['state_file']
+            ?? (is_string($stateFile) ? $stateFile : null)
+            ?? getenv('AUTO_UPDATE_STATE_FILE')
+            ?: self::DEFAULT_STATE_FILE;
+        $this->stateFile = trim((string)$configuredPath) ?: self::DEFAULT_STATE_FILE;
+
+        $configuredEnabled = array_key_exists('enabled', $config)
+            ? $config['enabled']
+            : (getenv('AUTO_UPDATE_ENABLED') === false ? null : getenv('AUTO_UPDATE_ENABLED'));
+        if ($configuredEnabled === false) {
+            $this->enabled = false;
+        } elseif ($configuredEnabled === null || $configuredEnabled === '') {
+            $this->enabled = true;
+        } else {
+            $this->enabled = !in_array(strtolower(trim((string)$configuredEnabled)), ['0', 'false', 'no', 'off'], true);
+        }
+
+        $interval = $config['check_interval_seconds']
+            ?? getenv('UPDATE_CHECK_INTERVAL_SECONDS')
+            ?: self::DEFAULT_INTERVAL_SECONDS;
+        $interval = filter_var($interval, FILTER_VALIDATE_INT);
+        $this->checkInterval = $interval === false
+            ? self::DEFAULT_INTERVAL_SECONDS
+            : max(60, min(604800, (int)$interval));
     }
 
+    /**
+     * @return array<string,mixed>
+     */
     public function status(): array
     {
         $current = ApplicationVersion::current();
@@ -54,136 +71,99 @@ final class SystemUpdater
             'current_version' => $current,
             'latest_version' => null,
             'update_available' => false,
-            'updater_available' => $this->updateUrl !== '' && $this->updateToken !== '' && $this->image !== '',
-            'version_url' => $this->versionUrl,
+            'updater_available' => $this->enabled,
+            'auto_update_enabled' => $this->enabled,
+            'status' => $this->enabled ? 'waiting' : 'disabled',
+            'message' => $this->enabled ? '等待自动更新器首次检查' : '自动更新已禁用',
+            'version_url' => $this->configuredVersionSource(),
+            'version_source' => null,
+            'version_sources' => [],
+            'image_repository' => null,
+            'image' => null,
+            'image_probes' => [],
+            'checked_at' => null,
+            'last_checked_at' => null,
+            'last_update_at' => null,
+            'next_check_at' => null,
+            'state_file' => $this->stateFile,
+            'check_interval_seconds' => $this->checkInterval,
             'error' => null,
         ];
 
-        if ($this->versionUrl === '') {
-            $status['error'] = '未配置 GitHub 版本文件地址';
+        if (!$this->enabled || !is_file($this->stateFile)) {
             return $status;
         }
 
-        $errors = [];
-        foreach ($this->versionUrls as $versionUrl) {
-            try {
-                $response = $this->client->request('GET', $versionUrl, [
-                    'connect_timeout' => self::VERSION_CONNECT_TIMEOUT_SECONDS,
-                    'timeout' => self::VERSION_TIMEOUT_SECONDS,
-                    'http_errors' => false,
-                    'headers' => [
-                        'Accept' => 'application/vnd.github.raw+json',
-                        'Cache-Control' => 'no-cache',
-                        'User-Agent' => 'LoopDeck/' . $current,
-                    ],
-                ]);
-                if ($response->getStatusCode() !== 200) {
-                    throw new RuntimeException('返回 HTTP ' . $response->getStatusCode());
-                }
+        try {
+            $decoded = json_decode((string)file_get_contents($this->stateFile), true, 16, JSON_THROW_ON_ERROR);
+        } catch (Throwable $exception) {
+            $status['status'] = 'failed';
+            $status['message'] = '自动更新状态文件无法读取';
+            $status['error'] = '状态文件格式无效';
+            return $status;
+        }
+        if (!is_array($decoded)) {
+            $status['status'] = 'failed';
+            $status['message'] = '自动更新状态文件无法读取';
+            $status['error'] = '状态文件格式无效';
+            return $status;
+        }
 
-                $latest = ApplicationVersion::normalize((string)$response->getBody());
-                if ($latest === null) {
-                    throw new RuntimeException('VERSION 文件格式无效');
-                }
+        $latest = ApplicationVersion::normalize((string)($decoded['latest_version'] ?? ''));
+        if ($latest !== null) {
+            $status['latest_version'] = $latest;
+            $status['update_available'] = version_compare($latest, $current, '>');
+        }
 
-                $status['version_url'] = $versionUrl;
-                $status['latest_version'] = $latest;
-                $status['update_available'] = version_compare($latest, $current, '>');
-                return $status;
-            } catch (Throwable $exception) {
-                $errors[] = $this->versionSourceError($versionUrl, $exception);
+        foreach ([
+            'status',
+            'message',
+            'version_source',
+            'image_repository',
+            'image',
+            'checked_at',
+            'last_update_at',
+            'next_check_at',
+        ] as $field) {
+            if (isset($decoded[$field]) && is_scalar($decoded[$field])) {
+                $status[$field] = mb_substr(trim((string)$decoded[$field]), 0, 500);
+            }
+        }
+        if ($status['version_source'] !== null && $status['version_source'] !== '') {
+            $status['version_url'] = $status['version_source'];
+        }
+        $status['last_checked_at'] = $status['checked_at'];
+
+        foreach (['version_sources', 'image_probes'] as $field) {
+            if (isset($decoded[$field]) && is_array($decoded[$field])) {
+                $status[$field] = array_slice($decoded[$field], 0, 20);
             }
         }
 
-        $status['error'] = '所有 GitHub 版本源均不可用：' . implode('；', $errors);
+        if (isset($decoded['enabled'])) {
+            $status['updater_available'] = $this->enabled && (bool)$decoded['enabled'];
+        }
+        if (isset($decoded['error']) && is_scalar($decoded['error'])) {
+            $status['error'] = mb_substr(trim((string)$decoded['error']), 0, 500);
+        }
+        if ($status['status'] === 'failed' && $status['error'] === null) {
+            $status['error'] = '自动更新器报告失败，请查看 updater 容器日志';
+        }
+
+        $checkedAt = strtotime((string)($status['checked_at'] ?? ''));
+        $status['state_age_seconds'] = $checkedAt === false ? null : max(0, time() - $checkedAt);
         return $status;
     }
 
-    public function trigger(): array
+    private function configuredVersionSource(): string
     {
-        if ($this->updateUrl === '' || $this->updateToken === '' || $this->image === '') {
-            throw new RuntimeException('Docker 更新服务尚未配置');
-        }
-
-        try {
-            $response = $this->client->request('POST', $this->updateUrl, [
-                'connect_timeout' => 1.0,
-                'timeout' => self::DISPATCH_TIMEOUT_SECONDS,
-                'http_errors' => false,
-                'headers' => [
-                    'Accept' => 'application/json',
-                    'Authorization' => 'Bearer ' . $this->updateToken,
-                    'User-Agent' => 'LoopDeck/' . ApplicationVersion::current(),
-                ],
-                'query' => [
-                    'image' => $this->image,
-                ],
-            ]);
-        } catch (ConnectException $exception) {
-            if ($this->wasUpdateRequestDispatched($exception)) {
-                return $this->acceptedResponse();
-            }
-
-            throw $exception;
-        }
-
-        $statusCode = $response->getStatusCode();
-        $body = json_decode((string)$response->getBody(), true);
-        if (!in_array($statusCode, [200, 202], true)) {
-            $message = is_array($body) ? trim((string)($body['error'] ?? '')) : '';
-            throw new RuntimeException($message !== '' ? $message : '更新服务返回 HTTP ' . $statusCode);
-        }
-
-        return [
-            'status' => $statusCode,
-            'image' => $this->image,
-            'response' => is_array($body) ? $body : [],
-        ];
-    }
-
-    private function wasUpdateRequestDispatched(ConnectException $exception): bool
-    {
-        $context = $exception->getHandlerContext();
-
-        // Watchtower's update endpoint is synchronous. Once cURL has sent the
-        // request, a response timeout means the update continues server-side.
-        return (int)($context['errno'] ?? 0) === self::CURL_OPERATION_TIMED_OUT
-            && (int)($context['request_size'] ?? 0) > 0
-            && (int)($context['primary_port'] ?? 0) > 0;
-    }
-
-    private function acceptedResponse(): array
-    {
-        return [
-            'status' => 202,
-            'image' => $this->image,
-            'response' => [
-                'status' => 'accepted',
-            ],
-        ];
-    }
-
-    private function uniqueVersionUrls(array $urls): array
-    {
-        $unique = [];
-        foreach ($urls as $url) {
-            $url = trim((string)$url);
-            if ($url !== '' && !in_array($url, $unique, true)) {
-                $unique[] = $url;
+        $sources = trim((string)(getenv('UPDATE_VERSION_SOURCES') ?: ''));
+        if ($sources !== '') {
+            $first = preg_split('/[,\r\n]+/', $sources)[0] ?? '';
+            if (filter_var($first, FILTER_VALIDATE_URL) !== false) {
+                return trim($first);
             }
         }
-
-        return $unique;
-    }
-
-    private function versionSourceError(string $url, Throwable $exception): string
-    {
-        $host = (string)(parse_url($url, PHP_URL_HOST) ?: $url);
-        if ($exception instanceof ConnectException
-            && (int)($exception->getHandlerContext()['errno'] ?? 0) === self::CURL_OPERATION_TIMED_OUT) {
-            return $host . ' 请求超时';
-        }
-
-        return $host . ' ' . $exception->getMessage();
+        return self::DEFAULT_VERSION_SOURCE;
     }
 }

@@ -27,12 +27,14 @@ class Bilibili extends Common
             return resultJson(-1000, 'CronKey Access Denied!');
         }
 
+        $this->disableOfflineJobs();
+
         $limit = max(1, (int)config('sys.interval'));
         $jobs = Jobs::where('type', 'bilibili')
             ->where('state', 1)
             ->where('nextExecute', '>', 0)
             ->where('nextExecute', '<=', time())
-            ->whereIn('do', BilibiliTaskExecutor::TASKS)
+            ->whereIn('do', BilibiliTaskExecutor::executableTasks())
             ->order('nextExecute', 'asc')
             ->limit($limit)
             ->select();
@@ -55,7 +57,7 @@ class Bilibili extends Common
                 ->find();
 
             if (!$user || !$account || !$task) {
-                Jobs::where('id', $job['id'])->update(['state' => 0]);
+                Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
                 continue;
             }
             if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
@@ -88,7 +90,7 @@ class Bilibili extends Common
             $jobConfig = BilibiliTaskExecutor::decodeSerializedArray((string)($job['data'] ?? ''));
             $globalConfig = $this->globalConfig((int)$job['uid'], $userId);
             if ($accountData === null || $jobConfig === null || $globalConfig === null) {
-                Jobs::where('id', $job['id'])->update(['state' => 0]);
+                Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
                 TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[失败] 账号或任务配置损坏');
                 return;
             }
@@ -146,6 +148,18 @@ class Bilibili extends Common
             $userId,
             (string)($account['timing'] ?? '')
         ) ?? 0;
+    }
+
+    private function disableOfflineJobs(): void
+    {
+        $offlineTasks = array_keys(BilibiliTaskExecutor::OFFLINE_TASKS);
+        if ($offlineTasks === []) {
+            return;
+        }
+
+        Jobs::where('type', 'bilibili')
+            ->whereIn('do', $offlineTasks)
+            ->update(['state' => 0, 'nextExecute' => 0]);
     }
 
 }

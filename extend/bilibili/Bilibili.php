@@ -204,22 +204,10 @@ class Bilibili
 
     public function shareAid(): array
     {
-        if ($this->authenticatedNav() === null) {
-            return $this->invalidAccount();
-        }
-        $reward = $this->client->dailyReward();
-        if (($reward['code'] ?? -1) === 0 && !empty($reward['data']['share'])) {
-            return ['code' => 1, 'message' => '主站任务：今日分享任务已完成'];
-        }
-        $video = $this->selectVideos(1, 'random')[0] ?? null;
-        if ($video === null) {
-            return ['code' => 0, 'message' => '主站任务：未找到可分享的视频'];
-        }
-        $response = $this->client->shareVideo((int)$video['aid']);
-        if (($response['code'] ?? -1) === 0 || (int)($response['code'] ?? 0) === 71000) {
-            return ['code' => 1, 'message' => '主站任务：av' . $video['aid'] . ' 分享成功'];
-        }
-        return $this->failure($response, '主站任务：av' . $video['aid'] . ' 分享失败');
+        // The main-site daily share task has been retired. Keep this method as
+        // a compatibility boundary, but never let a legacy caller reach the
+        // share endpoint.
+        return ['code' => 0, 'message' => '每日分享功能已下架'];
     }
 
     public function coinAdd(): array
@@ -292,11 +280,9 @@ class Bilibili
             $success = $success && (int)($watch['code'] ?? 0) === 1;
             $messages[] = (string)($watch['message'] ?? '观看任务执行失败');
         }
-        if (empty($beforeData['share'])) {
-            $share = $this->shareAid();
-            $success = $success && (int)($share['code'] ?? 0) === 1;
-            $messages[] = (string)($share['message'] ?? '分享任务执行失败');
-        }
+        // Bilibili removed the main-site daily share task. Do not call
+        // shareAid() here: dailyexperience must remain useful for login,
+        // watching and coin experience without issuing a share request.
 
         $after = $this->client->dailyReward();
         $afterData = ($after['code'] ?? -1) === 0 && is_array($after['data'] ?? null)
@@ -305,7 +291,7 @@ class Bilibili
         $status = static fn(bool $done): string => $done ? '完成' : '已上报，状态待同步';
         $messages[] = '登录' . $status(!empty($afterData['login']));
         $messages[] = '观看' . $status(!empty($afterData['watch']));
-        $messages[] = '分享' . $status(!empty($afterData['share']));
+        $messages[] = '分享已下架';
 
         $coin = $this->client->todayCoinExp();
         if (($coin['code'] ?? -1) === 0) {

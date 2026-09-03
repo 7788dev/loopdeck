@@ -27,8 +27,22 @@ class Tasks extends Model
         'bilibili' => [
             [
                 'type' => 'bilibili',
+                'name' => '每日分享',
+                'describe' => '每日分享功能已下架',
+                'icon' => 'si si-paper-plane',
+                'execute_name' => 'shareaid',
+                'execute_url' => null,
+                'execute_rate' => '86400',
+                'more' => 0,
+                'state' => 1,
+                'vip' => 1,
+                'time' => '2022-01-01 00:00:00',
+                'order' => 3,
+            ],
+            [
+                'type' => 'bilibili',
                 'name' => '每日经验任务',
-                'describe' => '登录、观看、分享、投币经验状态与经验日志核验',
+                'describe' => '登录、观看、投币经验状态与经验日志核验（分享功能已下架）',
                 'icon' => 'si si-graduation',
                 'execute_name' => 'dailyexperience',
                 'execute_url' => null,
@@ -90,6 +104,25 @@ class Tasks extends Model
                 ->where('execute_name', '=', $task['execute_name'])
                 ->find();
             if ($exists) {
+                // Existing installations already have these rows, so an
+                // insert-only sync would leave the retired-share wording
+                // stale forever.  Keep administrator customisations intact
+                // except for the known legacy descriptions that this release
+                // deliberately replaces.
+                $description = (string)($exists['describe'] ?? '');
+                $legacyDailyExperience = [
+                    '登录、观看、分享、投币经验状态与经验日志核验',
+                    '登录、观看、分享、投币经验状态与经验日志核验（分享功能已下架）',
+                ];
+                $shouldSyncDescription = $task['execute_name'] === 'shareaid'
+                    || ($task['execute_name'] === 'dailyexperience'
+                        && in_array($description, $legacyDailyExperience, true));
+                if ($shouldSyncDescription && $description !== $task['describe']) {
+                    (new static())
+                        ->where('type', '=', $task['type'])
+                        ->where('execute_name', '=', $task['execute_name'])
+                        ->update(['describe' => $task['describe']]);
+                }
                 continue;
             }
             try {

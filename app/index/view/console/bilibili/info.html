@@ -135,7 +135,7 @@
                                 <td class="fw-semibold">
                                     <p class="fw-semibold mb-1">{$v.name}
                                         {if condition="$v.offline"}
-                                            <span class="badge bg-secondary ms-1">已下线</span>
+                                            <span class="badge bg-secondary ms-1">已下架</span>
                                         {/if}
                                         {if condition="$v.more"}
                                             <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 mx-1" data-config='{$v.config_json|raw}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="si si-settings"></i></button>

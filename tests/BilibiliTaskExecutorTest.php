@@ -61,7 +61,10 @@ $expectedTasks = [
 biliExecutorCheck(BilibiliTaskExecutor::TASKS === $expectedTasks, 'task allowlist changed unexpectedly');
 biliExecutorCheck(!BilibiliTaskExecutor::supports('globalroom'), 'globalroom must never be executable');
 biliExecutorCheck(!BilibiliTaskExecutor::supports('dailytask'), 'offline dailytask must never be executable');
+biliExecutorCheck(!BilibiliTaskExecutor::supports('shareaid'), 'retired share task must never be executable');
 biliExecutorCheck(BilibiliTaskExecutor::offlineReason('dailytask') === '直播签到功能已下线', 'offline task reason is missing');
+biliExecutorCheck(BilibiliTaskExecutor::offlineReason('shareaid') === '每日分享功能已下架', 'retired share task reason is missing');
+biliExecutorCheck(!in_array('shareaid', BilibiliTaskExecutor::executableTasks(), true), 'retired share task remained in executable list');
 biliExecutorCheck(!BilibiliTaskExecutor::supports('__construct'), 'arbitrary methods are executable');
 
 $decoded = BilibiliTaskExecutor::decodeSerializedArray(serialize(['global_room' => '123']));
@@ -112,6 +115,9 @@ $beforeRejectedTask = $factoryCalls;
 $offline = $executor->execute('dailytask', $account);
 biliExecutorCheck($offline['code'] === 0 && str_contains($offline['message'], '已下线'), 'offline task was not rejected clearly');
 biliExecutorCheck($factoryCalls === $beforeRejectedTask, 'offline task reached the helper factory');
+$shareOffline = $executor->execute('shareaid', $account);
+biliExecutorCheck($shareOffline['code'] === 0 && str_contains($shareOffline['message'], '已下架'), 'retired share task was not rejected clearly');
+biliExecutorCheck($factoryCalls === $beforeRejectedTask, 'retired share task reached the helper factory');
 $rejected = $executor->execute('globalroom', $account);
 biliExecutorCheck($rejected['code'] === 0, 'globalroom execution was accepted');
 biliExecutorCheck($factoryCalls === $beforeRejectedTask, 'rejected task reached the helper factory');
@@ -122,14 +128,13 @@ $invalidCredentials = $executor->execute('watchaid', $missingCredential);
 biliExecutorCheck($invalidCredentials['code'] === 0, 'missing credentials were accepted');
 biliExecutorCheck($factoryCalls === $beforeRejectedTask, 'invalid credentials reached the helper factory');
 
-$invalidAccount = $executor->execute('shareaid', $account);
-biliExecutorCheck($invalidAccount['account_invalid'], 'SDK account invalid state was not propagated');
-
 $cronSource = file_get_contents(dirname(__DIR__) . '/app/cron/controller/Bilibili.php');
 $taskSource = file_get_contents(dirname(__DIR__) . '/app/cron/controller/Task.php');
 $jobsSource = file_get_contents(dirname(__DIR__) . '/app/index/model/Jobs.php');
 $tasksModelSource = file_get_contents(dirname(__DIR__) . '/app/index/model/Tasks.php');
+$adminAjaxSource = file_get_contents(dirname(__DIR__) . '/app/admin/controller/Ajax.php');
 $installSql = file_get_contents(dirname(__DIR__) . '/app/install/install.sql');
+$bilibiliSource = file_get_contents(dirname(__DIR__) . '/extend/bilibili/Bilibili.php');
 foreach (['mid_md5', 'token', 'csrf', 'access_key'] as $credential) {
     biliExecutorCheck(
         !preg_match('/cron\/bilibili\/[^\r\n]*' . preg_quote($credential, '/') . '/', (string)$cronSource),
@@ -148,6 +153,12 @@ biliExecutorCheck(
     'cron controller still builds self-call URLs'
 );
 biliExecutorCheck(str_contains((string)$cronSource, 'runJob'), 'cron scheduler does not run jobs in-process');
+biliExecutorCheck(str_contains((string)$cronSource, 'executableTasks()'), 'legacy Bilibili scheduler still selects retired tasks');
+biliExecutorCheck(str_contains((string)$taskSource, 'executableTasks()'), 'unified scheduler still selects retired tasks');
+biliExecutorCheck(str_contains((string)$adminAjaxSource, 'BilibiliTaskExecutor::offlineReason'), 'admin task edits do not recognize retired tasks');
+biliExecutorCheck(str_contains((string)$adminAjaxSource, "'nextExecute' => 0"), 'admin task edits can leave retired jobs scheduled');
+biliExecutorCheck(str_contains((string)$bilibiliSource, '分享功能已下架'), 'daily experience does not report retired share task');
+biliExecutorCheck(!str_contains((string)$bilibiliSource, '$this->shareAid()'), 'daily experience still calls the retired share task');
 biliExecutorCheck(
     substr_count((string)$jobsSource, 'BilibiliTaskExecutor::offlineReason') >= 3,
     'job creation or account refresh can re-enable an offline Bilibili task'

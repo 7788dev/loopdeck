@@ -11,7 +11,6 @@
 use think\facade\Route;
 
 Route::get('system/update', 'system/update');
-Route::post('ajax/update', 'ajax/update');
 
 //系统设置
 Route::rule('system/set/[:act]', 'system/set');

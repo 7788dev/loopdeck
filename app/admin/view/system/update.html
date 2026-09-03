@@ -7,108 +7,55 @@
     </div>
     <div class="block-content">
         <div class="row mb-4">
-            <div class="col-md-6 mb-3 mb-md-0">
-                <div class="p-3 bg-body-light rounded">
+            <div class="col-md-4 mb-3 mb-md-0">
+                <div class="p-3 bg-body-light rounded h-100">
                     <div class="text-muted fs-sm">当前版本</div>
                     <div class="fs-3 fw-semibold text-primary">v{$current_version}</div>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="p-3 bg-body-light rounded">
-                    <div class="text-muted fs-sm">GitHub 最新版本</div>
+            <div class="col-md-4 mb-3 mb-md-0">
+                <div class="p-3 bg-body-light rounded h-100">
+                    <div class="text-muted fs-sm">已探测最新版本</div>
                     <div class="fs-3 fw-semibold text-success">
-                        {if condition="$latest_version"}v{$latest_version}{else /}检查失败{/if}
+                        {if condition="$latest_version"}v{$latest_version}{else /}等待检查{/if}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 bg-body-light rounded h-100">
+                    <div class="text-muted fs-sm">自动更新状态</div>
+                    <div class="fs-4 fw-semibold">
+                        {if condition="$status eq 'updated'"}<span class="text-success">已更新</span>
+                        {elseif condition="$status eq 'up_to_date'"}<span class="text-success">已是最新</span>
+                        {elseif condition="$status eq 'failed'"}<span class="text-danger">检查失败</span>
+                        {elseif condition="$status eq 'rolled_back'"}<span class="text-warning">已回滚</span>
+                        {elseif condition="$status eq 'disabled'"}<span class="text-muted">已禁用</span>
+                        {else /}<span class="text-info">等待检查</span>{/if}
                     </div>
                 </div>
             </div>
         </div>
 
         {if condition="$error"}
-        <div class="alert alert-warning">
-            无法读取 GitHub 版本文件：{$error}
-        </div>
-        {elseif condition="$update_available"}
-        <div class="alert alert-info">
-            检测到新版本 v{$latest_version}。更新会拉取 GitHub 构建的镜像并重启应用与调度容器，数据库和持久化数据卷不会删除。
-        </div>
+        <div class="alert alert-warning">{$error}</div>
         {else /}
-        <div class="alert alert-success">
-            当前已经是最新版本。
+        <div class="alert alert-info mb-4">
+            系统由 updater 容器每 {$check_interval_seconds} 秒自动检查。检测到新版本后会选择可用且较快的镜像代理，校验版本并重启应用；数据库和持久化数据不会删除。
         </div>
         {/if}
 
-        {if condition="!$updater_available"}
-        <div class="alert alert-danger">
-            Docker 更新服务未配置。请使用新版 <code>compose.yaml</code> 并在 <code>.env</code> 中设置 <code>UPDATE_TOKEN</code>。
-        </div>
-        {/if}
-
-        <div class="mb-4 text-muted fs-sm">
-            版本来源：<a href="{$version_url}" target="_blank" rel="noopener noreferrer">GitHub VERSION 文件</a>
-        </div>
-
-        <button id="system-update-button" type="button" class="btn btn-alt-success mb-4"
-                {if condition="!$updater_available || !$update_available"}disabled{/if}>
-            <i class="fa fa-arrow-up me-1"></i>
-            {if condition="$update_available"}立即更新到 v{$latest_version}{else /}无需更新{/if}
-        </button>
+        <dl class="row mb-0">
+            <dt class="col-sm-3">最近检查</dt>
+            <dd class="col-sm-9">{if condition="$last_checked_at"}{$last_checked_at}{else /}尚未检查{/if}</dd>
+            <dt class="col-sm-3">下次检查</dt>
+            <dd class="col-sm-9">{if condition="$next_check_at"}{$next_check_at}{else /}由 updater 启动后安排{/if}</dd>
+            <dt class="col-sm-3">版本来源</dt>
+            <dd class="col-sm-9 text-break">{if condition="$version_source"}{$version_source}{else /}{$version_url}{/if}</dd>
+            <dt class="col-sm-3">镜像来源</dt>
+            <dd class="col-sm-9">{if condition="$image_repository"}{$image_repository}{else /}尚未选择{/if}</dd>
+            <dt class="col-sm-3">最近结果</dt>
+            <dd class="col-sm-9">{if condition="$message"}{$message}{else /}暂无结果{/if}</dd>
+        </dl>
     </div>
 </div>
-{/block}
-{block name="foot"}
-<script>
-    (function () {
-        var currentVersion = '{$current_version}';
-        var button = document.getElementById('system-update-button');
-        if (!button || button.disabled) return;
-
-        button.addEventListener('click', function () {
-            layer.confirm('更新期间网页会短暂不可用，确认现在更新吗？', {
-                btn: ['确认更新', '取消'],
-                title: '系统更新'
-            }, function (index) {
-                layer.close(index);
-                button.disabled = true;
-                var loading = layer.load(2);
-                x.ajax('/admin/ajax/update', {}, function (data) {
-                    x.close(loading);
-                    if (data.code != 1) {
-                        button.disabled = false;
-                        x.notify(data.message, 'warning');
-                        return;
-                    }
-
-                    x.notify(data.message, 'success');
-                    setTimeout(function () {
-                        waitForUpdatedVersion(0);
-                    }, 10000);
-                });
-            });
-        });
-
-        function waitForUpdatedVersion(attempt) {
-            if (attempt >= 120) {
-                x.notify('更新仍在进行，请稍后手动刷新页面', 'warning');
-                return;
-            }
-
-            fetch('/index/version?_=' + Date.now(), {cache: 'no-store'})
-                .then(function (response) {
-                    var version = response.headers.get('X-LoopDeck-Version');
-                    if (response.ok && version && version !== currentVersion) {
-                        window.location.reload();
-                        return;
-                    }
-                    setTimeout(function () {
-                        waitForUpdatedVersion(attempt + 1);
-                    }, 5000);
-                })
-                .catch(function () {
-                    setTimeout(function () {
-                        waitForUpdatedVersion(attempt + 1);
-                    }, 5000);
-                });
-        }
-    })();
-</script>
 {/block}

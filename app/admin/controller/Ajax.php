@@ -16,7 +16,7 @@ use app\admin\validate\Users as UsersValidate;
 use app\index\controller\Common;
 use app\index\model\Kms;
 use app\index\model\Users;
-use app\service\SystemUpdater;
+use app\service\BilibiliTaskExecutor;
 use mail\PHPMailer\PHPMailer;
 use think\exception\ValidateException;
 use think\facade\Db;
@@ -30,20 +30,6 @@ class Ajax extends Common
         'app\middleware\CheckUserPower',
         'app\middleware\CheckAjaxRequest',
     ];
-
-    public function update()
-    {
-        if (WEB_ID != 1) {
-            return resultJson(0, '无权执行系统更新');
-        }
-
-        try {
-            $result = (new SystemUpdater())->trigger();
-            return resultJson(1, '更新任务已提交，正在拉取新镜像并重启服务', $result);
-        } catch (\Throwable $exception) {
-            return resultJson(0, '更新失败：' . $exception->getMessage());
-        }
-    }
 
     public function zipExtract($src, $dest)
     {
@@ -216,15 +202,27 @@ class Ajax extends Common
                         if (!$oTask || $editable === []) {
                             return resultJson(0, '任务不存在或没有可修改的内容');
                         }
+                        $offline = (string)$oTask['type'] === 'bilibili'
+                            && BilibiliTaskExecutor::offlineReason((string)$oTask['execute_name']) !== null;
                         $up_task = $task->where('id', '=', $data['id'])->update($editable);
                         if ($up_task == 0) {  // 无修改
+                            if ($offline) {
+                                $jobs->where('do', '=', $oTask['execute_name'])
+                                    ->update(['state' => 0, 'nextExecute' => 0]);
+                            }
                             return resultJson(1, '保存成功');
                         } else {
                             $requiresVip = (int)($editable['vip'] ?? $oTask['vip']) === 1;
                             foreach ($jobs->where('do', '=', $oTask['execute_name'])->select() as $value) {
                                 $user = Users::findByUid($value['uid']);
-                                $state = ($requiresVip && empty($user['vip_start'])) ? 0 : 1;
-                                $jobs->where('id', '=', $value['id'])->update(['state' => $state]);
+                                $state = $offline
+                                    ? 0
+                                    : (($requiresVip && empty($user['vip_start'])) ? 0 : 1);
+                                $updates = ['state' => $state];
+                                if ($offline) {
+                                    $updates['nextExecute'] = 0;
+                                }
+                                $jobs->where('id', '=', $value['id'])->update($updates);
                             }
                             return resultJson(1, '保存成功');
                         }

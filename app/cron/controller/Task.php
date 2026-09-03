@@ -682,7 +682,7 @@ class Task extends Common
 
         $retentionDays = $this->envInt('DAKA_STATE_RETENTION_DAYS', 30, 1, 3650);
         $cutoff = time() - ($retentionDays * 86400);
-        foreach (glob($directory . DIRECTORY_SEPARATOR . '*.json') ?: [] as $file) {
+        foreach (glob($directory . DIRECTORY_SEPARATOR . '*.*') ?: [] as $file) {
             clearstatcache(true, $file);
             if (is_file($file) && (int)@filemtime($file) < $cutoff) {
                 @unlink($file);

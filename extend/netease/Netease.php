@@ -952,12 +952,15 @@ class Netease
      * name a real source. The personalised new-song feed cannot name one and
      * stays excluded.
      *
-     * Official charts and personalised lists rotate slowly, while a day can
-     * only count songs the account has never heard before, so an
-     * obscure-playlist search sits at the end as the deep fresh-song fallback.
-     *
-     * Each pool is resolved lazily so a configured playlist that already
-     * covers the target never triggers a recommendation request.
+     * Only songs the account has never heard count towards the daily tally,
+     * so the pool order follows fresh-song supply: the account's own
+     * playlists first (cheap, personalised), then random-keyword search
+     * playlists — the long tail where an account that already heard the
+     * popular catalog still finds unheard songs — and the official charts
+     * last, since hot charts are exactly what everyone has already heard.
+     * Each search round uses a fresh random keyword; every pool is resolved
+     * lazily, so an earlier pool that fills the quota never triggers the
+     * later ones.
      *
      * @return array<int,callable():array<int,int>>
      */
@@ -976,8 +979,15 @@ class Netease
         } else {
             $pools[] = fn(): array => $this->recommend_playlist();
         }
-        $pools[] = static fn(): array => self::DAKA_CHART_PLAYLISTS;
         $pools[] = fn(): array => $this->get_search_playlist2();
+        $pools[] = static fn(): array => self::DAKA_CHART_PLAYLISTS;
+        // Deeper search rounds: each closure resolves to a new random-keyword
+        // search, consulted only when every pool above it ran out of fresh
+        // songs.
+        $searchRounds = max(1, min(5, (int)($this->config['daka_search_rounds'] ?? 2)));
+        for ($round = 1; $round < $searchRounds; $round++) {
+            $pools[] = fn(): array => $this->get_search_playlist2();
+        }
 
         return $pools;
     }
@@ -1018,11 +1028,12 @@ class Netease
     /**
      * Collect candidates for one batch.
      *
-     * `$exclude` only holds the songs already submitted today: a play has to
-     * be unique within the day to be counted, so songs used on earlier days
-     * stay eligible. Songs that were never reported before are still ranked
-     * first so the batch also satisfies a stricter lifetime-unique rule
-     * whenever fresh material is available.
+     * `$limit` is a fresh-song quota: NetEase only counts songs the account
+     * has never heard, so candidates are collected until that many unheard
+     * songs are found, digging into progressively deeper pools, and songs
+     * already in the per-account history (or in `$exclude`, submitted earlier
+     * today) are skipped entirely instead of padding the batch with plays
+     * that cannot count.
      *
      * @param array<int,true> $exclude
      * @return array<int,array{id:int,sourceId:int,time:int}>
@@ -1032,6 +1043,10 @@ class Netease
         $pools = $this->dakaPlaylistPools($source);
         $resolved = [];
         $songs = [];
+        // Lifetime-heard songs can never count again, so they are excluded
+        // during collection instead of only being ranked last: the quota is
+        // spent on songs that can actually add to today's tally.
+        $history = $this->dakaHistory();
         $floors = [$this->dakaMinimumSongSeconds()];
         $relaxed = 30;
         if ($relaxed < $floors[0]) {
@@ -1048,39 +1063,22 @@ class Netease
                         $resolved[$index] = [];
                     }
                 }
-                $this->appendPlaylistSongs($songs, $resolved[$index], $exclude, $limit, $minimumSeconds);
+                $this->appendPlaylistSongs($songs, $resolved[$index], $exclude, $history, $limit, $minimumSeconds);
                 if (count($songs) >= $limit) {
-                    return $this->orderDakaCandidates($songs);
+                    return $songs;
                 }
             }
         }
-        return $this->orderDakaCandidates($songs);
-    }
-
-    /**
-     * @param array<int,array{id:int,sourceId:int,time:int}> $songs
-     * @return array<int,array{id:int,sourceId:int,time:int}>
-     */
-    protected function orderDakaCandidates(array $songs): array
-    {
-        $history = $this->dakaHistory();
-        if ($history === [] || $songs === []) {
-            return $songs;
-        }
-        $fresh = [];
-        $repeat = [];
-        foreach ($songs as $id => $song) {
-            if (isset($history[(int)$id])) {
-                $repeat[$id] = $song;
-            } else {
-                $fresh[$id] = $song;
-            }
-        }
-        return $fresh + $repeat;
+        return $songs;
     }
 
     /**
      * Playlist tracks, fetched at most once per run.
+     *
+     * Official chart playlists are the same for every account on the platform,
+     * so their track lists are cached process-independently (6 hours): with
+     * N accounts per day the charts cost one upstream request each instead of
+     * N. The cache is best-effort — selection works without it.
      *
      * @return array<int,array{id:int,time:int}>
      */
@@ -1088,6 +1086,15 @@ class Netease
     {
         if (isset($this->dakaTrackCache[$playlistId])) {
             return $this->dakaTrackCache[$playlistId];
+        }
+        $sharedKey = in_array($playlistId, self::DAKA_CHART_PLAYLISTS, true)
+            ? 'daka_chart_tracks_' . $playlistId
+            : null;
+        if ($sharedKey !== null) {
+            $cached = $this->dakaSharedCacheGet($sharedKey);
+            if ($cached !== null) {
+                return $this->dakaTrackCache[$playlistId] = $cached;
+            }
         }
         try {
             $playlist = $this->playlist_detail($playlistId);
@@ -1106,7 +1113,33 @@ class Netease
             ];
         }
         shuffle($tracks);
+        if ($sharedKey !== null && $tracks !== []) {
+            $this->dakaSharedCacheSet($sharedKey, $tracks, 21600);
+        }
         return $this->dakaTrackCache[$playlistId] = $tracks;
+    }
+
+    /** Best-effort cross-account cache read; null when unavailable. */
+    protected function dakaSharedCacheGet(string $key): ?array
+    {
+        try {
+            $cached = \think\facade\Cache::get($key);
+        } catch (Throwable $exception) {
+            // No bootstrapped cache container (offline tests, bare CLI runs):
+            // behave as a cache miss.
+            return null;
+        }
+        return is_array($cached) ? $cached : null;
+    }
+
+    /** @param array<int,array{id:int,time:int>> $value */
+    protected function dakaSharedCacheSet(string $key, array $value, int $ttlSeconds): void
+    {
+        try {
+            \think\facade\Cache::set($key, $value, $ttlSeconds);
+        } catch (Throwable $exception) {
+            // Cache is an optimization; failures must not break selection.
+        }
     }
 
     protected function dakaMinimumSongSeconds(): int
@@ -1126,11 +1159,13 @@ class Netease
      * @param array<int,array{id:int,sourceId:int,time:int}> $songs
      * @param array<int,int> $playlists
      * @param array<int,true> $exclude
+     * @param array<int,true> $history
      */
     protected function appendPlaylistSongs(
         array &$songs,
         array $playlists,
         array $exclude,
+        array $history,
         int $limit,
         ?int $minimumSeconds = null
     ): void {
@@ -1147,7 +1182,10 @@ class Netease
             foreach ($this->dakaPlaylistTracks($playlistId) as $track) {
                 $id = (int)$track['id'];
                 $duration = (int)$track['time'];
-                if (isset($songs[$id]) || isset($exclude[$id]) || $duration < $minimumSeconds) {
+                if (isset($songs[$id])
+                    || isset($exclude[$id])
+                    || isset($history[$id])
+                    || $duration < $minimumSeconds) {
                     continue;
                 }
                 $songs[$id] = [
@@ -1163,8 +1201,15 @@ class Netease
     }
 
     /**
-     * Songs reported on earlier days. This is a ranking hint only; it must
-     * never exclude a candidate, otherwise the pool starves after a few days.
+     * Lifetime-reported songs. A play only counts towards the daily tally
+     * the first time this account plays it, so this set is the exclusion
+     * filter during candidate collection.
+     *
+     * On the first run the account's play-record charts (all-time + weekly)
+     * seed the set with the songs NetEase itself reports as already played,
+     * so songs heard before the tool existed are not treated as fresh. The
+     * seed marker persists next to the history file; a failing fetch leaves
+     * the marker unset and is retried on a later day.
      *
      * @return array<int,true>
      */
@@ -1172,6 +1217,9 @@ class Netease
     {
         if ($this->dakaHistoryCache === null) {
             $this->dakaHistoryCache = $this->loadDakaHistory();
+            if (!$this->dakaPlayRecordSeeded()) {
+                $this->seedDakaHistoryFromPlayRecord();
+            }
         }
         return $this->dakaHistoryCache;
     }
@@ -1195,6 +1243,74 @@ class Netease
             }
         }
         return $history;
+    }
+
+    protected function dakaPlayRecordSeeded(): bool
+    {
+        $path = $this->dakaPlayRecordSeedPath();
+        return $path === null || is_file($path);
+    }
+
+    /**
+     * Merge the account's play-record charts into the history set and mark
+     * the seed as done. Best-effort: a failing or empty record endpoint must
+     * not break the daka run — the seed simply retries on the next day.
+     */
+    protected function seedDakaHistoryFromPlayRecord(): void
+    {
+        $seededIds = [];
+        foreach ([0, 1] as $type) {
+            try {
+                $body = $this->decodeBody($this->requestApi('/api/v1/play/record', [
+                    'type' => $type,
+                    'limit' => 300,
+                    'offset' => 0,
+                ], 'weapi'));
+            } catch (Throwable $exception) {
+                $body = [];
+            }
+            foreach (is_array($body['list'] ?? null) ? $body['list'] : [] as $entry) {
+                $id = (int)($entry['songId'] ?? $entry['song']['id'] ?? 0);
+                if ($id > 0) {
+                    $seededIds[$id] = true;
+                }
+            }
+        }
+
+        $history = $this->dakaHistoryCache ?? $this->loadDakaHistory();
+        foreach (array_keys($seededIds) as $id) {
+            $history[(int)$id] = true;
+        }
+        $this->dakaHistoryCache = $history;
+        $this->rememberDakaHistoryIds(array_keys($history));
+
+        $marker = $this->dakaPlayRecordSeedPath();
+        if ($marker !== null) {
+            @file_put_contents($marker, date('c'), LOCK_EX);
+        }
+    }
+
+    /** Persist the history set without touching the cache. */
+    protected function rememberDakaHistoryIds(array $songIds): void
+    {
+        $path = $this->dakaHistoryPath();
+        if ($path === null) {
+            return;
+        }
+        @file_put_contents(
+            $path,
+            json_encode(array_map('intval', $songIds), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
+            LOCK_EX
+        );
+    }
+
+    protected function dakaPlayRecordSeedPath(): ?string
+    {
+        $historyPath = $this->dakaHistoryPath();
+        if ($historyPath === null) {
+            return null;
+        }
+        return substr($historyPath, 0, -5) . '.seeded';
     }
 
     protected function rememberDakaSongs(array $songIds): void
@@ -1268,7 +1384,7 @@ class Netease
         }
         $this->dakaHistoryCache = [];
         $this->dakaTrackCache = [];
-        foreach ([$path, substr($path, 0, -5) . '.daily.json'] as $file) {
+        foreach ([$path, substr($path, 0, -5) . '.daily.json', substr($path, 0, -5) . '.seeded'] as $file) {
             if (is_file($file)) {
                 @unlink($file);
             }
@@ -1608,17 +1724,6 @@ class Netease
             ]);
         }
 
-        // Diagnostic only: how much of this batch the account already reported
-        // on an earlier day. Comparing this against the measured increase tells
-        // an operator whether NetEase counts per day or per lifetime.
-        $history = $this->dakaHistory();
-        $repeatSubmitted = 0;
-        foreach ($songs as $song) {
-            if (isset($history[(int)$song['id']])) {
-                $repeatSubmitted++;
-            }
-        }
-
         $success = $this->weblogScrobbleBatch($songs);
         $submitted = count($songs);
         foreach ($songs as $song) {
@@ -1644,7 +1749,6 @@ class Netease
         $startAcceptedTotal += $this->lastScrobbleStarts;
         $playAcceptedTotal += $success;
         $reportedSecondsTotal += $this->lastScrobbleSeconds;
-        $repeatSubmittedTotal += $repeatSubmitted;
         $topupsUsedAfter = $dayAccepted > 0 ? $topupsUsed + 1 : $topupsUsed;
         // 累计听歌 lands asynchronously, so a run that reports nothing new is
         // only treated as stalled once the counter also failed to move.
@@ -1685,7 +1789,7 @@ class Netease
         $message = '进度 ' . $actualProgressAfter . '/' . $target
             . ' | 累计 ' . $listenSongs . '→' . $current . '(+' . $delta . ')'
             . ' | 批次 ' . $attemptsAfter . '/' . $maxBatches
-            . ' 上报 ' . $submitted . ' 复用 ' . $repeatSubmitted
+            . ' 上报 ' . $submitted
             . ' 起播 ' . $this->lastScrobbleStarts . '/' . $submitted
             . ' 听歌 ' . $success . '/' . $submitted;
         if ($this->lastScrobbleElapsedSeconds > 0) {
@@ -1729,7 +1833,7 @@ class Netease
             'daily_actual_progress' => $actualProgressAfter,
             'daily_remaining' => $remainingAfter,
             'daily_submitted_total' => $submittedTotal,
-            'repeat_submitted' => $repeatSubmitted,
+            'repeat_submitted' => 0,
             'repeat_submitted_total' => $repeatSubmittedTotal,
             'topups_used' => $topupsUsedAfter,
             'rejections' => $this->lastScrobbleRejections,

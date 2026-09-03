@@ -207,7 +207,7 @@ final class DakaLimitProbe extends Netease
      */
     public function appendPlaylistForTest(array &$songs, array $playlists, array $exclude, int $limit): void
     {
-        $this->appendPlaylistSongs($songs, $playlists, $exclude, $limit);
+        $this->appendPlaylistSongs($songs, $playlists, $exclude, [], $limit);
     }
 
     public function playlist_detail($playlist_id)
@@ -231,6 +231,11 @@ final class DailyDakaProbe extends Netease
 {
     public int $scrobbleCalls = 0;
     public int $listenSongs = 10;
+
+    // Offline probe: the play-record seed would hit the network.
+    protected function seedDakaHistoryFromPlayRecord(): void
+    {
+    }
     /** How many of a submitted batch NetEase actually counts. */
     public int $countedPerBatch = 0;
     /** @var array<int,array<int,int>> */

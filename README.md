@@ -14,7 +14,7 @@ LoopDeck 是基于 One Tool（2022）二次开发的一套开源云任务系统�
 - 更新器改为独立的定时容器：并行探测多个版本源和镜像代理，选择最高版本中的较快路线，校验镜像版本标签并在健康检查失败时自动回滚。后台仅展示状态，不再提供手动更新入口。
 - 网易云每日300首协议继续与 [NeteaseCloudMusicApiEnhanced/api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) 对齐。
 
-### v1.1.24（2026-09-04）
+## 网易云每日300首说明
 
 **网易云每日300首：终身未听硬过滤与有限自适应补批**
 

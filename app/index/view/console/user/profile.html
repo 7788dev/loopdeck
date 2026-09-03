@@ -20,27 +20,27 @@
                             </div>
                             <div class="col-lg-7 offset-lg-1">
                                 <div class="mb-4">
-                                    <label class="form-label">用户名</label>
+                                    <label class="form-label" for="username">用户名</label>
                                     <input class="form-control form-control-lg" id="username" name="username"
-                                           placeholder="Enter your username.." readonly=""
+                                           placeholder="用户名（不可修改）" readonly=""
                                            type="text" value="{:session('user.username')}">
                                 </div>
                                 <div class="mb-4">
-                                    <label class="form-label">昵称</label>
+                                    <label class="form-label" for="nickname">昵称</label>
                                     <input class="form-control form-control-lg" id="nickname" name="nickname"
-                                           placeholder="Enter your NICKNAME.." type="text"
+                                           placeholder="输入你的昵称" type="text"
                                            value="{:session('user.nickname')}">
                                 </div>
                                 <div class="mb-4">
-                                    <label class="form-label">QQ</label>
+                                    <label class="form-label" for="qq">QQ</label>
                                     <input class="form-control form-control-lg" id="qq" name="qq"
-                                           placeholder="Enter your QQ.." type="number"
+                                           placeholder="输入你的 QQ 号" type="number"
                                            value="{:session('user.qq')}">
                                 </div>
                                 <div class="mb-4">
-                                    <label class="form-label">邮箱</label>
+                                    <label class="form-label" for="mail">邮箱</label>
                                     <input class="form-control form-control-lg" id="mail" name="mail"
-                                           placeholder="Enter your mail.." type="email"
+                                           placeholder="输入你的邮箱" type="email"
                                            value="{:session('user.mail')}">
                                 </div>
                                 <div class="mb-4">
@@ -70,19 +70,19 @@
                             </div>
                             <div class="col-lg-7 offset-lg-1">
                                 <div class="mb-4">
-                                    <label class="form-label">当前密码</label>
+                                    <label class="form-label" for="outpass">当前密码</label>
                                     <input class="form-control form-control-lg" id="outpass" name="outpass"
-                                           type="text">
+                                           type="password" autocomplete="current-password">
                                 </div>
                                 <div class="mb-4">
-                                    <label class="form-label">新密码</label>
+                                    <label class="form-label" for="password">新密码</label>
                                     <input class="form-control form-control-lg" id="password" name="password"
-                                           type="text">
+                                           type="password" autocomplete="new-password">
                                 </div>
                                 <div class="mb-4">
-                                    <label class="form-label">确认新密码</label>
+                                    <label class="form-label" for="repass">确认新密码</label>
                                     <input class="form-control form-control-lg" id="repass" name="repass"
-                                           type="text">
+                                           type="password" autocomplete="new-password">
                                 </div>
                                 <div class="mb-4">
                                     <button class="btn btn-alt-primary" onclick="ajax_change_PassWord();" type="submit">
@@ -121,14 +121,14 @@
     }
 
     function ajax_change_PassWord() {
-        var outpass = x.getval('#outpass', '请输入旧登录密码!');
+        var outpass = x.getval('#outpass', '请输入当前密码！');
         if (!outpass) return;
-        var password = x.getval('#password', '请设置新的登录密码!');
+        var password = x.getval('#password', '请设置新的登录密码！');
         if (!password) return;
-        var repass = x.getval('#repass', '请再输入一次新密码!');
+        var repass = x.getval('#repass', '请再输入一次新密码！');
         if (!repass) return;
         if (password != repass) {
-            x.notify("两次新密码输入不一致!", 'warning');
+            x.notify("两次输入的新密码不一致！", 'warning');
             return false;
         }
         x.ajax('/index/ajax/user/passWord', {

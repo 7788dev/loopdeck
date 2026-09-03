@@ -265,16 +265,23 @@ ALTER TABLE `cloud_jobs`
     ADD KEY `idx_jobs_lookup` (`type`(32),`user_id`(128),`do`(64),`state`);
 
 ALTER TABLE `cloud_kms`
-    ADD PRIMARY KEY (`id`);
+    ADD PRIMARY KEY (`id`),
+    ADD KEY `idx_kms_redeem` (`km`(64),`zid`,`useid`),
+    ADD KEY `idx_kms_site` (`zid`,`useid`,`id`);
 
 ALTER TABLE `cloud_notice`
-    ADD PRIMARY KEY (`id`) USING BTREE;
+    ADD PRIMARY KEY (`id`) USING BTREE,
+    ADD KEY `idx_notice_site` (`zid`,`type`,`sort`,`addtime`);
 
 ALTER TABLE `cloud_order`
-    ADD PRIMARY KEY (`trade_no`);
+    ADD PRIMARY KEY (`trade_no`),
+    ADD KEY `idx_order_site` (`zid`,`time`),
+    ADD KEY `idx_order_uid` (`uid`,`orderid`);
 
 ALTER TABLE `cloud_pays`
-    ADD PRIMARY KEY (`id`);
+    ADD PRIMARY KEY (`id`),
+    ADD KEY `idx_pays_order` (`orderid`),
+    ADD KEY `idx_pays_uid` (`uid`,`status`);
 
 ALTER TABLE `cloud_tasks`
     ADD PRIMARY KEY (`id`),

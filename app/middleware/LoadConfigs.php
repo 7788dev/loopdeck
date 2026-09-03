@@ -2,6 +2,7 @@
 
 namespace app\middleware;
 
+use think\facade\Cache;
 use think\facade\Config;
 use think\facade\Db;
 
@@ -30,13 +31,11 @@ class LoadConfigs
             $host = '127.0.0.1:8000';
         }
 
-        $site = Db::name('weblist')
-            ->where('domain', '=', $host)
-            ->whereOr('domain2', '=', $host)
-            ->find();
-        if (!$site) {
-            $site = Db::name('weblist')->where('web_id', '=', 1)->find();
-        }
+        // weblist + configs 原来是每请求 2-3 条 SQL 且无缓存。两条记录合并为
+        // 一个缓存条目（60 秒），后台保存站点信息/配置时调用
+        // LoadConfigs::invalidate() 失效。键按 host/ web_id 分别缓存，避免
+        // domain/domain2 两个 host 名互相污染。
+        $site = $this->loadSite($host);
         if (!$site) {
             throw new \RuntimeException('缺少本地站点配置，请重新执行安装程序。');
         }
@@ -65,13 +64,58 @@ class LoadConfigs
             );
         }
 
-        $settings = [];
-        foreach (Db::table((string)$site['prefix'] . 'configs')->select() as $row) {
-            $settings[(string)$row['k']] = $row['v'];
-        }
+        $settings = $this->loadSettings((int)$site['web_id'], (string)$site['prefix']);
         Config::set($settings, 'sys');
         Config::set($site, 'web');
 
         return $next($request);
+    }
+
+    /** @return array<string,mixed>|null */
+    private function loadSite(string $host): ?array
+    {
+        $cached = Cache::get('site_row_' . md5($host));
+        if (is_array($cached)) {
+            // 缓存可能早于一次站点删除/改名，行还在 weblist 表里才可用
+            return $cached;
+        }
+
+        $site = Db::name('weblist')
+            ->where('domain', '=', $host)
+            ->whereOr('domain2', '=', $host)
+            ->find();
+        if (!$site) {
+            $site = Db::name('weblist')->where('web_id', '=', 1)->find();
+        }
+        if ($site) {
+            Cache::tag('site_rows')->set('site_row_' . md5($host), $site, 60);
+        }
+        return $site ?: null;
+    }
+
+    /** @return array<string,mixed> */
+    private function loadSettings(int $webId, string $prefix): array
+    {
+        $cached = Cache::get('site_settings_' . $webId);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $settings = [];
+        foreach (Db::table($prefix . 'configs')->select() as $row) {
+            $settings[(string)$row['k']] = $row['v'];
+        }
+        Cache::tag('site_settings')->set('site_settings_' . $webId, $settings, 60);
+        return $settings;
+    }
+
+    /**
+     * Drop the cached site rows and settings so the next request re-reads
+     * them. Called after an administrator edits site info or config values.
+     */
+    public static function invalidate(): void
+    {
+        Cache::tag('site_rows')->clear();
+        Cache::tag('site_settings')->clear();
     }
 }

@@ -111,7 +111,7 @@ function formartAgent(data) {
     } else if (data == 3) {
         return "钻石代理";
     } else {
-        return "不是代理";
+        return "普通用户";
     }
 }
 
@@ -140,7 +140,7 @@ function ajax_del_user(id) {
     x.del('/admin/ajax/data/delete/user', {id: id}, function (data) {
         if (data.code == 1) {
             var table = $('#usersList').DataTable();
-            table.ajax.reload();;
+            table.ajax.reload();
             x.notify(data.message, 'success');
         } else {
             x.notify(data.message, 'warning');
@@ -157,13 +157,13 @@ function ajax_edit_user(id)
         closeBtn: 0,
         shadeClose: true,
         zIndex: 10000,
-        content: '<form id="info-form"><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="uid" name="uid"  placeholder="." / disabled><label class="form-label" for="uid">UID</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="username" name="username" placeholder="." / disabled><label class="form-label" for="username">用户名称</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><input type="text" class="form-control" id="password" name="password" placeholder="."><label class="form-label" for="password">用户密码(不修改则留空)</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="qq" name="qq" placeholder="." /><label class="form-label" for="qq">绑定QQ</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="mail" name="mail" placeholder="." /><label class="form-label" for="mail">绑定邮箱</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="money" name="money" placeholder="." /><label class="form-label" for="more">账号余额</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="quota" name="quota" placeholder="." /><label class="form-label" for="more">账号配额</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_start" name="vip_start" placeholder="." / readonly="readonly"><label class="form-label" for="vip_start">会员开始</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_end" name="vip_end" placeholder="." / readonly="readonly"><label class="form-label" for="vip_end">会员结束</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><select class="form-select" id="agent" name="agent" aria-label="代理"  default="0"><option value="0"> 不开通</option><option value="1"> 银牌代理</option><option value="2"> 金牌代理</option><option value="3"> 钻石代理</option></select><label class="form-label" for="agent">账号代理</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><select class="form-select" id="state" name="state" aria-label="状态"><option value="0">封禁</option><option value="1">激活</option></select><label class="form-label" for="state">账号状态</label></div></div></div></form>',
+        content: '<form id="info-form"><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="uid" name="uid"  placeholder="." disabled><label class="form-label" for="uid">UID</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="username" name="username" placeholder="." disabled><label class="form-label" for="username">用户名称</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><input type="password" class="form-control" id="password" name="password" placeholder="." autocomplete="new-password"><label class="form-label" for="password">用户密码(不修改则留空)</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="qq" name="qq" placeholder="." /><label class="form-label" for="qq">绑定QQ</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="mail" name="mail" placeholder="." /><label class="form-label" for="mail">绑定邮箱</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="money" name="money" placeholder="." /><label class="form-label" for="money">账号余额</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="quota" name="quota" placeholder="." /><label class="form-label" for="quota">账号配额</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_start" name="vip_start" placeholder="." readonly="readonly"><label class="form-label" for="vip_start">会员开始</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_end" name="vip_end" placeholder="." readonly="readonly"><label class="form-label" for="vip_end">会员结束</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><select class="form-select" id="agent" name="agent" aria-label="代理"  default="0"><option value="0"> 不开通</option><option value="1"> 银牌代理</option><option value="2"> 金牌代理</option><option value="3"> 钻石代理</option></select><label class="form-label" for="agent">账号代理</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><select class="form-select" id="state" name="state" aria-label="状态"><option value="0">封禁</option><option value="1">激活</option></select><label class="form-label" for="state">账号状态</label></div></div></div></form>',
         success: function (res, index) {
             x.ajax('/admin/ajax/data/info/user', {id: id}, function (data) {
                 var data = JSON.parse(data);
                 $("#uid").val(data.uid);
                 $("#username").val(data.username);
-                $("#password").val();
+                $("#password").val("");
                 $("#qq").val(data.qq);
                 $("#mail").val(data.mail);
                 $("#money").val(data.money);

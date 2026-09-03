@@ -309,9 +309,87 @@ class Console
                 if ($account) {
                     Jobs::refreshJob('netease', $user_id);
                 }
-                return view("console/netease/info", ["data" => $account]);
+                return $this->neteaseInfo($account);
                 break;
         }
+    }
+
+    /**
+     * 组装网易云账号详情页数据。原先模板里 {php} 块会实例化模型、在 foreach
+     * 内逐条 getJobInfo（N+1）并同步调用上游 getMusicUserInfo（30s 超时会拖住
+     * 整页），这里统一移到控制器：一次 select 建 job 映射，上游信息失败时页面
+     * 降级展示而不阻塞。
+     */
+    private function neteaseInfo($account)
+    {
+        if (!$account) {
+            return view("common/alert", ["msg" => "账号不存在或无权查看", "url" => "/index/console/netease/list"]);
+        }
+
+        $a_data = safe_unserialize_array((string)$account['data']);
+        $userId = trim((string)($a_data['user_id'] ?? $account['user_id'] ?? ''));
+        $timing = (string)($account['timing'] ?? '');
+
+        $details = [
+            'listenSongs' => 0,
+            'level_now' => 0,
+            'level_next' => 1,
+            'loginnum' => 0,
+            'listennum' => 0,
+        ];
+        $signature = '';
+        if ($userId !== '' && (string)($a_data['csrf'] ?? '') !== '' && (string)($a_data['musicu'] ?? '') !== '') {
+            try {
+                $netease = new \netease\Netease($userId, (string)$a_data['csrf'], (string)$a_data['musicu']);
+                $info = $netease->getMusicUserInfo();
+                if (is_array($info)) {
+                    $details = [
+                        'listenSongs' => (int)($info['listenSongs'] ?? 0),
+                        'level_now' => (int)($info['level'] ?? 0),
+                        'level_next' => ((int)($info['level'] ?? 0)) + 1,
+                        'loginnum' => max(0, (int)($info['nextLoginCount'] ?? 0) - (int)($info['nowLoginCount'] ?? 0)),
+                        'listennum' => max(0, (int)($info['nextPlayCount'] ?? 0) - (int)($info['nowPlayCount'] ?? 0)),
+                    ];
+                    $signature = (string)($info['profile']['signature'] ?? '');
+                }
+            } catch (Throwable $exception) {
+                // 上游不可达时等级信息留空展示
+            }
+        }
+
+        // 一次 select 建 job 映射，替代模板内每任务一条 getJobInfo
+        $jobsByTask = [];
+        foreach (Jobs::where('type', 'netease')->where('user_id', $userId)->where('uid', (int)$account['uid'])->select() as $job) {
+            $jobsByTask[(string)$job['do']] = $job;
+        }
+        $taskRows = [];
+        foreach (Tasks::getTaskList('netease') as $task) {
+            $job = $jobsByTask[(string)$task['execute_name']] ?? null;
+            $config = $job && $job['data'] ? json_encode(safe_unserialize_array((string)$job['data'])) : '[]';
+            $taskRows[] = [
+                'icon' => (string)$task['icon'],
+                'name' => (string)$task['name'],
+                'describe' => (string)$task['describe'],
+                'more' => !empty($task['more']),
+                'execute_name' => (string)$task['execute_name'],
+                'config' => $config ?: '[]',
+                'last_execute' => $job ? (string)($job['lastExecute'] ?? '') : '',
+                'job_state' => $job ? (int)$job['state'] : 0,
+            ];
+        }
+
+        return view("console/netease/info", [
+            "data" => $account,
+            "a_data" => [
+                'user_id' => $userId,
+                'avatar' => (string)($a_data['avatar'] ?? ''),
+                'nickname' => (string)($a_data['nickname'] ?? ''),
+            ],
+            "timing" => $timing,
+            "details" => $details,
+            "signature" => $signature,
+            "task_rows" => $taskRows,
+        ]);
     }
 
     private function neteaseToolAccounts(): array
@@ -359,9 +437,52 @@ class Console
                 return view("console/heybox/list", ["list" => Accounts::getMyList("heybox")]);
                 break;
             case "info" :
-                return view("console/heybox/info", ["data" => Accounts::findByUserId('heybox', $uid)]);
+                return $this->heyboxInfo($uid);
                 break;
         }
+    }
+
+    /**
+     * 组装小黑盒账号详情页数据：任务/任务状态一次查询映射（替代模板内
+     * 循环逐条 getJobInfo），lastExecute 空值时展示"尚未执行"而非 1970。
+     */
+    private function heyboxInfo($uid)
+    {
+        $account = Accounts::findByUserId('heybox', $uid);
+        if (!$account) {
+            return view("common/alert", ["msg" => "账号不存在或无权查看", "url" => "/index/console/heybox/list"]);
+        }
+        Jobs::refreshJob('heybox', $uid);
+
+        $a_data = safe_unserialize_array((string)$account['data']);
+        $jobsByTask = [];
+        foreach (Jobs::where('type', 'heybox')->where('user_id', $uid)->where('uid', (int)$account['uid'])->select() as $job) {
+            $jobsByTask[(string)$job['do']] = $job;
+        }
+        $taskRows = [];
+        foreach (Tasks::getTaskList('heybox') as $task) {
+            $job = $jobsByTask[(string)$task['execute_name']] ?? null;
+            $config = $job && $job['data'] ? json_encode(safe_unserialize_array((string)$job['data'])) : '[]';
+            $taskRows[] = [
+                'icon' => (string)$task['icon'],
+                'name' => (string)$task['name'],
+                'describe' => (string)$task['describe'],
+                'more' => !empty($task['more']),
+                'execute_name' => (string)$task['execute_name'],
+                'config' => $config ?: '[]',
+                'last_execute' => $job ? (string)($job['lastExecute'] ?? '') : '',
+                'job_state' => $job ? (int)$job['state'] : 0,
+            ];
+        }
+
+        return view("console/heybox/info", [
+            "data" => $account,
+            "a_data" => [
+                'avatar' => (string)($a_data['avatar'] ?? ''),
+                'nickname' => (string)($a_data['displayname'] ?? ('小黑盒用户 ' . $uid)),
+            ],
+            "task_rows" => $taskRows,
+        ]);
     }
 
     public function epic($act = "")

@@ -55,7 +55,9 @@ class Login extends Common
     {
         $token = input('get.token');
         $mail = input('get.mail');
-        if (!$token || strlen($token) !== 32 || !$mail) {
+        // Users::findPass 生成的是 48 位 hex（random_bytes(24)），旧校验 32 位导致
+        // 邮件里的链接永远打不开重置页。
+        if (!$token || strlen((string)$token) !== 48 || !$mail) {
             View::assign([
                 'msg' => '参数错误',
                 'url' => url('index')
@@ -63,7 +65,7 @@ class Login extends Common
             return View::fetch('/common/alert');
         } else {
             $user = Users::where('mail', '=', $mail)->find();
-            if ($user['sid'] != $token) {
+            if (!$user || !hash_equals((string)$user['sid'], (string)$token)) {
                 View::assign([
                     'msg' => '令牌效验失败，请返回重试！',
                     'url' => url('login/find')

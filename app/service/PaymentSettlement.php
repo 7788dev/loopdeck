@@ -134,7 +134,13 @@ final class PaymentSettlement
                 break;
 
             case 'agent':
-                Users::where('uid', '=', $uid)->update(['agent' => (int)$order['shopid']]);
+                // Only the three defined agent levels may ever be written here;
+                // shopid comes from the order row, which is bound at checkout.
+                $level = (int)$order['shopid'];
+                if (!in_array($level, [1, 2, 3], true)) {
+                    throw new \RuntimeException('order carries an undefined agent level');
+                }
+                Users::where('uid', '=', $uid)->update(['agent' => $level]);
                 break;
 
             case 'money':
@@ -249,10 +255,11 @@ final class PaymentSettlement
      */
     private static function amountMatches($callbackAmount, $orderAmount): bool
     {
-        if ($callbackAmount === null || $callbackAmount === '') {
-            // Older gateways omit the amount on the return leg; the order is
-            // still authoritative for what gets granted.
-            return true;
+        // The order amount is what gets granted; a callback that does not even
+        // state an amount can no longer be accepted, because "absent" and
+        // "different" are indistinguishable and the order is the only anchor.
+        if ($callbackAmount === null || $callbackAmount === '' || !is_numeric($callbackAmount)) {
+            return false;
         }
         return abs((float)$callbackAmount - (float)$orderAmount) < 0.005;
     }

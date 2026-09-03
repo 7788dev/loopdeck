@@ -140,7 +140,14 @@ foreach (['mid_md5', 'token', 'csrf', 'access_key'] as $credential) {
         'generic task URL exposes ' . $credential
     );
 }
-biliExecutorCheck(str_contains((string)$cronSource, "Request::get('user_id'"), 'cron executor does not use user_id');
+// 调度器已改为进程内执行：任务不再通过 HTTP 自调用派发，RUN_KEY 与
+// 账号参数都不应出现在 URL 构造里；user_id 一律来自 jobs 表。
+biliExecutorCheck(!str_contains((string)$cronSource, 'getExecuteUrl'), 'cron controller still dispatches over HTTP');
+biliExecutorCheck(
+    !preg_match('/cron\/bilibili\//', (string)$cronSource),
+    'cron controller still builds self-call URLs'
+);
+biliExecutorCheck(str_contains((string)$cronSource, 'runJob'), 'cron scheduler does not run jobs in-process');
 biliExecutorCheck(
     substr_count((string)$jobsSource, 'BilibiliTaskExecutor::offlineReason') >= 3,
     'job creation or account refresh can re-enable an offline Bilibili task'

@@ -6,7 +6,7 @@
 </script>
 {else /}
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="utf-8">
     <meta name="referrer" content="no-referrer">
@@ -20,6 +20,7 @@
     <link href="/static/css/nprogress.min.css" rel="stylesheet">
     <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
     <link id="css-theme" rel="stylesheet" href="/static/css/themes/elegance.min-5.0.css">
+    <link href="/static/tubiao/fontawesome-free-5.15.4-web/css/all.min.css" rel="stylesheet">
 </head>
 <body>
 <div id="page-container" class="sidebar-o side-scroll page-header-fixed main-content-boxed remember-theme">
@@ -37,14 +38,12 @@
                     <a href="https://beian.miit.gov.cn/" target="_blank" class="text-muted fw-semibold">{:config('web.icp')}</a>
                 </div>
                 <div class="col-sm-6 order-sm-1 py-1 text-center text-sm-start">
-                    &copy; <span data-toggle="year-copy"></span>   <a class="fw-semibold" href="#" target="_blank">{:config('web.webname')}</a>
+                    &copy; <span data-toggle="year-copy"></span>   <span class="fw-semibold">{:config('web.webname')}</span>
                 </div>
             </div>
         </div>
     </footer>
 </div>
-</body>
-</html>
 <script src="/static/js/codebase.app.min-5.0.js"></script>
 <script src="/static/js/lib/jquery.min.js"></script>
 <script src="/static/js/jquery.pjax.js"></script>
@@ -54,7 +53,8 @@
 <script src="/static/js/clipboard.min.js"></script>
 <script src="/static/js/app.min.js"></script>
 <script src="/static/js/layer.js"></script>
-<script src="/static/js/gt.js"></script>
+</body>
+</html>
 <script>
     function clearLogs()
     {
@@ -65,8 +65,8 @@
             closeBtn: 0,
             shadeClose: true,
             zIndex: '1000',
-            area: ['20%'],//设置相对于父页面的大小
-            content: '<div class="form-floating"><input type="number"class="form-control"id="limit"name="limit"placeholder="清理数量"value="50"><label class="form-label"for="limit">清理数量</label></div>',
+            area: '320px',
+            content: '<div class="form-floating"><input type="number" class="form-control" id="limit" name="limit" placeholder="清理数量" value="50"><label class="form-label" for="limit">清理数量</label></div>',
             yes: function (index, dom) {
                 layer.close(index);
                 var loading = layer.load(2);

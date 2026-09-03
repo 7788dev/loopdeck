@@ -65,16 +65,32 @@ class Pays extends Model
         if (!in_array((string)($data['shop'] ?? ''), ['vip', 'quota', 'agent', 'money', 'site'], true)) {
             return resultJson(0, '未知的商品类型');
         }
+        // 商品白名单：未知 shopid 走不到对应分支的价格配置，必须直接拒绝。
+        // money 类型的 shopid 是充值金额（可为小数），由分支内自行校验。
+        if ($data['shop'] !== 'money'
+            && (!ctype_digit((string)$data['shopid']))) {
+            return resultJson(0, '商品不存在');
+        }
         switch ($data['shop']) {
             case 'vip':
+                if (is_Vip_Day($data['shopid']) <= 0) {
+                    return resultJson(0, '商品不存在');
+                }
                 $name = is_Vip_Month($data['shopid']) . '杯快乐水';
                 $res_money = config('sys.' . $data['shop'] . '_price_' . $data['shopid']); //计算价格
                 break;
             case 'quota':
+                if (is_Quota_Num($data['shopid']) <= 0) {
+                    return resultJson(0, '商品不存在');
+                }
                 $name = is_Quota_Num($data['shopid']) . '份快乐';
                 $res_money = config('sys.' . $data['shop'] . '_price_' . $data['shopid']); //计算价格
                 break;
             case 'agent':
+                // agent 等级只有 1-3；越界的 shopid 会在结算时被直接写入 users.agent
+                if (!in_array((int)$data['shopid'], [1, 2, 3], true)) {
+                    return resultJson(0, '商品不存在');
+                }
                 $name = '快乐' . is_Agent_Name($data['shopid']);
                 $res_money = config('sys.' . $data['shop'] . '_price_' . $data['shopid']); //计算价格
                 break;
@@ -86,6 +102,9 @@ class Pays extends Model
                 $name = $res_money . '元';
                 break;
             case 'site':
+                if (is_Site_Day($data['shopid']) <= 0) {
+                    return resultJson(0, '商品不存在');
+                }
                 $siteUrl = strtolower(trim((string)$data['prefix']) . '.' . trim((string)$data['domain']));
                 // The callback provisions the sub-site from this value, so it
                 // has to be a plain host name and nothing else.
@@ -93,7 +112,12 @@ class Pays extends Model
                     || preg_match('/\A[a-z0-9]([a-z0-9.-]*[a-z0-9])?\z/', $siteUrl) !== 1) {
                     return resultJson(0, '分站域名格式不正确');
                 }
-                $name = $data['webname'] . "（{$siteUrl}）";
+                // webname 会进入支付网关的订单名和 HTML 表单，控制长度与可见字符
+                $webname = trim(strip_tags((string)($data['webname'] ?? '')));
+                if ($webname === '' || mb_strlen($webname) > 40) {
+                    return resultJson(0, '分站名称长度应为 1 到 40 个字符');
+                }
+                $name = $webname . "（{$siteUrl}）";
                 if ($siteUrl == $_SERVER['HTTP_HOST']) {
                     return resultJson(0,'分站域名不能和主站相同');
                 } elseif (Weblist::where('user_id', '=', Session::get('user.uid'))->field('web_id')->find()){
@@ -104,6 +128,12 @@ class Pays extends Model
                 $pay_data = json_encode(['siteUrl' => $siteUrl]);
                 $res_money = config('sys.' . $data['shop'] . '_price_' . $data['shopid']);
                 break;
+        }
+        // An unknown or unpriced product would create an order whose settlement
+        // grants whatever shopid says while the gateway collects 0 (or null).
+        // Reject instead: the product must be defined and carry a positive price.
+        if ($data['shop'] !== 'money' && (!is_numeric($res_money) || (float)$res_money <= 0)) {
+            return resultJson(0, '商品不存在或价格未配置');
         }
         $insert = [
             'uid' => Session::get('user.uid'),

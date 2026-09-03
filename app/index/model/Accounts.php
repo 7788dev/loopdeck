@@ -122,15 +122,14 @@ class Accounts extends Model
     public static function getMyAccountNum()
     {
         $self = new static();
-        $result = $self->where('uid', '=', Session::get('user.uid'))->select()->count('id');
-        return $result;
+        // count() 生成 COUNT(*)，不把含登录凭据的 data 大字段整行拉回 PHP
+        return $self->where('uid', '=', Session::get('user.uid'))->count('id');
     }
 
     public static function accountCount()
     {
         $self = new static();
-        $result = $self->where('zid', '=', WEB_ID)->select()->count('id');
-        return $result;
+        return $self->where('zid', '=', WEB_ID)->count('id');
     }
     
     public static function delById($type, $id)

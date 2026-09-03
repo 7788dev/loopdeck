@@ -18,7 +18,7 @@
     <div class="col-4 col-md-4 col-xl-2">
         <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/shop/vip')}">
             <div class="block-content ribbon ribbon-bookmark ribbon-danger ribbon-left">
-                <div class="ribbon-box opacity-75">Hot !</div>
+                <div class="ribbon-box opacity-75">热门</div>
                 <p class="my-3">
                     <i class="fa fa-chess-queen fa-2x"></i>
                 </p>
@@ -61,7 +61,7 @@
         <a class="block block-rounded block-link-shadow text-center" href="{$loca}">
             <div class="block-content">
                 <p class="my-3">
-                    <i class="fab fa-github-alt fa-2x"></i>
+                    <i class="fa fa-headset fa-2x"></i>
                 </p>
                 <p class="fw-semibold fs-sm">联系客服</p>
             </div>
@@ -102,7 +102,7 @@
                         <div class="block-content text-center">
                             <i class="si si-disc fa-2x"></i><br>
                             <p class="text-muted fs-sm">
-                                暂时还没有公告哦
+                                暂无公告
                             </p>
                         </div>
                     </div>
@@ -130,7 +130,7 @@
         <a class="block block-rounded block-link-shadow text-center h-100 mb-0" href="#">
             <div class="block-content bg-gd-dusk">
                 <div class="push">
-                    <img class="img-avatar img-avatar-thumb" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100" alt="">
+                    <img class="img-avatar img-avatar-thumb" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100" alt="用户头像">
                 </div>
                 <div class="pull-x pull-b py-2 bg-black-25">
                     <div class="fw-semibold mb-1 text-white">
@@ -142,7 +142,7 @@
                     {else /}
                     <div class="fs-sm text-white-75">普通用户</div>
                     {/if}
-                    <div class="fs-sm text-white-75">共有 {:session('user.quota')} 个配额 | 已使用 ： {$quota_used} 个</div>
+                    <div class="fs-sm text-white-75">共 {:session('user.quota')} 个配额，已使用 {$quota_used} 个</div>
                 </div>
             </div>
             <div class="block-content">
@@ -162,7 +162,7 @@
 </div>
 <div class="row g-sm mt-2">
     <div class="col-6 col-xl-3">
-        <a class="block block-rounded block-link-pop text-end" href="javascript:void(0)">
+        <div class="block block-rounded text-end">
             <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
                 <div class="d-none d-sm-block">
                     <i class="si si-bar-chart fa-2x text-primary-light"></i>
@@ -172,10 +172,10 @@
                     <div class="fs-sm fw-semibold text-uppercase text-muted">用户数量</div>
                 </div>
             </div>
-        </a>
+        </div>
     </div>
     <div class="col-6 col-xl-3">
-        <a class="block block-rounded block-link-pop text-end" href="javascript:void(0)">
+        <div class="block block-rounded text-end">
             <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
                 <div class="d-none d-sm-block">
                     <i class="si si-trophy fa-2x text-earth-light"></i>
@@ -185,10 +185,10 @@
                     <div class="fs-sm fw-semibold text-uppercase text-muted">托管账号</div>
                 </div>
             </div>
-        </a>
+        </div>
     </div>
     <div class="col-6 col-xl-3">
-        <a class="block block-rounded block-link-pop text-end" href="javascript:void(0)">
+        <div class="block block-rounded text-end">
             <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
                 <div class="d-none d-sm-block">
                     <i class="si si-bar-chart fa-2x text-elegance-light"></i>
@@ -198,10 +198,10 @@
                     <div class="fs-sm fw-semibold text-uppercase text-muted">添加任务</div>
                 </div>
             </div>
-        </a>
+        </div>
     </div>
     <div class="col-6 col-xl-3">
-        <a class="block block-rounded block-link-pop text-end" href="javascript:void(0)">
+        <div class="block block-rounded text-end">
             <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
                 <div class="d-none d-sm-block">
                     <i class="si si-fire fa-2x text-corporate-light"></i>
@@ -211,7 +211,7 @@
                     <div class="fs-sm fw-semibold text-uppercase text-muted">运行次数</div>
                 </div>
             </div>
-        </a>
+        </div>
     </div>
 </div>
 {/block}
@@ -236,7 +236,7 @@
                 clearInterval(this.timer);
             }
             ,btn: ['确定', '不再显示']
-            ,area: ['30%', '30%']
+            ,area: ['420px', 'auto']
             ,btn2: function () {
                 setCookie('alert_msg', 0)
             }

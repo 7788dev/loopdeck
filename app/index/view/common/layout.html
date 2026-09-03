@@ -16,9 +16,9 @@
     <meta content="{:config('web.keywords')}" name="keywords">
     <meta content="{:config('web.description')}" name="description">
     <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
-    
+
     <link href="/static/tubiao/fontawesome-free-5.15.4-web/css/all.min.css" rel="stylesheet">
-    
+
     <link href="/static/js/plugins/datatables-bs5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
     <link href="/static/js/plugins/datatables-responsive-bs5/css/responsive.bootstrap5.min.css" rel="stylesheet">
     <link href="/static/css/nprogress.min.css" rel="stylesheet">
@@ -26,6 +26,14 @@
     <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
     <link id="css-theme" rel="stylesheet" href="/static/css/themes/elegance.min-5.0.css">
     <link href="/static/css/loopdeck.css" rel="stylesheet">
+    <style>
+        #page-header {
+            position: relative;
+            background-image: url('/static/template/bg/1.png');
+            background-position: center right;
+            background-size: auto 100%;
+        }
+    </style>
 </head>
 <body>
 <div id="page-container" class="sidebar-o enable-page-overlay side-scroll page-header-fixed main-content-boxed remember-theme">
@@ -42,41 +50,12 @@
                     <a href="https://beian.miit.gov.cn/" target="_blank" class="text-muted fw-semibold">{:config('web.icp')}</a>
                 </div>
                 <div class="col-sm-6 order-sm-1 py-1 text-center text-sm-start">
-                    &copy; <span data-toggle="year-copy"></span>   <a class="fw-semibold" href="#" target="_blank">{:config('web.webname')}</a>
+                    &copy; <span data-toggle="year-copy"></span> <span class="fw-semibold">{:config('web.webname')}</span>
                 </div>
             </div>
         </div>
     </footer>
 </div>
-<style>
-
-        <!-- body { -->
-            <!-- background-image: url('/static/template/bg/3.png'); -->
-            <!-- background-position-x: center; -->
-            <!-- background-position-y: center; -->
-            <!-- background-repeat: no-repeat; -->
-            <!-- background-attachment: fixed; -->
-            <!-- background-size: cover; -->
-        <!-- } -->
-
-        #page-header {
-            position:relative;
-            background-image:url('/static/template/bg/1.png');
-            background-position:center right;
-            background-size:auto 100%;
-        }
-
-       <!-- #sidebar { -->
-    <!-- opacity: 1; -->
-    <!-- width: 295px; /* 侧边宽度 */ -->
-       <!-- } -->
-
-    </style>
-</head>
-
-</body>
-</html>
-
 <script src="/static/js/codebase.app.min-5.0.js"></script>
 <script src="/static/js/lib/jquery.min.js"></script>
 <script src="/static/js/jquery.pjax.js"></script>
@@ -85,8 +64,9 @@
 <script src="/static/js/nprogress.min.js"></script>
 <script src="/static/js/jquery.slimscroll.min.js"></script>
 <script src="/static/js/clipboard.min.js"></script>
-<script src="/static/js/app.min.js"></script>
+<script src="/static/js/app.min.js?v={:app_version()}"></script>
 <script src="/static/js/layer.js"></script>
-<script src="/static/js/gt.js"></script>
 {block name="foot"}{/block}
+</body>
+</html>
 {/if}

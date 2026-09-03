@@ -119,7 +119,7 @@ class Tasks extends Model
     public static function taskCount()
     {
         $self = new static();
-        return $self->select()->count('id');
+        return $self->count('id');
     }
 
     public static function checkTaskPower($name, $type = '')

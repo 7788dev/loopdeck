@@ -10,3 +10,8 @@
     font-weight: 400;
     letter-spacing: 0;
 }
+
+/* 侧栏 VIP 分组标题：原模板用 Unicode 数学粗斜体字符与内联颜色，部分平台显示豆腐块 */
+.nav-vip-heading {
+    color: #70DB93;
+}

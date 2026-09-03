@@ -84,12 +84,12 @@
         </a>
     </div>
 </div>
-<div class="content-content p-2" id="payment-selector" style="display: none">
+<div class="block-content p-2" id="payment-selector" style="display: none">
     <div class="text-center fw-semibold fs-sm">请选择支付方式</div>
     <div class="btn-group btn-group-sm my-2" role="group">
         {if condition="config('sys.is_qqpay')"}
         <input type="radio" class="btn-check" name="qqpay" id="qqpay" onclick="ajax_shop_agent('qqpay');">
-        <label class="btn btn-alt-info" for="qqpay">QQ支付</label>
+        <label class="btn btn-alt-info" for="qqpay">QQ 钱包</label>
         {/if}
         {if condition="config('sys.is_wxpay')"}
         <input type="radio" class="btn-check" name="wxpay" id="wxpay" onclick="ajax_shop_agent('wxpay');">
@@ -97,7 +97,7 @@
         {/if}
         {if condition="config('sys.is_alipay')"}
         <input type="radio" class="btn-check" name="alipay" id="alipay" onclick="ajax_shop_agent('alipay');">
-        <label class="btn btn-alt-info" for="alipay">支付宝支付</label>
+        <label class="btn btn-alt-info" for="alipay">支付宝</label>
         {/if}
     </div>
     <input type="hidden" id="shopid">

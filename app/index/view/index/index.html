@@ -1,5 +1,5 @@
 <!Doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width,initial-scale=1.0" name="viewport">
@@ -21,7 +21,7 @@
                     <span class="smini-visible fw-bold tracking-wide fs-lg">
                       o<span class="text-primary">t</span>
                     </span>
-                    <a class="link-fx fw-bold tracking-wide mx-auto" href="index.html">
+                    <a class="link-fx fw-bold tracking-wide mx-auto" href="{:url('index/index')}">
                       <span class="smini-hidden">
                         <i class="fa fa-fire text-primary"></i>
                         <span class="fs-4 text-dual">{:config('web.webname')}</span>
@@ -39,7 +39,7 @@
                 <div class="content-side content-side-full">
                     <ul class="nav-main">
                         <li class="nav-main-item">
-                            <a class="nav-main-link active" href="index.html">
+                            <a class="nav-main-link active" href="{:url('index/index')}">
                                 <i class="nav-main-link-icon fa fa-home"></i>
                                 <span class="nav-main-link-name">首页</span>
                             </a>
@@ -52,7 +52,7 @@
     <header id="page-header">
         <div class="content-header">
             <div class="space-x-1">
-                <a class="link-fx fw-bold" href="index.html">
+                <a class="link-fx fw-bold" href="{:url('index/index')}">
                     <i class="fa fa-rocket text-primary"></i>
                     <span class="fs-4 text-dual">{:config('web.webname')}</span>
                 </a>
@@ -126,7 +126,7 @@
     </header>
     <main id="main-container">
 
-        <div class="bg-body-extra-light overflow-hidden bg-image" id="#home" style="background-image: url('{:config('web.index_bg')}');">
+        <div class="bg-body-extra-light overflow-hidden bg-image" id="home" style="background-image: url('{:config('web.index_bg')}');">
             <div class="hero">
                 <div class="hero-inner">
                     <div class="content content-full text-center">
@@ -138,14 +138,14 @@
                         </h4>
                         {if condition="!session('user')"}
                         <a class="btn btn-lg btn-alt-info fw-semibold me-1 mb-2 fs-sm" href="{:url('login/login')}">
-                            <i class="si si-login opacity-50 me-1"></i> 登 录
+                            <i class="si si-login opacity-50 me-1"></i> 登录
                         </a>
                         <a class="btn btn-lg btn-primary fw-semibold mb-2 fs-sm" href="{:url('login/reg')}">
-                            <i class="si si-energy opacity-50 me-1"></i> 注 册
+                            <i class="si si-energy opacity-50 me-1"></i> 注册
                         </a>
                         {else /}
                         <a class="btn btn-sm btn-alt-primary py-2 px-3" href="{:url('index/console/')}">
-                            <i class="fa fa-arrow-right opacity-50 me-1"></i> 用 户 中 心
+                            <i class="fa fa-arrow-right opacity-50 me-1"></i> 用户中心
                         </a>
                         {/if}
                     </div>
@@ -153,7 +153,7 @@
             </div>
         </div>
 
-        <div class="bg-body-extra-light" id="#features">
+        <div class="bg-body-extra-light" id="features">
             <div class="content content-full pt-7">
                 <div class="py-5 text-center">
                     <div class="position-relative">
@@ -181,7 +181,7 @@
                                         <p class="fw-medium text-muted mb-0 mt-1">
                                             同步更新项目最新接口<br>
                                             比外包的云任务平台更安全更稳定<br>
-                                            彻底杜绝重复签到 重复运行<br>
+                                            彻底杜绝重复签到、重复运行<br>
                                             高度模拟真人执行任务
                                         </p>
                                     </div>
@@ -198,7 +198,7 @@
                                         </h3>
                                         <p class="fw-medium text-muted mb-0">
                                             用户界面简单易懂人性化<br>
-                                            自研开发程序 稳定更新 <br>
+                                            自研开发程序、稳定更新 <br>
                                             实时反馈程序问题 快速修复<br>
                                             本地部署，账号数据由你自己掌控
                                         </p>
@@ -292,7 +292,7 @@
       <a class="block block-rounded block-link-shadow" href="javascript:void(0)">
         <div class="block-content block-content-full text-center">
           <div class="p-3 mb-2">
-            <img src="//q4.qlogo.cn/headimg_dl?dst_uin={$vo.qq}&spec=100">
+            <img src="//q4.qlogo.cn/headimg_dl?dst_uin={$vo.qq}&spec=100" alt="用户头像">
           </div>
           <p class="fs-lg fw-semibold mb-0">
             {$vo.nickname}
@@ -307,7 +307,7 @@
             </div>
         </div>
 
-        <div class="bg-image" id="#about" style="background-image: url('/static/media/photos/photo26@2x.jpg');">
+        <div class="bg-image" id="about" style="background-image: url('/static/media/photos/photo26@2x.jpg');">
             <div class="bg-black-75">
                 <div class="content content-top text-center">
                     <div class="py-7">
@@ -324,7 +324,7 @@
                 <div class="py-5 text-center">
 
                     <h3 class="fw-bold mb-2">坚持你的梦想</h3>
-                    <h4 class="fw-normal text-muted mb-4">永远相信美好的事情 即将发生</h4>
+                    <h4 class="fw-normal text-muted mb-4">永远相信美好的事情即将发生</h4>
                     <a class="btn btn-alt-primary" href="{:url('login/login')}">加入我们</a>
                 </div>
             </div>
@@ -349,30 +349,5 @@
 
 </div>
 <script src="/static/js/codebase.app.min-5.0.js"></script>
-<script>
-    (function(){
-        var bp = document.createElement('script');
-        var curProtocol = window.location.protocol.split(':')[0];
-        if (curProtocol === 'https') {
-            bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
-        }
-        else {
-            bp.src = 'http://push.zhanzhang.baidu.com/push.js';
-        }
-        var s = document.getElementsByTagName("script")[0];
-        s.parentNode.insertBefore(bp, s);
-    })();
-    var _hmt = _hmt || [];
-    (function() {
-        var hm = document.createElement("script");
-        hm.src = "https://hm.baidu.com/hm.js?40b758abd81264c7adc13c09d695584c";
-        var s = document.getElementsByTagName("script")[0];
-        s.parentNode.insertBefore(hm, s);
-    })();
-    (function(){
-        var src = "https://jspassport.ssl.qhimg.com/11.0.1.js?d182b3f28525f2db83acfaaf6e696dba";
-        document.write('<script src="' + src + '" id="sozz"><\/script>');
-    })();
-</script>
 </body>
 </html>

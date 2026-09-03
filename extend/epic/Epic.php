@@ -13,6 +13,22 @@ class Epic
 
     public function getWeeklyFreeGames(): array
     {
+        // 周免一周才换一次；每个页面/每封邮件都同步请求上游（20s 超时）会把
+        // Epic 页面拖住，缓存 1 小时即可。
+        $cached = \think\facade\Cache::get('epic_weekly_free_games');
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $games = $this->fetchWeeklyFreeGames();
+        if ($games !== []) {
+            \think\facade\Cache::set('epic_weekly_free_games', $games, 3600);
+        }
+        return $games;
+    }
+
+    private function fetchWeeklyFreeGames(): array
+    {
         $payload = $this->request('GET', self::CATALOG_URL, [
             'locale' => 'zh-CN',
             'country' => 'CN',

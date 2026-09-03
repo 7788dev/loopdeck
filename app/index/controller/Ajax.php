@@ -41,6 +41,15 @@ class Ajax extends Common
 			if ($heyboxId === "" || $pkey === "" || strlen($heyboxId) > 32 || strlen($pkey) > 1024) {
 				return resultJson(0, "heybox_id 或 pkey 格式错误");
 			}
+			// 与 netease/bilibili/douyin 一致：账号全局唯一，否则两个用户绑定同一
+			// 账号后，任一方删除账号会把另一方的任务日志一并清掉。
+			$conflict = Accounts::where("type", "=", "heybox")
+				->where("user_id", "=", $heyboxId)
+				->where("uid", "<>", Session::get("user.uid"))
+				->find();
+			if ($conflict) {
+				return resultJson(0, "该小黑盒账号已被其他用户绑定");
+			}
 			$account = [
 				"heybox_id" => $heyboxId,
 				"pkey" => $pkey,

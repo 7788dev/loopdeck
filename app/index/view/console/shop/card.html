@@ -58,7 +58,7 @@
     function ajax_km_activate()
     {
         var km = x.getval('#km', '请先输入卡密');
-        if (!km) reutrn;
+        if (!km) return;
         x.ajax('/index/ajax/shop/activate', {km: km}, function (data) {
             if (data.code == 1) {
                 x.notify(data.message, 'success');

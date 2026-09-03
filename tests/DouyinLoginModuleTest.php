@@ -21,17 +21,29 @@ douyinCheck(!str_contains((string)$worker, "require('node:https')"), 'worker can
 douyinCheck(str_contains((string)$worker, 'DTraitSDK'), 'worker does not initialize the local DTrait core');
 douyinCheck(str_contains((string)$worker, 'X-TT-Session-Dtrait'), 'worker does not return the DTrait request header');
 
-$bundleHash = hash_file('sha256', $root . '/extend/douyin/runtime/vendor/bdms.js');
+// core.autocrlf=true 的 Windows 工作树会把 checkout 的 LF 文件展开为 CRLF，
+// 直接对原始字节哈希会让同一 blob 在不同平台得到不同结果。先统一 LF 再比对，
+// 与 git 内部存储（LF）保持一致。
+function douyinNormalizedHash(string $path): string
+{
+    $content = file_get_contents($path);
+    if (!is_string($content)) {
+        return '';
+    }
+    return hash('sha256', str_replace("\r\n", "\n", $content));
+}
+
+$bundleHash = douyinNormalizedHash($root . '/extend/douyin/runtime/vendor/bdms.js');
 douyinCheck(
     $bundleHash === 'd211c62a7ab5eb5d8bc2a0bde54657999fcbaa5dc869964c46dd79cc0865895d',
     'BDMS runtime bundle hash changed without updating the verified fixture'
 );
-$dtraitHash = hash_file('sha256', $root . '/extend/douyin/runtime/vendor/dtrait.js');
+$dtraitHash = douyinNormalizedHash($root . '/extend/douyin/runtime/vendor/dtrait.js');
 douyinCheck(
     $dtraitHash === 'af6984d4fdf37eb38be717ec0601528a477a070a646d3f4ec2a87e8eadac74d6',
     'DTrait runtime bundle hash changed without updating the verified fixture'
 );
-$captchaHash = hash_file('sha256', $root . '/public/static/js/douyin-captcha-runtime.js');
+$captchaHash = douyinNormalizedHash($root . '/public/static/js/douyin-captcha-runtime.js');
 douyinCheck(
     $captchaHash === 'f5c075614a54fd57ac13f84a2e6d5e2952250e17a7b91a730b735d63227ddc3a',
     'Douyin captcha renderer hash changed without updating the verified fixture'

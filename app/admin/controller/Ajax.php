@@ -56,6 +56,8 @@ class Ajax extends Common
             case 'info':
                 $data = Request::post();
                 if (Weblist::updateByWebid(Session::get('user.web_id'), $data)) {
+                    // 站点信息（域名/名称等）被 LoadConfigs 缓存，保存后立即失效
+                    \app\middleware\LoadConfigs::invalidate();
                     return resultJson(1, '信息修改成功');
                 }
                 break;
@@ -109,6 +111,8 @@ class Ajax extends Common
                 } catch (\Throwable $exception) {
                     return resultJson(0, '配置保存失败');
                 }
+                // 配置项被 LoadConfigs 缓存 60 秒，保存后立即失效保证即时生效
+                \app\middleware\LoadConfigs::invalidate();
                 return resultJson(1, '配置保存成功');
                 break;
             case 'testSendMail':

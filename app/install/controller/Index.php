@@ -73,8 +73,18 @@ class Index
             $this->writeDatabaseConfig($database);
             $connection->close();
         } catch (mysqli_sql_exception $exception) {
-            return resultJson(-1, '数据库安装失败：' . $exception->getMessage());
+            // mysqli 原始报错含主机/SQL 片段，只进日志不回显给浏览器
+            trace('install failed: ' . $exception->getMessage(), 'error');
+            $hint = str_contains($exception->getMessage(), 'Access denied')
+                ? '数据库账号或密码不正确'
+                : (str_contains($exception->getMessage(), 'Unknown database')
+                    ? '数据库不存在，请先创建'
+                    : (str_contains($exception->getMessage(), 'Connection refused') || str_contains($exception->getMessage(), 'No connection')
+                        ? '无法连接数据库服务器，请检查主机与端口'
+                        : '数据库安装失败，请检查连接信息'));
+            return resultJson(-1, $hint);
         } catch (\Throwable $exception) {
+            trace('install failed: ' . $exception->getMessage(), 'error');
             return resultJson(-1, '安装失败：' . $exception->getMessage());
         }
 

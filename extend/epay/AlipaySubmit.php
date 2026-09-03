@@ -88,9 +88,11 @@ class AlipaySubmit extends AliPayCore
         //待请求参数数组
         $para = $this->buildRequestPara($para_temp);
 
-        $sHtml = "<form id='alipaysubmit' name='alipaysubmit' action='" . $this->alipay_gateway_new . "_input_charset=" . trim(strtolower($this->alipay_config['input_charset'])) . "' method='" . $method . "'>";
+        // 订单名等参数含用户输入，必须转义后再进入 HTML 属性
+        $action = htmlspecialchars($this->alipay_gateway_new . '_input_charset=' . trim(strtolower($this->alipay_config['input_charset'])), ENT_QUOTES, 'UTF-8');
+        $sHtml = "<form id='alipaysubmit' name='alipaysubmit' action='" . $action . "' method='" . htmlspecialchars((string)$method, ENT_QUOTES, 'UTF-8') . "'>";
         foreach ($para as $key => $val) {
-            $sHtml .= "<input type='hidden' name='" . $key . "' value='" . $val . "'/>";
+            $sHtml .= "<input type='hidden' name='" . htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') . "' value='" . htmlspecialchars((string)$val, ENT_QUOTES, 'UTF-8') . "'/>";
         }
         //submit按钮控件请不要含有name属性
         $sHtml = $sHtml . "<div class=\"col-lg-8 col-md-12 col-lg-offset-2 text-center\">

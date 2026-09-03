@@ -264,7 +264,12 @@ class Users extends Model
         }
         if ($row['web_id'] !== WEB_ID) {
             $site = Weblist::where('web_id', '=', $row['web_id'])->find();
-            return resultJson(-1001, '该账号不属于当前站点，正在跳转到' . $site['domain'] . '进行登录', ['url' => $site['domain']]);
+            // 分站记录缺失时不能对 false 取下标；回主站登录而不是抛 500
+            $domain = $site ? (string)$site['domain'] : '';
+            if ($domain === '') {
+                return resultJson(-1, '该账号所属站点不存在，请联系站长处理');
+            }
+            return resultJson(-1001, '该账号不属于当前站点，正在跳转到' . $domain . '进行登录', ['url' => $domain]);
         }
 
         self::clearFailedLogins((string)$data['username']);
@@ -425,7 +430,7 @@ class Users extends Model
     static function agentCount()
     {
         $self = new static();
-        return $self->where('agent', '<>', 0)->where('web_id', '=', WEB_ID)->select()->count('uid');
+        return $self->where('agent', '<>', 0)->where('web_id', '=', WEB_ID)->count('uid');
     }
 
     /**
@@ -450,27 +455,39 @@ class Users extends Model
     {
         $start = (int)input('post.start');
         $length = (int)input('post.length');
-        $search = input('post.search');
+        $search = (array)(input('post.search') ?? []);
 
         $self = new static();
         $query = $self->alias('a');
         $query->withoutField('password,sid');
 
-        $nickname = $search['nickname'];
+        $nickname = (string)($search['nickname'] ?? '');
 
         if (!empty($search['uid'])) $query->where('uid', '=',  $search['uid']);
         if (!empty($search['nickname'])) $query->where('nickname', 'like',  "%$nickname%");
         if (!empty($search['username'])) $query->where('username', '=',  $search['username']);
         if (!empty($search['qq'])) $query->where('qq', '=',  $search['qq']);
-        if (is_numeric($search['status'])) $query->where('state', '=',  $search['status']);
+        if (is_numeric($search['status'] ?? null)) $query->where('state', '=',  $search['status']);
 
         if (WEB_ID != 1) {
             $query->where('web_id', '=', WEB_ID);
         }
 
         if ($result = $query->order('a.uid desc')->limit($start, $length)->select()) {
+            // count 必须在独立查询上执行：复用已带 limit 的查询对象会让
+            // COUNT 继承 ORDER BY/LIMIT，第二页起 total 取到空结果。
+            $countQuery = $self->alias('a')->withoutField('password,sid');
+            $nickname = (string)($search['nickname'] ?? '');
+            if (!empty($search['uid'])) $countQuery->where('uid', '=',  $search['uid']);
+            if (!empty($search['nickname'])) $countQuery->where('nickname', 'like',  "%$nickname%");
+            if (!empty($search['username'])) $countQuery->where('username', '=',  $search['username']);
+            if (!empty($search['qq'])) $countQuery->where('qq', '=',  $search['qq']);
+            if (is_numeric($search['status'] ?? null)) $countQuery->where('state', '=',  $search['status']);
+            if (WEB_ID != 1) {
+                $countQuery->where('web_id', '=', WEB_ID);
+            }
             return [
-                'total' => $query->count('uid'),
+                'total' => $countQuery->count('uid'),
                 'page' => input('post.page'),
                 'data' => $result,
             ];
@@ -503,7 +520,9 @@ class Users extends Model
             return false;
         }
         if ($amount === 0.0) {
-            return true;
+            // 0 元放行会让"价格键缺失 → (float)null === 0"的请求变成免费购买，
+            // 任何扣费路径都必须有正数金额；免费发放应显式走别的代码路径。
+            return false;
         }
 
         return (int)(new static())

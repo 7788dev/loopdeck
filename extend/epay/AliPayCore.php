@@ -25,13 +25,8 @@ class AliPayCore
     function md5Verify($str, $sign, $key)
     {
         $mysgin = md5($str . $key);
-//    dump($mysgin);
-//    dump($sign);
-        if ($mysgin == $sign) {
-            return true;
-        } else {
-            return false;
-        }
+        // hash_equals 防时序比较；== 在科学计数字符串形态下存在碰撞面
+        return is_string($sign) && hash_equals($mysgin, $sign);
     }
 
     /**

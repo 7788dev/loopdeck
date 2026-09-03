@@ -23,4 +23,16 @@ class Info extends Model
             ->find();
         return $result['times'];
     }
+
+    /**
+     * 记录一次任务执行：次数自增与最后执行时间合并为一条 UPDATE。
+     * 旧实现每个任务发两条 SQL（inc + update），批量调度时翻倍。
+     */
+    public static function recordRun($sysid = 100): void
+    {
+        (new static())
+            ->where('sysid', '=', $sysid)
+            ->inc('times', 1)
+            ->update(['last' => date('Y-m-d H:i:s')]);
+    }
 }

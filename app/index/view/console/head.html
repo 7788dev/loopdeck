@@ -125,9 +125,9 @@
                         </li>
                         {/if}
                     </ul>
-                     
-                     
-                <li class="nav-main-heading" style="color: #70DB93;">𝙑𝙄𝙋 功能</li>
+                </li>
+
+                <li class="nav-main-heading nav-vip-heading">VIP 功能</li>
                 <li class="nav-main-item">
                     <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
                        data-toggle="submenu" href="#">
@@ -173,7 +173,6 @@
                         </li>
                     </ul>
                 </li>
-                <!-- Retired feature -->
                 <li class="nav-main-item">
                     <a class="nav-main-link" data-pjax href="{:url('/index/console/epic/act/weeklygame')}">
                         <i class="nav-main-link-icon si si-game-controller"></i>
@@ -222,13 +221,12 @@
                 </li>
                 {if condition="function_exists('opcache_reset')"}
                 <li class="nav-main-item mt-1">
-                    <a class="nav-main-link" data-pjax href="javascript:clearCache();">
+                    <a class="nav-main-link" href="javascript:clearCache();">
                         <i class="nav-main-link-icon si si-refresh"></i>
                         <span class="nav-main-link-name">清理缓存</span>
                     </a>
                 </li>
                 {/if}
-                </li>
             </ul>
         </div>
 

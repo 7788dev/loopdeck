@@ -14,22 +14,22 @@
                             <div class="col-sm-10 col-md-8">
                                 <div class="mb-4">
                                     <label class="form-label" for="alipay">支付宝</label>
-                                    <input class="form-control" type="file" id="alipay" name="file" accept="image/*">
+                                    <input class="form-control" type="file" id="alipay" name="alipay_file" accept="image/*">
                                     <input type="hidden" name="alipay_url" id="alipay_url" value="">
                                 </div>
                                 <div class="mb-4">
                                     <label class="form-label" for="qq">QQ</label>
-                                    <input class="form-control" type="file" id="qq" name="file" accept="image/*">
-                                    <input type="hidden" name="alipay_url" id="qq_url" value="">
+                                    <input class="form-control" type="file" id="qq" name="qq_file" accept="image/*">
+                                    <input type="hidden" name="qq_url" id="qq_url" value="">
                                 </div>
                                 <div class="mb-4">
                                     <label class="form-label" for="wechat">微信</label>
-                                    <input class="form-control" type="file" id="wechat" name="file" accept="image/*">
-                                    <input type="hidden" name="alipay_url" id="wechat_url" value="">
+                                    <input class="form-control" type="file" id="wechat" name="wechat_file" accept="image/*">
+                                    <input type="hidden" name="wechat_url" id="wechat_url" value="">
                                 </div>
                                 <div class="mb-4">
                                     <label class="form-label" for="name">收款识别码</label>
-                                    <input class="form-control" type="text" id="name" name="name" placeholder="用于本站管理收款码和扫描二维码的ID">
+                                    <input class="form-control" type="text" id="name" name="name" placeholder="用于本站管理和展示收款码的识别码">
                                 </div>
                                 <div id="qrcode" class="mb-4 text-center">
                                 </div>
@@ -75,8 +75,9 @@
                         x.notify(res.message, 'warning');
                     }
                 },
-                error: function (xhr, status, error) {
-                    console.log(xhr);
+                error: function () {
+                    layer.closeAll();
+                    x.notify('上传失败，请检查网络后重试', 'danger');
                 }
             });
         });
@@ -89,7 +90,7 @@
         if (!qq_url) return;
         const wechat_url = x.getval('#wechat_url', '请先上传微信收款码！');
         if (!wechat_url) return;
-        const name = x.getval('#name', '请先输入收款人昵称！');
+        const name = x.getval('#name', '请先输入收款识别码！');
         if (!name) return;
         x.ajax('/index/ajax/qrcode/create', {
             alipay_url: alipay_url,
@@ -99,15 +100,15 @@
         }, function (res) {
             if (res.code == 1) {
                 x.notify(res.message, 'success');
-                $('#qrcode').html('<img id="img" src="data:image/png;base64,'+ res.data +'" height="200px;"><br><br><button type="button" onclick="ajax_dowmloadImg()" class="btn btn-alt-primary"><i class="si si-cloud-download"></i> 下载 </button>');
+                $('#qrcode').html('<img id="qrcode-img" src="data:image/png;base64,'+ res.data +'" height="200" alt="收款二维码"><br><br><button type="button" onclick="ajax_downloadImg()" class="btn btn-alt-primary"><i class="si si-cloud-download"></i> 下载 </button>');
             } else {
                 x.notify(res.message, 'warning');
             }
         })
     }
 
-    function ajax_dowmloadImg() {
-        const imgUrl = $("#img").attr("src");
+    function ajax_downloadImg() {
+        const imgUrl = $("#qrcode-img").attr("src");
         const link = document.createElement("a");
         link.href = imgUrl;
         link.download = "pay.jpg";

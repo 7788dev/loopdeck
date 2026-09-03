@@ -15,20 +15,26 @@
                     <div class="col-md-10 col-lg-8 col-xl-6">
                         <form onsubmit="return false;">
                             <div class="input-group input-group-lg">
+                                <label class="visually-hidden" for="email">邮箱地址</label>
                                 <input type="email" class="form-control" placeholder="邮箱地址" id="email" value="{$job.user_id}">
-                                <input type="text"class="js-flatpickr form-control"id="timing"placeholder="时间"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true">                                <button type="submit" class="btn btn-alt-primary" onclick="setEmail()">
+                                <label class="visually-hidden" for="timing">通知时间</label>
+                                <input type="text" class="js-flatpickr form-control" id="timing" placeholder="时间"
+                                       data-enable-time="true" data-no-calendar="true" data-date-format="H:i" data-time_24hr="true">
+                                <button type="submit" class="btn btn-alt-primary" onclick="setEmail()">
                                     确认
                                 </button>
                             </div>
-                            {if condition="$job.state == 1"}
-                            <p class="fs-sm text-muted mt-1 mb-0">
-                                状态：<span class="text-success">已开启</span><a class="mx-2" href="javascript:funcSwitch()">关闭</a>
+                            <p class="fs-sm text-muted mt-1 mb-0 d-flex align-items-center justify-content-center">
+                                状态：
+                                {if condition="$job.state == 1"}
+                                <span class="text-success me-2">已开启</span>
+                                {else /}
+                                <span class="text-warning me-2">未开启</span>
+                                {/if}
+                                <button type="button" class="btn btn-sm btn-alt-primary" onclick="funcSwitch()">
+                                    {if condition="$job.state == 1"}关闭推送{else /}开启推送{/if}
+                                </button>
                             </p>
-                            {else /}
-                            <p class="fs-sm text-muted mt-1 mb-0">
-                                状态：<span class="text-warning">未开启</span><a class="mx-2" href="javascript:funcSwitch()">开启</a>
-                            </p>
-                            {/if}
                         </form>
                     </div>
                 </div>
@@ -38,7 +44,7 @@
     {volist name="list" id="v"}
     <div class="col-xl-6">
         <a class="block block-rounded block-transparent bg-image d-flex align-items-stretch h-100 mb-0" href="{$v.productUrl}"
-           style="background-image: url('{$v.image}');" target="_blank">
+           style="background-image: url('{$v.image}');" aria-label="{$v.title}" target="_blank">
             <div class="block-content block-sticky-options pt-7 bg-black-50">
                 <div class="block-options block-options-left text-white">
                     <div class="block-options-item">
@@ -47,7 +53,7 @@
                 </div>
                 <div class="block-options text-white">
                     <div class="block-options-item">
-                        <b><del>{$v.originalPrice} </del>¥0.00</b>
+                        <b><del>{$v.originalPrice}</del> <span class="text-success">免费</span></b>
                     </div>
                 </div>
                 <h2 class="h3 fw-bold text-white mb-1">{$v.title}</h2>
@@ -60,13 +66,13 @@
         <div class="block-content block-content-full">
             <div class="py-3 text-center">
                 <h3 class="fw-bold mb-2">
-                    怕忘记?
+                    怕忘记每周领游戏？
                 </h3>
                 <h4 class="h5 text-muted">
-                    开个会员，每周自动提醒，这还能忘？
+                    开通会员后每周自动提醒，无需手动领取。
                 </h4>
                 <a class="btn btn-alt-primary px-4 py-3" href="{:url('/index/console/shop/vip')}">
-                    <i class="fa fa-paper-plane opacity-50 me-1"></i> 马上开通!
+                    <i class="fa fa-paper-plane opacity-50 me-1"></i> 马上开通
                 </a>
             </div>
         </div>
@@ -74,7 +80,6 @@
 </div>
 {/block}
 {block name="foot"}
-<script src="/static/js/plugins/flatpickr/flatpickr.min.js"></script>
 <script>
     function setEmail() {
         let email = x.getval('#email', '请先输入邮箱地址');

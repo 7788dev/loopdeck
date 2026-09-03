@@ -1,24 +1,9 @@
 {extend name="common/layout"/}
 {block name="head"}{include file="console/head" /}{/block}
 {block name="main"}
-{php}
-$a_data = safe_unserialize_array($data['data']); // 反序列化账号数据
-$task = new \app\index\model\Tasks();
-$jobs = new \app\index\model\Jobs();
-$netease = new \netease\Netease($a_data['user_id'], $a_data['csrf'], $a_data['musicu']);
-$info = $netease->getMusicUserInfo();
-$timing = (string)($data['timing'] ?? '');
-$details = [
-'listenSongs' => $info['listenSongs'],
-'level_now' => $info['level'],
-'level_next' => $info['level'] + 1,
-'loginnum' => $info['nextLoginCount']-$info['nowLoginCount'],
-'listennum' => $info['nextPlayCount']-$info['nowPlayCount'],
-];
-{/php}
 <style>
-    td {
-        white-space:nowrap;
+    .task-table td {
+        white-space: nowrap;
     }
 </style>
 <div class="row">
@@ -49,7 +34,7 @@ $details = [
                     <span class="text-danger">已失效</span>
                     {/if}
                 </div>
-                <div class="fs-sm text-muted">{$info['profile']['signature']}</div>
+                <div class="fs-sm text-muted">{$signature}</div>
                 <hr>
                 <div class="mt-1">
                     <span class="text-muted fs-sm">
@@ -91,7 +76,7 @@ $details = [
                     {if condition="$details['level_now'] == 10"}
                     <tr>
                         <td class="text-center">
-                            <span class="fs-sm fw-semibold text-muted">太牛了，你的等级已爆表了！</span>
+                            <span class="fs-sm fw-semibold text-muted">等级已达满级</span>
                         </td>
                     </tr>
                     {else /}
@@ -125,10 +110,7 @@ $details = [
                 <div class="table-responsive">
                     <table class="table table-striped table-vcenter">
                         <tbody>
-                        {foreach $task->getTaskList('netease') as $k => $v}
-                        {php}
-                        $job = $jobs->getJobInfo('netease', $a_data['user_id'], $v['execute_name']);
-                        {/php}
+                        {foreach $task_rows as $v}
                         <tr>
                             <td class="text-center">
                                 <i class="fw-semibold fa fa-2x {$v.icon}"></i>
@@ -136,10 +118,7 @@ $details = [
                             <td class="fw-semibold">
                                 <p class="fw-semibold mb-1">{$v.name}
                                     {if condition="$v.more"}
-                                    {php}
-                                    if ($job['data']) { $config = json_encode(safe_unserialize_array($job['data'])); } else { $config = '[]'; }
-                                    {/php}
-                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 mx-1" data-config='{$config}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="si si-settings"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 mx-1" data-config='{$v.config}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="si si-settings"></i></button>
                                     {/if}
                                 </p>
                                 <p class="fs-xs text-muted mb-0">
@@ -147,8 +126,8 @@ $details = [
                                 </p>
                             </td>
                             <td class="d-none d-sm-table-cell"><i class="far fa-clock opacity-75"></i>
-                                {if condition="!empty($job['lastExecute'])"}
-                                {:date("m-d H:i", strtotime($job.lastExecute))}
+                                {if condition="$v.last_execute neq ''"}
+                                {:date("m-d H:i", strtotime($v.last_execute))}
                                 {else /}
                                 <span class="text-muted">尚未执行</span>
                                 {/if}
@@ -156,7 +135,7 @@ $details = [
                             <td class="text-center">
                                 <div class="btn-group">
                                     <div class="form-check form-switch">
-                                        {if condition="$job.state eq 1"}
+                                        {if condition="$v.job_state eq 1"}
                                         <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}');" checked>
                                         {else /}
                                         <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}');">
@@ -189,7 +168,7 @@ $details = [
                         <input type="number" min="1" max="300" step="1" class="form-control" id="tool_listen_times" name="tool_listen_times" placeholder="输入歌曲播放次数">
                         <div class="text-muted fs-xs">单次最多 300 次，播放计数可能延迟，请以网易云音乐官方数据为准</div>
                     </div>
-                    <div class="col-lg-2" style="margin-top: 32px;">
+                    <div class="col-lg-2 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary btn-sm" onclick="ajax_tool_listen('{$data.user_id}');">
                             <i class="fa fa-paper-plane opacity-50 me-1"></i> 提交
                         </button>
@@ -207,7 +186,7 @@ $details = [
                 <h3 class="block-title">任务运行日志 <small>仅展示最新的50条数据</small></h3>
             </div>
             <div class="block-content block-content-full">
-                <table class="table table-bordered table-striped table-vcenter js-dataTable-responsive" id="task-logs-list" data-type="netease" data-user_id="{$data.user_id}">
+                <table class="table table-bordered table-striped table-vcenter js-dataTable-responsive task-table" id="task-logs-list" data-type="netease" data-user_id="{$data.user_id}">
                 </table>
             </div>
         </div>
@@ -228,7 +207,7 @@ $details = [
         } else {
             var config = '{}';
         }
-        // console.log(config);
+        // 
         switch (execute_name) {
             case 'musician_task':
                 musicianTask(execute_name, name, config);
@@ -253,7 +232,7 @@ $details = [
             btnAlign: 'c',
             closeBtn: 0,
             shadeClose: true,
-            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><input type="text"class="form-control"id="musician_song_id"name="musician_song_id"placeholder="歌曲ID"><label class="form-label"for="musician_song_id">歌曲ID</label><div class="form-text text-muted">填写你自己歌曲的ID，用于发布主创说，回复粉丝评论，回复粉丝私信，留空系统自动获取</div></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating"><input type="text"class="form-control"id="musician_follows_id"name="musician_follows_id"placeholder="歌曲ID"><label class="form-label"for="musician_follows_id">粉丝ID</label><div class="form-text text-muted">填写粉丝的ID，用于回复粉丝私信<span class="text-danger">（必填）</span></div></div></div><div class="col-md-6"><div class="form-floating"><input type="text"class="form-control"id="musician_follows_msg"name="musician_follows_msg"placeholder="私信内容"><label class="form-label"for="musician_follows_msg">私信内容</label><div class="form-text text-muted">给粉丝发送的私信，留空系统随机</div></div></div></div></form>',
+            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><input type="text" class="form-control" id="musician_song_id" name="musician_song_id" placeholder="歌曲ID"><label class="form-label" for="musician_song_id">歌曲ID</label><div class="form-text text-muted">填写你自己歌曲的ID，用于发布主创说，回复粉丝评论，回复粉丝私信，留空系统自动获取</div></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating"><input type="text" class="form-control" id="musician_follows_id" name="musician_follows_id" placeholder="歌曲ID"><label class="form-label" for="musician_follows_id">粉丝ID</label><div class="form-text text-muted">填写粉丝的ID，用于回复粉丝私信<span class="text-danger">（必填）</span></div></div></div><div class="col-md-6"><div class="form-floating"><input type="text" class="form-control" id="musician_follows_msg" name="musician_follows_msg" placeholder="私信内容"><label class="form-label" for="musician_follows_msg">私信内容</label><div class="form-text text-muted">给粉丝发送的私信，留空系统随机</div></div></div></div></form>',
             success: function (res, index) {
                 config = JSON.parse(config);
                 // console.log(config)
@@ -295,7 +274,7 @@ $details = [
             btnAlign: 'c',
             closeBtn: 0,
             shadeClose: true,
-            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><input type="text"class="form-control"id="evaluate_star"name="evaluate_star"placeholder="评分星数"><label class="form-label"for="evaluate_star">评分星数</label><div class="form-text text-muted">填写规则：3,4即为在3-4之间随机，最大值不能超过5，默认为2-3星</div></div></div></div></form>',
+            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><input type="text" class="form-control" id="evaluate_star" name="evaluate_star" placeholder="评分星数"><label class="form-label" for="evaluate_star">评分星数</label><div class="form-text text-muted">填写规则：3,4即为在3-4之间随机，最大值不能超过5，默认为2-3星</div></div></div></div></form>',
             success: function (res, index) {
                 config = JSON.parse(config);
                 // console.log(config)
@@ -332,7 +311,7 @@ $details = [
             closeBtn: 0,
             shadeClose: true,
             area: ['32%'],
-            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><select class="form-select"id="daka_music_from"name="daka_music_from"aria-label="daka_music_from"><option value="daily_recommend">首页每日推荐（默认）</option><option value="highquality">精品歌单</option><option value="personalized">首页个性推荐歌单</option></select><label class="form-label"for="daka_music_from">歌曲来源</label><div class="form-text text-muted">填写下方歌单ID后以歌单为准，此项仅作为补充</div></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating"><input type="text"class="form-control"id="daka_playlist_ids"name="daka_playlist_ids"placeholder="歌单ID"><label class="form-label"for="daka_playlist_ids">自定义歌单ID</label><div class="form-text text-muted">推荐填写一个曲目数超过300首的歌单，多个用英文逗号分隔，留空使用官方榜单</div></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating"><input type="number"min="1"max="300"class="form-control"id="daka_limit"name="daka_limit"placeholder="每日目标首数"><label class="form-label"for="daka_limit">每日目标首数</label><div class="form-text text-muted">1-300，留空按 300 首执行</div></div></div></div></form>',
+            content: '<form><div class="row"><div class="col-md-12"><div class="form-floating"><select class="form-select"id="daka_music_from" name="daka_music_from"aria-label="daka_music_from"><option value="daily_recommend">首页每日推荐（默认）</option><option value="highquality">精品歌单</option><option value="personalized">首页个性推荐歌单</option></select><label class="form-label" for="daka_music_from">歌曲来源</label><div class="form-text text-muted">填写下方歌单ID后以歌单为准，此项仅作为补充</div></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating"><input type="text" class="form-control" id="daka_playlist_ids" name="daka_playlist_ids" placeholder="歌单ID"><label class="form-label" for="daka_playlist_ids">自定义歌单ID</label><div class="form-text text-muted">推荐填写一个曲目数超过300首的歌单，多个用英文逗号分隔，留空使用官方榜单</div></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating"><input type="number"min="1"max="300"class="form-control" id="daka_limit" name="daka_limit" placeholder="每日目标首数"><label class="form-label" for="daka_limit">每日目标首数</label><div class="form-text text-muted">1-300，留空按 300 首执行</div></div></div></div></form>',
             success: function (res, index) {
                 config = JSON.parse(config);
                 // console.log(config)
@@ -385,7 +364,7 @@ $details = [
 
     function ajax_reexecute_task(user_id)
     {
-        layer.confirm('你确定申请补挂吗?', {
+        layer.confirm('你确定申请补挂吗？', {
             btn: ['确定', '取消'],
             closeBtn: 0,
         }, function () {
@@ -434,7 +413,7 @@ $details = [
             shadeClose: true,
             zIndex: '1000',
             area: ['20%'],//设置相对于父页面的大小
-            content: '<div class="form-floating col-xl-12 mb-2"><input type="text"class="js-flatpickr form-control"id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"data-allow-input="true"><label class="form-label"for="timing">挂机时间</label></div><div><span class="text-danger">未设置时不会自动执行；清空时间并保存可关闭自动挂机。<br></span><span class="fw-semibold">挂机时间说明：系统每天会在您设定的时间后随机延迟 3–15 分钟执行，以降低固定时间挂机带来的风控风险。<br>特殊说明：若同时有大量账号排队，实际执行时间仍可能继续顺延。</span></div>',
+            content: '<div class="form-floating col-xl-12 mb-2"><input type="text" class="js-flatpickr form-control" id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"data-allow-input="true"><label class="form-label" for="timing">挂机时间</label></div><div><span class="text-danger">未设置时不会自动执行；清空时间并保存可关闭自动挂机。<br></span><span class="fw-semibold">挂机时间说明：系统每天会在您设定的时间后随机延迟 3–15 分钟执行，以降低固定时间挂机带来的风控风险。<br>特殊说明：若同时有大量账号排队，实际执行时间仍可能继续顺延。</span></div>',
             success: function (res, index) {
                 if (typeof timing !== 'undefined') {
                     $("#timing").val(timing);

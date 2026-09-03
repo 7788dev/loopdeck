@@ -107,6 +107,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/opt/loopdeck:ro
       - app_data:/var/lib/loopdeck
+    # The updater does not expose the web server inherited from the base image.
+    # It only needs to persist its state and invoke the Docker socket. The
+    # volume is initialized for www-data (UID 82), so restore only the DAC
+    # override capability needed by root to write the shared runtime state.
+    healthcheck:
+      disable: true
     read_only: true
     tmpfs:
       - /tmp:size=8m,noexec,nosuid,nodev
@@ -114,6 +120,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - DAC_OVERRIDE
     mem_limit: "${UPDATER_MEMORY_LIMIT:-64m}"
     memswap_limit: "${UPDATER_MEMORY_LIMIT:-64m}"
     cpus: "${UPDATER_CPU_LIMIT:-0.20}"

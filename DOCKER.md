@@ -86,6 +86,8 @@ docker compose down
 
 更新由同一个 LoopDeck 镜像中的 `updater` 容器负责，默认每 6 小时检查一次，不依赖后台按钮或 HTTP 触发接口。更新器挂载 Docker socket、只读项目目录和 `app_data` 状态卷，但只会操作 `app`、`scheduler`、`updater` 三个服务，绝不会删除 MySQL、数据库卷或应用数据卷。
 
+`updater` 不提供 Web 服务，因此 Compose 会关闭基础 PHP/Nginx 镜像继承的 HTTP healthcheck；共享状态卷由应用 UID 82 初始化，更新器仅保留写入该卷所需的 `DAC_OVERRIDE` capability。
+
 每次检查会并行读取多个 `VERSION` 源，选择最高语义版本；同一版本有多个来源时使用延迟最低的来源。随后并行探测多个 GHCR 镜像代理，按延迟顺序拉取并校验 `org.opencontainers.image.version` 标签，避免使用缓存过旧或标签错误的镜像。新容器通过 `/healthcheck` 后才会提交；失败会重新标记旧镜像并回滚。
 
 默认版本源和镜像代理已经写入 `.env.example`。可按服务器网络情况覆盖：

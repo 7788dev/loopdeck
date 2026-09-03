@@ -53,10 +53,16 @@ $composePath = dirname(__DIR__) . '/compose.yaml';
 $compose = is_file($composePath) ? file_get_contents($composePath) : '';
 $wrapper = file_get_contents(dirname(__DIR__) . '/docker/auto-updater.sh');
 if ($compose !== '') {
-    autoUpdaterCheck(str_contains((string)$compose, '/usr/local/bin/loopdeck-auto-updater'), 'Compose does not start the automatic updater');
-    autoUpdaterCheck(str_contains((string)$compose, '/var/run/docker.sock'), 'Updater does not have the Docker socket');
-    autoUpdaterCheck(str_contains((string)$compose, 'UPDATE_IMAGE_REPOSITORIES'), 'Compose does not expose mirror configuration');
+    $updaterBlock = '';
+    if (preg_match('/(?ms)^  updater:\R(?<block>.*?)(?=^  [A-Za-z0-9_-]+:\s*$|\z)/', (string)$compose, $matches) === 1) {
+        $updaterBlock = (string)($matches['block'] ?? '');
+    }
+    autoUpdaterCheck(str_contains($updaterBlock, '/usr/local/bin/loopdeck-auto-updater'), 'Compose does not start the automatic updater');
+    autoUpdaterCheck(str_contains($updaterBlock, '/var/run/docker.sock'), 'Updater does not have the Docker socket');
+    autoUpdaterCheck(str_contains($updaterBlock, 'UPDATE_IMAGE_REPOSITORIES'), 'Compose does not expose mirror configuration');
     autoUpdaterCheck(!str_contains((string)$compose, 'watchtower'), 'Legacy Watchtower updater remains configured');
+    autoUpdaterCheck(str_contains($updaterBlock, "healthcheck:\n      disable: true"), 'Updater inherited an HTTP healthcheck');
+    autoUpdaterCheck(str_contains($updaterBlock, "cap_add:\n      - DAC_OVERRIDE"), 'Updater cannot write its shared state volume');
 }
 autoUpdaterCheck(str_contains((string)$wrapper, 'auto-updater.php'), 'Updater wrapper does not invoke the implementation');
 $dockerfilePath = dirname(__DIR__) . '/Dockerfile';

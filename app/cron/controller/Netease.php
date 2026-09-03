@@ -11,6 +11,7 @@ use app\index\model\Users;
 use app\service\AutomaticSchedule;
 use netease\Netease as NeteaseAPI;
 use think\facade\Request;
+use Throwable;
 
 /**
  * Legacy NetEase scheduler entry point.
@@ -74,8 +75,7 @@ class Netease extends Common
             }
 
             $this->runJob((string)$job['do'], $account, $user, (string)($job['data'] ?? ''));
-            Info::where('sysid', '=', '100')->inc('times', 1)->update();
-            Info::where('sysid', '=', '100')->update(['last' => date('Y-m-d H:i:s')]);
+            Info::recordRun(100);
             Jobs::updateJobInfo('netease', $job['do'], $job['user_id'], [ // 更新任务执行信息
                 'lastExecute' => date("Y-m-d H:i:s"),
                 'nextExecute' => AutomaticSchedule::nextExecution(
@@ -86,6 +86,13 @@ class Netease extends Common
             ]);
         }
         return resultJson(1000, '执行任务成功');
+    }
+
+    public function execute($do)
+    {
+        // 历史自调用入口：账号 cookie 与 RUN_KEY 曾随 URL 传播，任务已在
+        // index() 进程内执行，该端点仅作路由兼容并拒绝外部触发。
+        return resultJson(-1001, 'RunKey Access Denied!');
     }
 
     /**
@@ -102,26 +109,31 @@ class Netease extends Common
             return;
         }
 
-        $accountData = safe_unserialize_array((string)$account['data']);
-        $userId = trim((string)($accountData['user_id'] ?? $account['user_id']));
-        $csrf = trim((string)($accountData['csrf'] ?? ''));
-        $musicU = trim((string)($accountData['musicu'] ?? ''));
-        if ($userId === '' || $csrf === '' || $musicU === '') {
-            $this->accountInvalid('netease', $user, $account['user_id']);
-            return;
-        }
+        try {
+            $accountData = safe_unserialize_array((string)$account['data']);
+            $userId = trim((string)($accountData['user_id'] ?? $account['user_id']));
+            $csrf = trim((string)($accountData['csrf'] ?? ''));
+            $musicU = trim((string)($accountData['musicu'] ?? ''));
+            if ($userId === '' || $csrf === '' || $musicU === '') {
+                $this->accountInvalid('netease', $user, $account['user_id']);
+                return;
+            }
 
-        $netease = new NeteaseAPI($userId, $csrf, $musicU, safe_unserialize_array($jobData));
-        $execute = $netease->{$do}();
-        if ($netease->cookiezt) {
-            $this->accountInvalid('netease', $user, $account['user_id']); // 账号失效处理
-            return;
+            $netease = new NeteaseAPI($userId, $csrf, $musicU, safe_unserialize_array($jobData));
+            $execute = $netease->{$do}();
+            if ($netease->cookiezt) {
+                $this->accountInvalid('netease', $user, $account['user_id']); // 账号失效处理
+                return;
+            }
+            TaskLogs::operateExecuteLog(
+                'netease',
+                $account['user_id'],
+                $do,
+                '[' . $this->statusTag($execute) . '] ' . (string)($execute['message'] ?? '网易云任务执行完成')
+            ); // 写入运行日志
+        } catch (Throwable $exception) {
+            // 异常只影响本条任务；租约未推进，下轮调度自动重试
+            TaskLogs::operateExecuteLog('netease', $account['user_id'], $do, '[重试中] 任务调度异常，已安排稍后重试');
         }
-        TaskLogs::operateExecuteLog(
-            'netease',
-            $account['user_id'],
-            $do,
-            '[' . $this->statusTag($execute) . '] ' . (string)($execute['message'] ?? '网易云任务执行完成')
-        ); // 写入运行日志
     }
 }

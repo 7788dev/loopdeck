@@ -5,9 +5,11 @@ namespace app\cron\controller;
 
 use app\index\model\Info;
 use app\index\model\Jobs;
+use app\index\model\TaskLogs;
 use app\index\model\Users;
 use app\index\model\Weblist;
 use think\facade\Request;
+use Throwable;
 
 class Epic extends Common
 {
@@ -22,19 +24,20 @@ class Epic extends Common
         $jobs = Jobs::where('type', '=', 'epic')
                     ->where('do', '=', 'weeklyGameNotify')
                     ->where('state', '=', 1)
-                    ->whereTime('nextExecute', '<', time())
+                    ->where('nextExecute', '<', time())
                     ->select();
         if (count($jobs) == 0) {
             return resultJson(-1002, '没有要执行的任务');
         }
-        $urls = [];
         $vip_expired_userIds = [];
         foreach ($jobs as $job) {
             if (in_array($job['user_id'], $vip_expired_userIds)) continue;
+            if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) continue;
             $user = Users::where('uid', '=', $job['uid'])->find();
             $timing = isset($job['data']) ? (safe_unserialize_array($job['data'])['timing'] ?? null) : null;
             if ($timing == '' || empty($timing)) {
-                $job->where('state', '=', 1)->update(['state' => 0]);
+                // 按主键停用本条任务；$job->where(...) 会丢掉主键条件变成全表 UPDATE
+                Jobs::where('id', (int)$job['id'])->update(['state' => 0]);
                 continue;
             }
             if (strtotime($user['vip_end'] ?? '') < time()) {  // 判断会员功能、用户会员是否过期
@@ -43,10 +46,18 @@ class Epic extends Common
                 $vip_expired_userIds[] = $job['user_id'];
                 continue;
             } else {
-                $urls[] = get_Domain() . 'cron/epic/notify?user_id=' . $job['user_id'] . '&zid=' . $job['zid'] . '&runkey=' . RUN_KEY;
+                // 收件人来自订单/任务行（邮箱在 jobs.user_id），不再由 URL 参数决定
+                // 任意邮箱，RUN_KEY 也不进查询串。
+                try {
+                    $this->notifyUser((string)$job['user_id'], (int)$job['zid']);
+                } catch (Throwable $exception) {
+                    // 上游/SMTP 异常只影响本条任务，重试下轮再投递
+                    TaskLogs::operateExecuteLog('epic', (string)$job['user_id'], $job['do'],
+                        '[重试中] 邮件通知异常，已安排稍后重试');
+                    continue;
+                }
             }
-            Info::where('sysid','=','100')->inc('times',1)->update();
-            Info::where('sysid','=','100')->update(['last' => date('Y-m-d H:i:s')]);
+            Info::recordRun(100);
             $week = date('w');
             $friday_stmp = strtotime('Friday');
             if ($week == 5 || $week == 6 || $week == 0) {
@@ -62,18 +73,20 @@ class Epic extends Common
                 'nextExecute' => $nextExecute,
             ]);
         }
-        if ($urls) $this->curl_mulit($urls);
         return resultJson(1000, '执行任务成功');
     }
 
     public function notify()
     {
-        $data = Request::get();
-        if (hash_equals((string)RUN_KEY, (string)($data['runkey'] ?? ''))) {
-            $this->send_mail($data['user_id'], 'Epic游戏商城周免领取通知', $this->get_email_template($data['zid']), $data['zid']);
-        } else {
-            return resultJson(-1001, 'RunKey Access Denied!');
-        }
+        // 旧的 notify 端点曾允许持有 RUN_KEY 的调用方向任意邮箱发信；
+        // 邮件现在由 index() 在本进程内直接投递，此端点保留但不再接受
+        // GET 收件人。外部调用一律拒绝。
+        return resultJson(-1001, 'RunKey Access Denied!');
+    }
+
+    private function notifyUser(string $to, int $zid): void
+    {
+        $this->send_mail($to, 'Epic游戏商城周免领取通知', $this->get_email_template($zid), $zid);
     }
 
     private function get_email_template($zid)
@@ -82,16 +95,21 @@ class Epic extends Common
         $obj = new \epic\Epic();
         $_html = '';
         foreach ($obj->getWeeklyFreeGames() as $weeklyFreeGame) {
+            // 上游标题/描述/图片是外部数据，进邮件 HTML 前先转义
+            $image = htmlspecialchars((string)$weeklyFreeGame['image'], ENT_QUOTES, 'UTF-8');
+            $title = htmlspecialchars((string)$weeklyFreeGame['title'], ENT_QUOTES, 'UTF-8');
+            $description = htmlspecialchars((string)$weeklyFreeGame['description'], ENT_QUOTES, 'UTF-8');
+            $productUrl = htmlspecialchars((string)$weeklyFreeGame['productUrl'], ENT_QUOTES, 'UTF-8');
             $_html .= '<tr>
                                 <td style="text-align: center; padding: 30px 30px 0;">
-                                    <img style="height: 300px;" src="'. $weeklyFreeGame['image'] .'" alt="image">
+                                    <img style="height: 300px;" src="'. $image .'" alt="image">
                                 </td>
                             </tr>
                             <tr>
                                 <td style="text-align:center;padding: 15px 30px 30px 30px;">
-                                    <h2 style="font-size: 24px; color: #6576ff; font-weight: 600; margin-bottom: 8px;">'. $weeklyFreeGame['title'] .'</h2>
-                                    <p style="margin-bottom: 16px;">'. $weeklyFreeGame['description'] .'</p>
-                                    <a href="'. $weeklyFreeGame['productUrl'] .'" style="background-color:#6576ff;border-radius:4px;color:#ffffff;display:inline-block;font-size:13px;font-weight:600;line-height:38px;text-align:center;text-decoration:none;text-transform: uppercase; padding: 0 30px">点我领取</a>
+                                    <h2 style="font-size: 24px; color: #6576ff; font-weight: 600; margin-bottom: 8px;">'. $title .'</h2>
+                                    <p style="margin-bottom: 16px;">'. $description .'</p>
+                                    <a href="'. $productUrl .'" style="background-color:#6576ff;border-radius:4px;color:#ffffff;display:inline-block;font-size:13px;font-weight:600;line-height:38px;text-align:center;text-decoration:none;text-transform: uppercase; padding: 0 30px">点我领取</a>
                                 </td>
                             </tr>';
         }

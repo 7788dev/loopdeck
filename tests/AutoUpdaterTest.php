@@ -2,7 +2,22 @@
 
 declare(strict_types=1);
 
-require dirname(__DIR__) . '/docker/auto-updater.php';
+$projectRoot = dirname(__DIR__);
+$implementationCandidates = [
+    $projectRoot . '/docker/auto-updater.php',
+    '/usr/local/lib/loopdeck/auto-updater.php',
+];
+$implementationPath = null;
+foreach ($implementationCandidates as $candidate) {
+    if (is_file($candidate)) {
+        $implementationPath = $candidate;
+        break;
+    }
+}
+if ($implementationPath === null) {
+    throw new RuntimeException('Automatic updater implementation is not available');
+}
+require $implementationPath;
 
 function autoUpdaterCheck(bool $condition, string $message): void
 {
@@ -49,9 +64,19 @@ autoUpdaterCheck($repository->invoke($updater, 'ghcr.io/7788dev/loopdeck:latest'
 autoUpdaterCheck($repository->invoke($updater, 'ghcr.io/7788dev/loopdeck@sha256:' . str_repeat('a', 64)) === 'ghcr.io/7788dev/loopdeck', 'Image digest was not stripped');
 autoUpdaterCheck($repository->invoke($updater, 'bad;command') === null, 'Unsafe image repository was accepted');
 
-$composePath = dirname(__DIR__) . '/compose.yaml';
+$composePath = $projectRoot . '/compose.yaml';
 $compose = is_file($composePath) ? file_get_contents($composePath) : '';
-$wrapper = file_get_contents(dirname(__DIR__) . '/docker/auto-updater.sh');
+$wrapperCandidates = [
+    $projectRoot . '/docker/auto-updater.sh',
+    '/usr/local/bin/loopdeck-auto-updater',
+];
+$wrapper = '';
+foreach ($wrapperCandidates as $candidate) {
+    if (is_file($candidate)) {
+        $wrapper = (string)file_get_contents($candidate);
+        break;
+    }
+}
 if ($compose !== '') {
     $updaterBlock = '';
     if (preg_match('/(?ms)^  updater:\R(?<block>.*?)(?=^  [A-Za-z0-9_-]+:\s*$|\z)/', (string)$compose, $matches) === 1) {
@@ -64,7 +89,7 @@ if ($compose !== '') {
     autoUpdaterCheck(str_contains($updaterBlock, "healthcheck:\n      disable: true"), 'Updater inherited an HTTP healthcheck');
     autoUpdaterCheck(str_contains($updaterBlock, "cap_add:\n      - DAC_OVERRIDE"), 'Updater cannot write its shared state volume');
 }
-autoUpdaterCheck(str_contains((string)$wrapper, 'auto-updater.php'), 'Updater wrapper does not invoke the implementation');
+autoUpdaterCheck($wrapper !== '' && str_contains($wrapper, 'auto-updater.php'), 'Updater wrapper does not invoke the implementation');
 $dockerfilePath = dirname(__DIR__) . '/Dockerfile';
 if (is_file($dockerfilePath)) {
     $dockerfile = (string)file_get_contents($dockerfilePath);

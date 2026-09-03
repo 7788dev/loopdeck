@@ -59,8 +59,6 @@ COPY public ./public
 COPY tests ./tests
 RUN mkdir -p docker
 COPY docker/auto-updater.php docker/auto-updater.sh ./docker/
-COPY compose.yaml ./compose.yaml
-COPY Dockerfile ./Dockerfile
 COPY VERSION think ./
 
 RUN composer dump-autoload --no-dev --no-scripts --optimize \

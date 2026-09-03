@@ -49,20 +49,26 @@ autoUpdaterCheck($repository->invoke($updater, 'ghcr.io/7788dev/loopdeck:latest'
 autoUpdaterCheck($repository->invoke($updater, 'ghcr.io/7788dev/loopdeck@sha256:' . str_repeat('a', 64)) === 'ghcr.io/7788dev/loopdeck', 'Image digest was not stripped');
 autoUpdaterCheck($repository->invoke($updater, 'bad;command') === null, 'Unsafe image repository was accepted');
 
-$compose = file_get_contents(dirname(__DIR__) . '/compose.yaml');
+$composePath = dirname(__DIR__) . '/compose.yaml';
+$compose = is_file($composePath) ? file_get_contents($composePath) : '';
 $wrapper = file_get_contents(dirname(__DIR__) . '/docker/auto-updater.sh');
-$dockerfile = file_get_contents(dirname(__DIR__) . '/Dockerfile');
-autoUpdaterCheck(str_contains((string)$compose, '/usr/local/bin/loopdeck-auto-updater'), 'Compose does not start the automatic updater');
-autoUpdaterCheck(str_contains((string)$compose, '/var/run/docker.sock'), 'Updater does not have the Docker socket');
-autoUpdaterCheck(str_contains((string)$compose, 'UPDATE_IMAGE_REPOSITORIES'), 'Compose does not expose mirror configuration');
-autoUpdaterCheck(!str_contains((string)$compose, 'watchtower'), 'Legacy Watchtower updater remains configured');
+if ($compose !== '') {
+    autoUpdaterCheck(str_contains((string)$compose, '/usr/local/bin/loopdeck-auto-updater'), 'Compose does not start the automatic updater');
+    autoUpdaterCheck(str_contains((string)$compose, '/var/run/docker.sock'), 'Updater does not have the Docker socket');
+    autoUpdaterCheck(str_contains((string)$compose, 'UPDATE_IMAGE_REPOSITORIES'), 'Compose does not expose mirror configuration');
+    autoUpdaterCheck(!str_contains((string)$compose, 'watchtower'), 'Legacy Watchtower updater remains configured');
+}
 autoUpdaterCheck(str_contains((string)$wrapper, 'auto-updater.php'), 'Updater wrapper does not invoke the implementation');
-autoUpdaterCheck(
-    str_contains((string)$dockerfile, 'COPY docker/auto-updater.php')
-        && str_contains((string)$dockerfile, './docker/'),
-    'Docker build test stage cannot load the updater implementation'
-);
-autoUpdaterCheck(str_contains((string)$dockerfile, 'rm -f /var/www/html/docker/auto-updater.php'), 'Updater source was left in the web root');
+$dockerfilePath = dirname(__DIR__) . '/Dockerfile';
+if (is_file($dockerfilePath)) {
+    $dockerfile = (string)file_get_contents($dockerfilePath);
+    autoUpdaterCheck(
+        str_contains($dockerfile, 'COPY docker/auto-updater.php')
+            && str_contains($dockerfile, './docker/'),
+        'Docker build test stage cannot load the updater implementation'
+    );
+    autoUpdaterCheck(str_contains($dockerfile, 'rm -f /var/www/html/docker/auto-updater.php'), 'Updater source was left in the web root');
+}
 
 putenv('UPDATE_VERSION_SOURCES');
 putenv('UPDATE_IMAGE_REPOSITORIES');

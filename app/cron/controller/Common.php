@@ -48,8 +48,14 @@ class Common
         $membershipChanged = Users::where('uid', '=', $uid)
             ->whereRaw('(`vip_start` IS NOT NULL OR `vip_end` IS NOT NULL)')
             ->update(['vip_start' => NULL, 'vip_end' => NULL]);
-        Jobs::where('type', '=', $type)->where('user_id', '=', $user_id)->update(['state' => 0]);
-        $zid = Jobs::where('type', '=', $type)->where('user_id', '=', $user_id)->value('zid');
+        Jobs::where('type', '=', $type)
+            ->where('uid', '=', $uid)
+            ->where('user_id', '=', $user_id)
+            ->update(['state' => 0, 'nextExecute' => 0]);
+        $zid = Jobs::where('type', '=', $type)
+            ->where('uid', '=', $uid)
+            ->where('user_id', '=', $user_id)
+            ->value('zid');
         $data = [
             'type' => $type,
             'user_id' => $user_id,
@@ -88,7 +94,10 @@ class Common
             ->where('state', '=', 1)
             ->where('type', '=', $type)
             ->update(['state' => -1]); // state -1 代表账号失效
-        $zid = Jobs::where('type', '=', $type)->where('user_id', '=', $user_id)->value('zid');
+        $zid = Jobs::where('type', '=', $type)
+            ->where('uid', '=', $user['uid'])
+            ->where('user_id', '=', $user_id)
+            ->value('zid');
         if ($stateChanged > 0 && config('sys.mail_invalid') == 1) {
             $msg = $this->get_mail_tempale(3, $user, $name, $zid);
             $sub = '失效提醒';

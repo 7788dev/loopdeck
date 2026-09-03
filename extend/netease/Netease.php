@@ -46,6 +46,14 @@ class Netease
     /** @var array<int,true>|null */
     protected $dakaHistoryCache = null;
 
+    /**
+     * True when the initial play-record history could not be completely
+     * persisted. A partial seed is unsafe for a lifetime-unheard filter, so
+     * the daily task must wait for a later retry instead of reporting songs
+     * whose prior listening history is unknown.
+     */
+    protected bool $dakaHistorySeedIncomplete = false;
+
     protected $resourceTypeMap = [
         0 => 'R_SO_4_',
         1 => 'R_MV_5_',
@@ -431,12 +439,21 @@ class Netease
 
     public function get_search_playlist2($keywords = '冷门', $type = 1000, $limit = 50): array
     {
-        $keyword = $keywords === '冷门' ? $this->generateRandomString(2) : $keywords;
+        // A short random hexadecimal query often returns no useful playlists.
+        // Rotate through long-tail terms instead, while keeping a little
+        // randomness so consecutive accounts do not walk the same results.
+        $terms = [
+            '冷门', '小众', '宝藏歌曲', '独立音乐', '器乐', '后摇', '古典',
+            '氛围音乐', '影视原声', 'ACG', '粤语', '日语', '民谣', '翻唱',
+        ];
+        $keyword = $keywords === '冷门'
+            ? $terms[array_rand($terms)]
+            : (string)$keywords;
         $body = $this->decodeBody($this->requestApi('/api/cloudsearch/pc', [
             's' => $keyword,
             'type' => $type,
             'limit' => $limit,
-            'offset' => 0,
+            'offset' => random_int(0, 4) * max(1, (int)$limit),
             'total' => true,
         ], 'eapi'));
         $ids = $this->playlistIdsFromSearch($body);
@@ -522,9 +539,10 @@ class Netease
      */
     public function playlist_detail($playlist_id)
     {
+        $trackLimit = max(1, min(100000, (int)($this->config['playlist_track_limit'] ?? 600)));
         return $this->decodeBody($this->requestApi('/api/v6/playlist/detail', [
             'id' => $playlist_id,
-            'n' => max(1, min(100000, (int)($this->config['playlist_track_limit'] ?? 600))),
+            'n' => $trackLimit,
             's' => 8,
         ], 'eapi'));
     }
@@ -979,15 +997,23 @@ class Netease
         } else {
             $pools[] = fn(): array => $this->recommend_playlist();
         }
-        $pools[] = fn(): array => $this->get_search_playlist2();
-        $pools[] = static fn(): array => self::DAKA_CHART_PLAYLISTS;
-        // Deeper search rounds: each closure resolves to a new random-keyword
-        // search, consulted only when every pool above it ran out of fresh
-        // songs.
-        $searchRounds = max(1, min(5, (int)($this->config['daka_search_rounds'] ?? 2)));
-        for ($round = 1; $round < $searchRounds; $round++) {
-            $pools[] = fn(): array => $this->get_search_playlist2();
+        // Search is the long-tail source. Keep every configured search round
+        // ahead of the hot charts: popular chart tracks are the least likely
+        // to be fresh for an account with a large listening history.
+        $searchRounds = max(1, min(8, (int)($this->config['daka_search_rounds'] ?? 4)));
+        $searchPlaylistLimit = max(
+            1,
+            min(50, (int)($this->config['daka_search_playlists_per_round'] ?? 12))
+        );
+        for ($round = 0; $round < $searchRounds; $round++) {
+            $pools[] = function () use ($searchPlaylistLimit): array {
+                $ids = $this->normalizePlaylistIds($this->get_search_playlist2());
+                shuffle($ids);
+                return array_slice($ids, 0, $searchPlaylistLimit);
+            };
         }
+        // Official charts are the final safety net, not the first deep pool.
+        $pools[] = static fn(): array => self::DAKA_CHART_PLAYLISTS;
 
         return $pools;
     }
@@ -1047,6 +1073,9 @@ class Netease
         // during collection instead of only being ranked last: the quota is
         // spent on songs that can actually add to today's tally.
         $history = $this->dakaHistory();
+        if ($this->dakaHistorySeedIncomplete) {
+            return [];
+        }
         $floors = [$this->dakaMinimumSongSeconds()];
         $relaxed = 30;
         if ($relaxed < $floors[0]) {
@@ -1075,9 +1104,9 @@ class Netease
     /**
      * Playlist tracks, fetched at most once per run.
      *
-     * Official chart playlists are the same for every account on the platform,
-     * so their track lists are cached process-independently (6 hours): with
-     * N accounts per day the charts cost one upstream request each instead of
+     * Public playlist track lists are the same for every account, so they are
+     * cached process-independently (6 hours): with N accounts per day a chart
+     * or discovered long-tail playlist costs one upstream request instead of
      * N. The cache is best-effort — selection works without it.
      *
      * @return array<int,array{id:int,time:int}>
@@ -1087,18 +1116,47 @@ class Netease
         if (isset($this->dakaTrackCache[$playlistId])) {
             return $this->dakaTrackCache[$playlistId];
         }
-        $sharedKey = in_array($playlistId, self::DAKA_CHART_PLAYLISTS, true)
-            ? 'daka_chart_tracks_' . $playlistId
+        $trackLimit = max(1, min(100000, (int)($this->config['playlist_track_limit'] ?? 600)));
+        // A configured playlist may be private. Never put its track list in a
+        // process-wide cache, and use a versioned key so entries written by an
+        // older release (before this isolation) cannot be reused.
+        $sharedKey = $playlistId > 0
+            && !in_array($playlistId, $this->configuredDakaPlaylistIds(), true)
+            ? 'daka_public_playlist_tracks_v2_' . $playlistId . '_' . $trackLimit
             : null;
         if ($sharedKey !== null) {
             $cached = $this->dakaSharedCacheGet($sharedKey);
             if ($cached !== null) {
-                return $this->dakaTrackCache[$playlistId] = $cached;
+                $validCached = [];
+                foreach ($cached as $track) {
+                    if (!is_array($track)) {
+                        continue;
+                    }
+                    $id = (int)($track['id'] ?? 0);
+                    if ($id <= 0) {
+                        continue;
+                    }
+                    $validCached[] = [
+                        'id' => $id,
+                        'time' => max(1, (int)($track['time'] ?? 240)),
+                    ];
+                }
+                if ($validCached !== []) {
+                    // Cache the public data, not the selection order. Each
+                    // account/run should get an independent shuffle.
+                    shuffle($validCached);
+                    return $this->dakaTrackCache[$playlistId] = $validCached;
+                }
             }
         }
         try {
             $playlist = $this->playlist_detail($playlistId);
         } catch (Throwable $exception) {
+            return $this->dakaTrackCache[$playlistId] = [];
+        }
+        $playlistCode = (int)($playlist['code'] ?? 0);
+        if (in_array($playlistCode, [301, 401], true)) {
+            $this->cookiezt = true;
             return $this->dakaTrackCache[$playlistId] = [];
         }
         $tracks = [];
@@ -1247,33 +1305,58 @@ class Netease
 
     protected function dakaPlayRecordSeeded(): bool
     {
+        $historyPath = $this->dakaHistoryPath();
         $path = $this->dakaPlayRecordSeedPath();
-        return $path === null || is_file($path);
+        if ($historyPath === null || $path === null) {
+            return true;
+        }
+        if (!is_file($path) || !is_file($historyPath)) {
+            return false;
+        }
+        // A marker without a valid history array can be left behind by an
+        // interrupted deployment or a failed write. Re-seed rather than
+        // silently treating every song as fresh. JSON `null` is syntactically
+        // valid, but it is not a usable history document.
+        $decoded = json_decode((string)@file_get_contents($historyPath), true);
+        return is_array($decoded) && json_last_error() === JSON_ERROR_NONE;
     }
 
     /**
      * Merge the account's play-record charts into the history set and mark
-     * the seed as done. Best-effort: a failing or empty record endpoint must
-     * not break the daka run — the seed simply retries on the next day.
+     * the seed as done. The api-enhanced `/api/v1/play/record` wrapper mirrors
+     * NetEase's response (`allData` for type 0 and `weekData` for type 1), not
+     * a generic `list` field. A failing endpoint is left unmarked so the next
+     * run can retry; a valid empty response is still a successful seed for a
+     * new account.
      */
     protected function seedDakaHistoryFromPlayRecord(): void
     {
+        $this->dakaHistorySeedIncomplete = false;
         $seededIds = [];
+        $failed = false;
         foreach ([0, 1] as $type) {
             try {
                 $body = $this->decodeBody($this->requestApi('/api/v1/play/record', [
+                    // api-enhanced's user_record module requires uid
+                    // explicitly; the SDK session cookie does not inject it.
+                    'uid' => $this->userId,
                     'type' => $type,
-                    'limit' => 300,
-                    'offset' => 0,
                 ], 'weapi'));
             } catch (Throwable $exception) {
                 $body = [];
             }
-            foreach (is_array($body['list'] ?? null) ? $body['list'] : [] as $entry) {
-                $id = (int)($entry['songId'] ?? $entry['song']['id'] ?? 0);
-                if ($id > 0) {
-                    $seededIds[$id] = true;
+            if ((int)($body['code'] ?? 0) !== 200) {
+                if (in_array((int)($body['code'] ?? 0), [301, 401], true)) {
+                    $this->cookiezt = true;
                 }
+                $failed = true;
+                continue;
+            }
+            $records = $type === 0
+                ? ($body['allData'] ?? $body['list'] ?? $body['data'] ?? [])
+                : ($body['weekData'] ?? $body['list'] ?? $body['data'] ?? []);
+            foreach (is_array($records) ? $records : [] as $entry) {
+                $this->collectDakaPlayRecordIds($entry, $seededIds);
             }
         }
 
@@ -1282,26 +1365,61 @@ class Netease
             $history[(int)$id] = true;
         }
         $this->dakaHistoryCache = $history;
-        $this->rememberDakaHistoryIds(array_keys($history));
+        $historyPersisted = $this->rememberDakaHistoryIds(array_keys($history));
+
+        // Do not create a permanent marker after a transient/network failure.
+        // Partial IDs are persisted for diagnostics and the next run, but the
+        // current daka run remains fail-closed until both charts are known.
+        if ($failed || !$historyPersisted) {
+            $this->dakaHistorySeedIncomplete = true;
+            return;
+        }
 
         $marker = $this->dakaPlayRecordSeedPath();
         if ($marker !== null) {
-            @file_put_contents($marker, date('c'), LOCK_EX);
+            if (!$this->writeDakaStateFile($marker, date('c'))) {
+                $this->dakaHistorySeedIncomplete = true;
+            }
+        }
+    }
+
+    /**
+     * Extract IDs from both the current API response and older compatible
+     * response variants. A record normally contains `song.id`, while some
+     * deployments expose `songId` or `id` directly.
+     *
+     * @param mixed $entry
+     * @param array<int,true> $ids
+     */
+    protected function collectDakaPlayRecordIds($entry, array &$ids): void
+    {
+        if (!is_array($entry)) {
+            return;
+        }
+        $id = (int)($entry['songId'] ?? $entry['song']['id'] ?? $entry['id'] ?? 0);
+        if ($id > 0) {
+            $ids[$id] = true;
         }
     }
 
     /** Persist the history set without touching the cache. */
-    protected function rememberDakaHistoryIds(array $songIds): void
+    protected function rememberDakaHistoryIds(array $songIds): bool
     {
         $path = $this->dakaHistoryPath();
         if ($path === null) {
-            return;
+            return false;
         }
-        @file_put_contents(
-            $path,
-            json_encode(array_map('intval', $songIds), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
-            LOCK_EX
-        );
+        $ids = [];
+        foreach ($songIds as $songId) {
+            $id = (int)$songId;
+            if ($id > 0) {
+                $ids[$id] = true;
+            }
+        }
+        return $this->writeDakaStateFile($path, json_encode(
+            array_keys($ids),
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        ) ?: '[]');
     }
 
     protected function dakaPlayRecordSeedPath(): ?string
@@ -1322,20 +1440,56 @@ class Netease
                 $history[$id] = true;
             }
         }
-        if (count($history) > 30000) {
-            $history = array_slice($history, -30000, null, true);
-        }
         $this->dakaHistoryCache = $history;
 
         $path = $this->dakaHistoryPath();
         if ($path === null) {
             return;
         }
-        @file_put_contents(
-            $path,
-            json_encode(array_keys($history), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
-            LOCK_EX
-        );
+        // Never truncate this set: dropping old IDs would allow a lifetime
+        // repeat to be submitted again after an account passes 30,000 songs.
+        $persisted = $this->writeDakaStateFile($path, json_encode(
+            array_keys($history),
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        ) ?: '[]');
+        if (!$persisted) {
+            // Force the next process to rebuild from NetEase's play record.
+            // Keeping a seeded marker beside a stale history file could allow
+            // these accepted songs to be selected again on a later day.
+            $marker = $this->dakaPlayRecordSeedPath();
+            if ($marker !== null && is_file($marker)) {
+                @unlink($marker);
+            }
+            $this->dakaHistorySeedIncomplete = true;
+        }
+    }
+
+    /**
+     * Replace a state file atomically. Readers may run in another scheduler
+     * process, so writing directly to the destination could expose a partial
+     * JSON document even when file_put_contents uses LOCK_EX.
+     */
+    protected function writeDakaStateFile(string $path, string $contents): bool
+    {
+        $temporary = '';
+        try {
+            $temporary = $path . '.tmp.' . getmypid() . '.' . bin2hex(random_bytes(4));
+            if (@file_put_contents($temporary, $contents, LOCK_EX) === false) {
+                @unlink($temporary);
+                return false;
+            }
+            @chmod($temporary, 0660);
+            if (!@rename($temporary, $path)) {
+                @unlink($temporary);
+                return false;
+            }
+            return true;
+        } catch (Throwable $exception) {
+            if ($temporary !== '') {
+                @unlink($temporary);
+            }
+            return false;
+        }
     }
 
     /** @return array<string,mixed> */
@@ -1356,10 +1510,9 @@ class Netease
         if ($path === null) {
             return;
         }
-        @file_put_contents(
+        $this->writeDakaStateFile(
             $path,
-            json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}',
-            LOCK_EX
+            json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}'
         );
     }
 
@@ -1523,24 +1676,22 @@ class Netease
             }
         }
 
-        // The listenSongs tally is sealed once per day: production logs show it
-        // lands as a single step shortly after the first accepted batch and
-        // never moves again, so a later batch cannot add progress and only
-        // re-reports the same shortfall. The single batch therefore has to
-        // carry the whole day: the candidate pool is deep enough to fill the
-        // full target with fresh songs in one submission (the search-playlist
-        // pool exists for exactly that). Submit while nothing has been
-        // accepted today (first run, or retries when everything was refused);
-        // afterwards one verification pass confirms the tally and the day is
-        // closed — the shortfall goes to the next day's fresh songs.
-        // daka_topup_batches re-enables the legacy shortfall top-up when an
-        // operator explicitly asks for it.
-        $maxBatches = max(1, min(30, (int)($this->config['daka_max_batches_per_day'] ?? 20)));
-        $maxIdleRuns = max(1, min(10, (int)($this->config['daka_max_verification_runs'] ?? 4)));
+        // NetEase may settle the listenSongs counter asynchronously, and an
+        // accepted weblog is not a guarantee that it will increment the
+        // counter. Keep a bounded adaptive top-up budget so a partially
+        // counted first batch can still reach the target. Set
+        // daka_topup_batches=0 to retain verification-only behavior after the
+        // first successful play. The candidate pool is always fresh-song-only,
+        // so each top-up spends its budget on songs that can actually count.
+        $maxBatches = max(1, min(30, (int)($this->config['daka_max_batches_per_day'] ?? 6)));
+        $maxIdleRuns = max(1, min(10, (int)($this->config['daka_max_verification_runs'] ?? 3)));
         $retryInterval = max(120, min(3600, (int)($this->config['daka_retry_seconds'] ?? 900)));
-        $topupLimit = max(0, min(10, (int)($this->config['daka_topup_batches'] ?? 0)));
+        $topupLimit = max(0, min(10, (int)($this->config['daka_topup_batches'] ?? 3)));
         $topupsUsed = $sameDay ? max(0, (int)($dailyState['topups_used'] ?? 0)) : 0;
-        $dayAccepted = $startAcceptedTotal + $playAcceptedTotal;
+        // A startplay acknowledgement only proves that the request was
+        // accepted by the logging endpoint. Count completed play events when
+        // deciding whether a top-up is an additional batch.
+        $dayAccepted = $playAcceptedTotal;
         $maySubmit = $dayAccepted === 0 || $topupsUsed < $topupLimit;
         $stalledAfter = $progressChanged ? 0 : $stalledRuns + 1;
         $submitLimit = $remainingBefore;
@@ -1611,12 +1762,10 @@ class Netease
             ]);
         }
 
-        // The day's tally has already been accepted once, so a fresh batch
-        // could not add progress. Production logs show the tally lands as a
-        // single step shortly after the first accepted batch, so one
-        // verification pass (scheduled past that landing window) is all the
-        // external scheduler ever needs to run; afterwards the day is closed
-        // and the shortfall goes to the next day's fresh songs.
+        // Once the bounded top-up budget is exhausted, stop submitting and
+        // leave the remaining shortfall for the next day's fresh songs. A
+        // verification pass is still scheduled when the counter may be
+        // settling asynchronously.
         if (!$maySubmit) {
             $verifiedBefore = $sameDay ? max(0, (int)($dailyState['verifications'] ?? 0)) : 0;
             $retryAfter = $verifiedBefore === 0 && $stalledAfter < $maxIdleRuns && !$this->cookiezt
@@ -1677,9 +1826,40 @@ class Netease
             ]);
         }
 
-        $candidateLimit = min(1000, $submitLimit + max(100, (int)ceil($submitLimit * 1.5)));
+        // Do not over-sample: every fetched candidate costs memory and often a
+        // playlist-detail request, while only the remaining quota can be sent.
+        $candidateLimit = min(1000, max(1, $submitLimit));
         $candidates = $this->dakaCandidates($source, $submittedToday, $candidateLimit);
         $candidateCount = count($candidates);
+        if ($this->cookiezt) {
+            return $this->makeResult(201, '登录状态已失效', [
+                'submitted' => 0,
+                'candidate_count' => $candidateCount,
+                'daily_target' => $target,
+                'daily_confirmed' => $actualProgressBefore,
+                'daily_actual_progress' => $actualProgressBefore,
+                'daily_remaining' => $remainingBefore,
+                'target_reached' => false,
+                'attempts' => $attempts,
+                'retry_after_seconds' => 0,
+                'protocol_wait_seconds' => 0,
+            ]);
+        }
+        if ($this->dakaHistorySeedIncomplete) {
+            return $this->makeResult(201, '读取历史听歌记录失败，本次未上报，稍后自动重试', [
+                'submitted' => 0,
+                'candidate_count' => $candidateCount,
+                'daily_target' => $target,
+                'daily_confirmed' => $actualProgressBefore,
+                'daily_actual_progress' => $actualProgressBefore,
+                'daily_remaining' => $remainingBefore,
+                'target_reached' => false,
+                'attempts' => $attempts,
+                'retry_after_seconds' => $retryInterval,
+                'protocol_wait_seconds' => 0,
+                'history_seed_incomplete' => true,
+            ]);
+        }
         $songs = array_slice($candidates, 0, $submitLimit, true);
         if ($songs === []) {
             $attemptsAfter = $attempts + 1;
@@ -1749,7 +1929,9 @@ class Netease
         $startAcceptedTotal += $this->lastScrobbleStarts;
         $playAcceptedTotal += $success;
         $reportedSecondsTotal += $this->lastScrobbleSeconds;
-        $topupsUsedAfter = $dayAccepted > 0 ? $topupsUsed + 1 : $topupsUsed;
+        $topupsUsedAfter = ($dayAccepted > 0 && $submitted > 0)
+            ? $topupsUsed + 1
+            : $topupsUsed;
         // 累计听歌 lands asynchronously, so a run that reports nothing new is
         // only treated as stalled once the counter also failed to move.
         $stalledAfterRun = ($progressChanged || $delta > 0) ? 0 : $stalledAfter;

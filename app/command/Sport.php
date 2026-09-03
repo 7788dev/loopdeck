@@ -45,10 +45,13 @@ class Sport extends Command
                 $vip_expired_userIds[] = $job['user_id'];
                 continue;
             }
-            $account = Accounts::where('type', '=', 'sport')->where('user_id', '=', $job['user_id'])->find();
+            $account = Accounts::where('type', '=', 'sport')
+                ->where('user_id', '=', $job['user_id'])
+                ->where('uid', '=', $job['uid'])
+                ->find();
             if ($account == null) {
-                Accounts::delById('sport', $job['user_id']);
-                Jobs::delJob('sport',$job['user_id']);
+                Accounts::delById('sport', $job['user_id'], (int)$job['uid']);
+                Jobs::delJob('sport', $job['user_id'], (int)$job['uid']);
                 continue;
             }
             if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
@@ -62,7 +65,10 @@ class Sport extends Command
             $do = new SportAPI($account_info['user_id'], $account_info['login_token'], $account_info['app_token'], $job_config);
             $execute = $do->{$job['do']}();
             if ($do->cookiezt) {
-                $account = Accounts::where('type', '=', 'sport')->where('user_id', '=', $job['user_id'])->find();
+                $account = Accounts::where('type', '=', 'sport')
+                    ->where('user_id', '=', $job['user_id'])
+                    ->where('uid', '=', $job['uid'])
+                    ->find();
                 $user = Users::where('uid', '=', $account['uid'])->find();
                 $this->accountInvalid('sport', $user, $job['user_id']); // 账号失效处理
                 break;
@@ -78,7 +84,7 @@ class Sport extends Command
                     (string)$job['user_id'],
                     (string)$account['timing']
                 ) ?? 0,
-            ]);
+            ], (int)$job['uid']);
         }
         $count = count($jobs);
         $output->writeln("成功执行 {$count} 条任务：" . date("Y-m-d H:i:s"));
@@ -89,7 +95,10 @@ class Sport extends Command
         $membershipChanged = Users::where('uid', '=', $uid)
             ->whereRaw('(`vip_start` IS NOT NULL OR `vip_end` IS NOT NULL)')
             ->update(['vip_start' => NULL, 'vip_end' => NULL]);
-        Jobs::where('type', '=', $type)->where('user_id', '=', $user_id)->update(['state' => 0]);
+        Jobs::where('type', '=', $type)
+            ->where('uid', '=', $uid)
+            ->where('user_id', '=', $user_id)
+            ->update(['state' => 0]);
         $data = [
             'type' => $type,
             'user_id' => $user_id,

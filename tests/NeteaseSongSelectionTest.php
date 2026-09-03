@@ -27,10 +27,15 @@ class NeteaseSelectionFixture extends Netease
     public int $seededHistoryCalls = 0;
     /** @var array<int,array<int,int>> */
     public array $playRecordLists = [0 => [], 1 => []];
+    /** @var array<int,array{type:int,uid:mixed}> */
+    public array $playRecordRequests = [];
+    public int $sharedCacheGets = 0;
+    public int $sharedCacheSets = 0;
 
     public function __construct(array $config = [])
     {
         $this->config = array_replace(['daka_history_dir' => ''], $config);
+        $this->userId = $config['user_id'] ?? 123456;
     }
 
     /**
@@ -68,11 +73,18 @@ class NeteaseSelectionFixture extends Netease
         if ($uri !== '/api/v1/play/record') {
             return ['body' => '{}'];
         }
+        $this->playRecordRequests[] = [
+            'type' => (int)($data['type'] ?? 0),
+            'uid' => $data['uid'] ?? null,
+        ];
         $list = [];
         foreach ($this->playRecordLists[(int)($data['type'] ?? 0)] ?? [] as $id) {
-            $list[] = ['songId' => (int)$id];
+            $list[] = (int)($data['type'] ?? 0) === 0
+                ? ['song' => ['id' => (int)$id]]
+                : ['songId' => (int)$id];
         }
-        return ['body' => (string)json_encode(['code' => 200, 'list' => $list])];
+        $field = (int)($data['type'] ?? 0) === 0 ? 'allData' : 'weekData';
+        return ['body' => (string)json_encode(['code' => 200, $field => $list])];
     }
 
     public function recommend_playlist()
@@ -101,6 +113,22 @@ class NeteaseSelectionFixture extends Netease
         return $this->searchPlaylistResults[$call]
             ?? $this->searchPlaylistResults[0]
             ?? [880];
+    }
+
+    public function rememberSongs(array $ids): void
+    {
+        $this->rememberDakaSongs($ids);
+    }
+
+    protected function dakaSharedCacheGet(string $key): ?array
+    {
+        $this->sharedCacheGets++;
+        return null;
+    }
+
+    protected function dakaSharedCacheSet(string $key, array $value, int $ttlSeconds): void
+    {
+        $this->sharedCacheSets++;
     }
 
     public function playlist_detail($playlist_id)
@@ -430,6 +458,15 @@ selectionCheck(
     isset($seedFixture->history[90]) && isset($seedFixture->history[91]),
     'The play-record seed did not merge already-played songs into the history'
 );
+selectionCheck(count($seedFixture->playRecordRequests) === 2, 'The seed did not request both all-time and weekly records');
+selectionCheck(
+    array_map(static fn(array $request): mixed => $request['uid'], $seedFixture->playRecordRequests) === [123456, 123456],
+    'The play-record seed did not pass the account uid to api-enhanced'
+);
+selectionCheck(
+    array_map(static fn(array $request): int => $request['type'], $seedFixture->playRecordRequests) === [0, 1],
+    'The play-record seed requested the wrong record types'
+);
 selectionCheck(
     count(glob($seedDirectory . DIRECTORY_SEPARATOR . '*.seeded') ?: []) === 1,
     'The play-record seed marker was not written next to the history file'
@@ -443,5 +480,115 @@ foreach (glob($seedDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $seedFile) {
     @unlink($seedFile);
 }
 @rmdir($seedDirectory);
+
+// A syntactically valid JSON `null` is not a usable history document. If a
+// deployment left a marker beside such a file, the next run must seed again.
+$nullHistoryDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-null-history-' . bin2hex(random_bytes(6));
+selectionCheck(@mkdir($nullHistoryDirectory, 0770, true), 'Null-history test directory could not be created');
+$nullHistoryPath = $nullHistoryDirectory . DIRECTORY_SEPARATOR . hash('sha256', '123456') . '.json';
+file_put_contents($nullHistoryPath, 'null');
+file_put_contents(substr($nullHistoryPath, 0, -5) . '.seeded', date('c'));
+$nullHistoryFixture = new NeteaseSelectionFixture([
+    'daka_playlist_ids' => '562',
+    'daka_history_dir' => $nullHistoryDirectory,
+]);
+$nullHistoryFixture->strictTracks = true;
+$nullHistoryFixture->tracksByPlaylist = [562 => [['id' => 93, 'dt' => 180000]]];
+$nullHistoryFixture->playRecordLists = [0 => [93], 1 => []];
+$nullHistoryFixture->candidates([], 1);
+selectionCheck($nullHistoryFixture->seededHistoryCalls === 1, 'A marker beside JSON null suppressed history seeding');
+selectionCheck(isset($nullHistoryFixture->history[93]), 'Null-history recovery did not merge the play record');
+foreach (glob($nullHistoryDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $nullHistoryFile) {
+    @unlink($nullHistoryFile);
+}
+@rmdir($nullHistoryDirectory);
+
+// Configured playlists can be private. They must bypass the process-wide
+// public-playlist cache so one account can never expose its track list to
+// another account.
+$privatePlaylistFixture = new NeteaseSelectionFixture([
+    'daka_playlist_ids' => '563',
+]);
+$privatePlaylistFixture->strictTracks = true;
+$privatePlaylistFixture->tracksByPlaylist = [563 => [['id' => 94, 'dt' => 180000]]];
+$privatePlaylistFixture->candidates([], 1);
+selectionCheck(
+    $privatePlaylistFixture->sharedCacheGets === 0 && $privatePlaylistFixture->sharedCacheSets === 0,
+    'A configured playlist was placed in the shared cache'
+);
+
+// A failed record request must not permanently mark the account as seeded;
+// the next scheduler process must be able to retry it.
+final class NeteaseSelectionSeedRetryFixture extends NeteaseSelectionFixture
+{
+    public int $recordCalls = 0;
+
+    protected function requestApi(
+        string $uri,
+        array $data = [],
+        string $crypto = 'eapi',
+        array $options = []
+    ): array {
+        if ($uri === '/api/v1/play/record' && $this->recordCalls++ === 0) {
+            return ['body' => '{"code":500,"message":"temporary failure"}'];
+        }
+        return parent::requestApi($uri, $data, $crypto, $options);
+    }
+}
+
+$retryDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-seed-retry-' . bin2hex(random_bytes(6));
+selectionCheck(@mkdir($retryDirectory, 0770, true), 'Seed retry test directory could not be created');
+$failedSeed = new NeteaseSelectionSeedRetryFixture([
+    'daka_playlist_ids' => '561',
+    'daka_history_dir' => $retryDirectory,
+]);
+$failedSeed->strictTracks = true;
+$failedSeed->recommendPlaylists = [];
+$failedSeed->tracksByPlaylist = [561 => [['id' => 92, 'dt' => 180000]]];
+$failedSeed->searchPlaylistResults = [0 => []];
+$failedSeed->playRecordLists = [0 => [92], 1 => []];
+$failedSeedCandidates = $failedSeed->candidates([], 1);
+selectionCheck($failedSeedCandidates === [], 'A partial play-record seed allowed reporting with an incomplete history');
+selectionCheck(
+    count(glob($retryDirectory . DIRECTORY_SEPARATOR . '*.seeded') ?: []) === 0,
+    'A failed play-record request incorrectly wrote a permanent seed marker'
+);
+$retriedSeed = new NeteaseSelectionFixture([
+    'daka_playlist_ids' => '561',
+    'daka_history_dir' => $retryDirectory,
+]);
+$retriedSeed->strictTracks = true;
+$retriedSeed->recommendPlaylists = [];
+$retriedSeed->tracksByPlaylist = [561 => [['id' => 92, 'dt' => 180000]]];
+$retriedSeed->searchPlaylistResults = [0 => []];
+$retriedSeed->playRecordLists = [0 => [92], 1 => []];
+$retriedSeed->candidates([], 1);
+selectionCheck(
+    count(glob($retryDirectory . DIRECTORY_SEPARATOR . '*.seeded') ?: []) === 1,
+    'The play-record seed was not retried successfully after a transient failure'
+);
+foreach (glob($retryDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $retryFile) {
+    @unlink($retryFile);
+}
+@rmdir($retryDirectory);
+
+// History files must retain IDs beyond the old 30,000-entry truncation limit.
+$largeHistoryDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-large-history-' . bin2hex(random_bytes(6));
+selectionCheck(@mkdir($largeHistoryDirectory, 0770, true), 'Large history test directory could not be created');
+$largeHistoryFixture = new NeteaseSelectionFixture([
+    'daka_history_dir' => $largeHistoryDirectory,
+]);
+$largeHistoryFixture->playRecordLists = [0 => [], 1 => []];
+$largeHistoryFixture->rememberSongs(range(1, 30001));
+$savedHistory = json_decode(
+    (string)file_get_contents($largeHistoryDirectory . DIRECTORY_SEPARATOR . hash('sha256', '123456') . '.json'),
+    true
+);
+selectionCheck(is_array($savedHistory) && count($savedHistory) === 30001, 'The lifetime history was truncated');
+selectionCheck((int)$savedHistory[0] === 1 && (int)$savedHistory[30000] === 30001, 'The earliest history IDs were not preserved');
+foreach (glob($largeHistoryDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $historyFile) {
+    @unlink($historyFile);
+}
+@rmdir($largeHistoryDirectory);
 
 echo "Netease song selection tests passed\n";

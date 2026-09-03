@@ -57,15 +57,21 @@ class Jobs extends Model
      * @throws DbException
      * @throws ModelNotFoundException
      */
-    public static function refreshJob($type, $user_id)
+    public static function refreshJob($type, $user_id, $uid = null)
     {
+        $uid = self::resolveTenantUid($uid);
+        if ($uid === null) {
+            // Job rows must never be created without an owning tenant.
+            return false;
+        }
+
         $self = new static();
         $tasks = Tasks::getTaskList($type);
-        $nextExecute = self::nextExecutionForAccount((string)$type, (string)$user_id);
+        $nextExecute = self::nextExecutionForAccount((string)$type, (string)$user_id, $uid);
         foreach ($tasks as $key => $value) {
-            if (!$self::getJobInfo($type, $user_id, $value['execute_name'])) {
+            if (!$self::getJobInfo($type, $user_id, $value['execute_name'], $uid)) {
                 $self->create([
-                    'uid' => Session::get('user.uid'),
+                    'uid' => $uid,
                     'type' => $type,
                     'user_id' => $user_id,
                     'do' => $value['execute_name'],
@@ -77,6 +83,7 @@ class Jobs extends Model
                 ]);
             }
         }
+        return true;
     }
 
     /**
@@ -89,10 +96,19 @@ class Jobs extends Model
      * @throws DbException
      * @throws ModelNotFoundException
      */
-    public static function getJobInfo($type = null, $user_id = null, $do = null)
+    public static function getJobInfo($type = null, $user_id = null, $do = null, $uid = null)
     {
+        $uid = self::resolveTenantUid($uid);
+        if ($uid === null) {
+            return false;
+        }
+
         $self = new static();
-        if ($result = $self->where('type', $type)->where('user_id', $user_id)->where('do', $do)->find()) {
+        if ($result = $self->where('type', $type)
+            ->where('user_id', $user_id)
+            ->where('do', $do)
+            ->where('uid', $uid)
+            ->find()) {
             return $result;
         }
         return false;
@@ -193,16 +209,22 @@ class Jobs extends Model
      * @return bool
      * @author BadCen
      */
-    public static function updateJob($type = null, $user_id = null)
+    public static function updateJob($type = null, $user_id = null, $uid = null)
     {
+        $uid = self::resolveTenantUid($uid);
+        if ($uid === null) {
+            return false;
+        }
+
         $self = new static();
         $tasks = Tasks::getTaskList($type);
-        $nextExecute = self::nextExecutionForAccount((string)$type, (string)$user_id);
+        $nextExecute = self::nextExecutionForAccount((string)$type, (string)$user_id, $uid);
         foreach ($tasks as $key => $value) {
             if ($type === 'bilibili'
                 && BilibiliTaskExecutor::offlineReason((string)$value['execute_name']) !== null) {
                 $self->where('type', '=', $type)
                     ->where('user_id', '=', $user_id)
+                    ->where('uid', '=', $uid)
                     ->where('do', '=', $value['execute_name'])
                     ->update(['state' => 0]);
                 continue;
@@ -210,18 +232,20 @@ class Jobs extends Model
             if ($value['vip'] == 1 && Session::get('user.vip_start')) {
                 $self->where('type', '=', $type)
                     ->where('user_id', '=', $user_id)
+                    ->where('uid', '=', $uid)
                     ->where('state', '=', -1)
                     ->where('do', '=', $value['execute_name'])
                     ->update(['state' => 1, 'nextExecute' => $nextExecute]);
             } else {
                 $self->where('type', '=', $type)
                     ->where('user_id', '=', $user_id)
+                    ->where('uid', '=', $uid)
                     ->where('state', '=', -1)
                     ->where('do', '=', $value['execute_name'])
                     ->update(['state' => 1, 'nextExecute' => $nextExecute]);
             }
         }
-        return false;
+        return true;
     }
 
     /**
@@ -300,13 +324,19 @@ class Jobs extends Model
      * @return bool
      * @author BadCen
      */
-    public static function delJob($type, $data)
+    public static function delJob($type, $data, $uid = null)
     {
-        $self = new static();
-        if ($result = $self->where('type', $type)->where('user_id', $data)->delete()) {
-            return $result;
+        $uid = self::resolveTenantUid($uid);
+        if ($uid === null) {
+            return false;
         }
-        return false;
+
+        $self = new static();
+        $result = $self->where('type', $type)
+            ->where('user_id', $data)
+            ->where('uid', $uid)
+            ->delete();
+        return $result === false ? false : $result;
     }
 
     /**
@@ -331,13 +361,21 @@ class Jobs extends Model
      * @return Jobs|false
      * @author BadCen
      */
-    public static function updateJobInfo($type, $do, $user_id, $data = [])
+    public static function updateJobInfo($type, $do, $user_id, $data = [], $uid = null)
     {
-        $self = new static();
-        if ($result = $self->where(['type' => $type, 'do' => $do, 'user_id' => $user_id])->update($data)) {
-            return $result;
+        $uid = self::resolveTenantUid($uid);
+        if ($uid === null) {
+            return false;
         }
-        return false;
+
+        $self = new static();
+        $result = $self->where([
+            'type' => $type,
+            'do' => $do,
+            'user_id' => $user_id,
+            'uid' => $uid,
+        ])->update($data);
+        return $result === false ? false : $result;
     }
 
     /**
@@ -369,10 +407,10 @@ class Jobs extends Model
         return (int)$affected === 1;
     }
 
-    private static function nextExecutionForAccount(string $type, string $userId): int
+    private static function nextExecutionForAccount(string $type, string $userId, $uid = null): int
     {
-        $uid = (int)Session::get('user.uid');
-        if ($type === '' || $userId === '' || $uid <= 0) {
+        $uid = self::resolveTenantUid($uid);
+        if ($type === '' || $userId === '' || $uid === null) {
             return 0;
         }
 
@@ -386,6 +424,28 @@ class Jobs extends Model
             $userId,
             is_string($timing) ? $timing : null
         ) ?? 0;
+    }
+
+    /**
+     * Resolve the tenant owner for a job operation. Web requests normally use
+     * the logged-in session; scheduler/CLI callers must pass the row's uid
+     * explicitly. Invalid or missing IDs fail closed instead of issuing an
+     * unscoped query.
+     */
+    private static function resolveTenantUid($uid = null): ?int
+    {
+        if ($uid === null) {
+            try {
+                $uid = Session::get('user.uid');
+            } catch (\Throwable $exception) {
+                return null;
+            }
+        }
+
+        $resolved = filter_var($uid, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1],
+        ]);
+        return $resolved === false ? null : (int)$resolved;
     }
 
 }

@@ -526,25 +526,44 @@ class Task extends Common
 
     private function retryJob(int $jobId): void
     {
-        $nextExecute = 0;
-        $job = Jobs::where('id', $jobId)->field('uid,type,user_id')->find();
-        if ($job) {
-            $timing = Accounts::where('type', (string)$job['type'])
-                ->where('uid', (int)$job['uid'])
-                ->where('user_id', (string)$job['user_id'])
-                ->value('timing');
-            if (AutomaticSchedule::isConfigured(is_string($timing) ? $timing : null)) {
-                $cooldown = max(60, (int)(config('sys.reExecute_time') ?: 300));
-                $jitter = $this->envInt('SCHEDULER_RETRY_JITTER_SECONDS', 60, 0, 300);
-                $nextExecute = time() + $cooldown
-                    + $this->stableJitter($jobId + intdiv(time(), 60), $jitter);
-            }
+        if ($jobId <= 0) {
+            return;
         }
 
-        Jobs::where('id', $jobId)->update([
-            'lastExecute' => date('Y-m-d H:i:s'),
-            'nextExecute' => $nextExecute,
-        ]);
+        try {
+            $nextExecute = 0;
+            $job = Jobs::where('id', $jobId)->field('uid,type,user_id')->find();
+            if ($job) {
+                $timing = Accounts::where('type', (string)$job['type'])
+                    ->where('uid', (int)$job['uid'])
+                    ->where('user_id', (string)$job['user_id'])
+                    ->value('timing');
+                if (AutomaticSchedule::isConfigured(is_string($timing) ? $timing : null)) {
+                    $cooldown = max(60, (int)(config('sys.reExecute_time') ?: 300));
+                    $jitter = $this->envInt('SCHEDULER_RETRY_JITTER_SECONDS', 60, 0, 300);
+                    $nextExecute = time() + $cooldown
+                        + $this->stableJitter($jobId + intdiv(time(), 60), $jitter);
+                }
+            }
+
+            Jobs::where('id', $jobId)->update([
+                'lastExecute' => date('Y-m-d H:i:s'),
+                'nextExecute' => $nextExecute,
+            ]);
+        } catch (Throwable $exception) {
+            // A database failure while handling an exception must not escape
+            // the per-job boundary and abort the remaining scheduler batch.
+            // Make one best-effort short lease update; if the database is
+            // unavailable, the original claim will expire on its own.
+            try {
+                Jobs::where('id', $jobId)->update([
+                    'lastExecute' => date('Y-m-d H:i:s'),
+                    'nextExecute' => time() + 300,
+                ]);
+            } catch (Throwable $ignored) {
+                // Nothing else can be safely done without a working database.
+            }
+        }
     }
 
     private function stableJitter(int $seed, int $maximum): int
@@ -680,14 +699,83 @@ class Task extends Common
             return;
         }
 
+        // A state file can be older than the retention window while its
+        // account is still active (for example, a user may pause a schedule
+        // for a few months). Resolve the live account IDs first and fail
+        // closed if the database cannot be read; age alone is not proof that a
+        // state file is orphaned.
+        $activeHashes = $this->activeDakaStateHashes();
+        if ($activeHashes === null) {
+            return;
+        }
+
         $retentionDays = $this->envInt('DAKA_STATE_RETENTION_DAYS', 30, 1, 3650);
         $cutoff = time() - ($retentionDays * 86400);
-        foreach (glob($directory . DIRECTORY_SEPARATOR . '*.*') ?: [] as $file) {
+        // Only the state files created by the NetEase task belong here. The
+        // directory is runtime-writable, so a broad `*.*` glob could remove
+        // an unrelated operator file or a future cache artifact.
+        $entries = @scandir($directory) ?: [];
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..'
+                || preg_match(
+                    '/^[a-f0-9]{64}(?:\.daily\.json|\.json|\.seeded)$/i',
+                    $entry
+                ) !== 1) {
+                continue;
+            }
+            $hash = substr($entry, 0, 64);
+            if (isset($activeHashes[$hash])) {
+                continue;
+            }
+            $file = $directory . DIRECTORY_SEPARATOR . $entry;
             clearstatcache(true, $file);
             if (is_file($file) && (int)@filemtime($file) < $cutoff) {
                 @unlink($file);
             }
         }
+    }
+
+    /**
+     * Return the hashes used by live NetEase account state files.
+     *
+     * Both the legacy row-level user_id and the ID inside the serialized
+     * account payload are retained: old rows occasionally have one field
+     * populated differently from the other. A null return means the query was
+     * unavailable and tells the caller not to delete anything.
+     *
+     * @return array<string,true>|null
+     */
+    private function activeDakaStateHashes(): ?array
+    {
+        try {
+            $accounts = Accounts::where('type', 'netease')
+                ->field('user_id,data')
+                ->select();
+        } catch (Throwable $exception) {
+            return null;
+        }
+
+        if ($accounts === false || !is_iterable($accounts)) {
+            return null;
+        }
+
+        $hashes = [];
+        foreach ($accounts as $account) {
+            $rowUserId = trim((string)($account['user_id'] ?? ''));
+            if ($rowUserId !== '') {
+                $hashes[hash('sha256', $rowUserId)] = true;
+            }
+
+            $accountData = function_exists('safe_unserialize_array')
+                ? safe_unserialize_array((string)($account['data'] ?? ''))
+                : [];
+            $payloadUserId = trim((string)($accountData['user_id'] ?? ''));
+            if ($payloadUserId !== '') {
+                $hashes[hash('sha256', $payloadUserId)] = true;
+            }
+        }
+
+        return $hashes;
     }
 
     private function envInt(string $name, int $default, int $minimum, int $maximum): int

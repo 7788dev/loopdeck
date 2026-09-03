@@ -47,10 +47,13 @@ class Netease extends Command
                 $vip_expired_userIds[] = $job['user_id'];
                 continue;
             }
-            $account = Accounts::where('type', '=', 'netease')->where('user_id', '=', $job['user_id'])->find();
+            $account = Accounts::where('type', '=', 'netease')
+                ->where('user_id', '=', $job['user_id'])
+                ->where('uid', '=', $job['uid'])
+                ->find();
             if ($account == null) {
-                Accounts::delById('netease', $job['user_id']);
-                Jobs::delJob('netease',$job['user_id']);
+                Accounts::delById('netease', $job['user_id'], (int)$job['uid']);
+                Jobs::delJob('netease', $job['user_id'], (int)$job['uid']);
                 continue;
             }
             if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
@@ -62,7 +65,10 @@ class Netease extends Command
             $do = new NeteaseAPI($account_info['user_id'], $account_info['csrf'], $account_info['musicu'], $job_config);
             $execute = $do->{$job['do']}();
             if ($do->cookiezt) {
-                $account = Accounts::where('type', '=', 'netease')->where('user_id', '=', $job['user_id'])->find();
+                $account = Accounts::where('type', '=', 'netease')
+                    ->where('user_id', '=', $job['user_id'])
+                    ->where('uid', '=', $job['uid'])
+                    ->find();
                 $user = Users::where('uid', '=', $account['uid'])->find();
                 $this->accountInvalid('netease', $user, $job['user_id']); // 账号失效处理
                 break;
@@ -83,7 +89,7 @@ class Netease extends Command
             Jobs::updateJobInfo('netease', $job['do'], $job['user_id'], [ // 更新任务执行信息
                 'lastExecute' => date("Y-m-d H:i:s"),
                 'nextExecute' => $nextExecute,
-            ]);
+            ], (int)$job['uid']);
             $executed++;
         }
         $count = $executed;
@@ -95,7 +101,10 @@ class Netease extends Command
         $membershipChanged = Users::where('uid', '=', $uid)
             ->whereRaw('(`vip_start` IS NOT NULL OR `vip_end` IS NOT NULL)')
             ->update(['vip_start' => NULL, 'vip_end' => NULL]);
-        Jobs::where('type', '=', $type)->where('user_id', '=', $user_id)->update(['state' => 0]);
+        Jobs::where('type', '=', $type)
+            ->where('uid', '=', $uid)
+            ->where('user_id', '=', $user_id)
+            ->update(['state' => 0]);
         $data = [
             'type' => $type,
             'user_id' => $user_id,

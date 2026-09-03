@@ -194,14 +194,32 @@ class Ajax extends Common
 			->find();
 		if (!$account) {
 			return resultJson(0, "账号不存在或无权操作");
-		}
+        }
 
-		if ($act === "delete") {
-			$deleted = Accounts::delByUserId($type, $userId);
-			Jobs::where("type", "=", $type)->where("user_id", "=", $userId)->where("uid", "=", Session::get("user.uid"))->delete();
-			TaskLogs::deleteLogs($type, $userId);
-			return $deleted ? resultJson(1, "删除成功") : resultJson(0, "删除失败");
-		}
+        if ($act === "delete") {
+            $neteaseStateUserId = '';
+            if ($type === 'netease') {
+                $accountData = safe_unserialize_array((string)($account['data'] ?? ''));
+                $neteaseStateUserId = trim((string)($accountData['user_id'] ?? $account['user_id']));
+            }
+            $deleted = Accounts::delByUserId($type, $userId);
+            Jobs::where("type", "=", $type)->where("user_id", "=", $userId)->where("uid", "=", Session::get("user.uid"))->delete();
+            TaskLogs::deleteLogs($type, $userId);
+            if ($deleted && $type === 'netease' && $neteaseStateUserId !== '') {
+                try {
+                    // The lifetime history and daily state are local runtime
+                    // data, not database rows; remove them with the account.
+                    (new \netease\Netease($neteaseStateUserId, '', '', [
+                        'auto_anonymous_token' => false,
+                        'cache_dir' => '',
+                    ]))->forgetDakaState();
+                } catch (\Throwable $exception) {
+                    // Account deletion itself succeeded; pruning can retry the
+                    // orphaned state file later without exposing an error.
+                }
+            }
+            return $deleted ? resultJson(1, "删除成功") : resultJson(0, "删除失败");
+        }
 		if ($act === "logs") {
 			return TaskLogs::searchLogs($type, $userId);
 		}

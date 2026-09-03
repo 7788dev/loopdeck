@@ -338,11 +338,9 @@ workflowCheck(count($excludedSongs) === 2, 'Excluding one track did not leave th
 workflowCheck($limitProbe->playlistDetailCalls === 1, 'The per-run playlist track cache was not reused');
 
 /**
- * The listenSongs tally lands once per day — production logs show a single
- * step shortly after the first accepted batch, then nothing until the next
- * day — so a later batch cannot add progress and only resubmits the same
- * shortfall. After the first acceptance the task must switch to
- * verification-only runs.
+ * The default flow uses a bounded adaptive top-up. If the first accepted
+ * batch only moves listenSongs part-way, the next run submits exactly the
+ * measured shortfall using fresh IDs and can complete the day.
  */
 $topUpDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-topup-' . bin2hex(random_bytes(6));
 workflowCheck(@mkdir($topUpDirectory, 0770, true), 'Daily daka test directory could not be created');
@@ -360,40 +358,49 @@ workflowCheck((int)($firstRun['data']['daily_actual_progress'] ?? -1) === 6, 'Pr
 workflowCheck((int)($firstRun['data']['daily_remaining'] ?? -1) === 4, 'The shortfall was not carried forward');
 workflowCheck((int)($firstRun['data']['retry_after_seconds'] ?? 0) > 0, 'A partially counted run did not schedule a verification pass');
 
-// The tally lands once per day shortly after the first accepted batch, so the
-// external scheduler only ever needs one verification pass: it runs after the
-// landing window, confirms the counted progress, and closes the day. A second
-// verification call must not reschedule anything.
+// The second run fills the measured shortfall; it must not resend IDs from the
+// first batch and should complete the target.
 $secondRun = $topUpProbe->daka_new();
-workflowCheck((int)($secondRun['data']['submitted'] ?? -1) === 0, 'A sealed tally submitted another batch');
-workflowCheck($topUpProbe->scrobbleCalls === 1, 'The verification run called the reporting protocol again');
-workflowCheck(!empty($secondRun['data']['verification_only']), 'The verification run was not flagged verification-only');
-workflowCheck((int)($secondRun['data']['daily_actual_progress'] ?? -1) === 6, 'The verification run lost the counted progress');
-workflowCheck((int)($secondRun['data']['daily_remaining'] ?? -1) === 4, 'The verification run lost the shortfall');
+workflowCheck((int)($secondRun['code'] ?? 0) === 200, 'The adaptive top-up did not complete the target');
+workflowCheck((int)($secondRun['data']['submitted'] ?? -1) === 4, 'The adaptive top-up did not submit the measured shortfall');
+workflowCheck($topUpProbe->scrobbleCalls === 2, 'The adaptive top-up did not call the reporting protocol exactly once more');
+workflowCheck((int)($secondRun['data']['daily_actual_progress'] ?? -1) === 10, 'The adaptive top-up lost the counted progress');
+workflowCheck((int)($secondRun['data']['daily_remaining'] ?? -1) === 0, 'The adaptive top-up left an unexpected shortfall');
+workflowCheck((int)($secondRun['data']['topups_used'] ?? -1) === 1, 'The adaptive top-up budget was not recorded');
 workflowCheck(
-    (int)($secondRun['data']['retry_after_seconds'] ?? -1) > 0,
-    'The first verification pass did not schedule its single confirmation run'
-);
-workflowCheck(
-    str_contains((string)($secondRun['message'] ?? ''), '仅核验不上报'),
-    'The verification run did not say that it stopped reporting'
+    array_intersect($topUpProbe->submittedBatches[0], $topUpProbe->submittedBatches[1]) === [],
+    'The adaptive top-up repeated songs already submitted today'
 );
 
 $closingRun = $topUpProbe->daka_new();
-workflowCheck((int)($closingRun['data']['submitted'] ?? -1) === 0, 'The closing verification run submitted another batch');
-workflowCheck($topUpProbe->scrobbleCalls === 1, 'The closing verification run called the reporting protocol again');
-workflowCheck(
-    (int)($closingRun['data']['retry_after_seconds'] ?? -1) === 0,
-    'The closing verification run still asked the scheduler to come back'
-);
-workflowCheck(
-    str_contains((string)($closingRun['message'] ?? ''), '今日核验完成'),
-    'The closing verification run did not say the day was closed'
-);
+workflowCheck((int)($closingRun['data']['submitted'] ?? -1) === 0, 'A completed day submitted another batch');
+workflowCheck($topUpProbe->scrobbleCalls === 2, 'A completed day called the reporting protocol again');
+workflowCheck(!empty($closingRun['data']['target_reached']), 'A completed day was not marked as reached');
 foreach (glob($topUpDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $topUpFile) {
     @unlink($topUpFile);
 }
 @rmdir($topUpDirectory);
+
+// An explicit zero budget keeps the verification-only mode available for
+// operators who prefer to wait for NetEase's daily tally settlement.
+$verifyDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-verify-' . bin2hex(random_bytes(6));
+workflowCheck(@mkdir($verifyDirectory, 0770, true), 'Verification-only daka test directory could not be created');
+$verifyProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
+    'daka_limit' => 10,
+    'daka_history_dir' => $verifyDirectory,
+    'daka_topup_batches' => 0,
+], $sdk);
+$verifyProbe->countedPerBatch = 6;
+$verifyFirst = $verifyProbe->daka_new();
+workflowCheck((int)($verifyFirst['data']['submitted'] ?? -1) === 10, 'The zero-budget first run did not submit the target');
+$verifySecond = $verifyProbe->daka_new();
+workflowCheck((int)($verifySecond['data']['submitted'] ?? -1) === 0, 'The zero-budget mode submitted a top-up');
+workflowCheck(!empty($verifySecond['data']['verification_only']), 'The zero-budget mode was not verification-only');
+workflowCheck($verifyProbe->scrobbleCalls === 1, 'The zero-budget mode called the reporting protocol twice');
+foreach (glob($verifyDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $verifyFile) {
+    @unlink($verifyFile);
+}
+@rmdir($verifyDirectory);
 
 // daka_topup_batches re-enables the legacy shortfall top-up for an explicit
 // number of extra batches, and never beyond that budget.
@@ -436,6 +443,7 @@ $idleProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
     'daka_limit' => 5,
     'daka_history_dir' => $idleDirectory,
     'daka_max_verification_runs' => 3,
+    'daka_topup_batches' => 0,
 ], $sdk);
 $idleProbe->countedPerBatch = 0;
 
@@ -512,6 +520,7 @@ workflowCheck(@mkdir($memoryDirectory, 0770, true), 'Daily daka memory test dire
 $memoryProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
     'daka_limit' => 3,
     'daka_history_dir' => $memoryDirectory,
+    'daka_topup_batches' => 0,
 ], $sdk);
 $memoryStatePath = $memoryDirectory . DIRECTORY_SEPARATOR . hash('sha256', '1') . '.daily.json';
 $sameDayIds = range(5000, 6299);

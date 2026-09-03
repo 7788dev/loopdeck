@@ -132,12 +132,21 @@ class Accounts extends Model
         return $self->where('zid', '=', WEB_ID)->count('id');
     }
     
-    public static function delById($type, $id)
+    public static function delById($type, $id, $uid = null)
     {
-        $self = new static();
-        if($result = $self->where('type', $type)->where('user_id', $id)->delete()){
-            return $result;
+        $uid = $uid ?? Session::get('user.uid');
+        $uid = filter_var($uid, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1],
+        ]);
+        if ($uid === false) {
+            return false;
         }
-        return false;
+
+        $self = new static();
+        $result = $self->where('type', $type)
+            ->where('user_id', $id)
+            ->where('uid', (int)$uid)
+            ->delete();
+        return $result === false ? false : $result;
     }
 }

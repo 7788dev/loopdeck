@@ -75,6 +75,16 @@ cronSafetyCheck(
     str_contains($heyboxSource, '[重试中] 任务调度异常'),
     'heybox exceptions are not logged as retrying'
 );
+cronSafetyCheck(
+    str_contains($heyboxSource, 'private function runJob(int $jobId')
+        && str_contains($heyboxSource, 'if ($result === null)'),
+    'heybox advances the normal schedule after a failed execution'
+);
+cronSafetyCheck(
+    !str_contains($heyboxSource, 'Jobs::updateJobInfo(')
+        && str_contains($heyboxSource, "->where('uid'"),
+    'heybox job/account updates are not scoped to the current tenant and job'
+);
 
 // --- Netease: exception isolation -----------------------------------------
 
@@ -85,6 +95,16 @@ cronSafetyCheck(
     str_contains($neteaseSource, 'catch (Throwable $exception)')
         && str_contains($neteaseSource, '[重试中] 任务调度异常'),
     'netease runJob does not isolate exceptions as retrying'
+);
+cronSafetyCheck(
+    str_contains($neteaseSource, 'private function runJob(int $jobId')
+        && str_contains($neteaseSource, 'if ($result === null)'),
+    'netease advances the normal schedule after a failed execution'
+);
+cronSafetyCheck(
+    !str_contains($neteaseSource, 'Jobs::updateJobInfo(')
+        && str_contains($neteaseSource, "->where('uid'"),
+    'netease job/account updates are not scoped to the current tenant and job'
 );
 
 // --- Bilibili: exception tag ----------------------------------------------

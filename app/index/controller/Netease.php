@@ -75,7 +75,7 @@ class Netease
 
     private function qrLogin()
     {
-        $key = trim((string)Request::post('key', ''));
+        $key = $this->postString('key');
         if ($key === '') {
             return resultJson(0, '参数错误');
         }
@@ -102,7 +102,7 @@ class Netease
      */
     private function verifyCheck()
     {
-        $verifyUnikey = trim((string)Request::post('verify_unikey', ''));
+        $verifyUnikey = $this->postString('verify_unikey');
         if ($verifyUnikey === '') {
             return resultJson(0, '参数错误');
         }
@@ -137,8 +137,8 @@ class Netease
 
     private function storeAccount(array $data)
     {
-        $userId = $data['user_id'] ?? null;
-        if (!$userId) {
+        $userId = $this->scalarString($data['user_id'] ?? null);
+        if ($userId === '') {
             return resultJson(0, '未获取到网易云用户ID');
         }
         if (Accounts::where('type', 'netease')
@@ -161,15 +161,44 @@ class Netease
 
     private function delete()
     {
-        $userId = Request::post('user_id');
-        if (!$userId || !Accounts::findByUserId('netease', $userId)) {
+        $userId = $this->postString('user_id');
+        $account = $userId !== '' ? Accounts::findByUserId('netease', $userId) : false;
+        if (!$account) {
             return resultJson(0, '账号不存在或无权操作');
         }
-        $accountDeleted = Accounts::delByUserId('netease', $userId);
-        $jobsDeleted = Jobs::delJob('netease', $userId);
-        $logsDeleted = TaskLogs::deleteLogs('netease', $userId);
-        // Otherwise the daily-task state files stay behind as orphans.
-        (new NeteaseClient($userId))->forgetDakaState();
+        $accountUid = (int)($account['uid'] ?? Session::get('user.uid'));
+        $accountData = safe_unserialize_array((string)($account['data'] ?? ''));
+        $stateUserId = trim((string)($accountData['user_id'] ?? $account['user_id'] ?? $userId));
+
+        try {
+            $accountDeleted = Accounts::where('type', 'netease')
+                ->where('user_id', $userId)
+                ->where('uid', $accountUid)
+                ->delete() !== false;
+        } catch (\Throwable $exception) {
+            $accountDeleted = false;
+        }
+
+        try {
+            // Zero matching jobs is a valid cleanup result; only a database
+            // error should make the operation report failure.
+            $jobsDeleted = Jobs::delJob('netease', $userId, $accountUid) !== false;
+        } catch (\Throwable $exception) {
+            $jobsDeleted = false;
+        }
+
+        try {
+            $logsDeleted = TaskLogs::deleteLogs('netease', $userId) !== false;
+        } catch (\Throwable $exception) {
+            $logsDeleted = false;
+        }
+
+        // Otherwise the daily-task state files stay behind as orphans. Use the
+        // ID stored with the account, not an untrusted request value.
+        if ($accountDeleted && $stateUserId !== '') {
+            (new NeteaseClient($stateUserId))->forgetDakaState();
+        }
+
         return $accountDeleted && $jobsDeleted && $logsDeleted
             ? resultJson(1, '删除成功')
             : resultJson(0, '删除失败');
@@ -178,23 +207,28 @@ class Netease
     private function set()
     {
         $data = Request::post();
-        $userId = $data['user_id'] ?? null;
-        if (!$userId || !Accounts::findByUserId('netease', $userId)) {
+        if (!is_array($data)) {
+            return resultJson(0, '参数错误');
+        }
+        $userId = $this->scalarString($data['user_id'] ?? null);
+        if ($userId === '' || !Accounts::findByUserId('netease', $userId)) {
             return resultJson(0, '账号不存在或无权操作');
         }
 
-        switch ($data['act'] ?? '') {
+        $action = $this->scalarString($data['act'] ?? null);
+        $taskName = $this->scalarString($data['do'] ?? null);
+        switch ($action) {
             case 'zt':
                 Jobs::refreshJob('netease', $userId);
-                if (Tasks::checkTaskPower($data['do'] ?? '', 'netease') && empty(Session::get('user.vip_start'))) {
+                if (Tasks::checkTaskPower($taskName, 'netease') && empty(Session::get('user.vip_start'))) {
                     return resultJson(-1, '您需要开通VIP会员才可以使用该功能');
                 }
-                return Jobs::switchState('netease', $userId, $data['do'] ?? '')
+                return Jobs::switchState('netease', $userId, $taskName)
                     ? resultJson(1, '修改成功')
                     : resultJson(0, '修改失败');
 
             case 'timing':
-                $timing = trim((string)($data['timing'] ?? ''));
+                $timing = $this->scalarString($data['timing'] ?? null);
                 $next = AutomaticSchedule::nextExecution('netease', (string)$userId, $timing);
                 if ($timing !== '' && $next === null) {
                     return resultJson(0, '挂机时间格式错误');
@@ -222,7 +256,7 @@ class Netease
                 $updated = Jobs::where('type', 'netease')
                     ->where('user_id', $userId)
                     ->where('uid', Session::get('user.uid'))
-                    ->where('do', $data['do'] ?? '')
+                    ->where('do', $taskName)
                     ->update(['data' => serialize($config)]);
                 return $updated !== false ? resultJson(1, '保存成功') : resultJson(0, '保存失败');
         }
@@ -274,6 +308,90 @@ class Netease
                     $clean[$key] = $limit;
                     break;
 
+                case 'daka_search_rounds':
+                    if ($value === '') {
+                        break;
+                    }
+                    $clean[$key] = self::sanitizeIntegerConfig(
+                        $value,
+                        1,
+                        8,
+                        '搜索轮次需要在 1 到 8 之间'
+                    );
+                    break;
+
+                case 'daka_search_playlists_per_round':
+                    if ($value === '') {
+                        break;
+                    }
+                    $clean[$key] = self::sanitizeIntegerConfig(
+                        $value,
+                        1,
+                        50,
+                        '每轮搜索歌单数需要在 1 到 50 之间'
+                    );
+                    break;
+
+                case 'daka_topup_batches':
+                    if ($value === '') {
+                        break;
+                    }
+                    $clean[$key] = self::sanitizeIntegerConfig(
+                        $value,
+                        0,
+                        10,
+                        '补批次数需要在 0 到 10 之间'
+                    );
+                    break;
+
+                case 'daka_max_batches_per_day':
+                    if ($value === '') {
+                        break;
+                    }
+                    $clean[$key] = self::sanitizeIntegerConfig(
+                        $value,
+                        1,
+                        30,
+                        '每日最大批次需要在 1 到 30 之间'
+                    );
+                    break;
+
+                case 'daka_max_verification_runs':
+                    if ($value === '') {
+                        break;
+                    }
+                    $clean[$key] = self::sanitizeIntegerConfig(
+                        $value,
+                        1,
+                        10,
+                        '最大核验轮次需要在 1 到 10 之间'
+                    );
+                    break;
+
+                case 'daka_retry_seconds':
+                    if ($value === '') {
+                        break;
+                    }
+                    $clean[$key] = self::sanitizeIntegerConfig(
+                        $value,
+                        120,
+                        3600,
+                        '重试间隔需要在 120 到 3600 秒之间'
+                    );
+                    break;
+
+                case 'daka_min_song_seconds':
+                    if ($value === '') {
+                        break;
+                    }
+                    $clean[$key] = self::sanitizeIntegerConfig(
+                        $value,
+                        30,
+                        600,
+                        '最短歌曲时长需要在 30 到 600 秒之间'
+                    );
+                    break;
+
                 case 'evaluate_star':
                     if ($value === '') {
                         break;
@@ -314,10 +432,26 @@ class Netease
         return $clean;
     }
 
+    private static function sanitizeIntegerConfig(
+        string $value,
+        int $minimum,
+        int $maximum,
+        string $message
+    ): int {
+        if (!ctype_digit($value)) {
+            throw new InvalidArgumentException($message);
+        }
+        $integer = (int)$value;
+        if ($integer < $minimum || $integer > $maximum) {
+            throw new InvalidArgumentException($message);
+        }
+        return $integer;
+    }
+
     private function logs()
     {
-        $userId = Request::post('user_id');
-        if (!$userId || !Accounts::findByUserId('netease', $userId)) {
+        $userId = $this->postString('user_id');
+        if ($userId === '' || !Accounts::findByUserId('netease', $userId)) {
             return resultJson(0, '账号不存在或无权操作');
         }
         return TaskLogs::searchLogs('netease', $userId);
@@ -325,8 +459,8 @@ class Netease
 
     private function reExecute()
     {
-        $userId = Request::post('user_id');
-        $account = $userId ? Accounts::findByUserId('netease', $userId) : false;
+        $userId = $this->postString('user_id');
+        $account = $userId !== '' ? Accounts::findByUserId('netease', $userId) : false;
         if (!$account) {
             return resultJson(0, '非法操作');
         }
@@ -359,9 +493,9 @@ class Netease
         if ((int)config('sys.is_netease_tool') !== 1) {
             return resultJson(0, '网易云播放工具未开启');
         }
-        $userId = trim((string)Request::post('user_id', ''));
-        $songId = trim((string)Request::post('songid', ''));
-        $timesValue = trim((string)Request::post('times', ''));
+        $userId = $this->postString('user_id');
+        $songId = $this->postString('songid');
+        $timesValue = $this->postString('times');
         $account = $userId === '' ? null : Accounts::where('type', 'netease')
             ->where('user_id', $userId)
             ->where('uid', Session::get('user.uid'))
@@ -426,5 +560,16 @@ class Netease
             'ip' => real_ip(),
         ]);
         return resultJson(1, (string)$result['message']);
+    }
+
+    /** Return a trimmed scalar request value; arrays/objects are invalid. */
+    private function postString(string $name): string
+    {
+        return $this->scalarString(Request::post($name, ''));
+    }
+
+    private function scalarString($value): string
+    {
+        return is_scalar($value) ? trim((string)$value) : '';
     }
 }

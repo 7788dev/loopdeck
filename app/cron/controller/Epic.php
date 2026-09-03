@@ -71,7 +71,7 @@ class Epic extends Common
             Jobs::updateJobInfo('epic', $job['do'], $job['user_id'], [ // 更新任务执行信息
                 'lastExecute' => date("Y-m-d H:i:s"),
                 'nextExecute' => $nextExecute,
-            ]);
+            ], (int)$job['uid']);
         }
         return resultJson(1000, '执行任务成功');
     }

@@ -167,7 +167,40 @@ final class Client
         $transportRequests = [];
         $results = [];
 
-        foreach ($requests as $key => $request) {
+        // A transport pool prepares every request before it waits for the
+        // first response.  That is normally ideal, but it breaks the
+        // api-enhanced NMTID handshake: the first EAPI response can set the
+        // server-issued cookie and every request prepared alongside it would
+        // otherwise still carry no NMTID.  Send up to the three allowed probe
+        // requests through the normal single-request path first.  Once a
+        // value is captured, the remaining requests are prepared with it and
+        // can safely use the bounded pool.
+        $pendingRequests = $requests;
+        $probeBudget = max(0, self::NMTID_PROBE_LIMIT - $this->nmtidProbeAttempts);
+        while ($probeBudget > 0 && $this->nmtid === '' && $pendingRequests !== []) {
+            $probeKey = null;
+            foreach ($pendingRequests as $key => $request) {
+                if ($this->isNmtidProbeRequest($request)) {
+                    $probeKey = $key;
+                    break;
+                }
+            }
+            if ($probeKey === null) {
+                break;
+            }
+
+            $request = $pendingRequests[$probeKey];
+            $results[$probeKey] = $this->request(
+                (string)($request['uri'] ?? ''),
+                is_array($request['data'] ?? null) ? $request['data'] : [],
+                (string)($request['crypto'] ?? 'eapi'),
+                is_array($request['options'] ?? null) ? $request['options'] : []
+            );
+            unset($pendingRequests[$probeKey]);
+            $probeBudget = max(0, self::NMTID_PROBE_LIMIT - $this->nmtidProbeAttempts);
+        }
+
+        foreach ($pendingRequests as $key => $request) {
             try {
                 $prepared[$key] = $this->prepare(
                     (string)($request['uri'] ?? ''),
@@ -216,6 +249,25 @@ final class Client
             $ordered[$key] = $results[$key] ?? $this->errorResponse('Request did not complete');
         }
         return $ordered;
+    }
+
+    /**
+     * Whether a batched request is eligible for the server-issued NMTID probe.
+     * Explicit cookie values always win, matching completeCookies().
+     */
+    private function isNmtidProbeRequest(array $request): bool
+    {
+        if (strtolower((string)($request['crypto'] ?? 'eapi')) !== 'eapi') {
+            return false;
+        }
+
+        $options = is_array($request['options'] ?? null) ? $request['options'] : [];
+        $cookie = array_key_exists('cookie', $options) && $options['cookie'] !== null
+            ? $options['cookie']
+            : $this->sessionCookies;
+        $cookies = $this->parseCookie($cookie);
+
+        return $this->nmtid === '' && empty($cookies['NMTID']);
     }
 
     /**

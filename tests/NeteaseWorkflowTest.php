@@ -362,7 +362,7 @@ $topUpProbe->countedPerBatch = 6;
 
 $firstRun = $topUpProbe->daka_new();
 workflowCheck((int)($firstRun['code'] ?? 0) === 200, 'The internal top-up did not complete the target');
-workflowCheck((int)($firstRun['data']['submitted'] ?? -1) === 14, 'The internal top-up did not submit the measured shortfall');
+workflowCheck((int)($firstRun['data']['submitted'] ?? -1) === 18, 'The internal top-up did not reserve replacement capacity');
 workflowCheck((int)($firstRun['data']['listen_songs_delta'] ?? -1) === 10, 'The final increase was not reported');
 workflowCheck((int)($firstRun['data']['daily_actual_progress'] ?? -1) === 10, 'Progress was not based on listenSongs');
 workflowCheck((int)($firstRun['data']['daily_remaining'] ?? -1) === 0, 'The internal top-up left a shortfall');
@@ -374,6 +374,32 @@ workflowCheck(
     array_intersect($topUpProbe->submittedBatches[0], $topUpProbe->submittedBatches[1]) === [],
     'The internal top-up repeated songs already submitted today'
 );
+
+// Regression for the production 296/300 symptom: the endpoint accepts the
+// whole first batch, but only 296 of 360 fresh songs reach the cumulative
+// counter. The next batch must use new IDs and close the four-song gap in the
+// same scheduler call.
+$partial300Directory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-partial300-' . bin2hex(random_bytes(6));
+workflowCheck(@mkdir($partial300Directory, 0770, true), 'Partial 300-song test directory could not be created');
+$partial300Probe = new DailyDakaProbe(1, 'csrf', 'music-u', [
+    'daka_limit' => 300,
+    'daka_history_dir' => $partial300Directory,
+    'daka_internal_wait_seconds' => 0,
+], $sdk);
+$partial300Probe->countedPerBatch = 296;
+$partial300Result = $partial300Probe->daka_new();
+workflowCheck((int)($partial300Result['code'] ?? 0) === 200, 'The 296/300 regression did not complete');
+workflowCheck((int)($partial300Result['data']['submitted'] ?? -1) === 368, 'The 296/300 regression did not submit a fresh replacement batch');
+workflowCheck((int)($partial300Result['data']['daily_actual_progress'] ?? -1) === 300, 'The 296/300 regression did not reach 300/300');
+workflowCheck((int)($partial300Result['data']['internal_batches'] ?? -1) === 2, 'The 296/300 regression used an unexpected number of batches');
+workflowCheck(
+    array_intersect($partial300Probe->submittedBatches[0], $partial300Probe->submittedBatches[1]) === [],
+    'The 296/300 regression reused a song from the first batch'
+);
+foreach (glob($partial300Directory . DIRECTORY_SEPARATOR . '*') ?: [] as $partial300File) {
+    @unlink($partial300File);
+}
+@rmdir($partial300Directory);
 
 $closingRun = $topUpProbe->daka_new();
 workflowCheck((int)($closingRun['data']['submitted'] ?? -1) === 0, 'A completed day submitted another batch');
@@ -397,7 +423,7 @@ $verifyProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
 $verifyProbe->countedPerBatch = 6;
 $verifyFirst = $verifyProbe->daka_new();
 workflowCheck((int)($verifyFirst['code'] ?? 0) === 200, 'The legacy zero-budget run did not complete internally');
-workflowCheck((int)($verifyFirst['data']['submitted'] ?? -1) === 14, 'The legacy zero-budget run did not submit its shortfall');
+workflowCheck((int)($verifyFirst['data']['submitted'] ?? -1) === 18, 'The legacy zero-budget run did not reserve replacement capacity');
 $verifySecond = $verifyProbe->daka_new();
 workflowCheck((int)($verifySecond['data']['submitted'] ?? -1) === 0, 'The zero-budget mode submitted a top-up');
 workflowCheck(!empty($verifySecond['data']['target_reached']), 'The internally completed day was not marked as reached');
@@ -440,7 +466,7 @@ file_put_contents($rescueStatePath, json_encode([
 ]));
 $rescueResult = $rescueProbe->daka_new();
 workflowCheck((int)($rescueResult['code'] ?? 0) === 200, 'The legacy 296/300 state was not rescued');
-workflowCheck((int)($rescueResult['data']['submitted'] ?? -1) === 4, 'The legacy rescue did not submit the four-song shortfall');
+workflowCheck((int)($rescueResult['data']['submitted'] ?? -1) === 8, 'The legacy rescue did not reserve replacement capacity');
 workflowCheck((int)($rescueResult['data']['daily_actual_progress'] ?? -1) === 300, 'The legacy rescue did not reach 300/300');
 workflowCheck((int)($rescueResult['data']['retry_after_seconds'] ?? -1) === 0, 'The legacy rescue scheduled an external retry');
 workflowCheck($rescueProbe->scrobbleCalls === 1, 'The legacy rescue used more than one internal batch');
@@ -464,7 +490,7 @@ $optInProbe->countedPerBatch = 2;
 
 $optInFirst = $optInProbe->daka_new();
 workflowCheck((int)($optInFirst['code'] ?? 0) === 201, 'The internal batch cap reported a false success');
-workflowCheck((int)($optInFirst['data']['submitted'] ?? -1) === 10, 'The capped run did not use its two internal batches');
+workflowCheck((int)($optInFirst['data']['submitted'] ?? -1) === 14, 'The capped run did not use its two internal batches');
 workflowCheck((int)($optInFirst['data']['daily_actual_progress'] ?? -1) === 4, 'The capped run lost counted progress');
 workflowCheck((int)($optInFirst['data']['retry_after_seconds'] ?? -1) === 0, 'The capped run scheduled an external retry');
 workflowCheck($optInProbe->scrobbleCalls === 2, 'The internal cap did not bound protocol calls');
@@ -496,7 +522,7 @@ $idleProbe->countedPerBatch = 0;
 
 $idleFirst = $idleProbe->daka_new();
 workflowCheck((int)($idleFirst['code'] ?? 0) === 201, 'A dead day was reported as complete');
-workflowCheck((int)($idleFirst['data']['submitted'] ?? -1) === 9, 'The dead day did not use its bounded replacement cushion');
+workflowCheck((int)($idleFirst['data']['submitted'] ?? -1) === 13, 'The dead day did not use its bounded replacement cushion');
 workflowCheck((int)($idleFirst['data']['retry_after_seconds'] ?? -1) === 0, 'A dead day scheduled an external retry');
 workflowCheck((int)($idleFirst['data']['stalled_runs'] ?? -1) >= 1, 'The unproductive run did not count as stalled');
 workflowCheck($idleProbe->scrobbleCalls === 2, 'The internal idle guard did not bound protocol calls');

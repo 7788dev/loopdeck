@@ -35,6 +35,53 @@ final class RecordingTransport implements TransportInterface
     }
 }
 
+/**
+ * Transport probe used to verify that requestMany performs the NMTID
+ * handshake before handing the remaining requests to the concurrent pool.
+ */
+final class NmtidPoolTransport implements TransportInterface
+{
+    public array $singleRequests = [];
+    public array $poolRequests = [];
+
+    public function __construct(private bool $issueNmtid)
+    {
+    }
+
+    public function request(string $method, string $url, array $options = []): array
+    {
+        $this->singleRequests[] = compact('method', 'url', 'options');
+        $setCookie = $this->issueNmtid && count($this->singleRequests) === 1
+            ? ['NMTID=pool-issued-nmtid; Path=/']
+            : [];
+        return [
+            'status' => 200,
+            'headers' => [],
+            'body' => '{"code":200}',
+            'header' => '',
+            'set_cookie' => $setCookie,
+        ];
+    }
+
+    public function requestMany(array $requests, int $concurrency = 8): array
+    {
+        foreach ($requests as $key => $request) {
+            $this->poolRequests[$key] = $request;
+        }
+        $responses = [];
+        foreach ($requests as $key => $_request) {
+            $responses[$key] = [
+                'status' => 200,
+                'headers' => [],
+                'body' => '{"code":200}',
+                'header' => '',
+                'set_cookie' => [],
+            ];
+        }
+        return $responses;
+    }
+}
+
 function check(bool $condition, string $message): void
 {
     if (!$condition) {
@@ -209,6 +256,60 @@ $fallbackData = $crypto->decryptEapiRequest((string)$fallbackForm['params'])['da
 check(
     preg_match('/^00O[0-9a-f]{38}$/', (string)($fallbackData['header']['NMTID'] ?? '')) === 1,
     'NMTID fallback was not included in the encrypted EAPI header'
+);
+
+// requestMany must not prepare a whole EAPI pool before the first response:
+// doing so loses the server-issued NMTID on every request in that pool.
+$poolNmtidTransport = new NmtidPoolTransport(true);
+$poolNmtidClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+], $poolNmtidTransport);
+$poolNmtidClient->requestMany([
+    'one' => ['uri' => '/api/test/pool-one', 'options' => ['cookie' => '', 'skip_anonymous' => true]],
+    'two' => ['uri' => '/api/test/pool-two', 'options' => ['cookie' => '', 'skip_anonymous' => true]],
+    'three' => ['uri' => '/api/test/pool-three', 'options' => ['cookie' => '', 'skip_anonymous' => true]],
+    'four' => ['uri' => '/api/test/pool-four', 'options' => ['cookie' => '', 'skip_anonymous' => true]],
+], 4);
+check(count($poolNmtidTransport->singleRequests) === 1, 'requestMany did not perform an initial NMTID probe');
+check(count($poolNmtidTransport->poolRequests) === 3, 'requestMany did not preserve the remaining pool');
+check(
+    !str_contains((string)($poolNmtidTransport->singleRequests[0]['options']['headers']['Cookie'] ?? ''), 'NMTID='),
+    'requestMany initial probe sent a fabricated NMTID'
+);
+foreach ($poolNmtidTransport->poolRequests as $request) {
+    $cookieHeader = (string)($request['options']['headers']['Cookie'] ?? '');
+    check(str_contains($cookieHeader, 'NMTID=pool-issued-nmtid'), 'requestMany pool request lost the server-issued NMTID cookie');
+    $form = decodeFormBody((string)($request['options']['body'] ?? ''));
+    $data = $crypto->decryptEapiRequest((string)($form['params'] ?? ''))['data'] ?? [];
+    check(($data['header']['NMTID'] ?? '') === 'pool-issued-nmtid', 'requestMany pool request lost NMTID in the encrypted header');
+}
+
+// The same pool path falls back only after three real HTTP probe responses
+// when the server never sends NMTID.
+$poolFallbackTransport = new NmtidPoolTransport(false);
+$poolFallbackClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+], $poolFallbackTransport);
+$poolFallbackClient->requestMany([
+    'one' => ['uri' => '/api/test/pool-fallback-one', 'options' => ['cookie' => '', 'skip_anonymous' => true]],
+    'two' => ['uri' => '/api/test/pool-fallback-two', 'options' => ['cookie' => '', 'skip_anonymous' => true]],
+    'three' => ['uri' => '/api/test/pool-fallback-three', 'options' => ['cookie' => '', 'skip_anonymous' => true]],
+    'four' => ['uri' => '/api/test/pool-fallback-four', 'options' => ['cookie' => '', 'skip_anonymous' => true]],
+], 4);
+check(count($poolFallbackTransport->singleRequests) === 3, 'requestMany did not stop NMTID probing after three responses');
+check(count($poolFallbackTransport->poolRequests) === 1, 'requestMany fallback did not retain the final pool request');
+$fallbackPoolRequest = reset($poolFallbackTransport->poolRequests);
+$fallbackPoolForm = decodeFormBody((string)($fallbackPoolRequest['options']['body'] ?? ''));
+$fallbackPoolData = $crypto->decryptEapiRequest((string)($fallbackPoolForm['params'] ?? ''))['data'] ?? [];
+check(
+    preg_match('/(?:^|; )NMTID=00O[0-9a-f]{38}(?:;|$)/', (string)($fallbackPoolRequest['options']['headers']['Cookie'] ?? '')) === 1,
+    'requestMany fallback cookie did not match api-enhanced format'
+);
+check(
+    preg_match('/^00O[0-9a-f]{38}$/', (string)($fallbackPoolData['header']['NMTID'] ?? '')) === 1,
+    'requestMany fallback encrypted header did not match api-enhanced format'
 );
 
 $preparedWeapi = $client->prepare('/api/v1/user/detail/1', [], 'weapi', ['weapi_secret' => $weapiSecret]);

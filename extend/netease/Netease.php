@@ -1732,7 +1732,15 @@ class Netease
         // declines to count. This is a submission ceiling, not a new quota;
         // candidates remain lifetime- and same-day-unique.
         $submissionCushion = max(4, min(60, (int)ceil($target * 0.2)));
-        $submissionCeiling = max($target + $submissionCushion, $submittedTotal + $remainingBefore);
+        // Reserve one cushion for the first batch and one more for bounded
+        // replacements.  The old ceiling only covered the target plus one
+        // cushion, which meant that once the first batch consumed that
+        // cushion there was no room left to replace songs that the upstream
+        // accepted but did not add to listenSongs.
+        $submissionCeiling = max(
+            $target + ($submissionCushion * 2),
+            $submittedTotal + $remainingBefore + $submissionCushion
+        );
 
         $currentListenSongs = $listenSongs;
         $remaining = $remainingBefore;
@@ -1896,7 +1904,18 @@ class Netease
                 $reason = '已达到本次补齐安全上限';
                 break;
             }
-            $candidateLimit = min(1000, max(1, min($remaining, $available)));
+            // Ask for a few extra fresh songs in every batch.  A successful
+            // weblog response is not proof that the daily counter will move,
+            // so taking only `$remaining` candidates reproduces the 296/300
+            // dead-end: the next batch can only repeat the same shortfall.
+            $batchCushion = min(
+                $submissionCushion,
+                max(4, (int)ceil($remaining * 0.2))
+            );
+            $candidateLimit = min(
+                1000,
+                max(1, min($remaining + $batchCushion, $available))
+            );
             $candidates = $this->dakaCandidates($source, $submittedToday, $candidateLimit);
             $candidateCountTotal += count($candidates);
             if ($this->cookiezt) {

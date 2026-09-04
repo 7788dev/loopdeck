@@ -155,6 +155,62 @@ $preparedEapiForm = decodeFormBody($preparedEapi['options']['body']);
 $preparedEapiData = $crypto->decryptEapiRequest($preparedEapiForm['params'])['data'];
 check(($preparedEapiData['header']['MUSIC_U'] ?? '') === 'music-u-value', 'EAPI header cookie is missing MUSIC_U');
 
+// Match api-enhanced's NMTID handshake: the first EAPI request omits NMTID,
+// then the value issued by Set-Cookie is reused by subsequent requests and in
+// the encrypted EAPI header.
+$nmtidTransport = new RecordingTransport([
+    [
+        'body' => '{"code":200}',
+        'set_cookie' => ['NMTID=server-issued-nmtid; Path=/; Domain=music.163.com'],
+    ],
+    ['body' => '{"code":200}'],
+]);
+$nmtidClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+], $nmtidTransport);
+$nmtidClient->request('/api/test/nmtid/first', [], 'eapi', [
+    'cookie' => '',
+    'skip_anonymous' => true,
+]);
+$nmtidClient->request('/api/test/nmtid/second', [], 'eapi', [
+    'cookie' => '',
+    'skip_anonymous' => true,
+]);
+$firstCookieHeader = (string)($nmtidTransport->requests[0]['options']['headers']['Cookie'] ?? '');
+$secondCookieHeader = (string)($nmtidTransport->requests[1]['options']['headers']['Cookie'] ?? '');
+check(!str_contains($firstCookieHeader, 'NMTID='), 'The initial EAPI probe sent a fabricated NMTID');
+check(str_contains($secondCookieHeader, 'NMTID=server-issued-nmtid'), 'Server-issued NMTID was not reused');
+$secondForm = decodeFormBody((string)$nmtidTransport->requests[1]['options']['body']);
+$secondData = $crypto->decryptEapiRequest((string)$secondForm['params'])['data'];
+check(($secondData['header']['NMTID'] ?? '') === 'server-issued-nmtid', 'EAPI encrypted header lost server-issued NMTID');
+check(str_contains($nmtidClient->sessionCookie(), 'NMTID=server-issued-nmtid'), 'Server-issued NMTID was not retained in the session');
+
+// If NetEase does not issue a value after three successful probe responses,
+// use the same 00O + 19-byte hexadecimal fallback as api-enhanced.
+$fallbackTransport = new RecordingTransport(array_fill(0, 4, ['body' => '{"code":200}']));
+$fallbackClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+], $fallbackTransport);
+for ($probeIndex = 0; $probeIndex < 4; $probeIndex++) {
+    $fallbackClient->request('/api/test/nmtid/probe-' . $probeIndex, [], 'eapi', [
+        'cookie' => '',
+        'skip_anonymous' => true,
+    ]);
+}
+$fallbackCookieHeader = (string)($fallbackTransport->requests[3]['options']['headers']['Cookie'] ?? '');
+check(
+    preg_match('/(?:^|; )NMTID=00O[0-9a-f]{38}(?:;|$)/', $fallbackCookieHeader) === 1,
+    'NMTID fallback did not match api-enhanced format after three probes'
+);
+$fallbackForm = decodeFormBody((string)$fallbackTransport->requests[3]['options']['body']);
+$fallbackData = $crypto->decryptEapiRequest((string)$fallbackForm['params'])['data'];
+check(
+    preg_match('/^00O[0-9a-f]{38}$/', (string)($fallbackData['header']['NMTID'] ?? '')) === 1,
+    'NMTID fallback was not included in the encrypted EAPI header'
+);
+
 $preparedWeapi = $client->prepare('/api/v1/user/detail/1', [], 'weapi', ['weapi_secret' => $weapiSecret]);
 check($preparedWeapi['url'] === 'https://music.163.com/weapi/v1/user/detail/1', 'WEAPI URL mapping is invalid');
 $preparedWeapiForm = decodeFormBody($preparedWeapi['options']['body']);

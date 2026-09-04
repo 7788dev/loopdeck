@@ -7,8 +7,10 @@ use Throwable;
 
 final class Client
 {
-    public const UPSTREAM_VERSION = '4.39.0';
-    public const UPSTREAM_COMMIT = '8f4873f2e2f677153d398a62d9ca0e3826c3f86d';
+    public const UPSTREAM_VERSION = '4.40.1';
+    public const UPSTREAM_COMMIT = 'f5ce55bcb46e29c8e5350ca796fb1cc9d9914acd';
+
+    private const NMTID_PROBE_LIMIT = 3;
 
     private const PROFILES = [
         'pc' => [
@@ -47,7 +49,7 @@ final class Client
         'weapi' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0',
         'linuxapi' => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
         'api_pc' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36 Chrome/91.0.4472.164 NeteaseMusicDesktop/3.1.29.205117',
-        'api_android' => 'NeteaseMusic/9.1.65.240927161425(9001065);Dalvik/2.1.0 (Linux; U; Android 14; 23013RK75C Build/UKQ1.230804.001)',
+        'api_android' => 'NeteaseMusic/9.5.61.260802021928(9005061);Dalvik/2.1.0 (Linux; U; Android 12; HBN-AL00 Build/cd737a2.0)',
         'api_iphone' => 'NeteaseMusic 9.0.90/5038 (iPhone; iOS 16.2; zh_CN)',
         'api_osx' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     ];
@@ -64,6 +66,7 @@ final class Client
     private string $nuid;
     private string $wnmcid;
     private string $nmtid;
+    private int $nmtidProbeAttempts = 0;
     private string $nnid;
     private string $anonymousToken = '';
     private string $antiCheatTokenV3 = '';
@@ -126,7 +129,7 @@ final class Client
         }
         $this->nuid = (string)($config['nuid'] ?? $this->sessionCookies['_ntes_nuid'] ?? strtolower($this->randomHex(64)));
         $this->wnmcid = (string)($config['wnmcid'] ?? $this->sessionCookies['WNMCID'] ?? ($this->randomLowercase(6) . '.' . (string)round(microtime(true) * 1000) . '.01.0'));
-        $this->nmtid = (string)($config['nmtid'] ?? $this->sessionCookies['NMTID'] ?? strtolower($this->randomHex(32)));
+        $this->nmtid = trim((string)($config['nmtid'] ?? $this->sessionCookies['NMTID'] ?? ''));
         $this->nnid = (string)($config['nnid'] ?? $this->sessionCookies['_ntes_nnid'] ?? ($this->nuid . ',' . (string)round(microtime(true) * 1000)));
         $this->anonymousToken = (string)($config['anonymous_token'] ?? '');
         $this->antiCheatTokenV3 = (string)($config['anti_cheat_token_v3'] ?? '');
@@ -232,7 +235,14 @@ final class Client
 
         $data['e_r'] = $this->toBoolean($options['e_r'] ?? $data['e_r'] ?? false);
         $osKey = $this->resolveOsKey((string)($options['os'] ?? ''), $crypto);
-        $cookies = $this->completeCookies($options['cookie'] ?? $this->sessionCookies, $osKey, $uri, !empty($options['skip_anonymous']));
+        $nmtidProbe = false;
+        $cookies = $this->completeCookies(
+            $options['cookie'] ?? $this->sessionCookies,
+            $osKey,
+            !empty($options['skip_anonymous']),
+            $crypto,
+            $nmtidProbe
+        );
         $headers = is_array($options['headers'] ?? null) ? $options['headers'] : [];
         $domain = rtrim((string)($options['domain'] ?? ''), '/');
         $form = [];
@@ -297,7 +307,7 @@ final class Client
             ], $this->xeapiSessionId, $this->xeapiSessionKey);
             $url = ($domain !== '' ? $domain : $this->config['xeapi_domain']) . '/xeapi/' . substr($uri, 5);
         } else {
-            $header = $this->eapiHeader($cookies);
+            $header = $this->eapiHeader($cookies, $crypto === 'eapi');
             $headers['Cookie'] = $this->cookieString($header, true);
             $headers['User-Agent'] = (string)($options['user_agent'] ?? (($cookies['os'] ?? '') === 'osx'
                 ? self::USER_AGENTS['api_osx']
@@ -328,12 +338,14 @@ final class Client
             'url' => $url,
             'crypto' => $crypto,
             'encrypted_response' => in_array($crypto, ['eapi', 'weapi'], true) && $data['e_r'] === true,
+            'nmtid_probe' => $nmtidProbe,
             'options' => $requestOptions,
         ];
     }
 
     private function normalizeResponse(array $prepared, array $response): array
     {
+        $this->captureNmtid($prepared, $response);
         $this->captureXeapiSession($response['headers'] ?? []);
         $body = (string)($response['body'] ?? '');
 
@@ -504,7 +516,8 @@ final class Client
             $cookies = $this->completeCookies(
                 $cookieInput,
                 $this->resolveOsKey((string)($options['os'] ?? ''), 'api'),
-                $url
+                !empty($options['skip_anonymous']),
+                'raw'
             );
             $headers['Cookie'] = $this->cookieString($cookies, true);
         }
@@ -543,8 +556,15 @@ final class Client
         ];
     }
 
-    private function completeCookies($cookie, string $osKey, string $uri, bool $skipAnonymous = false): array
+    private function completeCookies(
+        $cookie,
+        string $osKey,
+        bool $skipAnonymous = false,
+        string $crypto = 'api',
+        ?bool &$nmtidProbe = null
+    ): array
     {
+        $nmtidProbe = false;
         $cookies = $this->parseCookie($cookie);
         $profile = self::PROFILES[$osKey] ?? self::PROFILES['pc'];
         $cookies += [
@@ -560,8 +580,19 @@ final class Client
             'channel' => $profile['channel'],
             'appver' => $profile['appver'],
         ];
-        if (strpos($uri, 'login') === false) {
-            $cookies['NMTID'] = $cookies['NMTID'] ?? $this->nmtid;
+        if (empty($cookies['NMTID'])) {
+            if ($this->nmtid !== '') {
+                $cookies['NMTID'] = $this->nmtid;
+            } elseif ($crypto === 'eapi' && $this->nmtidProbeAttempts < self::NMTID_PROBE_LIMIT) {
+                // api-enhanced deliberately omits NMTID from the first EAPI
+                // requests so NetEase can issue the official value.
+                $nmtidProbe = true;
+            } elseif ($crypto !== 'raw') {
+                // Non-EAPI requests use an ephemeral fallback, just as
+                // api-enhanced does. Do not store it as the server-issued
+                // value, otherwise a later EAPI probe could never succeed.
+                $cookies['NMTID'] = $this->generateFallbackNmtid();
+            }
         }
         if (empty($cookies['MUSIC_U']) && !$skipAnonymous && !empty($this->config['auto_anonymous_token'])) {
             $token = $this->ensureAnonymousToken();
@@ -574,7 +605,7 @@ final class Client
         return $cookies;
     }
 
-    private function eapiHeader(array $cookies): array
+    private function eapiHeader(array $cookies, bool $includeNmtid): array
     {
         $header = [
             'osver' => (string)($cookies['osver'] ?? ''),
@@ -594,7 +625,61 @@ final class Client
                 $header[$name] = (string)$cookies[$name];
             }
         }
+        if ($includeNmtid && !empty($cookies['NMTID'])) {
+            $header['NMTID'] = (string)$cookies['NMTID'];
+        }
         return $header;
+    }
+
+    private function captureNmtid(array $prepared, array $response): void
+    {
+        if (($prepared['crypto'] ?? '') !== 'eapi'
+            || empty($prepared['nmtid_probe'])
+            || $this->nmtid !== '') {
+            return;
+        }
+        // Axios only enters its response handler for an HTTP response. A
+        // transport-level failure (represented by status 0 by this SDK) must
+        // not consume one of the three server-cookie probes.
+        if (array_key_exists('status', $response) && (int)$response['status'] <= 0) {
+            return;
+        }
+
+        $this->nmtidProbeAttempts = min(
+            self::NMTID_PROBE_LIMIT,
+            $this->nmtidProbeAttempts + 1
+        );
+        $setCookies = is_array($response['set_cookie'] ?? null)
+            ? $response['set_cookie']
+            : [];
+        foreach (($response['headers'] ?? []) as $name => $values) {
+            if (strcasecmp((string)$name, 'Set-Cookie') !== 0) {
+                continue;
+            }
+            foreach ((array)$values as $value) {
+                $setCookies[] = (string)$value;
+            }
+        }
+
+        foreach ($setCookies as $line) {
+            if (!preg_match('/(?:^|;\s*)NMTID=([^;]+)/i', (string)$line, $match)) {
+                continue;
+            }
+            $nmtid = trim((string)$match[1]);
+            if ($nmtid === '') {
+                continue;
+            }
+            $this->nmtid = $nmtid;
+            $this->sessionCookies['NMTID'] = $nmtid;
+            return;
+        }
+    }
+
+    private function generateFallbackNmtid(): string
+    {
+        // CryptoJS.lib.WordArray.random(19).toString() is 38 lowercase
+        // hexadecimal characters in api-enhanced.
+        return '00O' . strtolower($this->randomHex(38));
     }
 
     private function ensureXeapiPublicKey(): array

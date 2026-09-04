@@ -10,7 +10,7 @@ use Throwable;
  * NetEase Cloud Music client.
  *
  * The protocol implementation follows NeteaseCloudMusicApiEnhanced/api-enhanced
- * (commit 8f4873f2e2f677153d398a62d9ca0e3826c3f86d).  The public methods intentionally
+ * (version 4.40.1, commit f5ce55bcb46e29c8e5350ca796fb1cc9d9914acd).  The public methods intentionally
  * retain the legacy class API because the scheduler and the web console call
  * them directly.
  */

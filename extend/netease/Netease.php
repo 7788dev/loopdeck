@@ -929,6 +929,46 @@ class Netease
     }
 
     /**
+     * Read the account's cumulative listen counter without allowing a broken
+     * verification request to abort the whole daily task.
+     *
+     * @return array{code:int,listen_songs:int}
+     */
+    protected function dakaListenSongs(int $fallback): array
+    {
+        try {
+            $body = $this->decodeBody($this->detail($this->userId));
+        } catch (Throwable $exception) {
+            return ['code' => 0, 'listen_songs' => $fallback];
+        }
+
+        $code = (int)($body['code'] ?? 0);
+        if (in_array($code, [301, 401], true)) {
+            $this->cookiezt = true;
+        }
+
+        return [
+            'code' => $code,
+            'listen_songs' => $code === 200
+                ? max(0, (int)($body['listenSongs'] ?? $fallback))
+                : $fallback,
+        ];
+    }
+
+    /**
+     * Give NetEase's asynchronous listen counter a short, bounded settlement
+     * window before submitting a replacement batch. Tests can override this
+     * hook to keep their transport fully deterministic.
+     */
+    protected function waitDakaSettlement(int $seconds): void
+    {
+        $seconds = max(0, min(60, $seconds));
+        if ($seconds > 0) {
+            sleep($seconds);
+        }
+    }
+
+    /**
      * @param array<string,mixed> $context
      * @return array{request:array{method:string,url:string,options:array},fileName:string}
      */
@@ -1614,17 +1654,26 @@ class Netease
 
     public function daka_new()
     {
+        $startedAt = microtime(true);
         $before = $this->decodeBody($this->detail($this->userId));
         $beforeCode = (int)($before['code'] ?? 0);
         $listenSongs = (int)($before['listenSongs'] ?? 0);
         if (in_array($beforeCode, [301, 401], true)) {
             $this->cookiezt = true;
-            return $this->makeResult(201, '登录状态已失效');
+            return $this->makeResult(201, '登录状态已失效', [
+                'submitted' => 0,
+                'retry_after_seconds' => 0,
+            ]);
         }
         if ($beforeCode !== 200) {
-            return $this->makeResult(201, '读取网易云累计听歌失败，本次未上报，稍后自动重试', [
+            // Daily 300-song execution is intentionally a single scheduler
+            // transaction. Returning a retry delay here would create another
+            // task-log row and defeat that contract; the next normal daily
+            // schedule can try again if the counter endpoint is unavailable.
+            return $this->makeResult(201, '读取网易云累计听歌失败，本次任务未完成', [
                 'submitted' => 0,
-                'retry_after_seconds' => 600,
+                'retry_after_seconds' => 0,
+                'target_reached' => false,
             ]);
         }
 
@@ -1664,8 +1713,8 @@ class Netease
             ? max(0, (int)($dailyState['attempts'] ?? ($submittedTotal > 0 ? 1 : 0)))
             : 0;
         $stalledRuns = $sameDay ? max(0, (int)($dailyState['stalled_runs'] ?? 0)) : 0;
-        $lastProgress = $sameDay ? max(0, (int)($dailyState['actual_progress'] ?? 0)) : 0;
-        $progressChanged = $actualProgressBefore > $lastProgress;
+        $topupsUsed = $sameDay ? max(0, (int)($dailyState['topups_used'] ?? 0)) : 0;
+        $verifications = $sameDay ? max(0, (int)($dailyState['verifications'] ?? 0)) : 0;
         $submittedToday = [];
         if ($sameDay && is_array($dailyState['submitted_song_ids'] ?? null)) {
             foreach ($dailyState['submitted_song_ids'] as $songId) {
@@ -1676,29 +1725,87 @@ class Netease
             }
         }
 
-        // NetEase may settle the listenSongs counter asynchronously, and an
-        // accepted weblog is not a guarantee that it will increment the
-        // counter. Keep a bounded adaptive top-up budget so a partially
-        // counted first batch can still reach the target. Set
-        // daka_topup_batches=0 to retain verification-only behavior after the
-        // first successful play. The candidate pool is always fresh-song-only,
-        // so each top-up spends its budget on songs that can actually count.
         $maxBatches = max(1, min(30, (int)($this->config['daka_max_batches_per_day'] ?? 6)));
-        $maxIdleRuns = max(1, min(10, (int)($this->config['daka_max_verification_runs'] ?? 3)));
-        $retryInterval = max(120, min(3600, (int)($this->config['daka_retry_seconds'] ?? 900)));
-        $topupLimit = max(0, min(10, (int)($this->config['daka_topup_batches'] ?? 3)));
-        $topupsUsed = $sameDay ? max(0, (int)($dailyState['topups_used'] ?? 0)) : 0;
-        // A startplay acknowledgement only proves that the request was
-        // accepted by the logging endpoint. Count completed play events when
-        // deciding whether a top-up is an additional batch.
-        $dayAccepted = $playAcceptedTotal;
-        $maySubmit = $dayAccepted === 0 || $topupsUsed < $topupLimit;
-        $stalledAfter = $progressChanged ? 0 : $stalledRuns + 1;
-        $submitLimit = $remainingBefore;
+        $maxIdleBatches = max(1, min(10, (int)($this->config['daka_max_verification_runs'] ?? 3)));
+        $settlementWait = max(0, min(60, (int)($this->config['daka_internal_wait_seconds'] ?? 15)));
+        // Keep a small replacement cushion for accepted weblogs that NetEase
+        // declines to count. This is a submission ceiling, not a new quota;
+        // candidates remain lifetime- and same-day-unique.
+        $submissionCushion = max(4, min(60, (int)ceil($target * 0.2)));
+        $submissionCeiling = max($target + $submissionCushion, $submittedTotal + $remainingBefore);
+
+        $currentListenSongs = $listenSongs;
+        $remaining = $remainingBefore;
+        $submittedThisRun = 0;
+        $startAcceptedThisRun = 0;
+        $playAcceptedThisRun = 0;
+        $reportedSecondsThisRun = 0;
+        $candidateCountTotal = 0;
+        $internalBatches = 0;
+        $protocolWaitSeconds = 0;
+        $noProgressBatches = 0;
+        $lastDelta = 0;
+        $reason = '';
+        $runRejections = [];
+
+        $persist = function (bool $completed, bool $sealed) use (
+            &$observedBefore,
+            &$actualProgressBefore,
+            &$remaining,
+            &$submittedTotal,
+            &$submittedToday,
+            &$startAcceptedTotal,
+            &$playAcceptedTotal,
+            &$reportedSecondsTotal,
+            &$repeatSubmittedTotal,
+            &$topupsUsed,
+            &$attempts,
+            &$stalledRuns,
+            &$verifications,
+            $today,
+            $target,
+            $baseline,
+            &$currentListenSongs,
+            &$internalBatches,
+            &$protocolWaitSeconds
+        ): void {
+            $this->rememberDakaDailyState([
+                'date' => $today,
+                'target' => $target,
+                'listen_songs_baseline' => $baseline,
+                'listen_songs_observed' => $observedBefore,
+                'actual_progress' => $actualProgressBefore,
+                'submitted_total' => $submittedTotal,
+                'submitted_song_ids' => array_keys($submittedToday),
+                'startplay_accepted_total' => $startAcceptedTotal,
+                'play_accepted_total' => $playAcceptedTotal,
+                'reported_play_seconds' => $reportedSecondsTotal,
+                'repeat_submitted_total' => $repeatSubmittedTotal,
+                'topups_used' => $topupsUsed,
+                'attempts' => $attempts,
+                'stalled_runs' => $stalledRuns,
+                'verifications' => $verifications,
+                'completed' => $completed,
+                'sealed' => $sealed,
+                'internal_batches' => $internalBatches,
+                // Keep legacy fields readable during a rolling deployment.
+                'submitted' => $submittedTotal,
+                'plv_confirmed' => $startAcceptedTotal,
+                'pld_confirmed' => $playAcceptedTotal,
+                'submitted_seconds' => $reportedSecondsTotal,
+                'listen_songs_before' => $baseline,
+                'listen_songs_after' => $currentListenSongs,
+                'listen_songs_delta' => $actualProgressBefore,
+                'protocol_wait_seconds' => $protocolWaitSeconds,
+                'updated_at' => date('c'),
+            ]);
+        };
 
         if ($actualProgressBefore >= $target) {
+            $persist(true, true);
             return $this->makeResult(200,
-                '进度 ' . $actualProgressBefore . '/' . $target . ' | 今日已完成 | 累计 ' . $listenSongs,
+                '网易云每日300首打卡成功 | 进度 ' . $actualProgressBefore . '/' . $target
+                . ' | 累计 ' . $listenSongs,
                 [
                     'submitted' => 0,
                     'daily_target' => $target,
@@ -1708,6 +1815,7 @@ class Netease
                     'target_reached' => true,
                     'skipped_duplicate' => true,
                     'attempts' => $attempts,
+                    'internal_batches' => 0,
                     'retry_after_seconds' => 0,
                     'protocol_wait_seconds' => 0,
                     'listen_songs_before' => $listenSongs,
@@ -1717,312 +1825,221 @@ class Netease
             );
         }
 
-        // Give up for the day when the account stopped counting: either the
-        // batch cap was reached, or 累计听歌 has not moved across several
-        // consecutive runs.
-        $batchCapReached = $attempts >= $maxBatches;
-        $countingStalled = $stalledAfter > $maxIdleRuns;
-        if ($batchCapReached || $countingStalled) {
-            $this->rememberDakaDailyState([
-                'date' => $today,
-                'target' => $target,
-                'listen_songs_baseline' => $baseline,
-                'listen_songs_observed' => $observedBefore,
-                'actual_progress' => $actualProgressBefore,
-                'submitted_total' => $submittedTotal,
-                'submitted_song_ids' => array_keys($submittedToday),
-                'startplay_accepted_total' => $startAcceptedTotal,
-                'play_accepted_total' => $playAcceptedTotal,
-                'reported_play_seconds' => $reportedSecondsTotal,
-                'repeat_submitted_total' => $repeatSubmittedTotal,
-                'topups_used' => $topupsUsed,
-                'attempts' => $attempts,
-                'stalled_runs' => $stalledAfter,
-                'updated_at' => date('c'),
-            ]);
-            $message = '进度 ' . $actualProgressBefore . '/' . $target . ' | 累计 ' . $listenSongs
-                . ' | 上报累计 ' . $submittedTotal . ' | '
-                . ($batchCapReached
-                    ? '已达批次上限(' . $maxBatches . '次)，停止重试'
-                    : '累计连续' . $stalledRuns . '轮无增量，停止重试');
-            return $this->makeResult(201, $message, [
-                'submitted' => 0,
-                'verification_only' => true,
-                'candidate_count' => 0,
-                'daily_target' => $target,
-                'daily_confirmed' => $actualProgressBefore,
-                'daily_actual_progress' => $actualProgressBefore,
-                'daily_remaining' => $remainingBefore,
-                'daily_submitted_total' => $submittedTotal,
-                'target_reached' => false,
-                'attempts' => $attempts,
-                'stalled_runs' => $stalledAfter,
-                'retry_after_seconds' => 0,
-                'protocol_wait_seconds' => 0,
-            ]);
+        // `sealed` is written only by this implementation. It prevents a
+        // manual duplicate trigger after a final failure from submitting the
+        // same day's replacement songs again. Legacy states (including an
+        // exhausted `topups_used` counter) are deliberately not sealed and get
+        // one internal rescue run during the rolling deployment.
+        if ($sameDay && !empty($dailyState['sealed'])) {
+            $persist(false, true);
+            return $this->makeResult(201,
+                '网易云每日300首打卡失败 | 进度 ' . $actualProgressBefore . '/' . $target
+                . ' | 本日任务已结束，未再提交新歌',
+                [
+                    'submitted' => 0,
+                    'verification_only' => true,
+                    'daily_target' => $target,
+                    'daily_confirmed' => $actualProgressBefore,
+                    'daily_actual_progress' => $actualProgressBefore,
+                    'daily_remaining' => $remainingBefore,
+                    'daily_submitted_total' => $submittedTotal,
+                    'target_reached' => false,
+                    'sealed' => true,
+                    'attempts' => $attempts,
+                    'retry_after_seconds' => 0,
+                    'protocol_wait_seconds' => 0,
+                ]
+            );
         }
 
-        // Once the bounded top-up budget is exhausted, stop submitting and
-        // leave the remaining shortfall for the next day's fresh songs. A
-        // verification pass is still scheduled when the counter may be
-        // settling asynchronously.
-        if (!$maySubmit) {
-            $verifiedBefore = $sameDay ? max(0, (int)($dailyState['verifications'] ?? 0)) : 0;
-            $retryAfter = $verifiedBefore === 0 && $stalledAfter < $maxIdleRuns && !$this->cookiezt
-                ? max($retryInterval, 1200)
-                : 0;
-            $observedNow = max($observedBefore, $listenSongs);
-            $this->rememberDakaDailyState([
-                'date' => $today,
-                'target' => $target,
-                'listen_songs_baseline' => $baseline,
-                'listen_songs_observed' => $observedNow,
-                'actual_progress' => $actualProgressBefore,
-                'submitted_total' => $submittedTotal,
-                'submitted_song_ids' => array_keys($submittedToday),
-                'startplay_accepted_total' => $startAcceptedTotal,
-                'play_accepted_total' => $playAcceptedTotal,
-                'reported_play_seconds' => $reportedSecondsTotal,
-                'repeat_submitted_total' => $repeatSubmittedTotal,
-                'topups_used' => $topupsUsed,
-                'attempts' => $attempts,
-                'stalled_runs' => $stalledAfter,
-                'verifications' => $verifiedBefore + 1,
-                // Keep legacy fields readable during a rolling deployment.
-                'submitted' => $submittedTotal,
-                'plv_confirmed' => $startAcceptedTotal,
-                'pld_confirmed' => $playAcceptedTotal,
-                'submitted_seconds' => $reportedSecondsTotal,
-                'listen_songs_before' => $baseline,
-                'listen_songs_after' => $observedNow,
-                'listen_songs_delta' => $actualProgressBefore,
-                'updated_at' => date('c'),
-            ]);
-            $message = '进度 ' . $actualProgressBefore . '/' . $target
-                . ' | 累计 ' . $listenSongs
-                . ' | 上报累计 ' . $submittedTotal
-                . ' | 仅核验不上报';
-            if ($remainingBefore > 0) {
-                $message .= ' | 差额' . $remainingBefore . '首待次日新歌';
+        $refresh = function () use (
+            &$currentListenSongs,
+            &$observedBefore,
+            &$actualProgressBefore,
+            &$remaining,
+            &$lastDelta,
+            $baseline,
+            $target
+        ): int {
+            $previous = $currentListenSongs;
+            $probe = $this->dakaListenSongs($currentListenSongs);
+            if ($probe['code'] !== 200) {
+                return $probe['code'];
             }
-            $message .= $retryAfter > 0
-                ? ' | ' . (int)ceil($retryAfter / 60) . '分钟后核验'
-                : ' | 今日核验完成，次日继续';
-            return $this->makeResult(201, $message, [
-                'submitted' => 0,
-                'verification_only' => true,
-                'candidate_count' => 0,
-                'daily_target' => $target,
-                'daily_confirmed' => $actualProgressBefore,
-                'daily_actual_progress' => $actualProgressBefore,
-                'daily_remaining' => $remainingBefore,
-                'daily_submitted_total' => $submittedTotal,
-                'target_reached' => false,
-                'attempts' => $attempts,
-                'stalled_runs' => $stalledAfter,
-                'retry_after_seconds' => $retryAfter,
-                'protocol_wait_seconds' => 0,
-                'topups_used' => $topupsUsed,
-            ]);
-        }
+            $currentListenSongs = max($currentListenSongs, $probe['listen_songs']);
+            $lastDelta = max(0, $currentListenSongs - $previous);
+            $observedBefore = max($observedBefore, $currentListenSongs);
+            $actualProgressBefore = min($target, max(0, $observedBefore - $baseline));
+            $remaining = max(0, $target - $actualProgressBefore);
+            return 200;
+        };
 
-        // Do not over-sample: every fetched candidate costs memory and often a
-        // playlist-detail request, while only the remaining quota can be sent.
-        $candidateLimit = min(1000, max(1, $submitLimit));
-        $candidates = $this->dakaCandidates($source, $submittedToday, $candidateLimit);
-        $candidateCount = count($candidates);
-        if ($this->cookiezt) {
-            return $this->makeResult(201, '登录状态已失效', [
-                'submitted' => 0,
-                'candidate_count' => $candidateCount,
-                'daily_target' => $target,
-                'daily_confirmed' => $actualProgressBefore,
-                'daily_actual_progress' => $actualProgressBefore,
-                'daily_remaining' => $remainingBefore,
-                'target_reached' => false,
-                'attempts' => $attempts,
-                'retry_after_seconds' => 0,
-                'protocol_wait_seconds' => 0,
-            ]);
-        }
-        if ($this->dakaHistorySeedIncomplete) {
-            return $this->makeResult(201, '读取历史听歌记录失败，本次未上报，稍后自动重试', [
-                'submitted' => 0,
-                'candidate_count' => $candidateCount,
-                'daily_target' => $target,
-                'daily_confirmed' => $actualProgressBefore,
-                'daily_actual_progress' => $actualProgressBefore,
-                'daily_remaining' => $remainingBefore,
-                'target_reached' => false,
-                'attempts' => $attempts,
-                'retry_after_seconds' => $retryInterval,
-                'protocol_wait_seconds' => 0,
-                'history_seed_incomplete' => true,
-            ]);
-        }
-        $songs = array_slice($candidates, 0, $submitLimit, true);
-        if ($songs === []) {
-            $attemptsAfter = $attempts + 1;
-            $retryAfter = ($attemptsAfter < $maxBatches
-                && $stalledAfter < $maxIdleRuns
-                && !$this->cookiezt)
-                ? $retryInterval
-                : 0;
-            $this->rememberDakaDailyState([
-                'date' => $today,
-                'target' => $target,
-                'listen_songs_baseline' => $baseline,
-                'listen_songs_observed' => $observedBefore,
-                'actual_progress' => $actualProgressBefore,
-                'submitted_total' => $submittedTotal,
-                'submitted_song_ids' => array_keys($submittedToday),
-                'startplay_accepted_total' => $startAcceptedTotal,
-                'play_accepted_total' => $playAcceptedTotal,
-                'reported_play_seconds' => $reportedSecondsTotal,
-                'repeat_submitted_total' => $repeatSubmittedTotal,
-                'topups_used' => $topupsUsed,
-                'attempts' => $attemptsAfter,
-                'stalled_runs' => $stalledAfter,
-                'updated_at' => date('c'),
-            ]);
-            $message = '进度 ' . $actualProgressBefore . '/' . $target . ' | 今日已上报 ' . count($submittedToday)
-                . ' | 无候选歌曲'
-                . ($retryAfter > 0 ? ' | ' . (int)ceil($retryAfter / 60) . '分钟后重试' : ' | 已停止重试');
-            return $this->makeResult(201, $message, [
-                'submitted' => 0,
-                'candidate_count' => $candidateCount,
-                'daily_target' => $target,
-                'daily_confirmed' => $actualProgressBefore,
-                'daily_actual_progress' => $actualProgressBefore,
-                'daily_remaining' => $remainingBefore,
-                'daily_submitted_total' => $submittedTotal,
-                'target_reached' => false,
-                'attempts' => $attemptsAfter,
-                'stalled_runs' => $stalledAfter,
-                'retry_after_seconds' => $retryAfter,
-                'protocol_wait_seconds' => 0,
-            ]);
-        }
-
-        $success = $this->weblogScrobbleBatch($songs);
-        $submitted = count($songs);
-        foreach ($songs as $song) {
-            $submittedToday[(int)$song['id']] = true;
-        }
-        if ($success > 0) {
-            $this->rememberDakaSongs($this->lastScrobbleSongIds);
-        }
-        $after = $this->decodeBody($this->detail($this->userId));
-        $afterCode = (int)($after['code'] ?? 0);
-        if (in_array($afterCode, [301, 401], true)) {
-            $this->cookiezt = true;
-        }
-        $current = $afterCode === 200
-            ? (int)($after['listenSongs'] ?? $listenSongs)
-            : $listenSongs;
-        $delta = max(0, $current - $listenSongs);
-        $observedAfter = max($observedBefore, $current);
-        $actualProgressAfter = min($target, max(0, $observedAfter - $baseline));
-        $remainingAfter = max(0, $target - $actualProgressAfter);
-        $attemptsAfter = $attempts + 1;
-        $submittedTotal += $submitted;
-        $startAcceptedTotal += $this->lastScrobbleStarts;
-        $playAcceptedTotal += $success;
-        $reportedSecondsTotal += $this->lastScrobbleSeconds;
-        $topupsUsedAfter = ($dayAccepted > 0 && $submitted > 0)
-            ? $topupsUsed + 1
-            : $topupsUsed;
-        // 累计听歌 lands asynchronously, so a run that reports nothing new is
-        // only treated as stalled once the counter also failed to move.
-        $stalledAfterRun = ($progressChanged || $delta > 0) ? 0 : $stalledAfter;
-        $retryAfter = ($remainingAfter > 0
-            && !$this->cookiezt
-            && $attemptsAfter < $maxBatches
-            && $stalledAfterRun < $maxIdleRuns)
-            ? $retryInterval
-            : 0;
-        $rejections = $this->dakaRejectionSummary();
-        $this->rememberDakaDailyState([
-            'date' => $today,
-            'target' => $target,
-            'listen_songs_baseline' => $baseline,
-            'listen_songs_observed' => $observedAfter,
-            'actual_progress' => $actualProgressAfter,
-            'submitted_total' => $submittedTotal,
-            'submitted_song_ids' => array_keys($submittedToday),
-            'startplay_accepted_total' => $startAcceptedTotal,
-            'play_accepted_total' => $playAcceptedTotal,
-            'reported_play_seconds' => $reportedSecondsTotal,
-            'repeat_submitted_total' => $repeatSubmittedTotal,
-            'topups_used' => $topupsUsedAfter,
-            'attempts' => $attemptsAfter,
-            'stalled_runs' => $stalledAfterRun,
-            // Keep legacy fields readable during a rolling deployment.
-            'submitted' => $submittedTotal,
-            'plv_confirmed' => $startAcceptedTotal,
-            'pld_confirmed' => $playAcceptedTotal,
-            'submitted_seconds' => $reportedSecondsTotal,
-            'listen_songs_before' => $baseline,
-            'listen_songs_after' => $observedAfter,
-            'listen_songs_delta' => $actualProgressAfter,
-            'updated_at' => date('c'),
-        ]);
-
-        $message = '进度 ' . $actualProgressAfter . '/' . $target
-            . ' | 累计 ' . $listenSongs . '→' . $current . '(+' . $delta . ')'
-            . ' | 批次 ' . $attemptsAfter . '/' . $maxBatches
-            . ' 上报 ' . $submitted
-            . ' 起播 ' . $this->lastScrobbleStarts . '/' . $submitted
-            . ' 听歌 ' . $success . '/' . $submitted;
-        if ($this->lastScrobbleElapsedSeconds > 0) {
-            $message .= ' | 耗时 ' . round($this->lastScrobbleElapsedSeconds, 1) . 's';
-        }
-        if ($rejections !== '') {
-            $message .= ' | 拒绝 ' . $rejections;
-        }
-        if ($remainingAfter > 0) {
-            if ($afterCode !== 200) {
-                $message .= ' | 累计读取失败';
-            } elseif ($delta === 0 && $success > 0) {
-                $message .= ' | 累计可能异步延迟';
+        for ($batchIndex = 0; $batchIndex < $maxBatches && $remaining > 0; $batchIndex++) {
+            // Never rush a replacement into the endpoint while the previous
+            // batch may still be settling. The wait is internal, so the
+            // scheduler sees one final result and writes one log row.
+            if ($batchIndex > 0 && $remaining > 0 && $lastDelta <= 0 && $settlementWait > 0) {
+                $this->waitDakaSettlement($settlementWait);
+                $protocolWaitSeconds += $settlementWait;
+                $probeCode = $refresh();
+                if ($probeCode !== 200) {
+                    $reason = $this->cookiezt ? '登录状态已失效' : '累计听歌核验失败';
+                    break;
+                }
+                if ($remaining === 0) {
+                    break;
+                }
             }
-            if ($retryAfter > 0) {
-                $message .= ' | ' . (int)ceil($retryAfter / 60) . '分钟后重试';
-            } elseif ($attemptsAfter >= $maxBatches) {
-                $message .= ' | 已达批次上限，停止重试';
+
+            $available = max(0, $submissionCeiling - $submittedTotal);
+            if ($available <= 0) {
+                $reason = '已达到本次补齐安全上限';
+                break;
+            }
+            $candidateLimit = min(1000, max(1, min($remaining, $available)));
+            $candidates = $this->dakaCandidates($source, $submittedToday, $candidateLimit);
+            $candidateCountTotal += count($candidates);
+            if ($this->cookiezt) {
+                $reason = '登录状态已失效';
+                break;
+            }
+            if ($this->dakaHistorySeedIncomplete) {
+                $reason = '读取历史听歌记录失败';
+                break;
+            }
+            $songs = array_slice($candidates, 0, $candidateLimit, true);
+            if ($songs === []) {
+                $reason = '未获取到可用于补齐的新歌曲';
+                break;
+            }
+
+            $hadSubmitted = $submittedTotal > 0;
+            try {
+                $success = max(0, (int)$this->weblogScrobbleBatch($songs));
+            } catch (Throwable $exception) {
+                $reason = '播放上报异常';
+                break;
+            }
+            $internalBatches++;
+            $submitted = count($songs);
+            $submittedThisRun += $submitted;
+            $startAcceptedThisRun += (int)$this->lastScrobbleStarts;
+            $playAcceptedThisRun += $success;
+            $reportedSecondsThisRun += (int)$this->lastScrobbleSeconds;
+            $submittedTotal += $submitted;
+            $startAcceptedTotal += (int)$this->lastScrobbleStarts;
+            $playAcceptedTotal += $success;
+            $reportedSecondsTotal += (int)$this->lastScrobbleSeconds;
+            $attempts++;
+            if ($hadSubmitted && $submitted > 0) {
+                $topupsUsed++;
+            }
+            foreach ($songs as $song) {
+                $songId = (int)($song['id'] ?? 0);
+                if ($songId > 0) {
+                    $submittedToday[$songId] = true;
+                }
+            }
+            if ($success > 0) {
+                $this->rememberDakaSongs($this->lastScrobbleSongIds);
+            }
+            foreach ($this->lastScrobbleRejections as $key => $count) {
+                $runRejections[$key] = ($runRejections[$key] ?? 0) + (int)$count;
+            }
+
+            $probeCode = $refresh();
+            if ($probeCode !== 200) {
+                $reason = $this->cookiezt ? '登录状态已失效' : '累计听歌核验失败';
+                $lastDelta = 0;
+            } elseif ($lastDelta > 0) {
+                $noProgressBatches = 0;
+                $stalledRuns = 0;
             } else {
-                $message .= ' | 累计' . $stalledAfterRun . '轮无增量，停止重试';
+                $noProgressBatches++;
+                $stalledRuns++;
+            }
+            $verifications++;
+            $persist(false, false);
+
+            if ($this->cookiezt || $probeCode !== 200 || $remaining === 0) {
+                break;
+            }
+            if ($noProgressBatches >= $maxIdleBatches) {
+                $reason = '累计听歌未产生新增';
+                break;
             }
         }
 
-        return $this->makeResult($remainingAfter === 0 ? 200 : 201, $message, [
-            'submitted' => $submitted,
-            'candidate_count' => $candidateCount,
-            'plv_confirmed' => $this->lastScrobbleStarts,
-            'pld_confirmed' => $success,
-            'startplay_accepted' => $this->lastScrobbleStarts,
-            'play_accepted' => $success,
-            'submitted_seconds' => $this->lastScrobbleSeconds,
-            'reported_play_seconds' => $this->lastScrobbleSeconds,
-            'elapsed_seconds' => round($this->lastScrobbleElapsedSeconds, 3),
-            'protocol_wait_seconds' => 0,
+        // One last bounded settlement check catches the common case where the
+        // endpoint acknowledges the batch before the profile counter catches
+        // up. It never schedules another external invocation.
+        if ($remaining > 0 && $internalBatches > 0 && !$this->cookiezt
+            && $lastDelta <= 0 && $settlementWait > 0) {
+            $this->waitDakaSettlement($settlementWait);
+            $protocolWaitSeconds += $settlementWait;
+            $probeCode = $refresh();
+            if ($probeCode !== 200) {
+                $reason = $this->cookiezt ? '登录状态已失效' : '累计听歌核验失败';
+            } elseif ($remaining === 0) {
+                $reason = '';
+            }
+        }
+
+        $completed = $remaining === 0;
+        if (!$completed && $reason === '') {
+            $reason = '本次内部补齐未达到目标';
+        }
+        $persist($completed, true);
+
+        $message = '网易云每日300首打卡' . ($completed ? '成功' : '失败')
+            . ' | 进度 ' . $actualProgressBefore . '/' . $target
+            . ' | 本次内部批次 ' . $internalBatches
+            . ' | 本次上报 ' . $submittedThisRun
+            . ' | 累计 ' . $listenSongs . '→' . $currentListenSongs;
+        if ($reason !== '' && !$completed) {
+            $message .= ' | ' . $reason;
+        }
+        $rejectionSummary = '';
+        if ($runRejections !== []) {
+            $parts = [];
+            foreach ($runRejections as $key => $count) {
+                $parts[] = $key . '×' . $count;
+            }
+            $rejectionSummary = implode(' ', $parts);
+            $message .= ' | 拒绝 ' . $rejectionSummary;
+        }
+
+        return $this->makeResult($completed ? 200 : 201, $message, [
+            'submitted' => $submittedThisRun,
+            'candidate_count' => $candidateCountTotal,
+            'plv_confirmed' => $startAcceptedThisRun,
+            'pld_confirmed' => $playAcceptedThisRun,
+            'startplay_accepted' => $startAcceptedThisRun,
+            'play_accepted' => $playAcceptedThisRun,
+            'submitted_seconds' => $reportedSecondsThisRun,
+            'reported_play_seconds' => $reportedSecondsThisRun,
+            'elapsed_seconds' => round(microtime(true) - $startedAt, 3),
+            'protocol_wait_seconds' => $protocolWaitSeconds,
             'report_mode' => 'api-enhanced-scrobble',
             'listen_songs_before' => $listenSongs,
-            'listen_songs_after' => $current,
-            'listen_songs_delta' => $delta,
+            'listen_songs_after' => $currentListenSongs,
+            'listen_songs_delta' => max(0, $currentListenSongs - $listenSongs),
             'daily_target' => $target,
-            'daily_confirmed' => $actualProgressAfter,
-            'daily_actual_progress' => $actualProgressAfter,
-            'daily_remaining' => $remainingAfter,
+            'daily_confirmed' => $actualProgressBefore,
+            'daily_actual_progress' => $actualProgressBefore,
+            'daily_remaining' => $remaining,
             'daily_submitted_total' => $submittedTotal,
             'repeat_submitted' => 0,
             'repeat_submitted_total' => $repeatSubmittedTotal,
-            'topups_used' => $topupsUsedAfter,
-            'rejections' => $this->lastScrobbleRejections,
-            'target_reached' => $remainingAfter === 0,
-            'attempts' => $attemptsAfter,
-            'stalled_runs' => $stalledAfterRun,
-            'retry_after_seconds' => $retryAfter,
+            'topups_used' => $topupsUsed,
+            'rejections' => $runRejections,
+            'target_reached' => $completed,
+            'attempts' => $attempts,
+            'stalled_runs' => $stalledRuns,
+            'internal_batches' => $internalBatches,
+            'sealed' => true,
+            // daka_new never asks the outer scheduler to create a second log.
+            'retry_after_seconds' => 0,
             'skipped_duplicate' => false,
         ]);
     }

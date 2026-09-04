@@ -380,6 +380,18 @@ class Netease
                     );
                     break;
 
+                case 'daka_internal_wait_seconds':
+                    if ($value === '') {
+                        break;
+                    }
+                    $clean[$key] = self::sanitizeIntegerConfig(
+                        $value,
+                        0,
+                        60,
+                        '内部结算等待需要在 0 到 60 秒之间'
+                    );
+                    break;
+
                 case 'daka_min_song_seconds':
                     if ($value === '') {
                         break;

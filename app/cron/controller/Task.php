@@ -351,8 +351,13 @@ class Task extends Common
                     ? $this->executeNetease($taskName, $userId, $accountData, $jobConfig)
                     : $this->executeBilibili($taskName, $accountData, $jobConfig);
             } catch (Throwable $exception) {
-                $this->retryJob($jobId);
-                $this->writeLog($type, $userId, $taskName, '任务执行异常，已安排稍后重试', '重试中');
+                if ($this->isSingleRunNeteaseTask($type, $taskName)) {
+                    $this->closeSingleRunJob($jobId);
+                    $this->writeLog($type, $userId, $taskName, '任务执行异常，本次任务失败，未安排自动重试', '失败');
+                } else {
+                    $this->retryJob($jobId);
+                    $this->writeLog($type, $userId, $taskName, '任务执行异常，已安排稍后重试', '重试中');
+                }
                 $summary['failed']++;
                 return;
             }
@@ -377,10 +382,63 @@ class Task extends Common
             $summary[$result['success'] ? 'succeeded' : 'failed']++;
         } catch (Throwable $exception) {
             if ($jobId > 0) {
-                $this->retryJob($jobId);
+                if ($this->isSingleRunNeteaseTask($type, $taskName)) {
+                    $this->closeSingleRunJob($jobId);
+                } else {
+                    $this->retryJob($jobId);
+                }
             }
-            $this->writeLog($type, $userId, $taskName, '任务调度异常，已安排稍后重试', '重试中');
+            if ($this->isSingleRunNeteaseTask($type, $taskName)) {
+                $this->writeLog($type, $userId, $taskName, '任务调度异常，本次任务失败，未安排自动重试', '失败');
+            } else {
+                $this->writeLog($type, $userId, $taskName, '任务调度异常，已安排稍后重试', '重试中');
+            }
             $summary['failed']++;
+        }
+    }
+
+    private function isSingleRunNeteaseTask(string $type, string $taskName): bool
+    {
+        return $type === 'netease' && $taskName === 'daka_new';
+    }
+
+    /**
+     * A daily 300-song task owns its internal retry loop. If an unexpected
+     * exception escapes that loop, advance the job to its next normal daily
+     * slot instead of creating another retry log for the same day.
+     */
+    private function closeSingleRunJob(int $jobId): void
+    {
+        if ($jobId <= 0) {
+            return;
+        }
+
+        try {
+            $job = Jobs::where('id', $jobId)->field('uid,type,user_id')->find();
+            $nextExecute = 0;
+            if ($job) {
+                $account = $this->account(
+                    (string)($job['type'] ?? 'netease'),
+                    (int)($job['uid'] ?? 0),
+                    (string)($job['user_id'] ?? '')
+                );
+                if ($account) {
+                    $nextExecute = $this->nextExecuteAt($account, $jobId);
+                }
+            }
+            Jobs::where('id', $jobId)->update([
+                'lastExecute' => date('Y-m-d H:i:s'),
+                'nextExecute' => $nextExecute,
+            ]);
+        } catch (Throwable $exception) {
+            try {
+                Jobs::where('id', $jobId)->update([
+                    'lastExecute' => date('Y-m-d H:i:s'),
+                    'nextExecute' => time() + 86400,
+                ]);
+            } catch (Throwable $ignored) {
+                // The lease will expire if the database is unavailable.
+            }
         }
     }
 
@@ -413,7 +471,12 @@ class Task extends Common
             'success' => (int)($response['code'] ?? 0) === 200,
             'message' => trim((string)($response['message'] ?? '')) ?: '网易云任务执行完成',
             'account_invalid' => !empty($client->cookiezt),
-            'retry_after_seconds' => max(0, (int)($response['data']['retry_after_seconds'] ?? 0)),
+            // daka_new performs all supplementation before returning. Keep a
+            // defensive zero here so a stale adapter response cannot schedule
+            // a second task-log row from the outer scheduler.
+            'retry_after_seconds' => $task === 'daka_new'
+                ? 0
+                : max(0, (int)($response['data']['retry_after_seconds'] ?? 0)),
         ];
     }
 

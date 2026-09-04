@@ -195,10 +195,53 @@ class Netease extends Common
             return $execute;
         } catch (Throwable $exception) {
             // 异常只影响本条任务；不要把租约推进到下一次正常计划。
-            // 以短暂退避覆盖租约，避免异常任务等待整段租约时间。
-            $this->scheduleRetry($jobId);
-            $this->writeLog('netease', $account['user_id'], $do, '[重试中] 任务调度异常，已安排稍后重试');
+            // daka_new owns its bounded retry loop. Keep its failure on the
+            // normal next-day schedule so an exception cannot fan out extra
+            // "retrying" log rows; older tasks retain the legacy short retry.
+            if ($do === 'daka_new') {
+                $this->closeSingleRunJob($jobId);
+                $this->writeLog('netease', $account['user_id'], $do, '[失败] 任务执行异常，本次任务未完成，未安排自动重试');
+            } else {
+                $this->scheduleRetry($jobId);
+                $this->writeLog('netease', $account['user_id'], $do, '[重试中] 任务调度异常，已安排稍后重试');
+            }
             return null;
+        }
+    }
+
+    /** Advance a failed daily task to the next normal slot without a retry log. */
+    private function closeSingleRunJob(int $jobId): void
+    {
+        if ($jobId <= 0) {
+            return;
+        }
+        try {
+            $job = Jobs::where('id', $jobId)->field('uid,type,user_id')->find();
+            $next = 0;
+            if ($job) {
+                $timing = Accounts::where('type', (string)$job['type'])
+                    ->where('uid', (int)$job['uid'])
+                    ->where('user_id', (string)$job['user_id'])
+                    ->value('timing');
+                $next = AutomaticSchedule::nextExecution(
+                    'netease',
+                    (string)$job['user_id'],
+                    is_string($timing) ? $timing : null
+                ) ?? 0;
+            }
+            Jobs::where('id', $jobId)->update([
+                'lastExecute' => date('Y-m-d H:i:s'),
+                'nextExecute' => $next,
+            ]);
+        } catch (Throwable $exception) {
+            try {
+                Jobs::where('id', $jobId)->update([
+                    'lastExecute' => date('Y-m-d H:i:s'),
+                    'nextExecute' => time() + 86400,
+                ]);
+            } catch (Throwable $ignored) {
+                // The claimed lease will expire if the database is unavailable.
+            }
         }
     }
 

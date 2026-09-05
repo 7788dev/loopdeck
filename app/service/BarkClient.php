@@ -48,7 +48,7 @@ final class BarkClient
         $payload = [
             'device_key' => $token,
             'title' => $this->boundedText($title, 200),
-            'body' => $this->boundedText($body, 4000),
+            'body' => $this->boundedText($body, 6000),
             'group' => $this->boundedText($group, 100),
         ];
         if ($url !== '' && filter_var($url, FILTER_VALIDATE_URL)) {
@@ -60,6 +60,7 @@ final class BarkClient
                 'connect_timeout' => 5.0,
                 'timeout' => 10.0,
                 'http_errors' => false,
+                'allow_redirects' => false,
                 'headers' => [
                     'Accept' => 'application/json',
                     'User-Agent' => 'LoopDeck/' . ApplicationVersion::current(),
@@ -74,13 +75,13 @@ final class BarkClient
         $decoded = json_decode((string)$response->getBody(), true);
         $data = is_array($decoded) ? $decoded : [];
         $code = array_key_exists('code', $data) ? (int)$data['code'] : null;
-        $success = $status >= 200 && $status < 300 && ($code === null || in_array($code, [0, 200], true));
+        $success = $status >= 200 && $status < 300 && $code === 200;
         $message = trim((string)($data['message'] ?? $data['msg'] ?? ''));
 
         return $this->result(
             $success,
             $status,
-            $success ? 'Bark 推送成功' : ($message !== '' ? $message : 'Bark 推送失败'),
+            $success ? 'Bark 推送请求已受理' : ($message !== '' ? $message : 'Bark 推送失败'),
             $data
         );
     }

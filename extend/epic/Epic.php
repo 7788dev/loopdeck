@@ -15,15 +15,13 @@ class Epic
     {
         // 周免一周才换一次；每个页面/每封邮件都同步请求上游（20s 超时）会把
         // Epic 页面拖住，缓存 1 小时即可。
-        $cached = \think\facade\Cache::get('epic_weekly_free_games');
+        $cached = \think\facade\Cache::get('epic_weekly_free_games_v2');
         if (is_array($cached)) {
             return $cached;
         }
 
         $games = $this->fetchWeeklyFreeGames();
-        if ($games !== []) {
-            \think\facade\Cache::set('epic_weekly_free_games', $games, 3600);
-        }
+        \think\facade\Cache::set('epic_weekly_free_games_v2', $games, $games !== [] ? 3600 : 120);
         return $games;
     }
 
@@ -38,12 +36,17 @@ class Epic
             return [];
         }
 
+        return $this->parseCatalog($payload);
+    }
+
+    public function parseCatalog(array $payload, ?int $now = null): array
+    {
         $elements = $payload['data']['Catalog']['searchStore']['elements'] ?? [];
         if (!is_array($elements)) {
             return [];
         }
 
-        $now = time();
+        $now ??= time();
         $current = [];
         $upcoming = [];
         foreach ($elements as $element) {
@@ -52,14 +55,16 @@ class Epic
             }
             $offers = $element['promotions']['promotionalOffers'] ?? [];
             $futureOffers = $element['promotions']['upcomingPromotionalOffers'] ?? [];
-            if ($this->hasFreeOffer($offers, $now, true)) {
-                $current[] = $this->normaliseGame($element);
-            } elseif ($this->hasFreeOffer($futureOffers, $now, false)) {
-                $upcoming[] = $this->normaliseGame($element);
+            $active = $this->freeOffer(is_array($offers) ? $offers : [], $now, true);
+            $future = $this->freeOffer(is_array($futureOffers) ? $futureOffers : [], $now, false);
+            if ($active !== []) {
+                $current[] = $this->normaliseGame($element, $active, $now, true);
+            } elseif ($future !== []) {
+                $upcoming[] = $this->normaliseGame($element, $future, $now, false);
             }
         }
 
-        return array_values(array_filter($current ?: $upcoming));
+        return array_merge($current, $upcoming);
     }
 
     public function curl(
@@ -119,24 +124,25 @@ class Epic
         return is_array($decoded) ? $decoded : [];
     }
 
-    private function hasFreeOffer(array $groups, int $now, bool $mustBeActive): bool
+    private function freeOffer(array $groups, int $now, bool $mustBeActive): array
     {
         foreach ($groups as $group) {
             foreach (($group['promotionalOffers'] ?? []) as $offer) {
                 if ((int)($offer['discountSetting']['discountPercentage'] ?? -1) !== 0) {
                     continue;
                 }
-                $start = strtotime((string)($offer['startDate'] ?? '')) ?: 0;
-                $end = strtotime((string)($offer['endDate'] ?? '')) ?: PHP_INT_MAX;
-                if ($mustBeActive ? ($start <= $now && $end > $now) : ($start > $now)) {
-                    return true;
+                $start = strtotime((string)($offer['startDate'] ?? ''));
+                $end = strtotime((string)($offer['endDate'] ?? ''));
+                if ($start !== false && $end !== false && $end > $start
+                    && ($mustBeActive ? ($start <= $now && $end > $now) : ($start > $now))) {
+                    return $offer;
                 }
             }
         }
-        return false;
+        return [];
     }
 
-    private function normaliseGame(array $element): array
+    private function normaliseGame(array $element, array $promotion, int $now, bool $available): array
     {
         $image = '';
         foreach (($element['keyImages'] ?? []) as $item) {
@@ -157,9 +163,8 @@ class Epic
             $slug = (string)$mapping;
         }
 
-        $promotion = $this->findFreeOffer($element);
-        $endAt = strtotime((string)($promotion['endDate'] ?? '')) ?: time();
-        $leftDay = max(0, (int)ceil(($endAt - time()) / 86400));
+        $endAt = (int)strtotime((string)$promotion['endDate']);
+        $leftDay = max(0, (int)ceil(($endAt - $now) / 86400));
         $originalPrice = (string)(
             $element['price']['totalPrice']['fmtPrice']['originalPrice']
             ?? $element['price']['totalPrice']['originalPrice']
@@ -169,8 +174,11 @@ class Epic
         return [
             'title' => (string)($element['title'] ?? 'Epic 免费游戏'),
             'description' => (string)($element['description'] ?? ''),
-            'image' => $image,
+            'image' => preg_match('#\Ahttps?://#i', $image) && filter_var($image, FILTER_VALIDATE_URL) ? $image : '',
             'leftDay' => $leftDay,
+            'available' => $available,
+            'start_at' => (int)strtotime((string)$promotion['startDate']),
+            'end_at' => $endAt,
             'originalPrice' => $originalPrice,
             'productUrl' => $slug !== ''
                 ? 'https://store.epicgames.com/zh-CN/p/' . rawurlencode($slug)
@@ -178,17 +186,4 @@ class Epic
         ];
     }
 
-    private function findFreeOffer(array $element): array
-    {
-        foreach (['promotionalOffers', 'upcomingPromotionalOffers'] as $groupName) {
-            foreach (($element['promotions'][$groupName] ?? []) as $group) {
-                foreach (($group['promotionalOffers'] ?? []) as $offer) {
-                    if ((int)($offer['discountSetting']['discountPercentage'] ?? -1) === 0) {
-                        return is_array($offer) ? $offer : [];
-                    }
-                }
-            }
-        }
-        return [];
-    }
 }

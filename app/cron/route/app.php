@@ -12,6 +12,12 @@ use think\facade\Route;
 
 // 监控运行
 Route::rule('task', 'task/index');
+Route::rule('notifications', 'notifications/index');
+Route::rule('netease', 'netease/index');
+Route::rule('bilibili', 'bilibili/index');
+Route::rule('heybox', 'heybox/index');
+Route::rule('epic', 'epic/index');
+Route::rule('epic/notify', 'epic/notify');
 Route::rule('netease/:do', 'netease/execute');
 Route::rule('bilibili/:do', 'bilibili/execute');
 Route::rule('heybox/:do', 'heybox/execute');

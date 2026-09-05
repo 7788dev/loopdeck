@@ -43,6 +43,16 @@ final class AutomaticSchedule
 
         $nowDate = (new DateTimeImmutable('now'))->setTimestamp($now);
         [$hour, $minute] = array_map('intval', explode(':', $timing));
-        return $nowDate->modify('+1 day')->setTime($hour, $minute)->getTimestamp();
+        $next = $nowDate->modify('+1 day')->setTime($hour, $minute);
+        return $next->getTimestamp() + self::dailyJitter($type . ':' . $accountKey, $next->format('Y-m-d'));
+    }
+
+    /** Stable within one date, different across dates and accounts. */
+    public static function dailyJitter(string $identity, string $date): int
+    {
+        $configured = getenv('SCHEDULER_JITTER_SECONDS');
+        $maximum = $configured !== false && preg_match('/\A\d+\z/', $configured) === 1
+            ? max(0, min(900, (int)$configured)) : 120;
+        return $maximum === 0 ? 0 : (int)sprintf('%u', crc32($identity . '|' . $date)) % ($maximum + 1);
     }
 }

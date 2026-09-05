@@ -11,7 +11,8 @@ use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
-use app\service\BarkNotificationService;
+use app\service\NotificationService;
+use app\service\EpicJobRunner;
 use app\service\BilibiliTaskExecutor;
 use app\service\NeteaseSchedule;
 use netease\Netease as NeteaseAPI;
@@ -38,6 +39,7 @@ class Task extends Common
     private array $accountCache = [];
     private array $globalConfigCache = [];
     private array $suppressedAccounts = [];
+    private ?NotificationService $notificationService = null;
 
     public function index()
     {
@@ -45,7 +47,7 @@ class Task extends Common
         if ($cronKey === '') {
             $cronKey = trim((string)Request::get('cronkey', ''));
         }
-        $expectedKey = (string)config('sys.cronkey');
+        $expectedKey = (string)(getenv('CRON_KEY') ?: config('sys.cronkey'));
         if ($cronKey === '' || $expectedKey === '' || !hash_equals($expectedKey, $cronKey)) {
             return resultJson(-1000, 'CronKey Access Denied!');
         }
@@ -127,6 +129,8 @@ class Task extends Common
         $taskMap = [
             'netease' => self::NETEASE_TASKS,
             'bilibili' => BilibiliTaskExecutor::executableTasks(),
+            'heybox' => ['sign'],
+            'epic' => ['weeklyGameNotify'],
         ];
         $now = time();
 
@@ -146,7 +150,7 @@ class Task extends Common
                 ));
             }
             $rows = $query
-                ->field('id,uid,type,user_id,do,data,nextExecute')
+                ->field('id,uid,zid,type,user_id,do,data,nextExecute')
                 ->order('nextExecute', 'asc')
                 ->order('id', 'asc')
                 ->limit($limit)
@@ -292,6 +296,14 @@ class Task extends Common
                 $summary['disabled']++;
                 return;
             }
+            if ($type === 'epic') {
+                $status = (new EpicJobRunner())->run($job);
+                if ($status !== 'skipped') {
+                    $summary['attempted']++;
+                    $summary[$status]++;
+                }
+                return;
+            }
             if (!Jobs::claimDueJob($jobId, $scheduledAt)) {
                 return;
             }
@@ -347,22 +359,25 @@ class Task extends Common
 
             $summary['attempted']++;
             try {
-                $result = $type === 'netease'
-                    ? $this->executeNetease($taskName, $userId, $accountData, $jobConfig)
-                    : $this->executeBilibili($taskName, $accountData, $jobConfig);
+                $result = match ($type) {
+                    'netease' => $this->executeNetease($taskName, $userId, $accountData, $jobConfig),
+                    'bilibili' => $this->executeBilibili($taskName, $accountData, $jobConfig),
+                    'heybox' => $this->executeHeybox($taskName, $accountData),
+                };
             } catch (Throwable $exception) {
-                if ($this->isSingleRunNeteaseTask($type, $taskName)) {
-                    $this->closeSingleRunJob($jobId);
-                    $this->writeLog($type, $userId, $taskName, '任务执行异常，本次任务失败，未安排自动重试', '失败');
-                } else {
-                    $this->retryJob($jobId);
-                    $this->writeLog($type, $userId, $taskName, '任务执行异常，已安排稍后重试', '重试中');
-                }
+                $this->retryJob($jobId);
+                $this->notifications()->recordTask($user, $type, $userId, $taskName, (string)$task['name'],
+                    ['success' => false, 'message' => '任务执行异常，已安排稍后重试', 'retry_after_seconds' => 300]);
+                $this->writeLog(
+                    $type, $userId, $taskName, '任务执行异常，已安排稍后重试',
+                    $this->statusTag(['retry_after_seconds' => 300])
+                );
                 $summary['failed']++;
                 return;
             }
 
             $this->writeLog($type, $userId, $taskName, (string)$result['message'], $this->statusTag($result));
+            $this->notifications()->recordTask($user, $type, $userId, $taskName, (string)$task['name'], $result);
             if ($result['account_invalid']) {
                 $this->invalidateAccount($type, $uid, $userId);
                 $summary['invalid_accounts']++;
@@ -382,70 +397,39 @@ class Task extends Common
             $summary[$result['success'] ? 'succeeded' : 'failed']++;
         } catch (Throwable $exception) {
             if ($jobId > 0) {
-                if ($this->isSingleRunNeteaseTask($type, $taskName)) {
-                    $this->closeSingleRunJob($jobId);
-                } else {
-                    $this->retryJob($jobId);
-                }
+                $this->retryJob($jobId);
             }
-            if ($this->isSingleRunNeteaseTask($type, $taskName)) {
-                $this->writeLog($type, $userId, $taskName, '任务调度异常，本次任务失败，未安排自动重试', '失败');
-            } else {
-                $this->writeLog($type, $userId, $taskName, '任务调度异常，已安排稍后重试', '重试中');
-            }
+            $this->writeLog(
+                $type, $userId, $taskName, '任务调度异常，已安排稍后重试',
+                $this->statusTag(['retry_after_seconds' => 300])
+            );
             $summary['failed']++;
-        }
-    }
-
-    private function isSingleRunNeteaseTask(string $type, string $taskName): bool
-    {
-        return $type === 'netease' && $taskName === 'daka_new';
-    }
-
-    /**
-     * A daily 300-song task owns its internal retry loop. If an unexpected
-     * exception escapes that loop, advance the job to its next normal daily
-     * slot instead of creating another retry log for the same day.
-     */
-    private function closeSingleRunJob(int $jobId): void
-    {
-        if ($jobId <= 0) {
-            return;
-        }
-
-        try {
-            $job = Jobs::where('id', $jobId)->field('uid,type,user_id')->find();
-            $nextExecute = 0;
-            if ($job) {
-                $account = $this->account(
-                    (string)($job['type'] ?? 'netease'),
-                    (int)($job['uid'] ?? 0),
-                    (string)($job['user_id'] ?? '')
-                );
-                if ($account) {
-                    $nextExecute = $this->nextExecuteAt($account, $jobId);
-                }
-            }
-            Jobs::where('id', $jobId)->update([
-                'lastExecute' => date('Y-m-d H:i:s'),
-                'nextExecute' => $nextExecute,
-            ]);
-        } catch (Throwable $exception) {
-            try {
-                Jobs::where('id', $jobId)->update([
-                    'lastExecute' => date('Y-m-d H:i:s'),
-                    'nextExecute' => time() + 86400,
-                ]);
-            } catch (Throwable $ignored) {
-                // The lease will expire if the database is unavailable.
-            }
         }
     }
 
     private function supports(string $type, string $task): bool
     {
         return ($type === 'netease' && in_array($task, self::NETEASE_TASKS, true))
-            || ($type === 'bilibili' && BilibiliTaskExecutor::supports($task));
+            || ($type === 'bilibili' && BilibiliTaskExecutor::supports($task))
+            || ($type === 'heybox' && $task === 'sign')
+            || ($type === 'epic' && $task === 'weeklyGameNotify');
+    }
+
+    private function notifications(): NotificationService
+    {
+        return $this->notificationService ??= new NotificationService();
+    }
+
+    private function executeHeybox(string $task, array $account): array
+    {
+        if ($task !== 'sign') {
+            throw new \RuntimeException('Unsupported Heybox task');
+        }
+        $client = new \xiaoheihe\BlackBox((string)($account['heybox_id'] ?? ''), (string)($account['pkey'] ?? ''));
+        $response = $client->sign();
+        return ['success' => in_array((int)($response['code'] ?? 0), [1, 200], true),
+            'message' => (string)($response['message'] ?? '小黑盒任务执行完成'),
+            'account_invalid' => $client->cookiezt, 'retry_after_seconds' => 0];
     }
 
     private function executeNetease(string $task, string $userId, array $account, array $config): array
@@ -471,12 +455,9 @@ class Task extends Common
             'success' => (int)($response['code'] ?? 0) === 200,
             'message' => trim((string)($response['message'] ?? '')) ?: '网易云任务执行完成',
             'account_invalid' => !empty($client->cookiezt),
-            // daka_new performs all supplementation before returning. Keep a
-            // defensive zero here so a stale adapter response cannot schedule
-            // a second task-log row from the outer scheduler.
-            'retry_after_seconds' => $task === 'daka_new'
-                ? 0
-                : max(0, (int)($response['data']['retry_after_seconds'] ?? 0)),
+            // Accepted playback and counted playback are separate events.
+            // Keep the adapter's delay so an unfinished day is verified again.
+            'retry_after_seconds' => max(0, (int)($response['data']['retry_after_seconds'] ?? 0)),
         ];
     }
 
@@ -494,7 +475,7 @@ class Task extends Common
     private function user(int $uid)
     {
         if (!array_key_exists($uid, $this->userCache)) {
-            $this->userCache[$uid] = Users::where('uid', $uid)->find() ?: null;
+            $this->userCache[$uid] = Users::where('uid', $uid)->where('state', 1)->find() ?: null;
         }
 
         return $this->userCache[$uid];
@@ -580,11 +561,6 @@ class Task extends Common
             return 0;
         }
 
-        if ($type !== 'netease') {
-            $jitter = $this->envInt('SCHEDULER_JITTER_SECONDS', 120, 0, 900);
-            $next += $this->stableJitter($jobId, $jitter);
-        }
-
         return $next;
     }
 
@@ -596,12 +572,14 @@ class Task extends Common
 
         try {
             $nextExecute = 0;
-            $job = Jobs::where('id', $jobId)->field('uid,type,user_id')->find();
+            $job = Jobs::where('id', $jobId)->field('uid,type,user_id,data')->find();
             if ($job) {
-                $timing = Accounts::where('type', (string)$job['type'])
-                    ->where('uid', (int)$job['uid'])
-                    ->where('user_id', (string)$job['user_id'])
-                    ->value('timing');
+                $timing = $job['type'] === 'epic'
+                    ? ($this->decodeArray((string)($job['data'] ?? ''))['timing'] ?? '')
+                    : Accounts::where('type', (string)$job['type'])
+                        ->where('uid', (int)$job['uid'])
+                        ->where('user_id', (string)$job['user_id'])
+                        ->value('timing');
                 if (AutomaticSchedule::isConfigured(is_string($timing) ? $timing : null)) {
                     $cooldown = max(60, (int)(config('sys.reExecute_time') ?: 300));
                     $jitter = $this->envInt('SCHEDULER_RETRY_JITTER_SECONDS', 60, 0, 300);
@@ -677,7 +655,7 @@ class Task extends Common
         $this->writeLog($type, $userId, '系统提示', '会员过期，请开通会员后再试');
         $user = $this->user($uid);
         if ($membershipChanged > 0 && $user) {
-            (new BarkNotificationService())->sendVipExpired($user);
+            $this->notifications()->sendVipExpired($user);
         }
     }
 
@@ -702,7 +680,7 @@ class Task extends Common
                 'bilibili' => '哔哩哔哩',
                 default => $type,
             };
-            (new BarkNotificationService())->sendAccountInvalid($user, $provider);
+            $this->notifications()->sendAccountInvalid($user, $provider, $userId);
         }
     }
 

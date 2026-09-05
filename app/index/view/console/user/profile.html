@@ -23,25 +23,25 @@
                                     <label class="form-label" for="username">用户名</label>
                                     <input class="form-control form-control-lg" id="username" name="username"
                                            placeholder="用户名（不可修改）" readonly=""
-                                           type="text" value="{:session('user.username')}">
+                                           type="text" value="{:html_escape(session('user.username'))}">
                                 </div>
                                 <div class="mb-4">
                                     <label class="form-label" for="nickname">昵称</label>
                                     <input class="form-control form-control-lg" id="nickname" name="nickname"
                                            placeholder="输入你的昵称" type="text"
-                                           value="{:session('user.nickname')}">
+                                           value="{:html_escape(session('user.nickname'))}">
                                 </div>
                                 <div class="mb-4">
                                     <label class="form-label" for="qq">QQ</label>
                                     <input class="form-control form-control-lg" id="qq" name="qq"
                                            placeholder="输入你的 QQ 号" type="number"
-                                           value="{:session('user.qq')}">
+                                           value="{:html_escape(session('user.qq'))}">
                                 </div>
                                 <div class="mb-4">
                                     <label class="form-label" for="mail">邮箱</label>
                                     <input class="form-control form-control-lg" id="mail" name="mail"
                                            placeholder="输入你的邮箱" type="email"
-                                           value="{:session('user.mail')}">
+                                           value="{:html_escape(session('user.mail'))}">
                                 </div>
                                 <div class="mb-4">
                                     <button class="btn btn-alt-primary" onclick="ajax_edit_profile();" type="submit">
@@ -53,6 +53,8 @@
                     </form>
                 </div>
             </div>
+
+            {include file="console/user/notification" /}
 
             <div class="block block-rounded">
                 <div class="block-header block-header-default">
@@ -99,6 +101,7 @@
 </div>
 {/block}
 {block name="foot"}
+<script src="/static/js/notification-settings.js?v={:app_version()}"></script>
 <script>
     function ajax_edit_profile() {
         var nickname = x.getval('#nickname', '请先输入昵称！');

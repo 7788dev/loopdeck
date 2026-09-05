@@ -49,6 +49,15 @@ class Ajax extends Common
                 break;
             case 'config':
                 $data = Request::post();
+                $clearMailValue = $data['clear_mail_pwd'] ?? '0';
+                if (!in_array($clearMailValue, [0, 1, '0', '1', false, true], true)) {
+                    return resultJson(0, '发信密码清除选项无效');
+                }
+                $clearMailPassword = in_array($clearMailValue, [1, '1', true], true);
+                unset($data['clear_mail_pwd']);
+                if ($clearMailPassword) {
+                    $data['mail_pwd'] = '';
+                }
                 $web_data = Weblist::where('web_id', Session::get('user.web_id'))->find();
                 $table = $web_data ? Weblist::configTableName($web_data['prefix']) : null;
                 if ($table === null || empty($data)) {
@@ -64,10 +73,13 @@ class Ajax extends Common
                         return resultJson(0, '配置项格式无效');
                     }
                     $value = (string)$value;
+                    if ($key === 'mail_pwd' && $value === '' && !$clearMailPassword) {
+                        continue;
+                    }
                     if (strlen($value) > 65535) {
                         return resultJson(0, '配置内容过长');
                     }
-                    if (in_array($key, ['mail_invalid', 'bark_enabled', 'is_netease_tool'], true)
+                    if (in_array($key, ['mail_enabled', 'mail_invalid', 'bark_enabled', 'is_netease_tool'], true)
                         && !in_array($value, ['0', '1'], true)
                     ) {
                         return resultJson(0, '开关配置只能为 0 或 1');
@@ -106,6 +118,9 @@ class Ajax extends Common
                 $port = (int)Request::post('mail_port', 0);
                 $username = trim((string)Request::post('mail_name', ''));
                 $password = (string)Request::post('mail_pwd', '');
+                if ($password === '' && (string)Request::post('clear_mail_pwd', '0') !== '1') {
+                    $password = (string)config('sys.mail_pwd', '');
+                }
                 $recipient = trim((string)Session::get('user.mail', ''));
 
                 $validHost = filter_var($host, FILTER_VALIDATE_IP) !== false
@@ -129,6 +144,8 @@ class Ajax extends Common
                         ? PHPMailer::ENCRYPTION_SMTPS
                         : PHPMailer::ENCRYPTION_STARTTLS;
                     $mail->CharSet = 'UTF-8';
+                    $mail->Timeout = 8;
+                    $mail->getSMTPInstance()->Timelimit = 8;
                     $mail->setFrom($username, (string)config('web.webname', 'LoopDeck'));
                     $mail->addAddress($recipient);
                     $mail->isHTML(true);

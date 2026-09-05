@@ -26,27 +26,28 @@ $root = dirname(__DIR__);
 // --- Epic: scoped UPDATE, isolated notify --------------------------------
 
 $epicSource = file_get_contents($root . '/app/cron/controller/Epic.php');
+$epicRunner = file_get_contents($root . '/app/service/EpicJobRunner.php');
 cronSafetyCheck(is_string($epicSource), 'Unable to inspect the epic controller');
 
 // A Model instance chained with where() loses its primary key condition, so
 // '$job->where(...)->update(...)' was a full-table UPDATE. The disable must
 // address the job by id.
 cronSafetyCheck(
-    !preg_match('/^\s*\$job->where\(/m', $epicSource),
+    !preg_match('/^\s*\$job->where\(/m', $epicRunner),
     'epic still disables jobs through a full-table model UPDATE'
 );
 cronSafetyCheck(
-    str_contains($epicSource, "Jobs::where('id', (int)\$job['id'])"),
+    str_contains($epicRunner, "Jobs::where('id', \$id)") && str_contains($epicRunner, 'Jobs::claimDueJob('),
     'epic does not disable the timing-less job by primary key'
 );
 // A mail/upstream exception must not abort the whole scheduling round.
 cronSafetyCheck(
-    str_contains($epicSource, 'try {')
-        && str_contains($epicSource, '邮件通知异常'),
+    str_contains($epicRunner, 'try {')
+        && str_contains($epicRunner, 'Epic 周免提醒执行异常'),
     'epic notify failures are not isolated per job'
 );
 cronSafetyCheck(
-    str_contains($epicSource, 'use Throwable;'),
+    str_contains($epicRunner, 'use Throwable;') && str_contains($epicSource, 'EpicJobRunner'),
     'epic controller does not import Throwable'
 );
 
@@ -93,7 +94,8 @@ cronSafetyCheck(is_string($neteaseSource), 'Unable to inspect the netease contro
 
 cronSafetyCheck(
     str_contains($neteaseSource, 'catch (Throwable $exception)')
-        && str_contains($neteaseSource, '[重试中] 任务调度异常'),
+        && str_contains($neteaseSource, '任务调度异常，已安排稍后重试')
+        && str_contains($neteaseSource, "\$this->statusTag(['retry_after_seconds' => 300])"),
     'netease runJob does not isolate exceptions as retrying'
 );
 cronSafetyCheck(

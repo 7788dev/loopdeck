@@ -60,6 +60,10 @@ class Bilibili extends Command
                     Jobs::where('type', 'bilibili')->where('user_id', $userId)->where('uid', $job['uid'])->delete();
                     continue;
                 }
+                if ((int)$user['state'] !== 1) {
+                    Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
+                    continue;
+                }
 
                 $task = Tasks::where('type', 'bilibili')
                     ->where('execute_name', $taskName)
@@ -104,7 +108,9 @@ class Bilibili extends Command
 
                 $globalConfig = $this->globalConfig((int)$job['uid'], $userId);
                 $result = $executor->execute($taskName, $accountData, array_replace($globalConfig, $jobConfig));
-                $this->writeLog($userId, $taskName, $result['message']);
+                $this->writeLog($userId, $taskName, '[' . (new \app\cron\controller\Common())->statusTag($result) . '] ' . $result['message']);
+                (new \app\service\NotificationService())->recordTask($user, 'bilibili', $userId,
+                    $taskName, (string)$task['name'], $result);
 
                 if ($result['account_invalid']) {
                     $this->accountInvalid('bilibili', $user, $userId);
@@ -119,7 +125,8 @@ class Bilibili extends Command
                 ]);
                 $executed++;
             } catch (Throwable $exception) {
-                $this->writeLog($userId, $taskName, '任务调度异常：' . $exception->getMessage());
+                $this->writeLog($userId, $taskName,
+                    '[' . (new \app\cron\controller\Common())->statusTag(['retry_after_seconds' => 300]) . '] 任务调度异常，等待租约到期后重试');
             }
         }
 
@@ -191,12 +198,8 @@ class Bilibili extends Command
             ->where('state', 1)
             ->update(['state' => 0]);
         Jobs::where('type', $type)->where('user_id', $userId)->where('uid', $user['uid'])->update(['state' => -1]);
-        if ($stateChanged > 0 && (int)config('sys.mail_invalid') === 1) {
-            $message = get_mail_tempale(3, $user, '哔哩哔哩');
-            send_mail((string)$user['mail'], (string)config('web.webname') . ' - 失效提醒', $message);
-        }
         if ($stateChanged > 0) {
-            (new BarkNotificationService())->sendAccountInvalid($user, '哔哩哔哩');
+            (new BarkNotificationService())->sendAccountInvalid($user, '哔哩哔哩', $userId);
         }
     }
 }

@@ -9,8 +9,9 @@ use app\index\model\Jobs;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
+use app\cron\controller\Common as CronCommon;
 use app\service\AutomaticSchedule;
-use app\service\BarkNotificationService;
+use app\service\NotificationService;
 use think\console\Command;
 use think\console\Input;
 use think\console\input\Argument;
@@ -34,13 +35,18 @@ class Netease extends Command
         $vip_expired_userIds = [];
         $executed = 0;
         $jobs = Jobs::where([['type', '=', 'netease'], ['state', '=', 1], ['nextExecute', '>', 0], ['nextExecute', '<=', time()]])
+            ->whereIn('do', ['sign', 'login_work', 'musician_task', 'evaluate', 'daka_new', 'yunbei_task', 'vip_growth_task'])
             ->limit((int)$interval)
             ->select();
         foreach ($jobs as $job) {
             if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) continue;
             if (in_array($job['user_id'], $vip_expired_userIds)) continue;
-            $user = Users::where('uid' , '=' , $job['uid'])->find();
-            $task = Tasks::where('type', '=', 'netease')->where('execute_name', '=', $job['do'])->find();
+            $user = Users::where('uid', $job['uid'])->where('state', 1)->find();
+            $task = Tasks::where('type', 'netease')->where('execute_name', $job['do'])->where('state', 1)->find();
+            if (!$user || !$task) {
+                Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
+                continue;
+            }
             if ($task['vip'] == 1 && strtotime($user['vip_end'] ?? '') < time()) {  // 判断会员功能、用户会员是否过期
                 $this->vipExpired('netease', $user['uid'], $job['user_id']); // 会员过期处理
                 // 将VIP过期的任务用户id放入一个数组，用于后续判断
@@ -73,7 +79,10 @@ class Netease extends Command
                 $this->accountInvalid('netease', $user, $job['user_id']); // 账号失效处理
                 break;
             } else {
-                TaskLogs::operateExecuteLog('netease', $job['user_id'], $job['do'], $execute['message']); // 写入运行日志
+                TaskLogs::operateExecuteLog('netease', $job['user_id'], $job['do'],
+                    '[' . (new CronCommon())->statusTag($execute) . '] ' . $execute['message']); // 写入运行日志
+                (new NotificationService())->recordTask($user, 'netease', (string)$job['user_id'],
+                    (string)$job['do'], (string)$task['name'], $execute);
             }
             Info::where('sysid','=','100')->inc('times',1)->update();
             Info::where('sysid','=','100')->update(['last' => date('Y-m-d H:i:s')]);
@@ -115,7 +124,7 @@ class Netease extends Command
         if ($membershipChanged > 0) {
             $user = Users::where('uid', '=', $uid)->find();
             if ($user) {
-                (new BarkNotificationService())->sendVipExpired($user);
+                (new NotificationService())->sendVipExpired($user);
             }
         }
     }
@@ -128,13 +137,8 @@ class Netease extends Command
             ->where('state', '=', 1)
             ->update(['state' => 0]);
         Jobs::where('user_id', '=', $user_id)->where('uid', '=', $user['uid'])->where('type', '=', $type)->update(['state' => -1]);
-        if ($stateChanged > 0 && config('sys.mail_invalid') == 1) {
-            $msg = get_mail_tempale(3, $user, '网易云音乐');
-            $sub = config('web.webname') . ' - 失效提醒';
-            send_mail($user['mail'], $sub, $msg);
-        }
         if ($stateChanged > 0) {
-            (new BarkNotificationService())->sendAccountInvalid($user, '网易云音乐');
+            (new NotificationService())->sendAccountInvalid($user, '网易云音乐', (string)$user_id);
         }
     }
 }

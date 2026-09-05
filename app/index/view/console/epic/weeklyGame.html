@@ -1,118 +1,31 @@
 {extend name="common/layout"/}
-{block name="head"} {include file="console/head" /}{/block}
+{block name="head"}{include file="console/head" /}{/block}
 {block name="main"}
-<div class="row items-push">
-    <div class="block block-rounded">
-        <div class="block-content block-content-full">
-            <div class="py-3 text-center">
-                <h2 class="fw-bold mb-2">
-                    Epic 每周免费领取游戏
-                </h2>
-                <h3 class="fs-base fw-medium text-muted mb-3">
-                    在这里设置你的通知邮箱
-                </h3>
-                <div class="row justify-content-center">
-                    <div class="col-md-10 col-lg-8 col-xl-6">
-                        <form onsubmit="return false;">
-                            <div class="input-group input-group-lg">
-                                <label class="visually-hidden" for="email">邮箱地址</label>
-                                <input type="email" class="form-control" placeholder="邮箱地址" id="email" value="{$job.user_id}">
-                                <label class="visually-hidden" for="timing">通知时间</label>
-                                <input type="text" class="js-flatpickr form-control" id="timing" placeholder="时间"
-                                       data-enable-time="true" data-no-calendar="true" data-date-format="H:i" data-time_24hr="true">
-                                <button type="submit" class="btn btn-alt-primary" onclick="setEmail()">
-                                    确认
-                                </button>
-                            </div>
-                            <p class="fs-sm text-muted mt-1 mb-0 d-flex align-items-center justify-content-center">
-                                状态：
-                                {if condition="$job.state == 1"}
-                                <span class="text-success me-2">已开启</span>
-                                {else /}
-                                <span class="text-warning me-2">未开启</span>
-                                {/if}
-                                <button type="button" class="btn btn-sm btn-alt-primary" onclick="funcSwitch()">
-                                    {if condition="$job.state == 1"}关闭推送{else /}开启推送{/if}
-                                </button>
-                            </p>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="block block-rounded">
+    <div class="block-content block-content-full text-center py-4">
+        <h2 class="h3 fw-bold mb-2">Epic 每周免费游戏</h2>
+        <p class="text-muted">提醒渠道和时间统一在个人中心设置，支持 Bark、PushPlus、WxPusher，以及本站开放的邮件推送。</p>
+        <p>{if condition="$epic_enabled"}<span class="badge bg-success">提醒已开启</span> <span class="text-muted fs-sm">下次：{$epic_next}</span>{else /}<span class="badge bg-secondary">提醒未开启</span>{/if}</p>
+        <a class="btn btn-alt-primary" data-pjax href="/index/console/user/profile#notifications"><i class="fa fa-bell me-1"></i>管理提醒设置</a>
+        <p class="form-text mt-2 mb-0">本功能发送游戏活动提醒，领取游戏需在 Epic 商店自行完成。</p>
     </div>
-    {volist name="list" id="v"}
-    <div class="col-xl-6">
-        <a class="block block-rounded block-transparent bg-image d-flex align-items-stretch h-100 mb-0" href="{$v.productUrl}"
-           style="background-image: url('{$v.image}');" aria-label="{$v.title}" target="_blank">
-            <div class="block-content block-sticky-options pt-7 bg-black-50">
-                <div class="block-options block-options-left text-white">
-                    <div class="block-options-item">
-                        <span class="badge bg-gd-emerald fw-medium p-2 text-uppercase">剩余 {$v.leftDay} 天</span>
-                    </div>
-                </div>
-                <div class="block-options text-white">
-                    <div class="block-options-item">
-                        <b><del>{$v.originalPrice}</del> <span class="text-success">免费</span></b>
-                    </div>
-                </div>
-                <h2 class="h3 fw-bold text-white mb-1">{$v.title}</h2>
-                <h3 class="fs-base fw-medium text-white-75">{$v.description}</h3>
+</div>
+<div class="row items-push">
+    {if condition="count($list) eq 0"}
+    <div class="col-12"><div class="alert alert-info">暂未获取到周免活动信息，请稍后再试。</div></div>
+    {/if}
+    {foreach $list as $game}
+    <div class="col-md-6">
+        <a class="block block-rounded block-link-shadow h-100 mb-0 overflow-hidden" href="{$game.productUrl}" target="_blank" rel="noopener noreferrer">
+            {if condition="$game.image neq ''"}<img class="w-100" style="aspect-ratio:16/9;object-fit:cover" src="{$game.image}" alt="{$game.title}" loading="lazy">{/if}
+            <div class="block-content block-content-full">
+                <span class="badge {if condition='$game.available'}bg-success{else /}bg-info{/if} mb-2">{if condition="$game.available"}限时免费{else /}即将免费{/if}</span>
+                <h3 class="h4 mb-2">{$game.title}</h3>
+                <p class="text-muted fs-sm">{$game.description}</p>
+                <p class="fs-sm mb-0">{:date('m-d H:i', (int)$game['start_at'])} 至 {:date('m-d H:i', (int)$game['end_at'])}</p>
             </div>
         </a>
     </div>
-    {/volist}
-    <div class="block block-rounded bg-body-light mt-5">
-        <div class="block-content block-content-full">
-            <div class="py-3 text-center">
-                <h3 class="fw-bold mb-2">
-                    怕忘记每周领游戏？
-                </h3>
-                <h4 class="h5 text-muted">
-                    开通会员后每周自动提醒，无需手动领取。
-                </h4>
-                <a class="btn btn-alt-primary px-4 py-3" href="{:url('/index/console/shop/vip')}">
-                    <i class="fa fa-paper-plane opacity-50 me-1"></i> 马上开通
-                </a>
-            </div>
-        </div>
-    </div>
+    {/foreach}
 </div>
-{/block}
-{block name="foot"}
-<script>
-    function setEmail() {
-        let email = x.getval('#email', '请先输入邮箱地址');
-        if (!email) return;
-        let timing = x.getval('#timing', '请先填入通知时间');
-        if (!timing) return;
-        x.ajax('/index/ajax/epic/act/setEmail', {email: email, timing: x.getval('#timing')}, function (data) {
-            if (data.code == 1) {
-                x.notify(data.message, 'success');
-                setTimeout(function () {
-                    window.location.reload();
-                }, 1000)
-            } else {
-                x.notify(data.message, 'warning');
-            }
-        })
-    }
-
-    function funcSwitch() {
-        x.ajax('/index/ajax/epic/act/funcSwitch', null, function (data) {
-            if (data.code == 1) {
-                x.notify("修改成功", 'success');
-                setTimeout(function () {
-                    window.location.reload();
-                }, 1000)
-            } else {
-                x.notify(data.message, 'warning');
-            }
-        })
-    }
-    $(function () {
-        $('#timing').val("{:safe_unserialize_array($job.data)['timing'] ?? ''}")
-        Codebase.helpersOnLoad(['js-flatpickr']);
-    })
-</script>
 {/block}

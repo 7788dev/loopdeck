@@ -947,12 +947,33 @@ class Netease
             $this->cookiezt = true;
         }
 
+        $counter = $body['listenSongs'] ?? null;
+        if ($code === 200 && !(is_int($counter) && $counter >= 0)
+            && !(is_string($counter) && ctype_digit($counter))) {
+            // A missing counter is not zero: persisting zero as the baseline
+            // would count the account's entire history as today's progress.
+            $code = 0;
+        }
+
         return [
             'code' => $code,
             'listen_songs' => $code === 200
-                ? max(0, (int)($body['listenSongs'] ?? $fallback))
+                ? (int)$counter
                 : $fallback,
         ];
+    }
+
+    protected function dakaNow(): int
+    {
+        return time();
+    }
+
+    /** Keep settlement retries within the day whose baseline they verify. */
+    protected function dakaRetryDelay(int $seconds): int
+    {
+        $now = $this->dakaNow();
+        $remaining = (int)strtotime('tomorrow', $now) - $now - 1;
+        return $remaining >= 60 ? min(max(60, $seconds), $remaining) : 0;
     }
 
     /**
@@ -1544,13 +1565,16 @@ class Netease
     }
 
     /** @param array<string,mixed> $state */
-    protected function rememberDakaDailyState(array $state): void
+    protected function rememberDakaDailyState(array $state): bool
     {
         $path = $this->dakaDailyStatePath();
         if ($path === null) {
-            return;
+            // Explicitly disabling persistence is supported by offline tools.
+            // A directory creation failure must not silently disable it.
+            return array_key_exists('daka_history_dir', $this->config)
+                && trim((string)$this->config['daka_history_dir']) === '';
         }
-        $this->writeDakaStateFile(
+        return $this->writeDakaStateFile(
             $path,
             json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}'
         );
@@ -1655,9 +1679,10 @@ class Netease
     public function daka_new()
     {
         $startedAt = microtime(true);
-        $before = $this->decodeBody($this->detail($this->userId));
-        $beforeCode = (int)($before['code'] ?? 0);
-        $listenSongs = (int)($before['listenSongs'] ?? 0);
+        $retrySeconds = max(120, min(3600, (int)($this->config['daka_retry_seconds'] ?? 300)));
+        $before = $this->dakaListenSongs(0);
+        $beforeCode = $before['code'];
+        $listenSongs = $before['listen_songs'];
         if (in_array($beforeCode, [301, 401], true)) {
             $this->cookiezt = true;
             return $this->makeResult(201, '登录状态已失效', [
@@ -1666,20 +1691,17 @@ class Netease
             ]);
         }
         if ($beforeCode !== 200) {
-            // Daily 300-song execution is intentionally a single scheduler
-            // transaction. Returning a retry delay here would create another
-            // task-log row and defeat that contract; the next normal daily
-            // schedule can try again if the counter endpoint is unavailable.
-            return $this->makeResult(201, '读取网易云累计听歌失败，本次任务未完成', [
+            return $this->makeResult(201, '读取网易云累计听歌失败，等待自动重试', [
                 'submitted' => 0,
-                'retry_after_seconds' => 0,
+                'retry_after_seconds' => $this->dakaRetryDelay($retrySeconds),
                 'target_reached' => false,
             ]);
         }
 
         $source = (string)($this->config['daka_music_from'] ?? 'daily_recommend');
         $target = max(1, min(300, (int)($this->config['daka_limit'] ?? 300)));
-        $today = date('Y-m-d');
+        $now = $this->dakaNow();
+        $today = date('Y-m-d', $now);
         $dailyState = $this->loadDakaDailyState();
         $sameDay = (string)($dailyState['date'] ?? '') === $today;
         $baseline = $sameDay
@@ -1726,21 +1748,32 @@ class Netease
         }
 
         $maxBatches = max(1, min(30, (int)($this->config['daka_max_batches_per_day'] ?? 6)));
-        $maxIdleBatches = max(1, min(10, (int)($this->config['daka_max_verification_runs'] ?? 3)));
+        $settlementChecks = max(1, min(10, (int)($this->config['daka_max_verification_runs'] ?? 3)));
         $settlementWait = max(0, min(60, (int)($this->config['daka_internal_wait_seconds'] ?? 15)));
+        $lastSubmittedAt = $sameDay ? max(0, (int)($dailyState['last_submitted_at'] ?? 0)) : 0;
+        if ($lastSubmittedAt === 0 && $sameDay && $submittedTotal > 0) {
+            $lastSubmittedAt = max(0, (int)strtotime((string)($dailyState['updated_at'] ?? '')));
+        }
+        $nextVerificationAt = $sameDay ? max(0, (int)($dailyState['next_verification_at'] ?? 0)) : 0;
+        // The profile counter commonly settles minutes after weblog accepts
+        // a batch. Preserve replacement capacity while that batch is pending.
+        $canSubmit = $attempts < $maxBatches && $now >= $nextVerificationAt
+            && ($lastSubmittedAt === 0 || $now >= $lastSubmittedAt + $retrySeconds * $settlementChecks);
         // Keep a small replacement cushion for accepted weblogs that NetEase
         // declines to count. This is a submission ceiling, not a new quota;
         // candidates remain lifetime- and same-day-unique.
         $submissionCushion = max(4, min(60, (int)ceil($target * 0.2)));
+        $maxSubmittedPerDay = $maxBatches * ($target + $submissionCushion);
+        $canSubmit = $canSubmit && $submittedTotal < $maxSubmittedPerDay;
         // Reserve one cushion for the first batch and one more for bounded
         // replacements.  The old ceiling only covered the target plus one
         // cushion, which meant that once the first batch consumed that
         // cushion there was no room left to replace songs that the upstream
         // accepted but did not add to listenSongs.
-        $submissionCeiling = max(
+        $submissionCeiling = min($maxSubmittedPerDay, max(
             $target + ($submissionCushion * 2),
             $submittedTotal + $remainingBefore + $submissionCushion
-        );
+        ));
 
         $currentListenSongs = $listenSongs;
         $remaining = $remainingBefore;
@@ -1751,7 +1784,6 @@ class Netease
         $candidateCountTotal = 0;
         $internalBatches = 0;
         $protocolWaitSeconds = 0;
-        $noProgressBatches = 0;
         $lastDelta = 0;
         $reason = '';
         $runRejections = [];
@@ -1775,9 +1807,11 @@ class Netease
             $baseline,
             &$currentListenSongs,
             &$internalBatches,
-            &$protocolWaitSeconds
-        ): void {
-            $this->rememberDakaDailyState([
+            &$protocolWaitSeconds,
+            &$lastSubmittedAt,
+            &$nextVerificationAt
+        ): bool {
+            return $this->rememberDakaDailyState([
                 'date' => $today,
                 'target' => $target,
                 'listen_songs_baseline' => $baseline,
@@ -1796,6 +1830,8 @@ class Netease
                 'completed' => $completed,
                 'sealed' => $sealed,
                 'internal_batches' => $internalBatches,
+                'last_submitted_at' => $lastSubmittedAt,
+                'next_verification_at' => $nextVerificationAt,
                 // Keep legacy fields readable during a rolling deployment.
                 'submitted' => $submittedTotal,
                 'plv_confirmed' => $startAcceptedTotal,
@@ -1805,11 +1841,12 @@ class Netease
                 'listen_songs_after' => $currentListenSongs,
                 'listen_songs_delta' => $actualProgressBefore,
                 'protocol_wait_seconds' => $protocolWaitSeconds,
-                'updated_at' => date('c'),
+                'updated_at' => date('c', $this->dakaNow()),
             ]);
         };
 
         if ($actualProgressBefore >= $target) {
+            $nextVerificationAt = 0;
             $persist(true, true);
             return $this->makeResult(200,
                 '网易云每日300首打卡成功 | 进度 ' . $actualProgressBefore . '/' . $target
@@ -1833,32 +1870,9 @@ class Netease
             );
         }
 
-        // `sealed` is written only by this implementation. It prevents a
-        // manual duplicate trigger after a final failure from submitting the
-        // same day's replacement songs again. Legacy states (including an
-        // exhausted `topups_used` counter) are deliberately not sealed and get
-        // one internal rescue run during the rolling deployment.
-        if ($sameDay && !empty($dailyState['sealed'])) {
-            $persist(false, true);
-            return $this->makeResult(201,
-                '网易云每日300首打卡失败 | 进度 ' . $actualProgressBefore . '/' . $target
-                . ' | 本日任务已结束，未再提交新歌',
-                [
-                    'submitted' => 0,
-                    'verification_only' => true,
-                    'daily_target' => $target,
-                    'daily_confirmed' => $actualProgressBefore,
-                    'daily_actual_progress' => $actualProgressBefore,
-                    'daily_remaining' => $remainingBefore,
-                    'daily_submitted_total' => $submittedTotal,
-                    'target_reached' => false,
-                    'sealed' => true,
-                    'attempts' => $attempts,
-                    'retry_after_seconds' => 0,
-                    'protocol_wait_seconds' => 0,
-                ]
-            );
-        }
+        // Old releases sealed accepted-but-unsettled batches as failures.
+        // Resume verification of those states; only the actual counter can
+        // establish completion. The persisted attempt count still bounds sends.
 
         $refresh = function () use (
             &$currentListenSongs,
@@ -1882,23 +1896,7 @@ class Netease
             return 200;
         };
 
-        for ($batchIndex = 0; $batchIndex < $maxBatches && $remaining > 0; $batchIndex++) {
-            // Never rush a replacement into the endpoint while the previous
-            // batch may still be settling. The wait is internal, so the
-            // scheduler sees one final result and writes one log row.
-            if ($batchIndex > 0 && $remaining > 0 && $lastDelta <= 0 && $settlementWait > 0) {
-                $this->waitDakaSettlement($settlementWait);
-                $protocolWaitSeconds += $settlementWait;
-                $probeCode = $refresh();
-                if ($probeCode !== 200) {
-                    $reason = $this->cookiezt ? '登录状态已失效' : '累计听歌核验失败';
-                    break;
-                }
-                if ($remaining === 0) {
-                    break;
-                }
-            }
-
+        while ($canSubmit && $attempts < $maxBatches && $remaining > 0) {
             $available = max(0, $submissionCeiling - $submittedTotal);
             if ($available <= 0) {
                 $reason = '已达到本次补齐安全上限';
@@ -1933,22 +1931,8 @@ class Netease
             }
 
             $hadSubmitted = $submittedTotal > 0;
-            try {
-                $success = max(0, (int)$this->weblogScrobbleBatch($songs));
-            } catch (Throwable $exception) {
-                $reason = '播放上报异常';
-                break;
-            }
-            $internalBatches++;
             $submitted = count($songs);
-            $submittedThisRun += $submitted;
-            $startAcceptedThisRun += (int)$this->lastScrobbleStarts;
-            $playAcceptedThisRun += $success;
-            $reportedSecondsThisRun += (int)$this->lastScrobbleSeconds;
             $submittedTotal += $submitted;
-            $startAcceptedTotal += (int)$this->lastScrobbleStarts;
-            $playAcceptedTotal += $success;
-            $reportedSecondsTotal += (int)$this->lastScrobbleSeconds;
             $attempts++;
             if ($hadSubmitted && $submitted > 0) {
                 $topupsUsed++;
@@ -1959,6 +1943,41 @@ class Netease
                     $submittedToday[$songId] = true;
                 }
             }
+            // Journal before network I/O. If the worker dies after NetEase
+            // accepts a request, its next lease keeps the original baseline
+            // and does not replay the reserved song IDs.
+            $previousSubmittedAt = $lastSubmittedAt;
+            $previousVerificationAt = $nextVerificationAt;
+            $lastSubmittedAt = $this->dakaNow();
+            $nextVerificationAt = $lastSubmittedAt + $retrySeconds;
+            if (!$persist(false, false)) {
+                $submittedTotal -= $submitted;
+                $attempts--;
+                if ($hadSubmitted) {
+                    $topupsUsed--;
+                }
+                foreach ($songs as $song) {
+                    unset($submittedToday[(int)$song['id']]);
+                }
+                $lastSubmittedAt = $previousSubmittedAt;
+                $nextVerificationAt = $previousVerificationAt;
+                $reason = '保存打卡进度失败，本次未上报';
+                break;
+            }
+            $internalBatches++;
+            $submittedThisRun += $submitted;
+            try {
+                $success = max(0, (int)$this->weblogScrobbleBatch($songs));
+            } catch (Throwable $exception) {
+                $reason = '播放上报异常，等待核验后重试';
+                break;
+            }
+            $startAcceptedThisRun += (int)$this->lastScrobbleStarts;
+            $playAcceptedThisRun += $success;
+            $reportedSecondsThisRun += (int)$this->lastScrobbleSeconds;
+            $startAcceptedTotal += (int)$this->lastScrobbleStarts;
+            $playAcceptedTotal += $success;
+            $reportedSecondsTotal += (int)$this->lastScrobbleSeconds;
             if ($success > 0) {
                 $this->rememberDakaSongs($this->lastScrobbleSongIds);
             }
@@ -1971,10 +1990,8 @@ class Netease
                 $reason = $this->cookiezt ? '登录状态已失效' : '累计听歌核验失败';
                 $lastDelta = 0;
             } elseif ($lastDelta > 0) {
-                $noProgressBatches = 0;
                 $stalledRuns = 0;
             } else {
-                $noProgressBatches++;
                 $stalledRuns++;
             }
             $verifications++;
@@ -1983,15 +2000,16 @@ class Netease
             if ($this->cookiezt || $probeCode !== 200 || $remaining === 0) {
                 break;
             }
-            if ($noProgressBatches >= $maxIdleBatches) {
-                $reason = '累计听歌未产生新增';
+            if ($lastDelta <= 0) {
+                $reason = '等待网易云累计听歌入账';
                 break;
             }
         }
 
         // One last bounded settlement check catches the common case where the
         // endpoint acknowledges the batch before the profile counter catches
-        // up. It never schedules another external invocation.
+        // up. Longer settlement waits are handed back to the scheduler so a
+        // pending account does not occupy a PHP worker for several minutes.
         if ($remaining > 0 && $internalBatches > 0 && !$this->cookiezt
             && $lastDelta <= 0 && $settlementWait > 0) {
             $this->waitDakaSettlement($settlementWait);
@@ -2005,18 +2023,35 @@ class Netease
         }
 
         $completed = $remaining === 0;
-        if (!$completed && $reason === '') {
-            $reason = '本次内部补齐未达到目标';
+        $retryAfter = 0;
+        if (!$completed && !$this->cookiezt) {
+            $delay = $nextVerificationAt > $this->dakaNow()
+                ? $nextVerificationAt - $this->dakaNow()
+                : ($attempts >= $maxBatches || $submittedTotal >= $maxSubmittedPerDay
+                    ? max(900, $retrySeconds) : $retrySeconds);
+            $retryAfter = $this->dakaRetryDelay($delay);
         }
-        $persist($completed, true);
+        $nextVerificationAt = $retryAfter > 0 ? $this->dakaNow() + $retryAfter : 0;
+        if (!$completed && $reason === '') {
+            $reason = $attempts >= $maxBatches || $submittedTotal >= $maxSubmittedPerDay
+                ? '已达到每日上报批次上限，仅核验已上报歌曲'
+                : '等待网易云累计听歌入账';
+        }
+        if (!$completed && !$this->cookiezt && $retryAfter === 0) {
+            $reason = '今日核验窗口已结束，实际计数未达到目标';
+        }
+        $persist($completed, $retryAfter === 0);
 
-        $message = '网易云每日300首打卡' . ($completed ? '成功' : '失败')
+        $message = '网易云每日300首打卡' . ($completed ? '成功' : ($retryAfter > 0 ? '待核验' : '失败'))
             . ' | 进度 ' . $actualProgressBefore . '/' . $target
             . ' | 本次内部批次 ' . $internalBatches
             . ' | 本次上报 ' . $submittedThisRun
             . ' | 累计 ' . $listenSongs . '→' . $currentListenSongs;
         if ($reason !== '' && !$completed) {
             $message .= ' | ' . $reason;
+        }
+        if ($retryAfter > 0) {
+            $message .= ' | ' . (int)ceil($retryAfter / 60) . '分钟后自动核验';
         }
         $rejectionSummary = '';
         if ($runRejections !== []) {
@@ -2056,9 +2091,10 @@ class Netease
             'attempts' => $attempts,
             'stalled_runs' => $stalledRuns,
             'internal_batches' => $internalBatches,
-            'sealed' => true,
-            // daka_new never asks the outer scheduler to create a second log.
-            'retry_after_seconds' => 0,
+            'sealed' => $retryAfter === 0,
+            'verification_only' => $submittedThisRun === 0,
+            'next_verification_at' => $nextVerificationAt,
+            'retry_after_seconds' => $retryAfter,
             'skipped_duplicate' => false,
         ]);
     }

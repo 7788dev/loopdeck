@@ -68,6 +68,7 @@ services:
       SCHEDULER_INTERVAL_SECONDS: "${SCHEDULER_INTERVAL_SECONDS:-60}"
       SCHEDULER_WORKERS: "${SCHEDULER_WORKERS:-2}"
       SCHEDULER_URL: "http://app:8080/cron/task"
+      NOTIFICATION_URL: "http://app:8080/cron/notifications"
     depends_on:
       app:
         condition: service_healthy

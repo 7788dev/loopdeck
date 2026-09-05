@@ -476,8 +476,8 @@ foreach (glob($rescueDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $rescueFile
 }
 @rmdir($rescueDirectory);
 
-// The internal batch cap is the only retry budget now. A failed cap produces a
-// final failure (retry_after_seconds=0) and seals the day.
+// The send budget is shared by every invocation in a day. Exhausting it must
+// stop further sends while allowing already accepted batches to settle.
 $optInDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-optin-' . bin2hex(random_bytes(6));
 workflowCheck(@mkdir($optInDirectory, 0770, true), 'Opt-in daka test directory could not be created');
 $optInProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
@@ -492,7 +492,7 @@ $optInFirst = $optInProbe->daka_new();
 workflowCheck((int)($optInFirst['code'] ?? 0) === 201, 'The internal batch cap reported a false success');
 workflowCheck((int)($optInFirst['data']['submitted'] ?? -1) === 14, 'The capped run did not use its two internal batches');
 workflowCheck((int)($optInFirst['data']['daily_actual_progress'] ?? -1) === 4, 'The capped run lost counted progress');
-workflowCheck((int)($optInFirst['data']['retry_after_seconds'] ?? -1) === 0, 'The capped run scheduled an external retry');
+workflowCheck((int)($optInFirst['data']['retry_after_seconds'] ?? 0) > 0, 'The capped run stopped verifying accepted reports');
 workflowCheck($optInProbe->scrobbleCalls === 2, 'The internal cap did not bound protocol calls');
 workflowCheck(
     array_intersect($optInProbe->submittedBatches[0], $optInProbe->submittedBatches[1]) === [],
@@ -500,15 +500,15 @@ workflowCheck(
 );
 
 $optInSecond = $optInProbe->daka_new();
-workflowCheck((int)($optInSecond['data']['submitted'] ?? -1) === 0, 'A sealed failed day submitted another batch');
-workflowCheck($optInProbe->scrobbleCalls === 2, 'A sealed failed day called the reporting protocol again');
+workflowCheck((int)($optInSecond['data']['submitted'] ?? -1) === 0, 'An exhausted day submitted another batch');
+workflowCheck($optInProbe->scrobbleCalls === 2, 'An exhausted day called the reporting protocol again');
 foreach (glob($optInDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $optInFile) {
     @unlink($optInFile);
 }
 @rmdir($optInDirectory);
 
-// When nothing counts at all the task must stop by itself instead of
-// resubmitting for the rest of the day.
+// An unchanged counter is pending accounting, not evidence that fresh songs
+// should be sent immediately. An early repeated call must only verify.
 $idleDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loopdeck-daka-idle-' . bin2hex(random_bytes(6));
 workflowCheck(@mkdir($idleDirectory, 0770, true), 'Daily daka test directory could not be created');
 $idleProbe = new DailyDakaProbe(1, 'csrf', 'music-u', [
@@ -522,15 +522,15 @@ $idleProbe->countedPerBatch = 0;
 
 $idleFirst = $idleProbe->daka_new();
 workflowCheck((int)($idleFirst['code'] ?? 0) === 201, 'A dead day was reported as complete');
-workflowCheck((int)($idleFirst['data']['submitted'] ?? -1) === 13, 'The dead day did not use its bounded replacement cushion');
-workflowCheck((int)($idleFirst['data']['retry_after_seconds'] ?? -1) === 0, 'A dead day scheduled an external retry');
+workflowCheck((int)($idleFirst['data']['submitted'] ?? -1) === 9, 'The unsettled day consumed replacement capacity immediately');
+workflowCheck((int)($idleFirst['data']['retry_after_seconds'] ?? 0) > 0, 'The unsettled day did not schedule verification');
 workflowCheck((int)($idleFirst['data']['stalled_runs'] ?? -1) >= 1, 'The unproductive run did not count as stalled');
-workflowCheck($idleProbe->scrobbleCalls === 2, 'The internal idle guard did not bound protocol calls');
+workflowCheck($idleProbe->scrobbleCalls === 1, 'The pending batch did not bound protocol calls');
 $idleStopped = $idleProbe->daka_new();
 workflowCheck((int)($idleStopped['data']['submitted'] ?? -1) === 0, 'A stalled day submitted another batch');
 workflowCheck(
-    str_contains((string)($idleStopped['message'] ?? ''), '本日任务已结束'),
-    'A stalled day did not report that it was sealed'
+    str_contains((string)($idleStopped['message'] ?? ''), '自动核验'),
+    'The pending day did not explain that it will verify again'
 );
 foreach (glob($idleDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $idleFile) {
     @unlink($idleFile);
@@ -562,11 +562,11 @@ file_put_contents($batchCapState, json_encode([
 $batchCapResult = $batchCapProbe->daka_new();
 workflowCheck((int)($batchCapResult['code'] ?? 0) === 201, 'An unfinished day was reported as success');
 workflowCheck((int)($batchCapResult['data']['submitted'] ?? -1) === 0, 'The batch cap submitted another batch');
-workflowCheck((int)($batchCapResult['data']['retry_after_seconds'] ?? -1) === 0, 'The batch cap kept retrying');
+workflowCheck((int)($batchCapResult['data']['retry_after_seconds'] ?? 0) > 0, 'The batch cap disabled late verification');
 workflowCheck($batchCapProbe->scrobbleCalls === 0, 'The batch cap called the reporting protocol');
 workflowCheck(
-    str_contains((string)($batchCapResult['message'] ?? ''), '本日任务已结束'),
-    'The sealed day did not explain why it stopped'
+    str_contains((string)($batchCapResult['message'] ?? ''), '仅核验'),
+    'The capped day did not explain why it stopped sending'
 );
 foreach (glob($batchCapDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $batchCapFile) {
     @unlink($batchCapFile);
@@ -697,11 +697,4 @@ $installSql = file_get_contents(dirname(__DIR__) . '/app/install/install.sql');
 workflowCheck(str_contains($schedulerSource, "'vip_growth_task'"), 'Unified scheduler is missing the VIP growth task');
 workflowCheck(str_contains($taskModelSource, "'execute_name' => 'vip_growth_task'"), 'Existing installs cannot sync the VIP growth task');
 workflowCheck(str_contains($installSql, "'vip_growth_task'"), 'Fresh installs are missing the VIP growth task');
-workflowCheck(
-    str_contains($schedulerSource, "'retry_after_seconds'")
-        && str_contains($schedulerSource, "\$task === 'daka_new'")
-        && str_contains($schedulerSource, 'isSingleRunNeteaseTask'),
-    'The unified scheduler does not keep daily listening supplementation inside one run'
-);
-
 echo "Netease project workflow tests passed\n";

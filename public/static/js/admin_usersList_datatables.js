@@ -50,8 +50,8 @@
         },
         columns: [
             {"title": "UID", "data": "uid", "className": "fs-sm",},
-            {"title": "昵称", "data": "nickname", "className": "fs-sm",},
-            {"title": "用户名", "data": "username", "className": "fs-sm", "sortable": false},
+            {"title": "昵称", "data": "nickname", "className": "fs-sm", "render": x.renderText},
+            {"title": "用户名", "data": "username", "className": "fs-sm", "sortable": false, "render": x.renderText},
             {"title": "余额", "data": "money", "className": "fs-sm", "sortable": false},
             {
                 "title": "代理信息",

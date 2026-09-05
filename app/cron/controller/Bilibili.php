@@ -45,7 +45,7 @@ class Bilibili extends Common
             }
             $this->scheduled++;
             $userId = (string)$job['user_id'];
-            $user = Users::where('uid', $job['uid'])->find();
+            $user = Users::where('uid', $job['uid'])->where('state', 1)->find();
             $account = Accounts::where('type', 'bilibili')
                 ->where('user_id', $userId)
                 ->where('uid', $job['uid'])
@@ -100,6 +100,8 @@ class Bilibili extends Common
                 $accountData,
                 array_replace($globalConfig, $jobConfig)
             );
+            (new \app\service\NotificationService())->recordTask($user, 'bilibili', $userId,
+                $taskName, (string)$task['name'], $result);
             TaskLogs::operateExecuteLog(
                 'bilibili',
                 $userId,

@@ -1,72 +1,47 @@
 {extend name="common/layout"/}
-{block name="head"} {include file="system/head" /}{/block}
+{block name="head"}{include file="system/head" /}{/block}
 {block name="main"}
 <div class="block block-rounded">
     <div class="block-header block-header-default">
-        <h3 class="block-title">{$webTitle}</h3>
-        <div class="mb-0">
-            <button type="submit" class="btn btn-sm btn-alt-primary" onclick="ajax_edit_config();">
-                <i class="fa fa-save opacity-50 me-1"></i> 保存
-            </button>
-        </div>
+        <h3 class="block-title">邮件推送设置</h3>
+        <span class="badge {if condition='$email_ready'}bg-success{else /}bg-secondary{/if}">{if condition="$email_ready"}用户邮件推送可用{else /}用户邮件推送未开放{/if}</span>
     </div>
-    <div class="block-content">
+    <div class="block-content block-content-full">
+        <p class="text-muted">Bark、PushPlus 和 WxPusher 由用户在个人中心自行配置，Bark 固定使用官方服务。邮件需要本站提供发件账号。</p>
         <form id="mail-form" onsubmit="return false;">
-            <div class="row push">
-                <div class="col-lg-4">
-                    <p class="text-muted">
-                        配置站点的信息推送渠道。邮箱仍用于验证码和找回密码；Bark 用于登录用户的账号失效与会员到期提醒。
-                    </p>
-                </div>
-                <div class="col-lg-8 col-xl-5">
-                    <h4 class="content-heading pt-0">邮箱推送</h4>
-                    <div class="mb-4">
-                        <label class="form-label">失效提醒</label>
-                        <select class="form-select" id="mail_invalid" name="mail_invalid" default="{:config('sys.mail_invalid')}">
+            <div class="row">
+                <div class="col-lg-7">
+                    <div class="mb-3">
+                        <label class="form-label" for="mail_enabled">向用户开放邮件推送</label>
+                        <select class="form-select" id="mail_enabled" name="mail_enabled">
                             <option value="0">关闭</option>
-                            <option value="1" {if condition="config('sys.mail_invalid') eq 1" }selected  {/if}>开启</option>
+                            <option value="1" {if condition="$email_enabled"}selected{/if}>开启</option>
                         </select>
+                        <div class="form-text">只有开启且 SMTP 配置完整时，个人中心才显示邮件推送选项。关闭不会清除发件配置。</div>
                     </div>
-                    <div class="mb-4">
-                        <label class="form-label" for="mail_smtp">SMTP服务器</label>
-                        <input class="form-control" id="mail_smtp" name="mail_smtp" placeholder="SMTP服务器"
-                               type="text" value="{:config('sys.mail_smtp')}">
+                    <div class="mb-3">
+                        <label class="form-label" for="mail_smtp">SMTP 服务器</label>
+                        <input class="form-control" id="mail_smtp" name="mail_smtp" type="text" value="{:html_escape(config('sys.mail_smtp'))}" placeholder="smtp.example.com">
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-3">
                         <label class="form-label" for="mail_port">发信端口</label>
-                        <input class="form-control" id="mail_port" name="mail_port" placeholder="发信端口"
-                               type="text" value="{:config('sys.mail_port')}">
+                        <input class="form-control" id="mail_port" name="mail_port" type="number" min="1" max="65535" value="{:html_escape(config('sys.mail_port'))}" placeholder="465 或 587">
+                        <div class="form-text">465 使用 SSL/TLS，587 使用 STARTTLS。</div>
                     </div>
-                    <div class="mb-4">
-                        <label class="form-label" for="mail_name">发信邮箱</label>
-                        <input class="form-control" id="mail_name" name="mail_name" placeholder="发信邮箱"
-                               type="text" value="{:config('sys.mail_name')}">
+                    <div class="mb-3">
+                        <label class="form-label" for="mail_name">发件邮箱</label>
+                        <input class="form-control" id="mail_name" name="mail_name" type="email" value="{:html_escape(config('sys.mail_name'))}" autocomplete="off">
                     </div>
-                    <div class="mb-4">
-                        <label class="form-label" for="mail_pwd">发信密码</label>
-                        <input class="form-control" id="mail_pwd" name="mail_pwd" placeholder="发信密码"
-                               type="text" value="{:config('sys.mail_pwd')}">
+                    <div class="mb-3">
+                        <label class="form-label" for="mail_pwd">发信密码 / 授权码</label>
+                        <input class="form-control" id="mail_pwd" name="mail_pwd" type="password" value="" autocomplete="new-password" placeholder="{if condition='$email_password_configured'}已配置，留空保留{else /}填写邮箱授权码{/if}">
+                        <label class="form-check-label fs-sm mt-2"><input type="checkbox" name="clear_mail_pwd" value="1" class="form-check-input me-1">清除已保存的发信密码</label>
                     </div>
-                    <button type="submit" class="btn btn-primary" onclick="ajax_testSendMail();">
-                        <i class="fa fa-paper-plane opacity-50 me-1"></i> 测试发信
-                    </button>
-
-                    <h4 class="content-heading">Bark 推送</h4>
-                    <div class="mb-4">
-                        <label class="form-label" for="bark_enabled">Bark 信息推送</label>
-                        <select class="form-select" id="bark_enabled" name="bark_enabled">
-                            <option value="0">关闭</option>
-                            <option value="1" {if condition="config('sys.bark_enabled') eq 1"}selected{/if}>开启</option>
-                        </select>
-                        <div class="form-text">
-                            开启后，用户前台“个人资料”下方会显示“信息推送”菜单，用于保存各自的 Bark Token。
-                        </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-alt-primary" type="submit" onclick="ajax_edit_config();">保存设置</button>
+                        <button class="btn btn-alt-secondary" type="button" onclick="ajax_testSendMail();">发送测试邮件</button>
                     </div>
-                    <div class="mb-4">
-                        <label class="form-label">Bark 服务器</label>
-                        <input class="form-control" type="text" value="https://api.day.app" readonly>
-                        <div class="form-text">固定使用 Bark 官方服务器，不开放自定义服务器。</div>
-                    </div>
+                    <p class="form-text">测试邮件只发送到当前管理员个人资料中的邮箱。</p>
                 </div>
             </div>
         </form>
@@ -77,22 +52,14 @@
 <script>
     function ajax_edit_config() {
         x.ajax('/admin/ajax/set/config', $('#mail-form').serialize(), function (data) {
-            if (data.code == 1) {
-                x.notify(data.message, 'success');
-            } else {
-                x.notify(data.message, 'warning');
-            }
-        })
+            x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+            if (data.code === 1) x.pjax(window.location.href);
+        });
     }
-    
     function ajax_testSendMail() {
         x.ajax('/admin/ajax/set/testSendMail', $('#mail-form').serialize(), function (data) {
-            if (data.code == 1) {
-                x.notify(data.message, 'success');
-            } else {
-                x.notify(data.message, 'warning');
-            }
-        })
+            x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+        });
     }
 </script>
 {/block}

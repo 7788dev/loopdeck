@@ -7,7 +7,7 @@ use app\index\model\TaskLogs;
 use app\index\model\Jobs;
 use app\index\model\Users;
 use app\index\model\Weblist;
-use app\service\BarkNotificationService;
+use app\service\NotificationService;
 use mail\PHPMailer\Exception;
 use mail\PHPMailer\PHPMailer;
 use think\facade\Config;
@@ -52,10 +52,6 @@ class Common
             ->where('uid', '=', $uid)
             ->where('user_id', '=', $user_id)
             ->update(['state' => 0, 'nextExecute' => 0]);
-        $zid = Jobs::where('type', '=', $type)
-            ->where('uid', '=', $uid)
-            ->where('user_id', '=', $user_id)
-            ->value('zid');
         $data = [
             'type' => $type,
             'user_id' => $user_id,
@@ -63,15 +59,9 @@ class Common
             'response' => '[失败] 会员过期，请开通会员后再试',
         ];
         TaskLogs::operateLog($data);
-        if ($membershipChanged > 0 && config('sys.mail_invalid') == 1) {
-            $user = Users::getByUid($uid);
-            $msg = $this->get_mail_tempale(4, $user, null, $zid);
-            $sub = '会员过期通知';
-            $this->send_mail($user['mail'], $sub, $msg, $zid);
-        }
-        $user = $user ?? ($membershipChanged > 0 ? Users::getByUid($uid) : null);
+        $user = $membershipChanged > 0 ? Users::getByUid($uid) : null;
         if ($membershipChanged > 0 && $user) {
-            (new BarkNotificationService())->sendVipExpired($user);
+            (new NotificationService())->sendVipExpired($user);
         }
     }
 
@@ -94,17 +84,8 @@ class Common
             ->where('state', '=', 1)
             ->where('type', '=', $type)
             ->update(['state' => -1]); // state -1 代表账号失效
-        $zid = Jobs::where('type', '=', $type)
-            ->where('uid', '=', $user['uid'])
-            ->where('user_id', '=', $user_id)
-            ->value('zid');
-        if ($stateChanged > 0 && config('sys.mail_invalid') == 1) {
-            $msg = $this->get_mail_tempale(3, $user, $name, $zid);
-            $sub = '失效提醒';
-            $this->send_mail($user['mail'], $sub, $msg, $zid);
-        }
         if ($stateChanged > 0) {
-            (new BarkNotificationService())->sendAccountInvalid($user, $name);
+            (new NotificationService())->sendAccountInvalid($user, $name, (string)$user_id);
         }
     }
 

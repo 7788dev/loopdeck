@@ -367,7 +367,7 @@ class Users extends Model
     public static function updateMyInfo()
     {
         $self = new static();
-        $ret = $self->getByUid(Session::get('user.uid'));
+        $ret = $self->where('uid', (int)Session::get('user.uid'))->withoutField('password')->find();
         if ($ret) {
             session::set('user', $ret->toArray());
         }

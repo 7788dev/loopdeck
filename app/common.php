@@ -193,11 +193,25 @@ if (!function_exists('is_cross_origin_request')) {
         if (!is_array($parts) || empty($parts['host'])) {
             return true;
         }
-        $host = strtolower((string)$parts['host']);
-        $candidate = $host . (isset($parts['port']) ? ':' . $parts['port'] : '');
-        $current = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+        $scheme = ($_SERVER['HTTPS'] ?? '') === 'on'
+            || ($_SERVER['REQUEST_SCHEME'] ?? '') === 'https'
+            || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https' ? 'https' : 'http';
+        $current = parse_url($scheme . '://' . (string)($_SERVER['HTTP_HOST'] ?? ''));
+        if (!is_array($current) || empty($current['host'])) {
+            return true;
+        }
+        $sourceScheme = strtolower((string)($parts['scheme'] ?? ''));
+        return $sourceScheme !== $scheme
+            || strtolower((string)$parts['host']) !== strtolower((string)$current['host'])
+            || (int)($parts['port'] ?? ($sourceScheme === 'https' ? 443 : 80))
+                !== (int)($current['port'] ?? ($scheme === 'https' ? 443 : 80));
+    }
+}
 
-        return $candidate !== $current && $host !== explode(':', $current, 2)[0];
+if (!function_exists('html_escape')) {
+    function html_escape(mixed $value): string
+    {
+        return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
 
@@ -330,6 +344,8 @@ if (!function_exists('send_mail')) {
                 ? PHPMailer::ENCRYPTION_SMTPS
                 : PHPMailer::ENCRYPTION_STARTTLS;
             $mail->CharSet = 'UTF-8';
+            $mail->Timeout = 8;
+            $mail->getSMTPInstance()->Timelimit = 8;
             $mail->setFrom($username, (string)config('web.webname', 'LoopDeck'));
             $mail->addAddress($to);
             $mail->isHTML(true);

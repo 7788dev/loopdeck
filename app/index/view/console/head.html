@@ -20,16 +20,16 @@
     <div class="js-sidebar-scroll">
         <div class="content-side content-side-user px-0 py-0">
             <div class="smini-visible-block animated fadeIn px-2">
-                <img alt="" class="img-avatar img-avatar32" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100">
+                <img alt="" class="img-avatar img-avatar32" src="//q2.qlogo.cn/g?b=qq&nk={:html_escape(session('user.qq'))}&s=100">
             </div>
             <div class="smini-hidden text-center mx-auto">
                 <a class="img-link" href="{:url('/index/console/user/profile')}">
-                    <img alt="" class="img-avatar" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100">
+                    <img alt="" class="img-avatar" src="//q2.qlogo.cn/g?b=qq&nk={:html_escape(session('user.qq'))}&s=100">
                 </a>
                 <ul class="list-inline mt-3 mb-0">
                     <li class="list-inline-item">
                         <a class="link-fx text-dual fs-sm fw-semibold text-uppercase"
-                           data-pjax href="{:url('/index/console/user/profile')}">{:session('user.nickname')}
+                           data-pjax href="{:url('/index/console/user/profile')}">{:html_escape(session('user.nickname'))}
                         </a>
                     </li>
                     <li class="list-inline-item">
@@ -202,31 +202,21 @@
                 <li class="nav-main-item">
                     <a class="nav-main-link" data-pjax href="{:url('/index/console/user/profile')}">
                         <i class="nav-main-link-icon si si-user"></i>
-                        <span class="nav-main-link-name">个人资料</span>
+                        <span class="nav-main-link-name">个人中心</span>
                     </a>
                 </li>
-                {if condition="config('sys.bark_enabled') eq 1"}
-                <li class="nav-main-item">
-                    <a class="nav-main-link" data-pjax href="{:url('/index/console/user/notification')}">
-                        <i class="nav-main-link-icon fa fa-bell"></i>
-                        <span class="nav-main-link-name">信息推送</span>
-                    </a>
-                </li>
-                {/if}
                 <li class="nav-main-item">
                     <a class="nav-main-link" data-pjax href="{:url('/index/console/user/faq')}">
                         <i class="nav-main-link-icon si si-info"></i>
                         <span class="nav-main-link-name">帮助中心</span>
                     </a>
                 </li>
-                {if condition="function_exists('opcache_reset')"}
                 <li class="nav-main-item mt-1">
                     <a class="nav-main-link" href="javascript:clearCache();">
                         <i class="nav-main-link-icon si si-refresh"></i>
-                        <span class="nav-main-link-name">清理缓存</span>
+                        <span class="nav-main-link-name">刷新页面</span>
                     </a>
                 </li>
-                {/if}
             </ul>
         </div>
 
@@ -290,13 +280,13 @@
             <div class="dropdown d-inline-block">
                 <button type="button" class="btn btn-sm btn-alt-secondary" id="page-header-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     <i class="fa fa-user d-sm-none"></i>
-                    <span class="d-none d-sm-inline-block fw-semibold">{:session('user.nickname')}</span>
+                    <span class="d-none d-sm-inline-block fw-semibold">{:html_escape(session('user.nickname'))}</span>
                     <i class="fa fa-angle-down opacity-50 ms-1"></i>
                 </button>
                 <div class="dropdown-menu dropdown-menu-md dropdown-menu-end p-0" aria-labelledby="page-header-user-dropdown">
                     <div class="px-2 py-3 bg-body-light rounded-top">
                         <h5 class="h6 text-center mb-0">
-                            {:session('user.nickname')}
+                            {:html_escape(session('user.nickname'))}
                         </h5>
                     </div>
                     <div class="p-2">

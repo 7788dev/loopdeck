@@ -19,11 +19,24 @@ automaticScheduleCheck(!AutomaticSchedule::isConfigured('24:00'), 'Invalid timin
 automaticScheduleCheck(AutomaticSchedule::normalize(' 08:30 ') === '08:30', 'Timing was not normalized');
 
 $now = new DateTimeImmutable('2026-08-01 10:00:00', new DateTimeZone('Asia/Shanghai'));
+$previousJitter = getenv('SCHEDULER_JITTER_SECONDS');
+putenv('SCHEDULER_JITTER_SECONDS=120');
 $bilibiliNext = AutomaticSchedule::nextExecution('bilibili', '7', '08:30', $now->getTimestamp());
+$bilibiliBase = $now->modify('+1 day')->setTime(8, 30)->getTimestamp();
 automaticScheduleCheck(
-    $bilibiliNext === $now->modify('+1 day')->setTime(8, 30)->getTimestamp(),
-    'Non-NetEase schedule did not advance to the configured time on the next day'
+    $bilibiliNext >= $bilibiliBase && $bilibiliNext <= $bilibiliBase + 120,
+    'Non-NetEase schedule did not retain the configured daily jitter window'
 );
+$offsets = [];
+for ($day = 0; $day < 7; $day++) {
+    $date = $now->modify('+' . $day . ' days')->format('Y-m-d');
+    $offsets[] = AutomaticSchedule::dailyJitter('bilibili:7', $date);
+    automaticScheduleCheck(end($offsets) === AutomaticSchedule::dailyJitter('bilibili:7', $date), 'Refreshing changed the same daily plan');
+}
+automaticScheduleCheck(count(array_unique($offsets)) > 1, 'Bilibili jitter repeated the same offset every day');
+putenv('SCHEDULER_JITTER_SECONDS=0');
+automaticScheduleCheck(AutomaticSchedule::nextExecution('bilibili', '7', '08:30', $now->getTimestamp()) === $bilibiliBase, 'Disabled jitter was ignored');
+putenv($previousJitter === false ? 'SCHEDULER_JITTER_SECONDS' : 'SCHEDULER_JITTER_SECONDS=' . $previousJitter);
 
 $neteaseNext = AutomaticSchedule::nextExecution('netease', '3306177679', '08:30', $now->getTimestamp());
 $neteaseBase = $now->modify('+1 day')->setTime(8, 30)->getTimestamp();

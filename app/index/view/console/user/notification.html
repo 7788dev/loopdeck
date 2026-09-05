@@ -1,65 +1,124 @@
-{extend name="common/layout"/}
-{block name="head"}{include file="console/head" /}{/block}
-{block name="main"}
-<div class="row">
-    <div class="col-12">
-        <div class="block block-rounded">
-            <div class="block-header block-header-default">
-                <h3 class="block-title">
-                    <i class="fa fa-bell me-1 text-muted"></i> 信息推送
-                </h3>
+<section class="block block-rounded" id="notifications">
+    <div class="block-header block-header-default">
+        <h3 class="block-title"><i class="fa fa-bell me-1 text-muted"></i> 信息推送</h3>
+        <span class="fs-sm text-muted">按你的偏好接收任务结果</span>
+    </div>
+    <div class="block-content block-content-full">
+        {if condition="$notification_error neq ''"}
+        <div class="alert alert-warning" role="alert">{$notification_error}</div>
+        {else /}
+        <form id="notification-settings" onsubmit="return false;">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                <p class="text-muted mb-0">选择接收渠道和提醒内容，关闭总开关会保留已保存的配置。</p>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="enabled" id="notification-enabled" value="1" {if condition="$notification.enabled"}checked{/if}>
+                    <label class="form-check-label fw-semibold" for="notification-enabled">开启信息推送</label>
+                </div>
             </div>
-            <div class="block-content">
-                <div class="row items-push">
-                    <div class="col-lg-3">
-                        <p class="text-muted">
-                            配置 Bark 后，账号失效和会员到期提醒会推送到你的 iPhone。
-                        </p>
-                        <p class="text-muted fs-sm">
-                            固定使用 Bark 官方服务器 <code>https://api.day.app</code>，不支持自定义服务器。
-                        </p>
-                    </div>
-                    <div class="col-lg-7 offset-lg-1">
-                        <div class="mb-4">
-                            <label class="form-label" for="bark_token">Bark Token（设备 Key）</label>
-                            <input class="form-control form-control-lg" id="bark_token" type="password"
-                                   value="{$bark_token}" autocomplete="off"
-                                   placeholder="从 Bark App 复制设备 Key">
-                            <div class="form-text">只填写 Token，不要填写完整 URL。留空保存可清除配置。</div>
+            <div class="row g-3 mb-4">
+                <div class="col-lg-6">
+                    <div class="border rounded p-3 h-100">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" name="bark_enabled" id="notification-bark" value="1" {if condition="$notification.channels.bark"}checked{/if}>
+                            <label class="form-check-label fw-semibold" for="notification-bark">Bark</label>
                         </div>
-                        <div class="mb-4 d-flex gap-2">
-                            <button type="button" class="btn btn-alt-primary" onclick="saveBarkToken();">
-                                <i class="fa fa-save opacity-50 me-1"></i> 保存
-                            </button>
-                            <button type="button" class="btn btn-alt-success" onclick="testBarkPush();">
-                                <i class="fa fa-paper-plane opacity-50 me-1"></i> 测试推送
-                            </button>
+                        <p class="text-muted fs-sm">推送到 iPhone，固定使用 Bark 官方服务。</p>
+                        <label class="form-label" for="bark_token">设备 Key</label>
+                        <input class="form-control" type="password" id="bark_token" name="bark_token" autocomplete="new-password" maxlength="255" placeholder="{if condition='$notification.bark_token_configured'}已配置，留空保留{else /}从 Bark App 复制设备 Key{/if}">
+                        <div class="d-flex justify-content-between align-items-center mt-2 gap-2">
+                            <label class="form-check-label fs-sm"><input type="checkbox" name="clear_bark_token" value="1" class="form-check-input me-1">清除已保存的 Key</label>
+                            <button type="button" class="btn btn-sm btn-alt-secondary" data-notification-test="bark">测试 Bark</button>
                         </div>
                     </div>
                 </div>
+                <div class="col-lg-6">
+                    <div class="border rounded p-3 h-100">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" name="pushplus_enabled" id="notification-pushplus" value="1" {if condition="$notification.channels.pushplus"}checked{/if}>
+                            <label class="form-check-label fw-semibold" for="notification-pushplus">PushPlus（推送加）</label>
+                        </div>
+                        <p class="text-muted fs-sm">通过 PushPlus 的微信渠道接收消息。</p>
+                        <label class="form-label" for="pushplus_token">用户 Token</label>
+                        <input class="form-control" type="password" id="pushplus_token" name="pushplus_token" autocomplete="new-password" maxlength="255" placeholder="{if condition='$notification.pushplus_token_configured'}已配置，留空保留{else /}填写 PushPlus 用户 Token{/if}">
+                        <div class="d-flex justify-content-between align-items-center mt-2 gap-2">
+                            <label class="form-check-label fs-sm"><input type="checkbox" name="clear_pushplus_token" value="1" class="form-check-input me-1">清除已保存的 Token</label>
+                            <button type="button" class="btn btn-sm btn-alt-secondary" data-notification-test="pushplus">测试 PushPlus</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="border rounded p-3 h-100">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" name="wxpusher_enabled" id="notification-wxpusher" value="1" {if condition="$notification.channels.wxpusher"}checked{/if}>
+                            <label class="form-check-label fw-semibold" for="notification-wxpusher">WxPusher</label>
+                        </div>
+                        <p class="text-muted fs-sm">填写应用 AppToken 与已订阅该应用的用户 UID。</p>
+                        <label class="form-label" for="wxpusher_app_token">AppToken</label>
+                        <input class="form-control mb-2" type="password" id="wxpusher_app_token" name="wxpusher_app_token" autocomplete="new-password" maxlength="220" placeholder="{if condition='$notification.wxpusher_app_token_configured'}已配置，留空保留{else /}AT_ 开头的 AppToken{/if}">
+                        <label class="form-label" for="wxpusher_uid">用户 UID</label>
+                        <input class="form-control" type="password" id="wxpusher_uid" name="wxpusher_uid" autocomplete="new-password" maxlength="220" placeholder="{if condition='$notification.wxpusher_uid_configured'}已配置，留空保留{else /}UID_ 开头的用户标识{/if}">
+                        <div class="mt-2 d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                            <div>
+                                <label class="form-check-label fs-sm d-block"><input type="checkbox" name="clear_wxpusher_app_token" value="1" class="form-check-input me-1">清除已保存的 AppToken</label>
+                                <label class="form-check-label fs-sm d-block"><input type="checkbox" name="clear_wxpusher_uid" value="1" class="form-check-input me-1">清除已保存的 UID</label>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-alt-secondary" data-notification-test="wxpusher">测试 WxPusher</button>
+                        </div>
+                    </div>
+                </div>
+                {if condition="$notification_email_available"}
+                <div class="col-lg-6" id="notification-email-channel">
+                    <div class="border rounded p-3 h-100">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" name="email_enabled" id="notification-email" value="1" {if condition="$notification.channels.email"}checked{/if}>
+                            <label class="form-check-label fw-semibold" for="notification-email">邮件推送</label>
+                        </div>
+                        <p class="text-muted fs-sm">由本站发送邮件到你指定的邮箱。</p>
+                        <label class="form-label" for="notification-email-address">通知邮箱</label>
+                        <input class="form-control" type="email" id="notification-email-address" name="email_address" maxlength="254" value="{$notification.email_address}">
+                        <button type="button" class="btn btn-sm btn-alt-secondary mt-2" data-notification-test="email">测试邮件</button>
+                    </div>
+                </div>
+                {/if}
             </div>
+            <h4 class="h5 mb-3">接收哪些提醒</h4>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="form-check mb-2"><input class="form-check-input" id="notify-success" name="task_success" type="checkbox" value="1" {if condition="$notification.events.task_success"}checked{/if}><label class="form-check-label" for="notify-success">单项任务成功</label></div>
+                    <div class="form-check mb-2"><input class="form-check-input" id="notify-failure" name="task_failure" type="checkbox" value="1" {if condition="$notification.events.task_failure"}checked{/if}><label class="form-check-label" for="notify-failure">单项任务最终失败（重试中不重复提醒）</label></div>
+                    <div class="form-check mb-2"><input class="form-check-input" id="notify-invalid" name="account_invalid" type="checkbox" value="1" {if condition="$notification.events.account_invalid"}checked{/if}><label class="form-check-label" for="notify-invalid">账号登录失效</label></div>
+                    <div class="form-check mb-2"><input class="form-check-input" id="notify-vip" name="vip_expired" type="checkbox" value="1" {if condition="$notification.events.vip_expired"}checked{/if}><label class="form-check-label" for="notify-vip">会员到期</label></div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-check mb-2"><input class="form-check-input" id="notify-daily" name="daily_summary" type="checkbox" value="1" {if condition="$notification.events.daily_summary"}checked{/if}><label class="form-check-label fw-semibold" for="notify-daily">每日任务总览</label></div>
+                    <label class="form-label fs-sm" for="notification-summary-time">每天发送时间（北京时间）</label>
+                    <input class="form-control mb-2" id="notification-summary-time" name="summary_time" type="time" value="{$notification.summary_time}" required>
+                    <p class="form-text mb-3">按账号列出发送前当天已执行的任务和各项结果。默认 22:00；有夜间任务时，请设在任务之后。</p>
+                    <div class="form-check mb-2"><input class="form-check-input" id="notify-epic" name="epic_free_games" type="checkbox" value="1" {if condition="$notification_can_epic && $notification.events.epic_free_games"}checked{/if} {if condition="!$notification_can_epic"}disabled{/if}><label class="form-check-label" for="notify-epic">Epic 每周免费游戏提醒（需会员）</label></div>
+                    <label class="form-label fs-sm" for="notification-epic-time">每周五发送时间</label>
+                    <input class="form-control" id="notification-epic-time" name="epic_time" type="time" value="{$notification.epic_time}" required>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-3">
+                <button type="submit" class="btn btn-alt-primary" id="save-notification-settings"><i class="fa fa-save me-1"></i>保存推送设置</button>
+                <span class="text-muted fs-sm">填写凭据后先保存，再测试对应渠道。凭据留空会保留原值。</span>
+            </div>
+        </form>
+        {/if}
+        {if condition="count($notification_deliveries) gt 0"}
+        <h4 class="h5 mt-4">最近投递记录</h4>
+        <div class="table-responsive">
+            <table class="table table-sm table-vcenter fs-sm">
+                <thead><tr><th>渠道</th><th>消息</th><th>状态</th><th>时间</th></tr></thead>
+                <tbody>
+                {foreach $notification_deliveries as $delivery}
+                <tr><td>{$delivery.channel}</td><td>{$delivery.title}<div class="text-muted">{$delivery.last_error}</div></td>
+                    <td>{if condition="$delivery.status eq 1"}渠道已受理{elseif condition="$delivery.status eq 2"}投递失败{elseif condition="$delivery.status eq 3"}已取消{elseif condition="$delivery.attempts gt 0"}等待重试{else /}等待发送{/if}</td>
+                    <td>{:date('m-d H:i', (int)$delivery['created_at'])}</td></tr>
+                {/foreach}
+                </tbody>
+            </table>
         </div>
+        {/if}
     </div>
-</div>
-{/block}
-{block name="foot"}
-<script>
-    function saveBarkToken() {
-        x.ajax('/index/ajax/user/notification', {
-            bark_token: $('#bark_token').val().trim()
-        }, function (data) {
-            x.notify(data.message, data.code === 1 ? 'success' : 'warning');
-        });
-    }
-
-    function testBarkPush() {
-        var token = $('#bark_token').val().trim();
-        if (!token) {
-            return x.notify('请先填写并保存 Bark Token', 'warning');
-        }
-        x.ajax('/index/ajax/user/notificationTest', {}, function (data) {
-            x.notify(data.message, data.code === 1 ? 'success' : 'warning');
-        });
-    }
-</script>
-{/block}
+</section>

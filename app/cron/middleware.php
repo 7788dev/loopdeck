@@ -3,4 +3,5 @@
 return [
     // 加载网站配置
     \app\middleware\LoadConfigs::class,
+    \app\middleware\CheckCronAccess::class,
 ];

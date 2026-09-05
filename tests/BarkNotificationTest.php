@@ -61,16 +61,18 @@ $ajaxController = file_get_contents(dirname(__DIR__) . '/app/index/controller/Aj
 $adminAjaxController = file_get_contents(dirname(__DIR__) . '/app/admin/controller/Ajax.php');
 $scheduler = file_get_contents(dirname(__DIR__) . '/app/cron/controller/Task.php');
 $installSql = file_get_contents(dirname(__DIR__) . '/app/install/install.sql');
+$profileView = file_get_contents(dirname(__DIR__) . '/app/index/view/console/user/profile.html');
+$notificationJs = file_get_contents(dirname(__DIR__) . '/public/static/js/notification-settings.js');
 
-barkCheck(str_contains($adminView, 'name="bark_enabled"'), 'Admin Bark enable switch is missing');
-barkCheck(str_contains($adminView, 'https://api.day.app'), 'Admin view does not disclose the fixed official server');
+barkCheck(!str_contains($adminView, 'name="bark_enabled"'), 'Personal Bark notifications still depend on an administrator switch');
+barkCheck(str_contains($adminView, 'name="mail_enabled"'), 'The administrator email gate is missing');
 barkCheck(!str_contains($adminView, 'name="bark_server"'), 'Admin view exposes a custom Bark server');
-barkCheck(str_contains($consoleHead, "config('sys.bark_enabled') eq 1"), 'User Bark menu is not gated by the admin switch');
-barkCheck(str_contains($consoleHead, '/index/console/user/notification'), 'User Bark menu link is missing');
-barkCheck(str_contains($userView, '/index/ajax/user/notificationTest'), 'User Bark test action is missing');
+barkCheck(!str_contains($consoleHead, "config('sys.bark_enabled') eq 1"), 'Personal notification settings are hidden by the legacy Bark switch');
+barkCheck(str_contains($profileView, 'console/user/notification'), 'Notification settings are not inside the personal center');
+barkCheck(str_contains($notificationJs, '/index/ajax/user/notificationTest'), 'User Bark test action is missing');
 barkCheck(str_contains($ajaxController, "case 'notification':"), 'User Bark save action is missing');
 barkCheck(str_contains($adminAjaxController, "case 'testSendMail':"), 'Adjacent SMTP test action is still missing');
-barkCheck(str_contains($adminAjaxController, "['mail_invalid', 'bark_enabled', 'is_netease_tool']"), 'Notification switches are not validated server-side');
+barkCheck(str_contains($adminAjaxController, "['mail_enabled', 'mail_invalid', 'bark_enabled', 'is_netease_tool']"), 'Notification switches are not validated server-side');
 barkCheck(str_contains($scheduler, 'sendAccountInvalid'), 'Scheduler does not send Bark account-invalid notifications');
 barkCheck(str_contains($scheduler, 'sendVipExpired'), 'Scheduler does not send Bark VIP-expiry notifications');
 barkCheck(str_contains($scheduler, '$stateChanged > 0'), 'Scheduler can send duplicate account-invalid notifications');

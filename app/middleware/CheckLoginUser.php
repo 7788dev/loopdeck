@@ -3,7 +3,6 @@
 namespace app\middleware;
 
 use app\index\model\Users;
-use http\Client\Curl\User;
 use think\facade\Session;
 use think\facade\View;
 
@@ -31,18 +30,24 @@ class CheckLoginUser
             return redirect('/index/login/login');
         } else {
             // 已登录 读取用户信息并存入Session
-            $ret = Users::getByUid(Session::get('user.uid'));
-            if (!$ret || Session::get('user.sid') !== $ret['sid']) {
+            $ret = Users::where('uid', (int)Session::get('user.uid'))->withoutField('password')->find();
+            $current = $ret ? $ret->toArray() : [];
+            if (!self::validSessionUser((array)Session::get('user'), $current, (int)WEB_ID)) {
                 Session::delete('user');
                 return redirect('/index/login/login');
-            } else {
-                $session_data = Users::where('uid', $ret['uid'])->withoutField('password')->find();
-                Session::set('user', $session_data->toArray());
             }
             //检测用户VIP是否过期
-            if (strtotime(Session::get('user.vip_end') ?? 0) < time()) {
-                Users::where('uid', '=', Session::get('user.uid'))->update(['vip_start' => NULL, 'vip_end' => NULL]);
+            if (!empty($current['vip_end']) && strtotime((string)$current['vip_end']) < time()) {
+                $changed = Users::where('uid', (int)$current['uid'])
+                    ->where('vip_end', $current['vip_end'])
+                    ->update(['vip_start' => null, 'vip_end' => null]);
+                if ($changed > 0) {
+                    (new \app\service\NotificationService())->sendVipExpired($current);
+                }
+                $current['vip_start'] = null;
+                $current['vip_end'] = null;
             }
+            Session::set('user', $current);
         }
         if ($request->action() == 'agent' && empty(Session::get('user.agent'))) {
             // 无代理权限
@@ -51,5 +56,16 @@ class CheckLoginUser
         }
         // 继续执行进入到控制器
         return $next($request);
+    }
+
+    public static function validSessionUser(array $session, array $current, int $webId): bool
+    {
+        $sid = (string)($session['sid'] ?? '');
+        $stored = (string)($current['sid'] ?? '');
+        return (int)($current['uid'] ?? 0) > 0
+            && (int)($session['uid'] ?? 0) === (int)$current['uid']
+            && (int)($current['state'] ?? 0) === 1
+            && (int)($current['web_id'] ?? 0) === $webId
+            && $webId > 0 && $sid !== '' && $stored !== '' && hash_equals($stored, $sid);
     }
 }

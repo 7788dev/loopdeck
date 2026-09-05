@@ -42,7 +42,7 @@ class Heybox extends Common
             if (in_array($accountKey, $vip_expired_userIds, true)) {
                 continue;
             }
-            $user = Users::where('uid', '=', (int)($job['uid'] ?? 0))->find();
+            $user = Users::where('uid', '=', (int)($job['uid'] ?? 0))->where('state', 1)->find();
             if ($user === null) {
                 $this->disableJob($jobId, (string)($job['user_id'] ?? ''), (string)($job['do'] ?? ''), '用户不存在，任务已停用');
                 continue;
@@ -86,6 +86,8 @@ class Heybox extends Common
                 continue;
             }
 
+            (new \app\service\NotificationService())->recordTask($user, 'heybox', (string)$job['user_id'],
+                (string)$job['do'], (string)$task['name'], $result);
             $nextExecute = AutomaticSchedule::nextExecution(
                 'heybox',
                 (string)$job['user_id'],

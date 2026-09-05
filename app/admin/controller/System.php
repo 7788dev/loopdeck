@@ -57,6 +57,11 @@ class System extends Common
                 View::assign('webTitle', '注册赠送配置');
                 return View::fetch('system/set/reg');
             case 'mail':
+                View::assign([
+                    'email_ready' => \app\service\NotificationSite::emailAvailable((array)config('sys')),
+                    'email_enabled' => (int)config('sys.mail_enabled', (int)config('sys.mail_invalid', 0)) === 1,
+                    'email_password_configured' => (string)config('sys.mail_pwd', '') !== '',
+                ]);
                 View::assign('webTitle', '信息推送设置');
                 return View::fetch('system/set/mail');
             case 'template':

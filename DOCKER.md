@@ -46,6 +46,12 @@ PHP 依赖由根目录的 `composer.json` 声明、由 `composer.lock` 精确锁
 
 安装程序会优先使用容器环境中的 `CRON_KEY`。`scheduler` 容器每 60 秒通过 Docker 内网请求 `/cron/task`，密钥放在请求头中，不会出现在访问日志或公网 URL 中。
 
+从 v1.2.0 起，调度器还会在独立循环中请求 `/cron/notifications`，处理每日总览与通知发送队列。慢速推送服务不会阻塞平台任务调度。非容器部署需要同时定时请求这两个入口，并在 `X-Cron-Key` 请求头中传入密钥。
+
+首次使用通知功能会自动创建 `user_notification_preferences`、`notification_outbox` 和 `notification_task_results` 三张带当前数据库前缀的表，因此应用数据库用户需要建表权限。通知结果保留 30 天，凭据只存储在个人配置中，不进入发送队列。旧 Bark 配置和已经开启的 Epic 邮件订阅会迁移，新的事件类别需要用户自行开启。Bark、PushPlus、WxPusher 无需管理员配置；邮件需在后台“邮件推送设置”开启并填写 SMTP。
+
+从旧版本升级到 v1.2.0 时，应先拉取宿主机代码，再更新 `app`、`scheduler` 和 `updater`，使新增通知循环和 Compose 配置同时生效。升级仅新增通知表，不删除既有账号、任务、日志或持久化卷。
+
 ## 性能与容量
 
 `.env.example` 的保守默认值面向 2 核、约 2 GB 内存的服务器；`docker/tune-env.sh` 会在部署时按实际 CPU 与内存重新计算应用内存、MySQL 内存、PHP worker、连接数和调度批量，因此同一镜像在高配机器上不会被小机参数限制：

@@ -376,6 +376,8 @@ class Console
                 'execute_name' => (string)$task['execute_name'],
                 'config' => $config ?: '[]',
                 'last_execute' => $job ? (string)($job['lastExecute'] ?? '') : '',
+                'next_execute' => $job && (int)$job['state'] === 1 && (int)$job['nextExecute'] > 0
+                    ? date('m-d H:i:s', (int)$job['nextExecute']) : '',
                 'job_state' => $job ? (int)$job['state'] : 0,
             ];
         }
@@ -489,30 +491,17 @@ class Console
 
     public function epic($act = "")
     {
-        switch ($act) {
-            case "weeklygame" :
-                $job = Jobs::where("zid", "=", WEB_ID)->where("uid", "=", session("user.uid"))->where("type", "=", "epic")->where("do", "=", "weeklyGameNotify")->find();
-                if (!$job) {
-                    $job = [
-                        "user_id" => "",
-                        "uid" => session("user.uid"),
-                        "zid" => WEB_ID,
-                        "type" => "epic",
-                        "do" => "weeklyGameNotify",
-                        "state" => 0,
-                        "nextExecute" => time(),
-                        "data" => serialize([
-                            "timing" => "",
-                        ])
-                    ];
-                    Jobs::insert($job);
-                }
-                return view("console/epic/weeklyGame", [
-                    "job" => $job,
-                    "list" => (new \epic\Epic)->getWeeklyFreeGames()
-                ]);
-                break;
+        if ($act !== 'weeklygame') {
+            return response('Not Found', 404);
         }
+        $job = Jobs::where('zid', WEB_ID)->where('uid', (int)Session::get('user.uid'))
+            ->where('type', 'epic')->where('do', 'weeklyGameNotify')->find();
+        return view('console/epic/weeklyGame', [
+            'epic_enabled' => $job && (int)$job['state'] === 1,
+            'epic_next' => $job && (int)$job['state'] === 1 && (int)$job['nextExecute'] > 0
+                ? date('m-d H:i', (int)$job['nextExecute']) : '',
+            'list' => (new \epic\Epic())->getWeeklyFreeGames(),
+        ]);
     }
 
     public function qrcode($act = "")
@@ -531,29 +520,31 @@ class Console
     {
         switch ($act) {
             case "profile" :
-                return view("console/user/profile");
+                $notification = UserNotificationSettings::redact(UserNotificationSettings::defaults());
+                $emailAvailable = false;
+                $notificationError = '';
+                $deliveries = [];
+                try {
+                    $uid = (int)Session::get('user.uid');
+                    $webId = (int)Session::get('user.web_id');
+                    $notification = (new UserNotificationSettings())->publicSettings($uid, $webId);
+                    $emailAvailable = (new \app\service\NotificationSite())->get($webId)['email_available'];
+                    $deliveries = (new \app\service\NotificationRepository())->recentMessages($uid, $webId);
+                } catch (Throwable $exception) {
+                    $notificationError = '推送设置暂不可用，请稍后刷新；个人资料与密码仍可正常修改。';
+                }
+                if ($notification['email_address'] === '') {
+                    $notification['email_address'] = (string)Session::get('user.mail', '');
+                }
+                return view("console/user/profile", [
+                    'webTitle' => '个人中心', 'notification' => $notification,
+                    'notification_email_available' => $emailAvailable,
+                    'notification_can_epic' => (int)strtotime((string)Session::get('user.vip_end', '')) > time(),
+                    'notification_error' => $notificationError, 'notification_deliveries' => $deliveries,
+                ]);
                 break;
             case "notification" :
-                if ((int)config('sys.bark_enabled') !== 1) {
-                    return view('common/alert', [
-                        'msg' => '管理员尚未开启 Bark 信息推送',
-                        'url' => '/index/console/user/profile.html',
-                    ]);
-                }
-                try {
-                    $token = (new UserNotificationSettings())->barkToken(
-                        (int)Session::get('user.uid'),
-                        (int)Session::get('user.web_id')
-                    );
-                } catch (Throwable $exception) {
-                    return view('common/alert', [
-                        'msg' => '信息推送设置暂不可用，请联系管理员',
-                        'url' => '/index/console/user/profile.html',
-                    ]);
-                }
-                return view('console/user/notification', [
-                    'bark_token' => htmlspecialchars($token, ENT_QUOTES, 'UTF-8'),
-                ]);
+                return redirect('/index/console/user/profile#notifications');
                 break;
             case "faq" :
                 return view("console/user/faq", ["webTitle" => "帮助中心"]);

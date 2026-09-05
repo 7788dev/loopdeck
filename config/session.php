@@ -6,8 +6,8 @@
 return [
     // session name
     'name'           => 'PHPSESSID',
-    // SESSION_ID的提交变量,解决flash上传跨域
-    'var_session_id' => 'session_id',
+    // 会话 ID 仅从 Cookie 读取，避免通过 URL/表单固定会话。
+    'var_session_id' => '',
     // 驱动方式 支持file cache
     'type'           => 'file',
     // 存储连接标识 当type使用cache的时候有效

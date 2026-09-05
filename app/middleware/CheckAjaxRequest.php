@@ -2,8 +2,6 @@
 
 namespace app\middleware;
 
-use think\facade\Request;
-
 class CheckAjaxRequest
 {
     /**
@@ -14,9 +12,12 @@ class CheckAjaxRequest
      */
     public function handle($request, \Closure $next)
     {
-        //判断是否Ajax请求
-        if (!Request::isAjax()) {
-            exit('非法请求');
+        // isAjax() also accepts ?_ajax=1. Only the actual browser header can
+        // distinguish an AJAX request from a cross-site form/navigation.
+        if (!$request->isAjax(true)
+            || strtolower((string)$request->header('sec-fetch-site', '')) === 'cross-site'
+            || is_cross_origin_request()) {
+            return \think\Response::create(['code' => 0, 'message' => '请求来源无效，请刷新页面后重试'], 'json', 403);
         }
         // 继续执行进入到控制器
         return $next($request);

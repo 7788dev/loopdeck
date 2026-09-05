@@ -11,13 +11,17 @@ use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
-use app\service\BarkNotificationService;
+use app\service\NotificationService;
+use app\service\NotificationSite;
+use app\service\EpicSubscription;
 use app\service\BilibiliTaskExecutor;
 use app\service\UserNotificationSettings;
 use netease\Qrcode;
 use think\exception\ValidateException;
 use think\facade\Request;
 use think\facade\Session;
+use think\facade\Cache;
+use think\facade\Db;
 class Ajax extends Common
 {
 	protected $middleware = ["app\\middleware\\CheckLoginUser", "app\\middleware\\CheckAjaxRequest"];
@@ -63,62 +67,12 @@ class Ajax extends Common
 		return $this->accountAction("heybox", $act);
 	}
 
-	public function epic($act = null)
-	{
-		if ($act === "setEmail") {
-			$email = trim((string)Request::post("email", ""));
-			$timing = trim((string)Request::post("timing", ""));
-			if ($email === "" || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 255) {
-				return resultJson(0, "邮箱格式错误");
-			}
-			if (!AutomaticSchedule::isConfigured($timing)) {
-				return resultJson(0, "时间格式应为 HH:MM");
-			}
-			$job = $this->epicJob();
-			if (!$job) {
-				return resultJson(0, "订阅任务不存在，请刷新页面重试");
-			}
-			$job->save([
-				"user_id" => $email,
-				"data" => serialize(["timing" => $timing]),
-				"nextExecute" => time(),
-			]);
-			return resultJson(1, "保存成功");
-		}
-		if ($act === "funcSwitch") {
-			$job = $this->epicJob();
-			if (!$job) {
-				return resultJson(0, "订阅任务不存在，请刷新页面重试");
-			}
-			if ((int)$job["state"] === 1) {
-				$job->save(["state" => 0]);
-				return resultJson(1, "已关闭推送");
-			}
-			$email = trim((string)($job["user_id"] ?? ""));
-			$timing = (string)(safe_unserialize_array($job["data"])["timing"] ?? "");
-			if ($email === "" || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-				return resultJson(0, "请先填写并保存邮箱地址");
-			}
-			if (!AutomaticSchedule::isConfigured($timing)) {
-				return resultJson(0, "请先设置通知时间");
-			}
-			$job->save([
-				"state" => 1,
-				"nextExecute" => time(),
-			]);
-			return resultJson(1, "已开启推送");
-		}
-		return resultJson(0, "未知操作");
-	}
-
-	private function epicJob()
-	{
-		return Jobs::where("zid", "=", WEB_ID)
-			->where("uid", "=", Session::get("user.uid"))
-			->where("type", "=", "epic")
-			->where("do", "=", "weeklyGameNotify")
-			->find();
-	}
+    public function epic($act = null)
+    {
+        return resultJson(0, 'Epic 提醒已移至个人中心，请在那里选择渠道和通知时间', [
+            'url' => '/index/console/user/profile#notifications',
+        ]);
+    }
 
 	public function qrcode($act = null)
 	{
@@ -322,32 +276,45 @@ class Ajax extends Common
 				}
 				break;
 			case 'notification':
-				if ((int)config('sys.bark_enabled') !== 1) {
-					return resultJson(0, '管理员尚未开启 Bark 信息推送');
-				}
-				$token = trim((string)Request::post('bark_token', ''));
 				try {
-					(new UserNotificationSettings())->saveBarkToken(
-						(int)Session::get('user.uid'),
-						(int)Session::get('user.web_id'),
-						$token
-					);
-					return resultJson(1, $token === '' ? 'Bark 推送配置已清除' : 'Bark Token 保存成功');
-				} catch (\RuntimeException $exception) {
+					$uid = (int)Session::get('user.uid');
+					$webId = (int)Session::get('user.web_id');
+					$input = Request::post();
+					if (!empty($input['enabled']) && !empty($input['epic_free_games'])
+						&& (int)strtotime((string)Session::get('user.vip_end', '')) <= time()) {
+						return resultJson(0, 'Epic 周免提醒需要有效会员，其他推送不受影响');
+					}
+					$settings = new UserNotificationSettings();
+					// Lazy schema/migration DDL must precede the save transaction.
+					$settings->get($uid, $webId);
+					$emailAvailable = (new NotificationSite())->get($webId)['email_available'];
+					$data = Db::transaction(static function () use ($settings, $uid, $webId, $input, $emailAvailable): array {
+						$public = $settings->save($uid, $webId, $input, $emailAvailable);
+						EpicSubscription::sync($uid, $webId, $settings->get($uid, $webId));
+						return $public;
+					});
+					return resultJson(1, '推送设置已保存', $data);
+				} catch (\InvalidArgumentException $exception) {
 					return resultJson(0, $exception->getMessage());
 				} catch (\Throwable $exception) {
-					return resultJson(0, 'Bark Token 保存失败');
+					return resultJson(0, '推送设置保存失败，请稍后重试');
 				}
 			case 'notificationTest':
-				if ((int)config('sys.bark_enabled') !== 1) {
-					return resultJson(0, '管理员尚未开启 Bark 信息推送');
+				$channel = (string)Request::post('channel', 'bark');
+				if (!in_array($channel, UserNotificationSettings::CHANNELS, true)) {
+					return resultJson(0, '不支持的推送渠道');
 				}
-				$user = Users::where('uid', (int)Session::get('user.uid'))->find();
-				if (!$user) {
-					return resultJson(0, '用户不存在');
+				try {
+					$key = 'notification_test_' . (int)Session::get('user.web_id') . '_' . (int)Session::get('user.uid') . '_' . $channel;
+					if (Cache::get($key)) {
+						return resultJson(0, '测试推送每个渠道每分钟最多一次，请稍后重试');
+					}
+					Cache::set($key, 1, 60);
+					$result = (new NotificationService())->sendTest((array)Session::get('user'), $channel);
+					return resultJson(!empty($result['success']) ? 1 : 0, (string)$result['message']);
+				} catch (\Throwable $exception) {
+					return resultJson(0, '测试推送失败，请检查设置后重试');
 				}
-				$result = (new BarkNotificationService())->sendTest($user);
-				return resultJson(!empty($result['success']) ? 1 : 0, (string)$result['message']);
 			case "passWord":
 				$_var_48 = Request::post();
 				$_var_49 = Users::changePassWord(Session::get("user.uid"), $_var_48);

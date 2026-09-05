@@ -15,8 +15,9 @@ function updaterCheck(bool $condition, string $message): void
     }
 }
 
-updaterCheck(ApplicationVersion::current() === '1.2.0', 'Local VERSION was not loaded');
-updaterCheck(app_version() === '1.2.0', 'Template asset version was not loaded');
+$currentVersion = trim((string)file_get_contents(dirname(__DIR__) . '/VERSION'));
+updaterCheck(ApplicationVersion::current() === $currentVersion, 'Local VERSION was not loaded');
+updaterCheck(app_version() === $currentVersion, 'Template asset version was not loaded');
 updaterCheck(ApplicationVersion::normalize('v1.2.3') === '1.2.3', 'Version normalization failed');
 updaterCheck(ApplicationVersion::normalize('latest') === null, 'Invalid version was accepted');
 
@@ -31,14 +32,14 @@ file_put_contents($stateFile, json_encode([
     'checked_at' => '2026-09-04T01:00:00Z',
     'last_update_at' => '2026-09-04T01:00:00Z',
     'next_check_at' => '2026-09-04T07:00:00Z',
-    'latest_version' => '1.2.0',
+    'latest_version' => $currentVersion,
     'version_source' => 'https://raw.githubusercontent.com/7788dev/loopdeck/main/VERSION',
     'version_sources' => [
-        ['source' => 'https://raw.githubusercontent.com/7788dev/loopdeck/main/VERSION', 'version' => '1.2.0'],
+        ['source' => 'https://raw.githubusercontent.com/7788dev/loopdeck/main/VERSION', 'version' => $currentVersion],
     ],
     'image_repository' => 'ghcr.nju.edu.cn/7788dev/loopdeck',
-    'image' => 'ghcr.nju.edu.cn/7788dev/loopdeck:1.2.0',
-    'message' => '已更新到 v1.2.0',
+    'image' => 'ghcr.nju.edu.cn/7788dev/loopdeck:' . $currentVersion,
+    'message' => '已更新到 v' . $currentVersion,
     'error' => null,
 ], JSON_UNESCAPED_SLASHES));
 
@@ -48,8 +49,8 @@ $updater = new SystemUpdater(null, [
     'check_interval_seconds' => 600,
 ]);
 $status = $updater->status();
-updaterCheck($status['current_version'] === '1.2.0', 'Status returned the wrong local version');
-updaterCheck($status['latest_version'] === '1.2.0', 'State returned the wrong remote version');
+updaterCheck($status['current_version'] === $currentVersion, 'Status returned the wrong local version');
+updaterCheck($status['latest_version'] === $currentVersion, 'State returned the wrong remote version');
 updaterCheck($status['update_available'] === false, 'Equal versions were marked as updateable');
 updaterCheck($status['updater_available'] === true, 'Configured updater was reported unavailable');
 updaterCheck($status['status'] === 'updated', 'Updater status was not loaded');

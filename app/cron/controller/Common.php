@@ -8,8 +8,8 @@ use app\index\model\Jobs;
 use app\index\model\Users;
 use app\index\model\Weblist;
 use app\service\NotificationService;
-use mail\PHPMailer\Exception;
-use mail\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\PHPMailer;
 use think\facade\Config;
 use think\facade\Db;
 use think\facade\Request;
@@ -211,7 +211,11 @@ class Common
             $mail->SMTPAuth   = true;                                   //Enable SMTP authentication
             $mail->Username   = $mail_configs['mail_name'];                     //SMTP username
             $mail->Password   = $mail_configs['mail_pwd'];                               //SMTP password
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;            //Enable implicit TLS encryption
+            $mail->SMTPSecure = (int)$mail_configs['mail_port'] === 465
+                ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->CharSet = 'UTF-8';
+            $mail->Timeout = 8;
+            $mail->getSMTPInstance()->Timelimit = 8;
             $mail->Port       = $mail_configs['mail_port'];                                    //TCP port to connect to; use 587 if you have set `SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS`
 
             //Recipients

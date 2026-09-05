@@ -17,7 +17,7 @@ use app\index\controller\Common;
 use app\index\model\Kms;
 use app\index\model\Users;
 use app\service\BilibiliTaskExecutor;
-use mail\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\PHPMailer;
 use think\exception\ValidateException;
 use think\facade\Db;
 use think\facade\Request;

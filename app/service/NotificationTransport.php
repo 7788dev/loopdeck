@@ -7,19 +7,21 @@ namespace app\service;
 use Closure;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
-use mail\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\PHPMailer;
 use Throwable;
 
 class NotificationTransport
 {
     public const PUSHPLUS_ENDPOINT = 'https://www.pushplus.plus/send';
     public const WXPUSHER_ENDPOINT = 'https://wxpusher.zjiecode.com/api/send/message';
-    private ClientInterface $client;
+    private ?ClientInterface $client;
     private ?Closure $mailSender;
+    private ?PHPMailer $mail = null;
+    private string $mailIdentity = '';
 
     public function __construct(?ClientInterface $client = null, ?Closure $mailSender = null)
     {
-        $this->client = $client ?? new Client();
+        $this->client = $client;
         $this->mailSender = $mailSender;
     }
 
@@ -33,15 +35,38 @@ class NotificationTransport
                 return $this->result(false, '管理员未开启可用的邮件推送');
             }
             try {
-                $mail = self::mailer($site['smtp'], (string)$settings['email_address'], $title, $body, (string)$site['name']);
+                $smtp = $site['smtp'];
+                // Only settings used by this connection participate in its identity.
+                // Unrelated site options must not cause reconnects or JSON failures.
+                $identity = hash('sha256', serialize([
+                    (string)$smtp['mail_smtp'], (int)$smtp['mail_port'],
+                    (string)$smtp['mail_name'], (string)$smtp['mail_pwd'], (string)$site['name'],
+                ]));
+                if ($this->mail === null || $this->mailIdentity !== $identity) {
+                    $this->closeMail();
+                    $this->mail = self::mailer($site['smtp'], (string)$settings['email_address'], $title, $body, (string)$site['name']);
+                    $this->mail->SMTPKeepAlive = true;
+                    $this->mailIdentity = $identity;
+                }
+                $mail = $this->mail;
+                $mail->clearAllRecipients();
+                $mail->clearAttachments();
+                $mail->clearCustomHeaders();
+                $mail->addAddress((string)$settings['email_address']);
+                $mail->Subject = $title;
+                $mail->Body = $body;
                 $sent = $this->mailSender !== null ? ($this->mailSender)($mail) : $mail->send();
+                if (!$sent) {
+                    $this->closeMail();
+                }
                 return $this->result((bool)$sent, $sent ? '邮件已提交' : '邮件发送失败');
             } catch (Throwable $exception) {
+                $this->closeMail();
                 return $this->result(false, '邮件发送失败，请检查邮箱与管理员 SMTP 配置');
             }
         }
         if ($channel === 'bark') {
-            return (new BarkClient($this->client))->send((string)$settings['bark_token'], $title, $body, (string)$site['name'], $url);
+            return (new BarkClient($this->client ??= new Client()))->send((string)$settings['bark_token'], $title, $body, (string)$site['name'], $url);
         }
         if ($channel === 'pushplus') {
             $endpoint = self::PUSHPLUS_ENDPOINT;
@@ -59,7 +84,7 @@ class NotificationTransport
             return $this->result(false, '不支持的推送渠道');
         }
         try {
-            $response = $this->client->request('POST', $endpoint, [
+            $response = ($this->client ??= new Client())->request('POST', $endpoint, [
                 'json' => $payload, 'timeout' => 8.0, 'connect_timeout' => 3.0,
                 'http_errors' => false, 'allow_redirects' => false,
                 'headers' => ['Accept' => 'application/json', 'User-Agent' => 'LoopDeck/' . ApplicationVersion::current()],
@@ -97,6 +122,20 @@ class NotificationTransport
         $mail->Subject = $title;
         $mail->Body = $body;
         return $mail;
+    }
+
+    public function closeMail(): void
+    {
+        if ($this->mail !== null) {
+            $this->mail->smtpClose();
+        }
+        $this->mail = null;
+        $this->mailIdentity = '';
+    }
+
+    public function __destruct()
+    {
+        $this->closeMail();
     }
 
     private function result(bool $success, string $message): array

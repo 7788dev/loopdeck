@@ -37,7 +37,7 @@ if (!function_exists('safe_unserialize_array')) {
     }
 }
 
-use mail\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\PHPMailer;
 
 if (!function_exists('resultJson')) {
     function resultJson(int $code, string $message = '', $data = null)
@@ -361,6 +361,9 @@ if (!function_exists('send_mail')) {
 if (!function_exists('get_mail_tempale')) {
     function get_mail_tempale(int $type, $user, $parameter = null): string
     {
+        if (is_object($user) && method_exists($user, 'toArray')) {
+            $user = $user->toArray();
+        }
         $site = htmlspecialchars((string)config('web.webname', 'LoopDeck'), ENT_QUOTES, 'UTF-8');
         $nickname = htmlspecialchars(
             is_array($user) ? (string)($user['nickname'] ?? '用户') : (string)$user,

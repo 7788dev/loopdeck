@@ -44,8 +44,11 @@ class NotificationService
             return ['success' => false, 'queued' => 0, 'message' => '用户或推送事件无效'];
         }
         $settings = $this->settings->get($uid, $webId);
+        if (!$settings['enabled'] || empty($settings['events'][$event])) {
+            return ['success' => false, 'queued' => 0, 'message' => '此类推送未开启'];
+        }
         $site = $this->sites->get($webId);
-        if (!$settings['enabled'] || empty($settings['events'][$event]) || !$site['exists']) {
+        if (!$site['exists']) {
             return ['success' => false, 'queued' => 0, 'message' => '此类推送未开启'];
         }
         $eligible = 0;
@@ -140,27 +143,39 @@ class NotificationService
     /** Run only from the dedicated notification scheduler, outside task jobs. */
     public function tick(int $limit = 20, float $budgetSeconds = 20.0, ?int $now = null): array
     {
-        $now ??= time();
+        try {
+            return $this->processBatch($limit, $budgetSeconds, $now ?? time());
+        } finally {
+            // Reuse SMTP only within this batch, including exceptional exits.
+            $this->transport->closeMail();
+        }
+    }
+
+    private function processBatch(int $limit, float $budgetSeconds, int $now): array
+    {
         $deadline = microtime(true) + $budgetSeconds;
-        $counts = ['summaries' => 0, 'sent' => 0, 'retrying' => 0, 'failed' => 0, 'skipped' => 0];
+        $counts = ['summaries' => 0, 'sent' => 0, 'retrying' => 0, 'failed' => 0, 'skipped' => 0, 'errors' => 0];
         foreach ($this->repository->dueSummaries($now, $limit) as $row) {
             if (microtime(true) >= $deadline) {
                 break;
             }
-            $uid = (int)$row['uid'];
-            $webId = (int)$row['web_id'];
-            $settings = $this->settings->get($uid, $webId);
-            $user = ($this->userLoader)($uid, $webId);
-            if ($user !== [] && $settings['enabled'] && $settings['events']['daily_summary']) {
-                $date = date('Y-m-d', (int)$row['next_summary_at']);
-                $this->notify($user, 'daily_summary', $date, $date . ' 每日任务总览',
-                    NotificationText::dailySummary($date, $this->repository->dailyTasks($uid, $webId, $date)));
-                $counts['summaries']++;
+            try {
+                $uid = (int)$row['uid'];
+                $webId = (int)$row['web_id'];
+                $settings = $this->settings->get($uid, $webId);
+                $user = ($this->userLoader)($uid, $webId);
+                if ($user !== [] && $settings['enabled'] && $settings['events']['daily_summary']) {
+                    $date = date('Y-m-d', (int)$row['next_summary_at']);
+                    $this->notify($user, 'daily_summary', $date, $date . ' 每日任务总览',
+                        NotificationText::dailySummary($date, $this->repository->dailyTasks($uid, $webId, $date)));
+                    $counts['summaries']++;
+                }
+                // Leave failed summaries due; event keys deduplicate partial enqueue.
+                $this->repository->advanceSummary($uid, $webId, (int)$row['next_summary_at'],
+                    $user !== [] ? UserNotificationSettings::nextSummaryAt($settings['summary_time'], $now) : 0);
+            } catch (Throwable $exception) {
+                $counts['errors']++;
             }
-            // If enqueue failed, the exception leaves the due row retryable.
-            // Event/channel unique keys protect partial enqueue after a crash.
-            $this->repository->advanceSummary($uid, $webId, (int)$row['next_summary_at'],
-                $user !== [] ? UserNotificationSettings::nextSummaryAt($settings['summary_time'], $now) : 0);
         }
         foreach ($this->repository->dueMessages($now, $limit) as $row) {
             if (microtime(true) >= $deadline) {

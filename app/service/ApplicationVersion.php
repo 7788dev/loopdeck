@@ -7,15 +7,19 @@ namespace app\service;
 final class ApplicationVersion
 {
     public const FALLBACK = '0.0.0';
+    private static ?string $current = null;
 
     public static function current(): string
     {
+        if (self::$current !== null) {
+            return self::$current;
+        }
         $path = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'VERSION';
         if (!is_file($path)) {
-            return self::FALLBACK;
+            return self::$current = self::FALLBACK;
         }
 
-        return self::normalize((string)file_get_contents($path)) ?? self::FALLBACK;
+        return self::$current = self::normalize((string)file_get_contents($path)) ?? self::FALLBACK;
     }
 
     public static function normalize(string $version): ?string

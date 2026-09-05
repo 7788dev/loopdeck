@@ -16,6 +16,7 @@ final class MemoryNotifications extends NotificationRepository
     public array $tasks = [];
     public array $messages = [];
     public bool $failRecord = false;
+    public array $failSummaryUsers = [];
 
     public function ensureSchema(): void {}
     public function preferences(int $uid, int $webId): ?array { return $this->preferences[$webId . ':' . $uid] ?? null; }
@@ -41,6 +42,9 @@ final class MemoryNotifications extends NotificationRepository
     }
     public function dailyTasks(int $uid, int $webId, string $date): array
     {
+        if (in_array($uid, $this->failSummaryUsers, true)) {
+            throw new RuntimeException('Simulated summary read failure');
+        }
         return array_values(array_filter($this->tasks, static fn($r) => $r['uid'] === $uid && $r['web_id'] === $webId && $r['run_date'] === $date));
     }
     public function enqueue(array $row): bool

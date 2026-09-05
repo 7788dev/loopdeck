@@ -32,6 +32,12 @@ dependencyIntegrityCheck(
     'Unused legacy Flysystem packages must not return to the dependency tree'
 );
 
+dependencyIntegrityCheck(isset($packages['phpmailer/phpmailer'])
+    && version_compare($packages['phpmailer/phpmailer'], '7.1.1', '>='),
+    'Mail must use the maintained Composer PHPMailer package');
+dependencyIntegrityCheck(!is_file($root . '/extend/mail/PHPMailer/PHPMailer.php')
+    && !is_file($root . '/extend/SMTP.php'), 'Untracked legacy mail implementations must not return');
+
 $appConfig = file_get_contents($root . '/config/app.php');
 dependencyIntegrityCheck(
     is_string($appConfig) && str_contains($appConfig, "'app_express'      => true"),

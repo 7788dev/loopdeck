@@ -65,7 +65,7 @@ autoUpdaterCheck($repository->invoke($updater, 'ghcr.io/7788dev/loopdeck@sha256:
 autoUpdaterCheck($repository->invoke($updater, 'bad;command') === null, 'Unsafe image repository was accepted');
 
 $composePath = $projectRoot . '/compose.yaml';
-$compose = is_file($composePath) ? file_get_contents($composePath) : '';
+$compose = is_file($composePath) ? str_replace("\r\n", "\n", (string)file_get_contents($composePath)) : '';
 $wrapperCandidates = [
     $projectRoot . '/docker/auto-updater.sh',
     '/usr/local/bin/loopdeck-auto-updater',

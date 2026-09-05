@@ -78,6 +78,8 @@ Redis 默认不启用。单机部署的主要瓶颈是第三方网络请求和�
 
 ## 日常管理
 
+v1.2.1 仅调整邮件依赖与通知运行路径，不修改表结构、Compose 服务或环境变量。升级前备份并验证可恢复性，保留当前镜像及项目名；按 [依赖优化验证记录](docs/DEPENDENCY-OPTIMIZATION.md) 先完成隔离验证，再更新应用服务。备份未完成时，不发布生产自动更新器可见的新版本。
+
 ```bash
 docker compose ps
 docker compose logs -f app scheduler

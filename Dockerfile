@@ -101,4 +101,8 @@ RUN php -r '$required = ["bcmath", "curl", "fileinfo", "gd", "intl", "json", "mb
 
 USER 82:82
 
+# The runtime PID 1 is s6-svscan, which shuts services down on SIGTERM.
+# The inherited PHP-FPM SIGQUIT default is ignored by this supervisor.
+STOPSIGNAL SIGTERM
+
 EXPOSE 8080

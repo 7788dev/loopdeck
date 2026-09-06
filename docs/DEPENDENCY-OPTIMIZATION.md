@@ -67,6 +67,7 @@ python tests/smtp_loopback_fixture.py --messages 5000 --rounds 1
 - 新增覆盖：收件人隔离、凭据轮换、无关配置变化、无效地址、SMTP 拒绝、断线恢复；批次正常或异常结束时关闭连接；单用户总览失败后其余消息继续处理；邮件模板只选取昵称。
 - 使用 `composer validate --strict --no-check-publish`、`composer check-platform-reqs --no-dev` 与 `composer audit --locked --abandoned=fail` 检查锁文件、PHP 扩展及已公布的安全公告。
 - Windows 检出的 Compose 文件可能使用 CRLF；更新器测试统一换行后再检查，避免把换行差异误判为配置错误。
+- 实机发现 s6-svscan 不响应基础镜像继承的 SIGQUIT，镜像默认停止信号改为 SIGTERM；部署时仍先停止新调度并等待业务请求结束，再关闭应用。
 - GitHub 镜像构建继续在 PHP 8.2 环境执行离线测试，目标架构为 `linux/amd64` 与 `linux/arm64`。生产验证须另行记录实际镜像摘要、请求结果及资源指标。
 
 ## 数据保护与部署顺序

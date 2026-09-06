@@ -61,7 +61,7 @@ RUN mkdir -p docker
 COPY docker/auto-updater.php docker/auto-updater.sh ./docker/
 COPY VERSION think ./
 
-RUN composer dump-autoload --no-dev --no-scripts --optimize \
+RUN composer dump-autoload --no-dev --no-scripts --classmap-authoritative \
     && php think service:discover \
     && set -eu; for test_file in tests/*Test.php; do php "$test_file"; done
 

@@ -12,8 +12,6 @@
 // [ 应用入口文件 ]
 namespace think;
 
-session_start();
-
 // 加载360防护
 if (is_file(__DIR__ . '/../extend/360webscan.php')) {
     require_once __DIR__ . '/../extend/360webscan.php';

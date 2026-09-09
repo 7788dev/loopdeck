@@ -96,7 +96,7 @@ $service->recordTask($user, 'netease', 'qa_account', 'sign', '每日签到 🎵'
 $service->recordTask($user, 'netease', 'qa_account', 'sign', '每日签到 🎵', ['success' => true, 'message' => '签到完成']);
 $service->recordTask($user, 'netease', 'qa_account', 'daka_new', '每日听歌', ['success' => false, 'message' => '等待入账', 'retry_after_seconds' => 300]);
 integrationCheck(Db::name('notification_outbox')->count() === 2, 'Duplicate task pushes or retry-as-failure pushes were queued');
-integrationCheck(count($repository->dailyTasks(1, 1, date('Y-m-d'))) === 2, 'Daily task upsert failed');
+integrationCheck(count($repository->dailyTasks(1, 1, date('Y-m-d'))) === 1, 'Daily task upsert failed or pending listening became a public result');
 integrationCheck($repository->dailyTasks(2, 1, date('Y-m-d')) === [], 'Daily summary leaked to a second user');
 $now = time();
 Db::name('user_notification_preferences')->where('uid', 1)->update(['next_summary_at' => $now - 1]);

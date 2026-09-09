@@ -81,6 +81,9 @@ class NotificationService
         }
         try {
             $status = (new Common())->statusTag($result);
+            if (!Common::shouldReportTaskStatus($type, $taskKey, $status)) {
+                return;
+            }
             $message = NotificationText::clean((string)($result['message'] ?? '任务执行完成'), 4000);
             $date = date('Y-m-d');
             $this->repository->recordTask([
@@ -88,8 +91,8 @@ class NotificationService
                 'account_id' => $accountId, 'task_key' => $taskKey, 'task_name' => $taskName,
                 'status' => $status, 'message' => $message, 'updated_at' => time(),
             ]);
-            // Transient failures remain "retrying" in the overview. They are
-            // not final-failure alerts and do not trigger repeated pushes.
+            // Other tasks may retain transient failures in the overview;
+            // only terminal results can enqueue success/failure alerts.
             if ($status !== '重试中' && $type !== 'epic') {
                 $event = $status === '成功' ? 'task_success' : 'task_failure';
                 $this->notify($user, $event, implode('|', [$date, $type, $accountId, $taskKey]),

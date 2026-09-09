@@ -849,7 +849,7 @@ class Task extends Common
 
     private function writeLog(string $type, string $userId, string $task, string $message, string $status = '失败'): void
     {
-        if ($type === '' || $userId === '') {
+        if ($type === '' || $userId === '' || !self::shouldReportTaskStatus($type, $task, $status)) {
             return;
         }
 

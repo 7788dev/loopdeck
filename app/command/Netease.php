@@ -79,8 +79,11 @@ class Netease extends Command
                 $this->accountInvalid('netease', $user, $job['user_id']); // 账号失效处理
                 break;
             } else {
-                TaskLogs::operateExecuteLog('netease', $job['user_id'], $job['do'],
-                    '[' . (new CronCommon())->statusTag($execute) . '] ' . $execute['message']); // 写入运行日志
+                $status = (new CronCommon())->statusTag($execute);
+                if (CronCommon::shouldReportTaskStatus('netease', (string)$job['do'], $status)) {
+                    TaskLogs::operateExecuteLog('netease', $job['user_id'], $job['do'],
+                        '[' . $status . '] ' . $execute['message']);
+                }
                 (new NotificationService())->recordTask($user, 'netease', (string)$job['user_id'],
                     (string)$job['do'], (string)$task['name'], $execute);
             }

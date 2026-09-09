@@ -43,6 +43,12 @@ class Common
         return $retryAfter > 0 ? '重试中' : '失败';
     }
 
+    /** Daily listening verification is internal until an outcome is final. */
+    public static function shouldReportTaskStatus(string $type, string $task, string $status): bool
+    {
+        return $type !== 'netease' || $task !== 'daka_new' || $status !== '重试中';
+    }
+
     public function vipExpired($type, $uid, $user_id)
     {
         $membershipChanged = Users::where('uid', '=', $uid)

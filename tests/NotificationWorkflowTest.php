@@ -58,6 +58,7 @@ $loader = static fn(int $uid, int $webId): array => $uid === 1 && $webId === 1 ?
 $service = new NotificationService($store, $settings, $site, $transport, $loader);
 $service->recordTask($user, 'netease', '123', 'daka_new', '每日300首', ['success' => false, 'message' => '进度 0/300', 'retry_after_seconds' => 300]);
 notificationCheck($store->messages === [], 'Pending accounting generated a final failure push');
+notificationCheck($store->tasks === [], 'Pending daily listening leaked into the daily overview');
 $service->recordTask($user, 'netease', '123', 'daka_new', '每日300首', ['success' => true, 'message' => '进度 300/300']);
 $service->recordTask($user, 'netease', '123', 'daka_new', '每日300首', ['success' => true, 'message' => '进度 300/300']);
 notificationCheck(count($store->messages) === 2 && count($store->tasks) === 1, 'A repeated task result duplicated alerts or daily report rows');

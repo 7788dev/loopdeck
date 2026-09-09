@@ -3,6 +3,7 @@
 namespace app\index\model;
 
 use think\Model;
+use think\db\Query;
 
 class TaskLogs extends Model
 {
@@ -10,14 +11,10 @@ class TaskLogs extends Model
 
     public static function searchLogs($type, $user_id)
     {
-        $total = (new static())
-            ->where('type', '=', $type)
-            ->where('user_id', '=', $user_id)
-            ->count('id');
-        $result = (new static())
+        $query = self::visibleLogsQuery((string)$type, (string)$user_id);
+        $total = (clone $query)->count('id');
+        $result = $query
             ->order(['addtime' => 'desc', 'id' => 'desc'])
-            ->where('type', '=', $type)
-            ->where('user_id', '=', $user_id)
             ->limit(50)
             ->select();
         if ($result) {
@@ -30,6 +27,22 @@ class TaskLogs extends Model
             return $rows;
         }
         return false;
+    }
+
+    private static function visibleLogsQuery(string $type, string $user_id): Query
+    {
+        $query = (new static())->where('type', '=', $type)->where('user_id', '=', $user_id);
+        if ($type === 'netease') {
+            // Filter legacy waiting rows in the query so both the 50-row limit
+            // and account-local numbering describe visible results. No deletion.
+            $query->whereRaw(
+                "NOT (COALESCE(`do`, '') IN (:daily_task, :daily_name, :legacy_name) "
+                . "AND COALESCE(`response`, '') LIKE :pending_prefix)",
+                ['daily_task' => 'daka_new', 'daily_name' => self::taskDisplayName('netease', 'daka_new'),
+                    'legacy_name' => '每日300首', 'pending_prefix' => '[重试中]%']
+            );
+        }
+        return $query;
     }
 
     public static function deleteLogs($type, $user_id)

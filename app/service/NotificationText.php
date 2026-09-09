@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace app\service;
 
+use app\cron\controller\Common;
+
 final class NotificationText
 {
     private const PROVIDERS = ['netease' => '网易云音乐', 'bilibili' => '哔哩哔哩', 'heybox' => '小黑盒', 'epic' => 'Epic'];
@@ -23,17 +25,29 @@ final class NotificationText
     public static function dailySummary(string $date, array $rows): string
     {
         $counts = ['成功' => 0, '失败' => 0, '重试中' => 0];
+        $visibleCount = 0;
+        $visibleRows = [];
         foreach ($rows as $row) {
             $status = (string)($row['status'] ?? '失败');
+            // Keep old in-progress records in storage, but omit them from reports.
+            if (!Common::shouldReportTaskStatus(
+                (string)($row['type'] ?? ''), (string)($row['task_key'] ?? ''), $status
+            )) {
+                continue;
+            }
+            $visibleCount++;
             $counts[$status] = ($counts[$status] ?? 0) + 1;
+            if (count($visibleRows) < 60) {
+                $visibleRows[] = $row;
+            }
         }
         $lines = [sprintf('%s 任务总览：共 %d 项，成功 %d，失败 %d，重试中 %d。',
-            $date, count($rows), $counts['成功'], $counts['失败'], $counts['重试中'])];
-        if ($rows === []) {
+            $date, $visibleCount, $counts['成功'], $counts['失败'], $counts['重试中'])];
+        if ($visibleCount === 0) {
             $lines[] = '今日暂无已执行任务。';
         }
         $group = '';
-        foreach (array_slice($rows, 0, 60) as $row) {
+        foreach ($visibleRows as $row) {
             $identity = self::provider((string)$row['type']) . ' · ' . self::clean((string)$row['account_id'], 60);
             if ($group !== $identity) {
                 $group = $identity;
@@ -42,8 +56,8 @@ final class NotificationText
             $lines[] = '[' . (string)$row['status'] . '] ' . self::clean((string)$row['task_name'], 80)
                 . '：' . self::clean((string)$row['message'], 300);
         }
-        if (count($rows) > 60) {
-            $lines[] = '其余 ' . (count($rows) - 60) . ' 项请在控制台查看。';
+        if ($visibleCount > 60) {
+            $lines[] = '其余 ' . ($visibleCount - 60) . ' 项请在控制台查看。';
         }
         $text = implode("\n", $lines);
         if (mb_strlen($text, 'UTF-8') > 5800) {

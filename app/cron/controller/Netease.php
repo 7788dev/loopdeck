@@ -134,7 +134,8 @@ class Netease extends Common
                     'netease',
                     (string)$job['user_id'],
                     (string)$job['do'],
-                    '[重试中] 任务完成状态写入失败，已安排稍后重试'
+                    '任务完成状态写入失败，已安排稍后重试',
+                    $this->statusTag(['retry_after_seconds' => 300])
                 );
                 continue;
             }
@@ -192,7 +193,8 @@ class Netease extends Common
                 'netease',
                 $account['user_id'],
                 $do,
-                '[' . $this->statusTag($execute) . '] ' . (string)($execute['message'] ?? '网易云任务执行完成')
+                (string)($execute['message'] ?? '网易云任务执行完成'),
+                $this->statusTag($execute)
             ); // 写入运行日志
             return $execute;
         } catch (Throwable $exception) {
@@ -200,7 +202,8 @@ class Netease extends Common
             $this->scheduleRetry($jobId);
             $this->writeLog(
                 'netease', $account['user_id'], $do,
-                '[' . $this->statusTag(['retry_after_seconds' => 300]) . '] 任务调度异常，已安排稍后重试'
+                '任务调度异常，已安排稍后重试',
+                $this->statusTag(['retry_after_seconds' => 300])
             );
             return null;
         }
@@ -216,7 +219,7 @@ class Netease extends Common
             // A database hiccup must not abort the remaining jobs.
         }
         if ($userId !== '') {
-            $this->writeLog('netease', $userId, $do, '[失败] ' . $message);
+            $this->writeLog('netease', $userId, $do, $message);
         }
     }
 
@@ -233,10 +236,13 @@ class Netease extends Common
         }
     }
 
-    private function writeLog(string $type, string $userId, string $do, string $message): void
+    private function writeLog(string $type, string $userId, string $do, string $message, string $status = '失败'): void
     {
+        if (!self::shouldReportTaskStatus($type, $do, $status)) {
+            return;
+        }
         try {
-            TaskLogs::operateExecuteLog($type, $userId, $do, $message);
+            TaskLogs::operateExecuteLog($type, $userId, $do, "[{$status}] " . $message);
         } catch (Throwable $exception) {
             // Logging must not abort the remaining jobs in this round.
         }

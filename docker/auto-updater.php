@@ -41,9 +41,11 @@ final class LoopDeckAutoUpdater
     private int $retryInterval;
     private int $probeTimeout;
     private int $pullTimeout;
+    private ?Closure $commandRunner;
 
-    public function __construct()
+    public function __construct(?callable $commandRunner = null)
     {
+        $this->commandRunner = $commandRunner === null ? null : Closure::fromCallable($commandRunner);
         $this->projectDir = $this->absolutePath($this->env('UPDATE_PROJECT_DIR', '/opt/loopdeck'));
         $this->composeFile = $this->projectDir . DIRECTORY_SEPARATOR . 'compose.yaml';
         $this->envFile = $this->projectDir . DIRECTORY_SEPARATOR . '.env';
@@ -160,7 +162,9 @@ final class LoopDeckAutoUpdater
             $metadata['next_check_at'] = gmdate('c', time() + $this->checkInterval);
             $this->writeState($metadata);
             $this->log('当前已是最新版本 ' . $currentVersion);
-            return true;
+            // Retry a previously interrupted updater replacement even when the
+            // application itself already has the requested version.
+            return $this->syncUpdater($metadata, $this->runningImageId('app'));
         }
 
         if ($this->hasDigestReference($this->appImage)) {
@@ -185,6 +189,17 @@ final class LoopDeckAutoUpdater
             return false;
         }
 
+        // A pull may move APP_IMAGE's mutable tag. The rollback target must
+        // come from the running application before any candidate is pulled.
+        $oldImageId = $this->runningImageId('app');
+        if ($oldImageId === null) {
+            $metadata['status'] = 'failed';
+            $metadata['message'] = '无法确认当前应用镜像，暂缓更新';
+            $metadata['error'] = '未能保留有效的回滚镜像';
+            $metadata['next_check_at'] = gmdate('c', time() + $this->retryInterval);
+            $this->writeState($metadata);
+            return false;
+        }
         $pulled = $this->pullVerifiedImage($latestVersion, $probes);
         if ($pulled === null) {
             $metadata['status'] = 'failed';
@@ -198,7 +213,6 @@ final class LoopDeckAutoUpdater
 
         $metadata['image_repository'] = $pulled['repository'];
         $metadata['image'] = $pulled['reference'];
-        $oldImageId = $this->imageId($this->appImage);
         if (!$this->runDocker(['tag', $pulled['reference'], $this->appImage], 30)['ok']) {
             $metadata['status'] = 'failed';
             $metadata['message'] = '镜像标记失败';
@@ -226,15 +240,66 @@ final class LoopDeckAutoUpdater
         $this->writeState($metadata);
         $this->log('应用已更新到 ' . $latestVersion . '，来源 ' . $pulled['repository']);
 
-        // Recreate the updater last so this process is replaced by the same
-        // verified image. The command may terminate this container afterwards.
-        $selfUpdate = $this->compose([
-            'up', '-d', '--no-build', '--no-deps', '--pull', 'never', 'updater'
-        ], 180);
-        if (!$selfUpdate['ok']) {
-            $this->log('更新器自身重建失败：' . $this->shortError($selfUpdate['stderr']));
+        return $this->syncUpdater($metadata, $this->runningImageId('app'));
+    }
+
+    /** A short-lived external container survives the old updater's shutdown. */
+    private function syncUpdater(array $metadata, ?string $imageId): bool
+    {
+        $result = $this->scheduleUpdaterRestart($imageId);
+        if ($result['ok']) {
+            return true;
         }
-        return true;
+        $metadata['status'] = 'failed';
+        $metadata['message'] = '应用已更新，更新器重建暂时失败，将自动重试';
+        $metadata['error'] = $this->shortError($result['stderr']);
+        $metadata['next_check_at'] = gmdate('c', time() + $this->retryInterval);
+        $this->writeState($metadata);
+        $this->log($metadata['message'] . '：' . $metadata['error']);
+        return false;
+    }
+
+    private function scheduleUpdaterRestart(?string $imageId): array
+    {
+        $container = $this->compose(['ps', '-q', 'updater'], 20);
+        $containerId = trim($container['stdout']);
+        if ($imageId === null || !$container['ok'] || !preg_match('/^[a-f0-9]{12,64}$/', $containerId)) {
+            return ['ok' => false, 'stderr' => '无法确认更新器容器或目标镜像'];
+        }
+        $current = $this->runDocker(['inspect', '--format', '{{.Image}}', $containerId], 20);
+        if ($current['ok'] && trim($current['stdout']) === $imageId) {
+            return ['ok' => true, 'stderr' => ''];
+        }
+        if (!$current['ok'] || $this->imageId($this->appImage) !== $imageId) {
+            return ['ok' => false, 'stderr' => '更新器目标镜像与当前应用不一致'];
+        }
+        // Inherit the real host mounts instead of assuming /opt/loopdeck is
+        // also the host path. No credentials need to travel in command args.
+        return $this->runDocker([
+            'run', '--detach', '--rm', '--pull', 'never',
+            '--label', 'io.loopdeck.updater-helper=true',
+            '--label', 'io.loopdeck.updater-parent=' . $containerId,
+            '--network', 'none', '--read-only', '--tmpfs', '/tmp:size=8m,noexec,nosuid,nodev',
+            '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true',
+            '--memory', '64m', '--cpus', '0.20', '--pids-limit', '64', '--user', '0:0',
+            '--volumes-from', $containerId . ':ro',
+            '--env', 'UPDATE_PROJECT_DIR=' . $this->projectDir,
+            '--env', 'APP_IMAGE=' . $this->appImage,
+            '--entrypoint', 'php', $imageId,
+            '/usr/local/lib/loopdeck/auto-updater.php', '--complete-updater-restart',
+        ], 30);
+    }
+
+    /** Internal helper mode: never run replacement from the container being stopped. */
+    public function completeUpdaterRestart(): int
+    {
+        $result = $this->compose([
+            'up', '--no-build', '--no-deps', '--pull', 'never', '--wait', '--wait-timeout', '90', 'updater',
+        ], 180);
+        if (!$result['ok']) {
+            $this->log('更新器重建失败：' . $this->shortError($result['stderr']));
+        }
+        return $result['ok'] ? 0 : 1;
     }
 
     /** @return array{version:string,url:string,sources:array}|null */
@@ -439,6 +504,18 @@ final class LoopDeckAutoUpdater
         return $result['ok'] && $id !== '' ? $id : null;
     }
 
+    private function runningImageId(string $service): ?string
+    {
+        $container = $this->compose(['ps', '-q', $service], 20);
+        $containerId = trim($container['stdout']);
+        if (!$container['ok'] || !preg_match('/^[a-f0-9]{12,64}$/', $containerId)) {
+            return null;
+        }
+        $result = $this->runDocker(['inspect', '--format', '{{.Image}}', $containerId], 20);
+        $imageId = trim($result['stdout']);
+        return $result['ok'] && preg_match('/^sha256:[a-f0-9]{64}$/', $imageId) ? $imageId : null;
+    }
+
     /** @return array<string,mixed> */
     private function runDocker(array $arguments, int $timeout): array
     {
@@ -463,6 +540,9 @@ final class LoopDeckAutoUpdater
     /** @return array<string,mixed> */
     private function runCommand(array $arguments, int $timeout): array
     {
+        if ($this->commandRunner !== null) {
+            return ($this->commandRunner)($arguments, $timeout);
+        }
         $command = implode(' ', array_map(static fn($argument): string => escapeshellarg((string)$argument), $arguments));
         $pipes = [];
         $process = @proc_open($command, [
@@ -729,11 +809,15 @@ final class LoopDeckAutoUpdater
 }
 
 if (basename(__FILE__) === basename((string)($_SERVER['SCRIPT_FILENAME'] ?? ''))) {
-    $options = getopt('', ['once', 'help']);
+    $options = getopt('', ['once', 'help', 'complete-updater-restart']);
     if (isset($options['help'])) {
         fwrite(STDOUT, "LoopDeck automatic updater\n  --once  check once and exit\n");
         exit(0);
     }
 
-    exit((new LoopDeckAutoUpdater())->run(isset($options['once'])));
+    $updater = new LoopDeckAutoUpdater();
+    if (isset($options['complete-updater-restart'])) {
+        exit($updater->completeUpdaterRestart());
+    }
+    exit($updater->run(isset($options['once'])));
 }

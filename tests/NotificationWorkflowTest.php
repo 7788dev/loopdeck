@@ -2,13 +2,17 @@
 
 declare(strict_types=1);
 
+require __DIR__ . '/NotificationTestClock.php';
 require __DIR__ . '/NotificationTestBootstrap.php';
 
 use app\service\NotificationService;
 use app\service\NotificationSite;
 use app\service\NotificationText;
+use app\service\NotificationTestClock;
 use app\service\UserNotificationSettings;
 
+$now = strtotime('2026-09-05 21:00:00 +08:00');
+NotificationTestClock::$now = $now;
 $store = new MemoryNotifications();
 $store->legacy['1:1'] = 'legacy_device_key';
 $settings = new UserNotificationSettings($store);
@@ -29,7 +33,7 @@ $input = ['enabled' => 1, 'bark_enabled' => 1, 'pushplus_enabled' => 1, 'bark_to
 $settings->save(1, 1, $input, false);
 notificationCheck($settings->get(1, 1)['bark_token'] === 'legacy_device_key', 'Saving blank masked credentials erased the saved key');
 notificationCheck($settings->get(1, 1)['channels']['pushplus'], 'PushPlus preferences were not saved');
-$dueBeforeEdit = time() - 30;
+$dueBeforeEdit = $now - 30;
 $store->preferences['1:1']['next_summary_at'] = $dueBeforeEdit;
 $settings->save(1, 1, $input, false);
 notificationCheck($store->preferences['1:1']['next_summary_at'] === $dueBeforeEdit, 'Editing settings skipped the daily report awaiting delivery');
@@ -47,7 +51,7 @@ notificationCheck(NotificationSite::emailAvailable($smtp), 'Complete enabled SMT
 notificationCheck(!NotificationSite::emailAvailable(array_replace($smtp, ['mail_enabled' => 0])), 'Disabled email remained available');
 notificationCheck(!NotificationSite::emailAvailable(array_replace($smtp, ['mail_pwd' => ''])), 'Incomplete SMTP settings exposed email');
 
-$before = strtotime(date('Y-m-d') . ' 21:59:00');
+$before = strtotime(date('Y-m-d', $now) . ' 21:59:00');
 notificationCheck(UserNotificationSettings::nextSummaryAt('22:00', $before) === $before + 60, 'Daily report was not scheduled at 22:00');
 notificationCheck(UserNotificationSettings::nextSummaryAt('22:00', $before + 120) === $before + 86460, 'A past report time was scheduled immediately');
 
@@ -65,24 +69,27 @@ notificationCheck(count($store->messages) === 2 && count($store->tasks) === 1, '
 notificationCheck($transport->calls === [], 'Platform execution synchronously called a push service');
 $service->recordTask($user, 'bilibili', '456', 'sign', '每日签到', ['success' => false, 'message' => '签到失败']);
 $service->recordTask($user, 'bilibili', '456', 'silver2coin', '银瓜子兑换', ['success' => false, 'message' => '稍后再试', 'retry_after_seconds' => 300]);
-$report = NotificationText::dailySummary(date('Y-m-d'), $store->dailyTasks(1, 1, date('Y-m-d')));
+$reportDate = date('Y-m-d', $now);
+$report = NotificationText::dailySummary($reportDate, $store->dailyTasks(1, 1, $reportDate));
 notificationCheck(str_contains($report, '成功 1，失败 1，重试中 1') && str_contains($report, '每日300首')
     && str_contains($report, '每日签到') && str_contains($report, '银瓜子兑换'), 'Daily overview lost individual task outcomes');
 notificationCheck(!str_contains(NotificationText::clean('ok MUSIC_U=secret token:credential | done'), 'credential'), 'A credential leaked into a notification');
 
-$now = time();
 $store->preferences['1:1']['next_summary_at'] = $now - 1;
 $transport->fail['bark'] = true;
 $tick = $service->tick(20, 20, $now);
 notificationCheck($tick['summaries'] === 1 && $tick['sent'] === 3 && $tick['retrying'] === 3, 'A channel failure blocked other channels or the daily overview');
 $sentPushplus = count(array_filter($transport->calls, static fn($r) => $r['channel'] === 'pushplus'));
 $transport->fail['bark'] = false;
+NotificationTestClock::$now = $now + 301;
 $service->tick(20, 20, $now + 301);
 notificationCheck(count(array_filter($transport->calls, static fn($r) => $r['channel'] === 'pushplus')) === $sentPushplus, 'Retrying Bark duplicated successful PushPlus deliveries');
 notificationCheck(count(array_filter($store->messages, static fn($r) => $r['status'] === 1)) === 6, 'Retryable notifications did not complete');
+NotificationTestClock::$now = $now + 600;
 $service->tick(20, 20, $now + 600);
 notificationCheck(count($store->messages) === 6, 'The same daily summary was queued twice');
 
 $settings->saveBarkToken(1, 1, '');
 notificationCheck($settings->get(1, 1)['channels']['pushplus'] && $settings->get(1, 1)['pushplus_token'] !== '', 'Clearing Bark erased another channel');
+NotificationTestClock::$now = null;
 echo "Notification preferences, summary and delivery workflow tests passed\n";

@@ -2,17 +2,21 @@
 
 declare(strict_types=1);
 
+require __DIR__ . '/NotificationTestClock.php';
 require __DIR__ . '/NotificationTestBootstrap.php';
 
 use app\service\NotificationService;
 use app\service\NotificationRepository;
 use app\service\NotificationSite;
 use app\service\NotificationTransport;
+use app\service\NotificationTestClock;
 use app\service\UserNotificationSettings;
 
 $store = new MemoryNotifications();
 $settings = new UserNotificationSettings($store);
-$now = time();
+$now = strtotime('2026-09-05 22:00:00 +08:00');
+// The batch and enqueue timestamps must use the same clock, even under QEMU.
+NotificationTestClock::$now = $now;
 foreach ([1, 2] as $uid) {
     $settings->save($uid, 1, ['enabled' => 1, 'bark_enabled' => 1, 'bark_token' => 'fixture_device_key',
         'task_failure' => 1, 'daily_summary' => 1, 'summary_time' => '22:00'], false);
@@ -29,6 +33,7 @@ notificationCheck($result['summaries'] === 1 && $result['sent'] === 2 && $result
 notificationCheck($store->preferences['1:1']['next_summary_at'] === $now - 1,
     'A summary that could not be built was advanced instead of remaining retryable');
 $store->failSummaryUsers = [];
+NotificationTestClock::$now = $now + 1;
 $service->tick(20, 20, $now + 1);
 notificationCheck(count($transport->calls) === 3, 'Recovering a summary lost or duplicated another delivery');
 
@@ -65,5 +70,6 @@ try {
     notificationCheck($error->getMessage() === 'Fixture database unavailable', 'Unexpected batch failure');
 }
 notificationCheck($batchTransport->closed === 2, 'An exceptional batch exit retained transport resources');
+NotificationTestClock::$now = null;
 
 echo "Notification failure isolation tests passed\n";

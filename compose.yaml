@@ -16,7 +16,12 @@ services:
     environment:
       APP_DEBUG: "${APP_DEBUG:-false}"
       TZ: "${TZ:-Asia/Shanghai}"
-      CRON_KEY: "${CRON_KEY:?Set CRON_KEY in .env}"
+      CRON_KEY: "${CRON_KEY:?Run sh docker/deploy.sh to generate configuration}"
+      MYSQL_HOST: "${MYSQL_HOST:-db}"
+      MYSQL_PORT: "${MYSQL_PORT:-3306}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:?Run sh docker/deploy.sh to prepare database settings}"
+      MYSQL_USER: "${MYSQL_USER:?Run sh docker/deploy.sh to prepare database settings}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:?Run sh docker/deploy.sh to prepare database settings}"
       PHP_FPM_PM_CONTROL: "${PHP_FPM_PM_CONTROL:-ondemand}"
       PHP_FPM_PM_MAX_CHILDREN: "${PHP_FPM_PM_MAX_CHILDREN:-4}"
       PHP_FPM_PM_PROCESS_IDLE_TIMEOUT: "${PHP_FPM_PM_PROCESS_IDLE_TIMEOUT:-10s}"
@@ -35,6 +40,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+        required: false
     healthcheck:
       test:
         - CMD
@@ -64,7 +70,7 @@ services:
     entrypoint:
       - /usr/local/bin/loopdeck-scheduler
     environment:
-      CRON_KEY: "${CRON_KEY:?Set CRON_KEY in .env}"
+      CRON_KEY: "${CRON_KEY:?Run sh docker/deploy.sh to generate configuration}"
       SCHEDULER_INTERVAL_SECONDS: "${SCHEDULER_INTERVAL_SECONDS:-60}"
       SCHEDULER_WORKERS: "${SCHEDULER_WORKERS:-2}"
       SCHEDULER_URL: "http://app:8080/cron/task"
@@ -131,12 +137,13 @@ services:
 
   db:
     image: mysql:8.4
+    profiles: [local-db]
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: "${MYSQL_DATABASE:-loopdeck}"
-      MYSQL_USER: "${MYSQL_USER:-loopdeck}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}"
-      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:?Run sh docker/deploy.sh to prepare database settings}"
+      MYSQL_USER: "${MYSQL_USER:?Run sh docker/deploy.sh to prepare database settings}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:?Run sh docker/deploy.sh to prepare database settings}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-}"
       TZ: "${TZ:-Asia/Shanghai}"
     command:
       - --character-set-server=utf8mb4

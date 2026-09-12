@@ -1,5 +1,5 @@
 <!Doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width,initial-scale=1.0" name="viewport">
@@ -32,10 +32,11 @@
                                 <span class="fs-4 text-body-color">Loop</span><span class="fs-4">Deck</span>
                             </a>
                             <h1 class="h3 fw-bold mt-5 mb-2">欢迎来到 LoopDeck 安装界面</h1>
-                            <h2 class="fs-base fw-medium text-muted mb-0">本地安装过程不会连接任何授权服务器</h2>
+                            <h2 class="fs-base fw-medium text-muted mb-0">{if condition="$database_auto_configured"}数据库连接已自动配置，请创建管理员账号{else /}请填写数据库信息并创建管理员账号{/if}</h2>
                         </div>
                         <form class="js-validation-installation" onsubmit="return false;" id="install-form">
                             <div class="block block-rounded block-fx-shadow">
+                                {if condition="!$database_auto_configured"}
                                 <div class="block-content">
                                     <h2 class="content-heading pt-3">数据库配置</h2>
                                     <div class="row items-push">
@@ -68,6 +69,7 @@
                                         </div>
                                     </div>
                                 </div>
+                                {/if}
                                 <div class="block-content">
                                     <h2 class="content-heading pt-3">管理员账号配置</h2>
                                     <div class="row items-push">

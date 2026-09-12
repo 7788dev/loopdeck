@@ -1,7 +1,6 @@
 .git
 .github/
 .env
-.env.example
 vendor/
 .gitignore
 .dockerignore
@@ -16,11 +15,8 @@ extend/alipay/log/
 Thumbs.db
 .DS_Store
 Dockerfile
-compose.yaml
 DOCKER.md
 docker/apache-vhost.conf
-docker/deploy.sh
-docker/tune-env.sh
 
 # Font Awesome development sources are not used at runtime. Keep only the
 # minified stylesheet and modern webfont formats to reduce the image context.

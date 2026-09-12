@@ -21,10 +21,10 @@ Do not edit generated or local-state directories such as `vendor/` and `runtime/
 - `php think run` starts the ThinkPHP development server (after configuring the database).
 - `php tests/AutomaticScheduleTest.php` runs one offline regression test.
 - `for test_file in tests/*Test.php; do php "$test_file"; done` runs the same offline suite used by the Docker build.
-- `docker compose build` validates dependencies, runs tests, and builds the image. GitHub Actions only builds/publishes the image — the offline tests run here, not in a separate CI job.
-- `docker compose up --wait` starts the app, scheduler, updater, and MySQL services; the default app port is `8001`.
+- `docker build -t loopdeck:local .` validates dependencies, runs tests, and builds the image. GitHub Actions only builds/publishes the image — the offline tests run here, not in a separate CI job.
+- `sh docker/deploy.sh` prepares configuration and starts the app, scheduler, updater, and MySQL services; the default app port is `8001`. After initial setup, `docker compose up --wait` reuses the saved configuration.
 
-Copy `.env.example` to `.env` for containers; use `config/Db.example.php` for local database configuration.
+For containers, run `sh docker/deploy.sh` to generate and persist database credentials automatically; copy `.env.example` to `.env` first only when customizing options such as an external MySQL host. Docker Compose 2.20.0+ is required. Use `config/Db.example.php` for local database configuration.
 
 ## Coding Style & Naming Conventions
 
@@ -33,6 +33,8 @@ Follow the existing PSR-12-style PHP: four-space indentation, braces on new line
 ## Testing Guidelines
 
 Tests are executable PHP scripts, not PHPUnit cases. Name regressions `FeatureNameTest.php`, load `vendor/autoload.php`, throw on failed assertions, and print a success line. Cover every bug fix and important branch; no percentage threshold is enforced. `LiveSmoke.php` scripts contact upstream services and run only when invoked explicitly.
+
+`DockerDeploymentTest.php` executes deployment scripts against a stub Docker CLI in a temporary directory. On Windows, set `LOOPDECK_TEST_SHELL` to Git for Windows `bin/sh.exe`; Linux uses `sh` from `PATH`.
 
 ## Commit & Pull Request Guidelines
 

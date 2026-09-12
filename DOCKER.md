@@ -8,41 +8,60 @@ PHP 依赖由根目录的 `composer.json` 声明、由 `composer.lock` 精确锁
 
 ## 首次启动
 
-1. 推荐直接运行自动部署脚本。它会生成随机数据库密钥、根据宿主机 CPU/内存调整资源参数，并拉取应用镜像：
+需要 Docker Engine 和 **Docker Compose 2.20.0 或更新版本**。完整安装步骤、外部 MySQL 配置和 Agent 验收要求见 [部署指南](docs/DEPLOYMENT.md)。
+
+1. 在项目目录直接运行自动部署脚本，无需先复制或填写 `.env`：
 
    ```bash
-   chmod +x docker/deploy.sh docker/tune-env.sh
-   ./docker/deploy.sh
+   sh docker/deploy.sh
    ```
 
-   已有 `.env` 时，脚本会保留自定义密钥，只更新性能参数。也可以单独运行 `./docker/tune-env.sh .env`。
+   脚本会自动创建 `.env`，生成随机数据库名、数据库用户、数据库密码、root 密码和调度密钥，再按 CPU/内存调整资源参数、拉取镜像并启动容器。生成的配置以 `600` 权限保存，日志不输出密码。已有有效配置会继续复用；发现已有数据库卷但凭据缺失时会停止并提示恢复原 `.env`。
 
-2. 若手工部署，复制配置并至少修改以下三项，且不要提交 `.env`：
+2. MySQL 官方镜像首次启动时，会根据生成的环境变量自动创建数据库和专用用户。**不需要先进入 MySQL 手工建库，也不需要预先启动一个数据库容器。** 后续启动复用数据卷；修改 `.env` 不会修改已存在的数据库密码。
+
+   如果需要先检查配置，再手工启动，可运行：
 
    ```bash
-   cp .env.example .env
+   sh docker/deploy.sh --prepare-only
    ```
 
-   - `MYSQL_PASSWORD`
-   - `MYSQL_ROOT_PASSWORD`
-   - `CRON_KEY`（建议使用 48 字节以上随机值）
-
-3. 手工拉取 GitHub 镜像并启动：
+   然后拉取镜像并启动；直接运行第一步的部署脚本时无需重复执行：
 
    ```bash
    docker compose pull
    docker compose up --no-build --wait --wait-timeout 180
    ```
 
-4. 打开 `http://服务器地址:8001` 完成安装。数据库参数填写：
+3. 打开 `http://服务器地址:8001`，首次访问会自动进入安装页面。只需填写联系 QQ、管理员用户名、密码和确认密码，然后点击“安装”。管理员用户名为 5–25 位字母、数字、下划线或短横线，密码为 6–64 位；项目没有默认管理员密码。
 
-   | 配置项 | 值 |
-   | --- | --- |
-   | 数据库地址 | `db` |
-   | 数据库端口 | `3306` |
-   | 数据库名称 | `.env` 中的 `MYSQL_DATABASE` |
-   | 数据库用户名 | `.env` 中的 `MYSQL_USER` |
-   | 数据库密码 | `.env` 中的 `MYSQL_PASSWORD` |
+   Compose 会把 MySQL 的连接信息同时传给应用容器，安装程序自动连接内网的 `db:3306`，使用 `.env` 中的 `MYSQL_DATABASE`、`MYSQL_USER` 和 `MYSQL_PASSWORD`，无需在网页重复填写。数据库密码只在服务端读取，不会放入安装页面或隐藏表单。
+
+   安装成功后才生成 `config/Db.php`，并随应用数据卷持久化。重启或更新容器会保留已经设置的管理员账号。普通 PHP 部署未设置 `MYSQL_HOST` 时，安装页面仍提供手动数据库配置。
+
+## 使用外部 MySQL
+
+连接阿里云 RDS 或其他已有 MySQL 时，先复制 `.env.example` 为 `.env`，只填写自己的连接信息：
+
+```dotenv
+MYSQL_HOST=your-mysql.example.com
+MYSQL_PORT=3306
+MYSQL_DATABASE=your_database
+MYSQL_USER=your_database_user
+MYSQL_PASSWORD='填写实际数据库密码'
+```
+
+再运行 `sh docker/deploy.sh`。脚本会自动关闭 `local-db` profile，只启动应用、调度器和更新器，无需填写 `MYSQL_ROOT_PASSWORD`；调度密钥仍自动生成。连接信息以 `.env` 为准，部署脚本会清除同名的继承环境变量，避免意外连接其他数据库。含 `$`、`#` 等字符的密码请用单引号包裹。
+
+外部数据库需要提前创建一个供 LoopDeck 使用的空库，并给该用户建表、修改表、索引和读写权限，允许应用服务器连接。外部配置缺失时部署会明确报错，不会悄悄改用内置 MySQL。安装页面同样只要求管理员信息。
+
+`MYSQL_HOST=db` 表示使用内置数据库，其端口固定为 `3306`。数据库选择用于首次安装；已安装站点仍使用持久化的 `config/Db.php`，切换数据库需要单独迁移已有数据和连接配置。
+
+## 从已有部署升级
+
+已经完成安装的站点可以继续由更新器自动升级镜像，沿用原数据库配置。若旧版部署尚未安装、希望使用新的自动数据库配置功能，请在原项目目录同步新版 `compose.yaml` 并运行 `sh docker/deploy.sh`；仅更新镜像不会更新宿主机的 Compose 配置。保留原 `.env`、Compose 项目名和数据卷，已有数据库名、账号和密码不会重新随机生成。
+
+v1.2.4 不修改数据库结构，也不在容器启动时重建数据库或管理员。旧部署仅由更新器替换镜像时，仍按原 Compose 配置挂载原数据卷，并读取已有 `config/Db.php`；新增环境变量只供首次安装使用。自动更新器不会执行部署脚本或重新生成 `.env`。要使用新的首次部署功能，再按上面的步骤同步宿主机文件。
 
 安装程序会优先使用容器环境中的 `CRON_KEY`。`scheduler` 容器每 60 秒通过 Docker 内网请求 `/cron/task`，密钥放在请求头中，不会出现在访问日志或公网 URL 中。
 
@@ -131,7 +150,11 @@ docker compose logs --tail=100 updater
 
 ## 容器内测试
 
+本次安装、外部数据库及旧版镜像升级的实测范围见 [v1.2.4 部署验证记录](docs/DEPLOYMENT-VALIDATION.md)。
+
 ```bash
+docker compose exec app php tests/InstallDatabaseConfigTest.php
+docker compose exec app php tests/DockerDeploymentTest.php
 docker compose exec app php tests/NeteaseSdkTest.php
 docker compose exec app php tests/NeteaseWorkflowTest.php
 docker compose exec app php tests/NeteaseScheduleTest.php

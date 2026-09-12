@@ -2,6 +2,7 @@
 
 namespace app\install\controller;
 
+use app\install\service\DatabaseConfig;
 use app\install\validate\Install;
 use mysqli;
 use mysqli_sql_exception;
@@ -28,7 +29,9 @@ class Index
 
     public function index()
     {
-        return View::fetch($this->checkfun() ? 'install' : 'status');
+        return View::fetch($this->checkfun() ? 'install' : 'status', [
+            'database_auto_configured' => DatabaseConfig::environmentInput() !== null,
+        ]);
     }
 
     public function install()
@@ -37,7 +40,7 @@ class Index
             return resultJson(-1, '非法请求');
         }
 
-        $input = Request::post();
+        $input = DatabaseConfig::resolveInput(Request::post());
         try {
             validate(Install::class)->scene('install')->check($input);
         } catch (ValidateException $exception) {

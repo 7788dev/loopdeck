@@ -30,3 +30,7 @@ link_directory() {
 link_directory "$app_root/config" "$data_root/config"
 link_directory "$app_root/runtime" "$data_root/runtime"
 link_directory "$app_root/public/static/uploads" "$data_root/uploads"
+
+# Report the active connection without its password after mounting saved config.
+# A diagnostic failure must not prevent the web services from starting.
+APP_BASE_DIR="$app_root" loopdeck-db-info || true

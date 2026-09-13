@@ -160,3 +160,5 @@ fi
 
 docker compose --env-file "$env_file" pull
 docker compose --env-file "$env_file" up --no-build --wait --wait-timeout 180
+echo "数据库连接信息（不含密码）已写入 app 容器启动日志"
+printf '查看完整配置：docker compose --env-file "%s" exec app loopdeck-db-info --show-password\n' "$env_file"

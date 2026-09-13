@@ -16,7 +16,7 @@ PHP 依赖由根目录的 `composer.json` 声明、由 `composer.lock` 精确锁
    sh docker/deploy.sh
    ```
 
-   脚本会自动创建 `.env`，生成随机数据库名、数据库用户、数据库密码、root 密码和调度密钥，再按 CPU/内存调整资源参数、拉取镜像并启动容器。生成的配置以 `600` 权限保存，日志不输出密码。已有有效配置会继续复用；发现已有数据库卷但凭据缺失时会停止并提示恢复原 `.env`。
+   脚本会自动创建 `.env`，生成随机数据库名、数据库用户、数据库密码、root 密码和调度密钥，再按 CPU/内存调整资源参数、拉取镜像并启动容器。生成的配置以 `600` 权限保存；`app` 每次启动会在日志中显示数据库地址、端口、数据库名和用户名，密码保持隐藏，并提示查看完整配置的命令。已有有效配置会继续复用；发现已有数据库卷但凭据缺失时会停止并提示恢复原 `.env`。
 
 2. MySQL 官方镜像首次启动时，会根据生成的环境变量自动创建数据库和专用用户。**不需要先进入 MySQL 手工建库，也不需要预先启动一个数据库容器。** 后续启动复用数据卷；修改 `.env` 不会修改已存在的数据库密码。
 
@@ -39,6 +39,26 @@ PHP 依赖由根目录的 `composer.json` 声明、由 `composer.lock` 精确锁
 
    安装成功后才生成 `config/Db.php`，并随应用数据卷持久化。重启或更新容器会保留已经设置的管理员账号。普通 PHP 部署未设置 `MYSQL_HOST` 时，安装页面仍提供手动数据库配置。
 
+## 查看数据库连接信息
+
+查看不含密码的启动日志：
+
+```bash
+docker compose logs app
+```
+
+需要密码时，在服务器项目目录主动执行：
+
+```bash
+docker compose exec app loopdeck-db-info --show-password
+```
+
+不带 `--show-password` 时，该命令也会隐藏密码。首次安装前读取容器的 `MYSQL_*` 环境变量；安装后优先读取持久化的 `config/Db.php`，因此旧版部署或 `.env` 与已安装配置不一致时，显示的仍是应用实际使用的连接配置。输出值使用 JSON 引号表示，特殊字符会转义。
+
+如果部署时指定了其他配置文件，执行 Compose 命令时也使用相同的 `--env-file` 参数；请在该部署的项目目录运行。
+
+完整配置只在这次主动执行的终端中显示，不写入常规容器日志；输出包含应用数据库密码，分享排错信息时请隐藏密码。内置数据库地址 `db:3306` 仅供 Docker 内网连接，默认未向宿主机开放 MySQL 端口。root 密码和调度密钥仍保存在项目目录的 `.env` 中，不通过此命令输出。
+
 ## 使用外部 MySQL
 
 连接阿里云 RDS 或其他已有 MySQL 时，先复制 `.env.example` 为 `.env`，只填写自己的连接信息：
@@ -58,6 +78,8 @@ MYSQL_PASSWORD='填写实际数据库密码'
 `MYSQL_HOST=db` 表示使用内置数据库，其端口固定为 `3306`。数据库选择用于首次安装；已安装站点仍使用持久化的 `config/Db.php`，切换数据库需要单独迁移已有数据和连接配置。
 
 ## 从已有部署升级
+
+v1.2.5 新增日志提示和 `loopdeck-db-info` 命令，不修改 Compose 服务、环境变量、挂载或数据库结构。已安装站点可直接由自动更新器升级镜像，无需重新运行部署脚本；原数据库名、密码和持久化数据保持不变。自动更新会在新版本镜像发布并通过健康检查后完成。
 
 已经完成安装的站点可以继续由更新器自动升级镜像，沿用原数据库配置。若旧版部署尚未安装、希望使用新的自动数据库配置功能，请在原项目目录同步新版 `compose.yaml` 并运行 `sh docker/deploy.sh`；仅更新镜像不会更新宿主机的 Compose 配置。保留原 `.env`、Compose 项目名和数据卷，已有数据库名、账号和密码不会重新随机生成。
 
@@ -150,9 +172,10 @@ docker compose logs --tail=100 updater
 
 ## 容器内测试
 
-本次安装、外部数据库及旧版镜像升级的实测范围见 [v1.2.4 部署验证记录](docs/DEPLOYMENT-VALIDATION.md)。
+数据库日志、按需查看密码和旧 Compose 升级的实测范围见 [v1.2.5 数据库连接信息验证记录](docs/DATABASE-CONNECTION-VALIDATION.md)；安装和外部数据库测试见 [v1.2.4 部署验证记录](docs/DEPLOYMENT-VALIDATION.md)。
 
 ```bash
+docker compose exec app php tests/DatabaseInfoTest.php
 docker compose exec app php tests/InstallDatabaseConfigTest.php
 docker compose exec app php tests/DockerDeploymentTest.php
 docker compose exec app php tests/NeteaseSdkTest.php

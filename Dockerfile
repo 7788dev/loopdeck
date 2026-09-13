@@ -59,7 +59,7 @@ COPY public ./public
 COPY tests ./tests
 RUN mkdir -p docker
 COPY docker/auto-updater.php docker/auto-updater.sh ./docker/
-COPY docker/deploy.sh docker/tune-env.sh ./docker/
+COPY docker/deploy.sh docker/tune-env.sh docker/database-info.php ./docker/
 COPY .env.example compose.yaml ./
 COPY VERSION think ./
 
@@ -73,12 +73,12 @@ WORKDIR /var/www/html
 
 COPY --chown=82:82 . /var/www/html
 COPY --from=dependencies --chown=82:82 /app/vendor /var/www/html/vendor
-# The updater is an operational script, not a web asset. Remove the copy
-# brought in by the broad application COPY before installing its private
-# runtime location below.
-RUN rm -f /var/www/html/docker/auto-updater.php /var/www/html/docker/auto-updater.sh \
+# Operational commands are not web assets. Remove the copies brought in by
+# the broad application COPY before installing their private runtime paths.
+RUN rm -f /var/www/html/docker/auto-updater.php /var/www/html/docker/auto-updater.sh /var/www/html/docker/database-info.php \
     && mkdir -p /usr/local/lib/loopdeck
 COPY --chown=root:root --chmod=0755 docker/entrypoint.sh /etc/entrypoint.d/50-loopdeck.sh
+COPY --chown=root:root --chmod=0755 docker/database-info.php /usr/local/bin/loopdeck-db-info
 COPY --chown=root:root --chmod=0755 docker/scheduler.sh /usr/local/bin/loopdeck-scheduler
 COPY --chown=root:root --chmod=0755 docker/auto-updater.sh /usr/local/bin/loopdeck-auto-updater
 COPY --chown=root:root --chmod=0644 docker/auto-updater.php /usr/local/lib/loopdeck/auto-updater.php

@@ -25,6 +25,14 @@ sh docker/deploy.sh
 
 `.env` 保存的是 MySQL 首次初始化要使用的参数，所以这些参数在容器创建之前生成是正常的。它们不会要求用户预先创建一个 MySQL 容器。
 
+`app` 容器每次启动会在日志中提示数据库地址、端口、数据库名和用户名，不输出密码。需要查看完整连接配置时，在项目目录运行：
+
+```bash
+docker compose exec app loopdeck-db-info --show-password
+```
+
+该命令只在当前终端显示密码，不写入常规容器日志；不要把完整输出贴进排错报告。首次安装前读取容器环境变量，安装后读取应用实际使用的 `config/Db.php`。常规查看可运行 `docker compose logs app`，或去掉命令中的 `--show-password`。
+
 打开 `http://服务器IP:8001`，首页会跳转到 `/install`。页面只填写以下管理员信息：
 
 | 字段 | 要求 |

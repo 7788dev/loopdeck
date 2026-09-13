@@ -108,11 +108,27 @@ try {
     deploymentCheck($values['MYSQL_HOST'] === 'db' && $values['MYSQL_PORT'] === '3306', 'Default internal database endpoint is wrong');
     deploymentCheck($values['COMPOSE_PROFILES'] === 'local-db', 'Fresh deployment did not enable the bundled database');
     deploymentCheck(str_contains($first['calls'], 'config --quiet') && str_contains($first['calls'], 'up --no-build --wait'), 'Deployment did not validate and start Compose');
+    deploymentCheck(str_contains($first['output'], 'loopdeck-db-info --show-password'), 'Deployment did not explain how to retrieve the password explicitly');
     if (PHP_OS_FAMILY !== 'Windows') {
         deploymentCheck((fileperms($project . '/.env') & 0777) === 0600, 'Generated credentials are not private');
     }
     $second = deploymentRun($project, ['LOOPDECK_TEST_EXISTING_VOLUME' => 'fixture_db_data']);
     deploymentCheck($second['code'] === 0 && deploymentValues($project) === $values, 'Repeat deployment changed saved configuration');
+    foreach (['MYSQL_PASSWORD', 'MYSQL_ROOT_PASSWORD', 'CRON_KEY'] as $key) {
+        deploymentCheck(!str_contains($second['output'], $values[$key]), 'Repeat deployment leaked a saved secret');
+    }
+
+    foreach (['MYSQL_DATABASE', 'MYSQL_PASSWORD'] as $customKey) {
+        $customValue = $customKey === 'MYSQL_DATABASE' ? 'fixture_custom_database' : "'fixture-\$password#with=characters'";
+        $custom = $createProject('custom-' . $customKey, $customKey . '=' . $customValue . "\n");
+        $result = deploymentRun($custom);
+        deploymentCheck($result['code'] === 0, 'Partly customized deployment failed');
+        $customValues = deploymentValues($custom);
+        deploymentCheck($customValues[$customKey] === $customValue, 'Deployment replaced a custom database value');
+        deploymentCheck(preg_match('/^loopdeck_[a-f0-9]{12}$/', $customValues['MYSQL_DATABASE']) === 1 || $customKey === 'MYSQL_DATABASE', 'Missing database name was not generated independently');
+        deploymentCheck(preg_match('/^[a-f0-9]{48}$/', $customValues['MYSQL_PASSWORD']) === 1 || $customKey === 'MYSQL_PASSWORD', 'Missing database password was not generated independently');
+        deploymentCheck(!str_contains($result['output'], trim($customValues['MYSQL_PASSWORD'], "'")), 'Partly customized deployment leaked the password');
+    }
 
     $other = $createProject('other');
     deploymentCheck(deploymentRun($other, [], true)['code'] === 0, 'Prepare-only deployment failed');
@@ -147,6 +163,7 @@ ENV;
     deploymentCheck($externalValues['MYSQL_PASSWORD'] === "'fixture-\$password#with=characters'", 'Quoted custom password was changed');
     deploymentCheck(!isset($externalValues['MYSQL_ROOT_PASSWORD']), 'External mode generated an unused root password');
     deploymentCheck(!str_contains($result['calls'], 'volume ls'), 'External mode inspected bundled database volumes');
+    deploymentCheck(!str_contains($result['output'], 'fixture-$password#with=characters'), 'External database password leaked in deployment output');
 
     foreach (['MYSQL_DATABASE', 'MYSQL_USER', 'MYSQL_PASSWORD'] as $missing) {
         $incompleteEnv = preg_replace('/^' . $missing . '=.*$/m', $missing . '=', $externalEnv);

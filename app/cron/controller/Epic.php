@@ -18,7 +18,7 @@ class Epic extends Common
         if ($key === '' || $expected === '' || !hash_equals($expected, $key)) {
             return resultJson(-1000, 'CronKey Access Denied!');
         }
-        $jobs = Jobs::where('type', 'epic')->where('do', 'weeklyGameNotify')->where('state', 1)
+        $jobs = Jobs::where('type', 'epic')->where('zid', 1)->where('do', 'weeklyGameNotify')->where('state', 1)
             ->where('nextExecute', '>', 0)->where('nextExecute', '<=', time())
             ->order('nextExecute')->limit(50)->select();
         $runner = new EpicJobRunner();

@@ -4,7 +4,6 @@ namespace app\middleware;
 
 use app\index\model\Users;
 use think\facade\Session;
-use think\facade\View;
 
 class CheckLoginUser
 {
@@ -48,11 +47,6 @@ class CheckLoginUser
                 $current['vip_end'] = null;
             }
             Session::set('user', $current);
-        }
-        if ($request->action() == 'agent' && empty(Session::get('user.agent'))) {
-            // 无代理权限
-            View::assign(['msg' => '权限不足', 'url' => '/index/console']);
-            exit(View::fetch('common/alert'));
         }
         // 继续执行进入到控制器
         return $next($request);

@@ -28,31 +28,15 @@
                     <i class="si si-users fa-2x opacity-25"></i>
                 </div>
                 <div class="row pt-2 pb-4 text-center fw-semibold">
-                    <div class="col-6 border-end">
+                    <div class="col-12">
                         <div class="fs-3">{$user_count}</div>
                         <div class="fs-sm text-primary-light">用户数量</div>
-                    </div>
-                    <div class="col-6">
-                        <div class="fs-3">{$agent_count}</div>
-                        <div class="fs-sm text-primary-light">代理数量</div>
                     </div>
                 </div>
             </div>
         </a>
     </div>
 </div>
-{if condition="WEB_ID neq 1"}
-<div class="block block-rounded">
-    <div class="block-content block-content-full">
-        <div class="py-3 text-center">
-            <h3 class="fs-base fw-medium mb-0">
-                网站到期时间：<span class="text-danger">{:config('web.end_time')}</span>
-                续费联系站长QQ：<a href="http://wpa.qq.com/msgrd?v=3&uin={$user_qq}&site=qq&menu=yes">{$user_qq}</a>
-            </h3>
-        </div>
-    </div>
-</div>
-{/if}
 <div class="row">
     <div class="col-md-4">
         <div class="block block-rounded">

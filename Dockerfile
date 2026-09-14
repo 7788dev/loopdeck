@@ -23,7 +23,7 @@ USER 0
 
 # The base image removes transient build packages after extension installation.
 # hadolint ignore=DL3018
-RUN apk add --no-cache nodejs tzdata docker-cli docker-cli-compose \
+RUN apk add --no-cache tzdata docker-cli docker-cli-compose \
     && install-php-extensions \
         bcmath \
         gd \

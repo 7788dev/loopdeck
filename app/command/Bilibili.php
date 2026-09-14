@@ -36,6 +36,7 @@ class Bilibili extends Command
         $vipExpiredAccounts = [];
         $executed = 0;
         $jobs = Jobs::where('type', 'bilibili')
+            ->where('zid', 1)
             ->where('state', 1)
             ->where('nextExecute', '>', 0)
             ->where('nextExecute', '<=', time())
@@ -60,7 +61,7 @@ class Bilibili extends Command
                     Jobs::where('type', 'bilibili')->where('user_id', $userId)->where('uid', $job['uid'])->delete();
                     continue;
                 }
-                if ((int)$user['state'] !== 1) {
+                if ((int)$user['state'] !== 1 || (int)$user['web_id'] !== 1) {
                     Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
                     continue;
                 }

@@ -16,9 +16,10 @@ class NotificationSite
         if (isset($this->sites[$webId])) {
             return $this->sites[$webId];
         }
-        $row = Weblist::where('web_id', $webId)->field('web_id,prefix,webname,domain')->find();
-        $table = $row ? Weblist::configTableName((string)$row['prefix']) : null;
-        $config = $table !== null ? Db::table($table)->column('v', 'k') : [];
+        $row = $webId === 1
+            ? Weblist::where('web_id', 1)->field('web_id,webname,domain')->find()
+            : null;
+        $config = $row ? Db::name('configs')->column('v', 'k') : [];
         $domain = trim((string)($row['domain'] ?? ''));
         if ($domain !== '' && !preg_match('#\Ahttps?://#i', $domain)) {
             $domain = 'https://' . $domain;

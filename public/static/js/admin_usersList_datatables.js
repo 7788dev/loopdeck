@@ -54,15 +54,6 @@
             {"title": "用户名", "data": "username", "className": "fs-sm", "sortable": false, "render": x.renderText},
             {"title": "余额", "data": "money", "className": "fs-sm", "sortable": false},
             {
-                "title": "代理信息",
-                "data": "agent",
-                "className": "fs-sm",
-                "render": function (data, type, row, meta) {
-                    return formartAgent(data);
-                }
-            },
-            {"title": "归属站点", "data": "web_id", "className": "fs-sm",},
-            {
                 "title": "登录时间",
                 "data": "login_time",
                 "className": "fs-sm",
@@ -101,18 +92,6 @@
 function table_search() {
     let table = $("#usersList").dataTable();
     table.fnDraw();
-}
-
-function formartAgent(data) {
-    if (data == 1) {
-        return "银牌代理";
-    } else if (data == 2) {
-        return "金牌代理";
-    } else if (data == 3) {
-        return "钻石代理";
-    } else {
-        return "普通用户";
-    }
 }
 
 function formartTime(timestamp) {
@@ -157,7 +136,7 @@ function ajax_edit_user(id)
         closeBtn: 0,
         shadeClose: true,
         zIndex: 10000,
-        content: '<form id="info-form"><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="uid" name="uid"  placeholder="." disabled><label class="form-label" for="uid">UID</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="username" name="username" placeholder="." disabled><label class="form-label" for="username">用户名称</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><input type="password" class="form-control" id="password" name="password" placeholder="." autocomplete="new-password"><label class="form-label" for="password">用户密码(不修改则留空)</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="qq" name="qq" placeholder="." /><label class="form-label" for="qq">绑定QQ</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="mail" name="mail" placeholder="." /><label class="form-label" for="mail">绑定邮箱</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="money" name="money" placeholder="." /><label class="form-label" for="money">账号余额</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="quota" name="quota" placeholder="." /><label class="form-label" for="quota">账号配额</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_start" name="vip_start" placeholder="." readonly="readonly"><label class="form-label" for="vip_start">会员开始</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_end" name="vip_end" placeholder="." readonly="readonly"><label class="form-label" for="vip_end">会员结束</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><select class="form-select" id="agent" name="agent" aria-label="代理"  default="0"><option value="0"> 不开通</option><option value="1"> 银牌代理</option><option value="2"> 金牌代理</option><option value="3"> 钻石代理</option></select><label class="form-label" for="agent">账号代理</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><select class="form-select" id="state" name="state" aria-label="状态"><option value="0">封禁</option><option value="1">激活</option></select><label class="form-label" for="state">账号状态</label></div></div></div></form>',
+        content: '<form id="info-form"><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="uid" name="uid"  placeholder="." disabled><label class="form-label" for="uid">UID</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="username" name="username" placeholder="." disabled><label class="form-label" for="username">用户名称</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><input type="password" class="form-control" id="password" name="password" placeholder="." autocomplete="new-password"><label class="form-label" for="password">用户密码(不修改则留空)</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="qq" name="qq" placeholder="." /><label class="form-label" for="qq">绑定QQ</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="mail" name="mail" placeholder="." /><label class="form-label" for="mail">绑定邮箱</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="money" name="money" placeholder="." /><label class="form-label" for="money">账号余额</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="quota" name="quota" placeholder="." /><label class="form-label" for="quota">账号配额</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_start" name="vip_start" placeholder="." readonly="readonly"><label class="form-label" for="vip_start">会员开始</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_end" name="vip_end" placeholder="." readonly="readonly"><label class="form-label" for="vip_end">会员结束</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><select class="form-select" id="state" name="state" aria-label="状态"><option value="0">封禁</option><option value="1">激活</option></select><label class="form-label" for="state">账号状态</label></div></div></div></form>',
         success: function (res, index) {
             x.ajax('/admin/ajax/data/info/user', {id: id}, function (data) {
                 var data = JSON.parse(data);
@@ -170,7 +149,6 @@ function ajax_edit_user(id)
                 $("#quota").val(data.quota);
                 $("#vip_start").val(data.vip_start);
                 $("#vip_end").val(data.vip_end);
-                $("#agent").val(data.agent);
                 $("#state").val(data.state);
                 Codebase.helpersOnLoad(['js-flatpickr']);
             })

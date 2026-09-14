@@ -71,7 +71,7 @@ finalResultCheck(Db::query('SELECT DATABASE() AS db')[0]['db'] === $database, 'W
 finalResultCheck(Db::query('SHOW TABLES') === [], 'The disposable database must be empty');
 Db::connect()->getPdo()->exec(file_get_contents(dirname(__DIR__) . '/app/install/install.sql'));
 Db::name('weblist')->insert(['web_id' => 1, 'webname' => 'LoopDeck QA', 'title' => '隔离测试',
-    'domain' => 'example.invalid', 'prefix' => 'cloud_', 'web_key' => 'qa-inert-key']);
+    'domain' => 'example.invalid', 'web_key' => 'qa-inert-key']);
 Db::name('users')->insert(['uid' => 1, 'web_id' => 1, 'username' => 'qa_final_result',
     'password' => password_hash('qa-only-inert-password', PASSWORD_DEFAULT), 'state' => 1,
     'power' => 100, 'vip_start' => date('Y-m-d'), 'vip_end' => '2099-12-31']);

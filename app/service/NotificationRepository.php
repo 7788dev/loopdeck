@@ -160,7 +160,7 @@ class NotificationRepository
     public function dueMessages(int $now, int $limit): array
     {
         $this->ensureSchema();
-        return Db::name('notification_outbox')->where('status', 0)->where('available_at', '<=', $now)
+        return Db::name('notification_outbox')->where('web_id', 1)->where('status', 0)->where('available_at', '<=', $now)
             ->order(['available_at' => 'asc', 'id' => 'asc'])->limit($limit)->select()->toArray();
     }
 
@@ -190,7 +190,7 @@ class NotificationRepository
     public function dueSummaries(int $now, int $limit): array
     {
         $this->ensureSchema();
-        return Db::name('user_notification_preferences')->where('enabled', 1)->where('summary_enabled', 1)
+        return Db::name('user_notification_preferences')->where('web_id', 1)->where('enabled', 1)->where('summary_enabled', 1)
             ->where('next_summary_at', '>', 0)->where('next_summary_at', '<=', $now)
             ->order('next_summary_at')->limit($limit)->select()->toArray();
     }

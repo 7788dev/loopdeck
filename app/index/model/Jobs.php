@@ -315,7 +315,7 @@ class Jobs extends Model
     public static function getUnexecutedList($type = null, $filter = [])
     {
         $self = new static();
-        $query = $self->where($filter)->where([['type', '=', $type], ['state', '=', 1], ['nextExecute', '>', 0], ['nextExecute', '<=', time()]]);
+        $query = $self->where($filter)->where([['type', '=', $type], ['zid', '=', 1], ['state', '=', 1], ['nextExecute', '>', 0], ['nextExecute', '<=', time()]]);
         if ($type === 'bilibili') {
             $query->whereIn('do', BilibiliTaskExecutor::executableTasks());
         }
@@ -409,6 +409,7 @@ class Jobs extends Model
 
         $affected = (new static())
             ->where('id', '=', $id)
+            ->where('zid', '=', 1)
             ->where('state', '=', 1)
             ->where('nextExecute', '=', $expectedNextExecute)
             ->where('nextExecute', '>', 0)

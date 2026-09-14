@@ -46,7 +46,7 @@ class Ajax extends Common
 			if ($heyboxId === "" || $pkey === "" || strlen($heyboxId) > 32 || strlen($pkey) > 1024) {
 				return resultJson(0, "heybox_id 或 pkey 格式错误");
 			}
-			// 与 netease/bilibili/douyin 一致：账号全局唯一，否则两个用户绑定同一
+			// 与 netease/bilibili 一致：账号全局唯一，否则两个用户绑定同一
 			// 账号后，任一方删除账号会把另一方的任务日志一并清掉。
 			$conflict = Accounts::where("type", "=", "heybox")
 				->where("user_id", "=", $heyboxId)
@@ -338,70 +338,6 @@ class Ajax extends Common
 			case "activate":
 				$_var_55 = Request::post();
 				return Kms::activate($_var_55);
-				break;
-		}
-	}
-	public function agent($act = null)
-	{
-		switch ($act) {
-			case "kmList":
-				return Kms::getMyList();
-				break;
-			case "delKm":
-				$_var_56 = Request::post("id");
-				if (Kms::where("id", "=", $_var_56)->where("uid", "=", Session::get("user.uid"))->delete()) {
-					return resultJson(1, "删除成功");
-				} else {
-					return resultJson(0, "删除失败");
-				}
-				break;
-			case "delUsedKm":
-				if (Kms::where("useid", "<>", "0")->where("uid", "=", Session::get("user.uid"))->where("zid", "=", WEB_ID)->delete()) {
-					return resultJson(1, "清空成功");
-				} else {
-					return resultJson(0, "没有可清空的卡密");
-				}
-				break;
-			case "getPrice":
-				$_var_57 = Request::post();
-				switch ($_var_57["type"]) {
-					case "vip":
-						$_var_58 = $_var_57["num"] * config("sys.vip_price_" . $_var_57["value"] . "");
-						$_var_59 = config("sys.agent_give_z_" . Session::get("user.agent") . "");
-						$_var_60 = round($_var_58 * $_var_59 / 10, 2);
-						$_var_60 = ["name" => "VIP卡密", "value" => is_Vip_Month($_var_57["value"]) . " 个月", "num" => $_var_57["num"] . " 张", "oprice" => $_var_58 . "元", "zk" => $_var_59 . "折", "price" => $_var_60 . "元"];
-						return resultJson(1, "获取成功", $_var_60);
-						break;
-					case "quota":
-						$_var_58 = $_var_57["num"] * config("sys.quota_price_" . $_var_57["value"] . "");
-						$_var_59 = config("sys.agent_give_z_" . Session::get("user.agent") . "");
-						$_var_60 = round($_var_58 * $_var_59 / 10, 2);
-						$_var_60 = ["name" => "配额卡密", "value" => is_Quota_Num($_var_57["value"]) . " 个", "num" => $_var_57["num"] . " 张", "oprice" => $_var_58 . "元", "zk" => $_var_59 . "折", "price" => $_var_60 . "元"];
-						return resultJson(1, "获取成功", $_var_60);
-						break;
-					case "agent":
-						$_var_58 = $_var_57["num"] * config("sys.agent_price_" . $_var_57["value"] . "");
-						$_var_59 = config("sys.agent_give_z_" . Session::get("user.agent") . "");
-						$_var_60 = round($_var_58 * $_var_59 / 10, 2);
-						$_var_60 = ["name" => "代理卡密", "value" => is_Agent_Name($_var_57["value"]) . "", "num" => $_var_57["num"] . " 张", "oprice" => $_var_58 . "元", "zk" => $_var_59 . "折", "price" => $_var_60 . "元"];
-						return resultJson(1, "获取成功", $_var_60);
-						break;
-				}
-				break;
-			case "add":
-				$_var_57 = Request::post();
-				switch ($_var_57["type"]) {
-					case "vip":
-					case "quota":
-					case "agent":
-						try {
-							validate(\app\index\validate\Kms::class)->scene("add")->check($_var_57);
-						} catch (ValidateException $_var_61) {
-							return resultJson(-1, $_var_61->getMessage());
-						}
-						return Kms::agent_add($_var_57);
-						break;
-				}
 				break;
 		}
 	}

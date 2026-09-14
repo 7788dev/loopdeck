@@ -38,8 +38,7 @@ class Notice extends Model
         if (!is_array($data)) {
             return false;
         }
-        // Only the fields the notice form owns; `zid` in particular must not be
-        // writable or a tenant could move a notice onto another site.
+        // Only update fields owned by the notice form.
         $data = array_intersect_key($data, array_flip(['type', 'title', 'content', 'alert']));
         if ($data === []) {
             return false;
@@ -49,10 +48,6 @@ class Notice extends Model
                 return false;
             }
         }
-        if (isset($data['type']) && (int)$data['type'] === 2 && (int)WEB_ID !== 1) {
-            return false;
-        }
-
         $self = new static();
         return ($self->where('id', '=', $id)->where('zid', '=', WEB_ID)->update($data) !== false);
     }
@@ -77,12 +72,4 @@ class Notice extends Model
         return resultJson(0,'添加失败');
     }
 
-    public static function delBySiteid($id)
-    {
-        $self = new static();
-        if ($self->where('zid', '=', $id)->delete() !== false) {
-            return true;
-        }
-        return false;
-    }
 }

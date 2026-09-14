@@ -11,7 +11,6 @@ use app\admin\model\Tasks;
 use app\admin\model\Weblist;
 use app\admin\validate\Notices as NoticesValidate;
 use app\admin\validate\Tasks as TasksValidate;
-use app\admin\validate\Weblist as WeblistValidate;
 use app\admin\validate\Users as UsersValidate;
 use app\index\controller\Common;
 use app\index\model\Kms;
@@ -41,7 +40,7 @@ class Ajax extends Common
         switch ($act) {
             case 'info':
                 $data = Request::post();
-                if (Weblist::updateByWebid(Session::get('user.web_id'), $data)) {
+                if (Weblist::updateByWebid(1, $data)) {
                     // 站点信息（域名/名称等）被 LoadConfigs 缓存，保存后立即失效
                     \app\middleware\LoadConfigs::invalidate();
                     return resultJson(1, '信息修改成功');
@@ -58,8 +57,7 @@ class Ajax extends Common
                 if ($clearMailPassword) {
                     $data['mail_pwd'] = '';
                 }
-                $web_data = Weblist::where('web_id', Session::get('user.web_id'))->find();
-                $table = $web_data ? Weblist::configTableName($web_data['prefix']) : null;
+                $table = Weblist::configTableName(config('database.connections.mysql.prefix', 'cloud_'));
                 if ($table === null || empty($data)) {
                     return resultJson(0, '站点配置无效');
                 }
@@ -275,12 +273,6 @@ class Ajax extends Common
                     case 'accounts':
                         return Accounts::getAccountList();
                         break;
-                    case 'sites':
-                        if (WEB_ID != 1) {
-                            return resultJson(0, '无权管理分站');
-                        }
-                        return Weblist::getSitesList();
-                        break;
                 }
                 break;
             case 'add':
@@ -290,7 +282,6 @@ class Ajax extends Common
                         switch ($data['type']) {
                             case 'vip':
                             case 'quota':
-                            case 'agent':
                                 //自动验证
                                 try {
                                     validate(\app\index\validate\Kms::class)->scene('add')->check($data);
@@ -304,9 +295,6 @@ class Ajax extends Common
                         break;
                     case 'notice':
                         $data = Request::post();
-                        if ($data['type'] == 2 && WEB_ID != 1) { // 非主站无法添加后台公告
-                            return resultJson(0, '添加失败');
-                        }
                         //自动验证
                         try {
                             validate(NoticesValidate::class)->scene('add')->check($data);
@@ -315,19 +303,6 @@ class Ajax extends Common
                             return resultJson(-1, $e->getMessage());
                         }
                         return Notice::add($data);
-                        break;
-                    case 'site':
-                        if (WEB_ID != 1) {
-                            return resultJson(0, '无权管理分站');
-                        }
-                        $data = Request::post();
-                        try {
-                            validate(WeblistValidate::class)->scene('add')->check($data);
-                        } catch (ValidateException $e) {
-                            //验证失败 输出错误信息
-                            return resultJson(-1, $e->getMessage());
-                        }
-                        return Weblist::add($data);
                         break;
                 }
                 break;
@@ -367,27 +342,6 @@ class Ajax extends Common
                             return resultJson(0, '删除失败');
                         }
                         break;
-                    case 'site':
-                        if (WEB_ID != 1) {
-                            return resultJson(0, '无权管理分站');
-                        }
-                        $id = Request::post('id');
-                        if ($id == 1) {
-                            return resultJson(0, '无法删除主站');
-                        }
-                        $web_data = Weblist::findByWebid($id);
-                        $table = $web_data ? Weblist::configTableName($web_data['prefix']) : null;
-                        if ($table === null) {
-                            return resultJson(0, '站点数据无效');
-                        }
-                        $sql = "DROP TABLE IF EXISTS `{$table}`";
-                        Db::execute($sql);  // 删除分站configs表
-                        if (Weblist::delByid($id)) {
-                            return resultJson(1, '删除成功');
-                        } else {
-                            return resultJson(0, '删除失败');
-                        }
-                        break;
                     case 'account':
                         $id = Request::post('id');
                         Accounts::delByid($id);
@@ -417,7 +371,7 @@ class Ajax extends Common
                             }
                             $up[$field] = $value === '' ? null : $value;
                         }
-                        foreach (['agent' => 3, 'quota' => 100000, 'state' => 1] as $field => $max) {
+                        foreach (['quota' => 100000, 'state' => 1] as $field => $max) {
                             $value = trim((string)($data[$field] ?? '0'));
                             if ($value !== '' && (!ctype_digit($value) || (int)$value > $max)) {
                                 return resultJson(0, '用户属性取值超出允许范围');
@@ -452,19 +406,6 @@ class Ajax extends Common
                             return resultJson(1, '修改成功');
                         }
                         break;
-                    case 'site':
-                        if (WEB_ID != 1) {
-                            return resultJson(0, '无权管理分站');
-                        }
-                        $id = Request::post('web_id');
-                        if ($id == 1) {
-                            return resultJson(0, '无法操作');
-                        }
-                        $data = Request::post();
-                        if (Weblist::updateByWebid($id, $data)) {
-                            return resultJson(1, '修改成功');
-                        }
-                        break;
                 }
                 break;
             case 'info':
@@ -477,16 +418,10 @@ class Ajax extends Common
                         $notices = new Notice();
                         $data = Request::post();
                         return $notices->findById($data['id']);
-                    case 'site':
-                        if (WEB_ID != 1) {
-                            return resultJson(0, '无权管理分站');
-                        }
-                        $weblist = new Weblist();
-                        $data = Request::post();
-                        return $weblist->findByWebid($data['id']);
                 }
                 break;
         }
+        return response('未知操作', 404);
     }
 
 }

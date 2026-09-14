@@ -31,6 +31,7 @@ class Bilibili extends Common
 
         $limit = max(1, (int)config('sys.interval'));
         $jobs = Jobs::where('type', 'bilibili')
+            ->where('zid', 1)
             ->where('state', 1)
             ->where('nextExecute', '>', 0)
             ->where('nextExecute', '<=', time())
@@ -45,7 +46,7 @@ class Bilibili extends Common
             }
             $this->scheduled++;
             $userId = (string)$job['user_id'];
-            $user = Users::where('uid', $job['uid'])->where('state', 1)->find();
+            $user = Users::where('uid', $job['uid'])->where('web_id', 1)->where('state', 1)->find();
             $account = Accounts::where('type', 'bilibili')
                 ->where('user_id', $userId)
                 ->where('uid', $job['uid'])

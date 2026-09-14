@@ -136,6 +136,7 @@ class Task extends Common
 
         foreach ($taskMap as $type => $tasks) {
             $query = Jobs::where('type', $type)
+                ->where('zid', 1)
                 ->where('state', 1)
                 ->where('nextExecute', '>', 0)
                 ->where('nextExecute', '<=', $now)
@@ -475,7 +476,7 @@ class Task extends Common
     private function user(int $uid)
     {
         if (!array_key_exists($uid, $this->userCache)) {
-            $this->userCache[$uid] = Users::where('uid', $uid)->where('state', 1)->find() ?: null;
+            $this->userCache[$uid] = Users::where('uid', $uid)->where('web_id', 1)->where('state', 1)->find() ?: null;
         }
 
         return $this->userCache[$uid];

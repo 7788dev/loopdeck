@@ -133,22 +133,10 @@
                                 <span class="nav-main-link-name">配额价格设置</span>
                             </a>
                         </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/pay/agent')}">
-                                <span class="nav-main-link-name">代理价格设置</span>
-                            </a>
-                        </li>
                         {if condition="config('sys.is_qqdg') == 1"}
                         <li class="nav-main-item">
                             <a class="nav-main-link" data-pjax href="{:url('/admin/system/pay/dg')}">
                                 <span class="nav-main-link-name">代练价格设置</span>
-                            </a>
-                        </li>
-                        {/if}
-                        {if condition="WEB_ID eq 1"}
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/pay/site')}">
-                                <span class="nav-main-link-name">分站价格设置</span>
                             </a>
                         </li>
                         {/if}
@@ -204,13 +192,6 @@
                                 <span class="nav-main-link-name">公告数据管理</span>
                             </a>
                         </li>
-                        {if condition="WEB_ID eq 1"}
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/data/sites')}">
-                                <span class="nav-main-link-name">分站数据管理</span>
-                            </a>
-                        </li>
-                        {/if}
                     </ul>
                 </li>
                 {if condition="function_exists('opcache_reset')"}

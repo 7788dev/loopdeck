@@ -47,7 +47,7 @@ integrationCheck(Db::query('SHOW TABLES') === [], 'The disposable database must 
 $pdo = Db::connect()->getPdo();
 $pdo->exec(file_get_contents(dirname(__DIR__) . '/app/install/install.sql'));
 Db::name('weblist')->insert(['web_id' => 1, 'webname' => 'LoopDeck QA', 'title' => '测试面板',
-    'domain' => '127.0.0.1:18082', 'prefix' => 'cloud_', 'web_key' => 'qa-inert-key']);
+    'domain' => '127.0.0.1:18082', 'web_key' => 'qa-inert-key']);
 foreach ([1, 2] as $uid) {
     Db::name('users')->insert(['uid' => $uid, 'web_id' => 1, 'username' => 'qa_user_' . $uid,
         'nickname' => $uid === 1 ? '测试用户 🎵' : '隔离用户', 'password' => password_hash('qa-only-inert-password', PASSWORD_DEFAULT),

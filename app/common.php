@@ -113,10 +113,8 @@ if (!function_exists('safe_html')) {
     /**
      * Render operator-authored rich text.
      *
-     * Notices are written by administrators and may contain simple formatting,
-     * but a sub-station owner is a paying, self-service role, so the content is
-     * still untrusted. Keep the formatting tags and remove everything that can
-     * execute: unknown tags, event handlers, inline styles and script URLs.
+     * Notices may contain simple formatting. Keep the formatting tags and
+     * remove unknown tags, event handlers, inline styles and script URLs.
      */
     function safe_html(?string $value): string
     {
@@ -230,13 +228,6 @@ if (!function_exists('getRandStr')) {
             $value .= $alphabet[random_int(0, $last)];
         }
         return $value;
-    }
-}
-
-if (!function_exists('get_Prefix')) {
-    function get_Prefix(int $length = 6): string
-    {
-        return 'site' . strtolower(getRandStr(max(2, $length), 2));
     }
 }
 
@@ -401,20 +392,6 @@ if (!function_exists('is_Quota_Num')) {
     function is_Quota_Num($id): int
     {
         return [1 => 1, 2 => 3, 3 => 5, 4 => 10][(int)$id] ?? 0;
-    }
-}
-
-if (!function_exists('is_Site_Day')) {
-    function is_Site_Day($id): int
-    {
-        return [1 => 30, 2 => 90, 3 => 180, 4 => 365][(int)$id] ?? 0;
-    }
-}
-
-if (!function_exists('is_Agent_Name')) {
-    function is_Agent_Name($id): string
-    {
-        return [0 => '普通用户', 1 => '银牌代理', 2 => '金牌代理', 3 => '钻石代理'][(int)$id] ?? '普通用户';
     }
 }
 

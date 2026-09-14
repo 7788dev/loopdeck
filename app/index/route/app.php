@@ -15,7 +15,6 @@ Route::get('version', 'index/version');
 
 Route::group('console', function () {
     Route::rule('netease/[:act]/[:user_id]', 'console/netease');
-    Route::rule('douyin/[:act]', 'console/douyin');
     Route::rule('bilibili/[:act]/[:mid]', 'console/bilibili');
     Route::rule('heybox/[:act]/[:uid]', 'console/heybox');
     Route::rule('user/[:act]', 'console/user');
@@ -38,7 +37,6 @@ foreach (['tool', 'wz'] as $feature) {
 Route::group('ajax', function () {
     // NetEase has its own clean controller; keep the legacy public URL.
     Route::rule('netease/[:act]', 'netease/handle');
-    Route::rule('douyin/[:act]', 'douyin/handle');
     Route::rule('bilibili/[:act]', 'bilibili/handle');
     Route::rule('heybox/[:act]', 'ajax/heybox');
     Route::rule('epic/act/[:act]', 'ajax/epic');
@@ -46,5 +44,4 @@ Route::group('ajax', function () {
 
     Route::rule('user/[:act]', 'ajax/user');
     Route::rule('shop/[:act]', 'ajax/shop');
-    Route::rule('agent/[:act]', 'ajax/agent');
 });

@@ -94,11 +94,6 @@
                 setTimeout(function () {
                     window.location.href = "{:url('console/index')}";
                 }, 1000)
-            } else if (data.code == -1001) {
-                x.notify(data.message, 'warning');
-                setTimeout(function () {
-                    window.location.href = '//' + data.data.url;
-                }, 1000)
             } else {
                 x.notify(data.message, 'warning');
             }

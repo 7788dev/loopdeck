@@ -65,22 +65,6 @@ class Users extends Model
             if (config('sys.reg_free_money') == 1) {
                 $money = config('sys.reg_free_money_num');
             }
-            if (config('sys.reg_free_agent') == 1) {
-                $give = config('sys.reg_free_agent_grand');
-                switch ($give) {
-                    case 1:
-                        $agent = 1;
-                        break;
-                    case 2:
-                        $agent = 2;
-                        break;
-                    case 3:
-                        $agent = 3;
-                        break;
-                }
-            } else {
-                $agent = 0;
-            }
             $ret = $self->create([
                 'web_id' => WEB_ID,
                 'username' => $data['username'],
@@ -92,7 +76,6 @@ class Users extends Model
                 'quota' => $quota ?? 0,
                 'vip_start' => $vip_start ?? null,
                 'vip_end' => $vip_end ?? null,
-                'agent' => $agent ?? 0,
                 'login_time' => time(),
                 'login_ip' => real_ip(),
                 'login_city' => get_ip_city(real_ip()),
@@ -262,14 +245,8 @@ class Users extends Model
             self::recordFailedLogin((string)$data['username']);
             return resultJson(-1, '该账号已被封禁');
         }
-        if ($row['web_id'] !== WEB_ID) {
-            $site = Weblist::where('web_id', '=', $row['web_id'])->find();
-            // 分站记录缺失时不能对 false 取下标；回主站登录而不是抛 500
-            $domain = $site ? (string)$site['domain'] : '';
-            if ($domain === '') {
-                return resultJson(-1, '该账号所属站点不存在，请联系站长处理');
-            }
-            return resultJson(-1001, '该账号不属于当前站点，正在跳转到' . $domain . '进行登录', ['url' => $domain]);
+        if ((int)$row['web_id'] !== 1) {
+            return resultJson(-1, '该账号不属于当前站点，请联系管理员');
         }
 
         self::clearFailedLogins((string)$data['username']);
@@ -419,21 +396,6 @@ class Users extends Model
     }
 
     /**
-     * agentCount 代理数量
-     * @return false|int
-     * @throws DataNotFoundException
-     * @throws DbException
-     * @throws ModelNotFoundException
-     * @author BadCen
-     */
-    public
-    static function agentCount()
-    {
-        $self = new static();
-        return $self->where('agent', '<>', 0)->where('web_id', '=', WEB_ID)->count('uid');
-    }
-
-    /**
      * findByUid
      * @param $uid
      * @return Users|array|false|Model|null
@@ -469,9 +431,7 @@ class Users extends Model
         if (!empty($search['qq'])) $query->where('qq', '=',  $search['qq']);
         if (is_numeric($search['status'] ?? null)) $query->where('state', '=',  $search['status']);
 
-        if (WEB_ID != 1) {
-            $query->where('web_id', '=', WEB_ID);
-        }
+        $query->where('web_id', '=', 1);
 
         if ($result = $query->order('a.uid desc')->limit($start, $length)->select()) {
             // count 必须在独立查询上执行：复用已带 limit 的查询对象会让
@@ -483,9 +443,7 @@ class Users extends Model
             if (!empty($search['username'])) $countQuery->where('username', '=',  $search['username']);
             if (!empty($search['qq'])) $countQuery->where('qq', '=',  $search['qq']);
             if (is_numeric($search['status'] ?? null)) $countQuery->where('state', '=',  $search['status']);
-            if (WEB_ID != 1) {
-                $countQuery->where('web_id', '=', WEB_ID);
-            }
+            $countQuery->where('web_id', '=', 1);
             return [
                 'total' => $countQuery->count('uid'),
                 'page' => input('post.page'),
@@ -533,17 +491,12 @@ class Users extends Model
     }
 
     /**
-     * Administrative reads and writes are limited to the accounts of the site
-     * the operator administers. Buying a sub-station grants `power = 6`, so
-     * without this scope any tenant could reach the main site's accounts.
+     * Keep administrative reads and writes inside the primary installation.
+     * Historical ownership values must not grant access to archived accounts.
      */
     private static function adminScopedQuery()
     {
-        $query = (new static())->where('uid', '>', 0);
-        if (!defined('WEB_ID') || (int)WEB_ID !== 1) {
-            $query->where('web_id', '=', defined('WEB_ID') ? (int)WEB_ID : -1);
-        }
-        return $query;
+        return (new static())->where('uid', '>', 0)->where('web_id', '=', 1);
     }
 
     /**
@@ -583,13 +536,5 @@ class Users extends Model
         return (int)self::adminScopedQuery()->where('uid', '=', $uid)->delete() > 0;
     }
 
-    public static function delBySiteid($id)
-    {
-        $self = new static();
-        if ($self->where('web_id', '=', $id)->delete()) {
-            return true;
-        }
-        return false;
-    }
 
 }

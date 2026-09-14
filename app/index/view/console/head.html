@@ -64,14 +64,6 @@
                         <span class="nav-main-link-name">用户中心</span>
                     </a>
                 </li>
-                {if condition="session('user.agent')"}
-                <li class="nav-main-item">
-                    <a class="nav-main-link" data-pjax href="{:url('/index/console/agent')}">
-                        <i class="nav-main-link-icon fa fa-award"></i>
-                        <span class="nav-main-link-name">代理中心</span>
-                    </a>
-                </li>
-                {/if}
                 <li class="nav-main-item">
                     <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
                        data-toggle="submenu" href="#">
@@ -91,11 +83,6 @@
                             </a>
                         </li>
                         
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/agent')}">
-                                <span class="nav-main-link-name">购买代理</span>
-                            </a>
-                        </li>
                        
                         <li class="nav-main-item">
                             <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/money')}">
@@ -107,20 +94,6 @@
                         <li class="nav-main-item">
                             <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/card')}">
                                 <span class="nav-main-link-name">卡密激活</span>
-                            </a>
-                        </li>
-                        {if condition="config('sys.OrderPlacementMethod') eq 2 and session('user.agent')"}
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/money')}">
-                                <span class="nav-main-link-name">充值余额</span>
-                            </a>
-                        </li>
-                        {/if}
-                        {/if}
-                        {if condition="config('sys.is_site') eq 1"}
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/site')}">
-                                <span class="nav-main-link-name">开通分站</span>
                             </a>
                         </li>
                         {/if}

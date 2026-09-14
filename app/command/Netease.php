@@ -34,14 +34,14 @@ class Netease extends Command
         $interval = trim($input->getArgument('interval'));
         $vip_expired_userIds = [];
         $executed = 0;
-        $jobs = Jobs::where([['type', '=', 'netease'], ['state', '=', 1], ['nextExecute', '>', 0], ['nextExecute', '<=', time()]])
+        $jobs = Jobs::where([['type', '=', 'netease'], ['zid', '=', 1], ['state', '=', 1], ['nextExecute', '>', 0], ['nextExecute', '<=', time()]])
             ->whereIn('do', ['sign', 'login_work', 'musician_task', 'evaluate', 'daka_new', 'yunbei_task', 'vip_growth_task'])
             ->limit((int)$interval)
             ->select();
         foreach ($jobs as $job) {
             if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) continue;
             if (in_array($job['user_id'], $vip_expired_userIds)) continue;
-            $user = Users::where('uid', $job['uid'])->where('state', 1)->find();
+            $user = Users::where('uid', $job['uid'])->where('web_id', 1)->where('state', 1)->find();
             $task = Tasks::where('type', 'netease')->where('execute_name', $job['do'])->where('state', 1)->find();
             if (!$user || !$task) {
                 Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);

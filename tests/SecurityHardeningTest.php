@@ -52,7 +52,7 @@ foreach ($iterator as $file) {
     }
 }
 
-securityHardeningCheck(Weblist::configTableName('siteabc_') === 'siteabc_configs', 'Valid site prefix rejected');
+securityHardeningCheck(Weblist::configTableName('cloud_') === 'cloud_configs', 'Valid database prefix rejected');
 foreach (["site`;DROP TABLE users;--", '../site_', '', str_repeat('a', 57)] as $unsafePrefix) {
     securityHardeningCheck(Weblist::configTableName($unsafePrefix) === null, 'Unsafe table prefix accepted');
 }
@@ -68,10 +68,10 @@ securityHardeningCheck(
     'Legacy injectable configuration query is still present'
 );
 
-$siteSchema = file_get_contents($root . '/public/static/site.sql');
+$schema = file_get_contents($root . '/app/install/install.sql');
 securityHardeningCheck(
-    is_string($siteSchema) && str_contains($siteSchema, 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'),
-    'New site configuration tables must use InnoDB and utf8mb4'
+    is_string($schema) && preg_match('/CREATE TABLE `cloud_configs`.*?ENGINE=InnoDB DEFAULT CHARSET=utf8mb4/s', $schema),
+    'Configuration tables must use InnoDB and utf8mb4'
 );
 
 // --- Output encoding helpers -------------------------------------------------
@@ -123,10 +123,6 @@ securityHardeningCheck(
 $epay = file_get_contents($root . '/app/index/controller/Epay.php');
 securityHardeningCheck(is_string($epay), 'Unable to inspect the payment controller');
 securityHardeningCheck(
-    !str_contains($epay, "cookie('siteUrl')"),
-    'The sub-site domain is still taken from a client controlled cookie'
-);
-securityHardeningCheck(
     !str_contains($epay, "\$_SERVER['HTTP_HOST']"),
     'Gateway callback URLs are still built from the Host header'
 );
@@ -135,7 +131,7 @@ securityHardeningCheck(
     'Order lookup on the payment submit page is not scoped to the caller'
 );
 
-// --- Tenant isolation --------------------------------------------------------
+// --- Administrative account scope --------------------------------------------
 
 $adminAjaxSource = $adminAjax;
 foreach (['Users::adminUpdateByUid', 'Users::adminDelByUid', 'Users::adminFindByUid'] as $scopedCall) {
@@ -152,8 +148,8 @@ securityHardeningCheck(
 $usersModel = file_get_contents($root . '/app/index/model/Users.php');
 securityHardeningCheck(is_string($usersModel), 'Unable to inspect the users model');
 securityHardeningCheck(
-    str_contains($usersModel, "->where('web_id', '=', defined('WEB_ID') ? (int)WEB_ID : -1)"),
-    'Site-scoped administrative queries are missing their tenant filter'
+    str_contains($usersModel, "return (new static())->where('uid', '>', 0)->where('web_id', '=', 1);"),
+    'Administrative queries are not limited to the primary installation'
 );
 securityHardeningCheck(
     str_contains($usersModel, 'hash_equals($token, $supplied)'),

@@ -123,27 +123,23 @@ class Index
         $statement = $connection->prepare(
             'INSERT INTO `cloud_weblist` '
             . '(`web_id`,`user_qq`,`mail`,`webname`,`title`,`domain`,`start_time`,'
-            . '`end_time`,`prefix`,`web_key`,`status`) '
-            . 'VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)'
+            . '`web_key`) '
+            . 'VALUES (1, ?, ?, ?, ?, ?, ?, ?)'
         );
         $qq = '10000';
         $mail = 'admin@localhost';
         $webname = 'LoopDeck';
         $title = '你的私人助手';
         $start = date('Y-m-d');
-        $end = '2099-12-31';
-        $prefix = 'cloud_';
         $key = getRandStr(32);
         $statement->bind_param(
-            'sssssssss',
+            'sssssss',
             $qq,
             $mail,
             $webname,
             $title,
             $host,
             $start,
-            $end,
-            $prefix,
             $key
         );
         $statement->execute();

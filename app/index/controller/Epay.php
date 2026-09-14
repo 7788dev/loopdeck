@@ -24,7 +24,7 @@ class Epay extends Common
      */
     protected $middleware = [
         'app\middleware\CheckLoginUser' => [
-            'except' => ['vip_notify', 'quota_notify', 'agent_notify', 'money_notify', 'site_notify'],
+            'except' => ['vip_notify', 'quota_notify', 'money_notify'],
         ],
     ];
 
@@ -44,7 +44,7 @@ class Epay extends Common
 
     public function _empty()
     {
-        return '404';
+        return response('Not Found', 404);
     }
 
     /**
@@ -122,16 +122,6 @@ class Epay extends Common
         return $this->handleNotify('quota');
     }
 
-    public function agent_Return()
-    {
-        return $this->handleReturn('agent');
-    }
-
-    public function agent_Notify()
-    {
-        return $this->handleNotify('agent');
-    }
-
     public function money_Return()
     {
         return $this->handleReturn('money');
@@ -140,16 +130,6 @@ class Epay extends Common
     public function money_Notify()
     {
         return $this->handleNotify('money');
-    }
-
-    public function site_Return()
-    {
-        return $this->handleReturn('site');
-    }
-
-    public function site_Notify()
-    {
-        return $this->handleNotify('site');
     }
 
     /**
@@ -167,15 +147,7 @@ class Epay extends Common
 
         // Session copies of money/quota/vip are stale after the grant.
         Users::updateMyInfo();
-        $order = $result['order'] ?? [];
-        $target = url('/index/console');
-        if ($shop === 'site') {
-            $domain = PaymentSettlement::orderSiteDomain($order);
-            if ($domain !== '') {
-                $target = Request::scheme() . '://' . $domain;
-            }
-        }
-        return $this->alert($result['message'], (string)$target);
+        return $this->alert($result['message']);
     }
 
     /**

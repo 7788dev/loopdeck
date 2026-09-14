@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-LoopDeck is a PHP 8.1+ ThinkPHP 8 cloud-task panel (NetEase Cloud Music, Bilibili, Douyin, Epic, etc. daily/level tasks). Code lives in `app/`: `index/` serves users, `admin/` provides administration, `cron/` runs scheduled work, `install/` handles first-run setup, and `service/`, `middleware/`, and `command/` hold shared behavior. Platform adapters are under `extend/`. Configuration belongs in `config/`; templates sit in each app's `view/`; browser assets and the front controller are in `public/`. Container scripts live in `docker/`, and regression checks in `tests/`.
+LoopDeck is a PHP 8.1+ ThinkPHP 8 cloud-task panel (NetEase Cloud Music, Bilibili, Epic, etc. daily/level tasks). Code lives in `app/`: `index/` serves users, `admin/` provides administration, `cron/` runs scheduled work, `install/` handles first-run setup, and `service/`, `middleware/`, and `command/` hold shared behavior. Platform adapters are under `extend/`. Configuration belongs in `config/`; templates sit in each app's `view/`; browser assets and the front controller are in `public/`. Container scripts live in `docker/`, and regression checks in `tests/`.
 
 Do not edit generated or local-state directories such as `vendor/` and `runtime/`. Treat `public/static/uploads/` as runtime data.
 

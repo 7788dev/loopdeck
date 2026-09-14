@@ -86,13 +86,5 @@ class Accounts extends Model
         return false;
     }
     
-    public static function delBySiteid($id)
-    {
-        $self = new static();
-        if ($self->where('zid', '=', $id)->delete()) {
-            return true;
-        }
-        return false;
-    }
     
 }

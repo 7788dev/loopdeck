@@ -27,15 +27,6 @@ class Jobs extends Model
         return true;
     }
 
-    public static function delBySiteid($id)
-    {
-        $self = new static();
-        if ($self->where('zid', '=', $id)->delete() !== false) {
-            return true;
-        }
-        return false;
-    }
-
     /**
      * 关联Tasks表
      */

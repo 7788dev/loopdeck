@@ -23,7 +23,7 @@ final class EpicJobRunner
         $notifications = new NotificationService();
         $user = null;
         try {
-            $user = Users::where('uid', (int)$job['uid'])->where('web_id', (int)$job['zid'])->where('state', 1)->find();
+            $user = Users::where('uid', (int)$job['uid'])->where('web_id', 1)->where('state', 1)->find();
             $config = safe_unserialize_array((string)($job['data'] ?? ''));
             $timing = (string)($config['timing'] ?? '');
             if (!$user || !AutomaticSchedule::isConfigured($timing)) {

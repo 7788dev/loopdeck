@@ -5,10 +5,9 @@ declare(strict_types=1);
 /**
  * Regression tests for the card / payment hardening pass.
  *
- * Covers: the agent-card "free mint" chain (agent_add value whitelist, missing
- * price key rejection, zero-amount balance spend), Submit_Pay shopid
- * whitelisting, payment settlement amount enforcement, callback signature
- * comparison and the password-reset token length mismatch.
+ * Covers: card value validation, zero-amount balance spend, Submit_Pay shopid
+ * whitelisting, payment settlement amount enforcement, callback signatures
+ * and the password-reset token length mismatch.
  */
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -22,31 +21,11 @@ function hardeningCheck(bool $condition, string $message): void
 
 $root = dirname(__DIR__);
 
-// --- Kms: agent card minting -------------------------------------------
+// --- Kms: card redemption ---------------------------------------------
 
 $kmsSource = file_get_contents($root . '/app/index/model/Kms.php');
 hardeningCheck(is_string($kmsSource), 'Unable to inspect the kms model');
 
-// The agent card value must be one of the three defined levels.
-hardeningCheck(
-    str_contains($kmsSource, "in_array(\$value, [1, 2, 3], true)"),
-    'agent card values are not whitelisted to levels 1-3'
-);
-// A missing price key must be rejected, not cast to 0.
-hardeningCheck(
-    str_contains($kmsSource, "if (!is_numeric(\$unit))"),
-    'a missing card price key can still resolve to a free purchase'
-);
-// A missing agent discount must fall back to full price, never to 0.
-hardeningCheck(
-    str_contains($kmsSource, '$zk <= 0') && str_contains($kmsSource, '$zk = 10.0;'),
-    'an unconfigured agent discount can still zero out the price'
-);
-// Only agents may mint cards at all.
-hardeningCheck(
-    str_contains($kmsSource, "您还不是代理"),
-    'non-agents can still reach the card minting pricing code'
-);
 // Redemption must also reject out-of-range card values.
 hardeningCheck(
     str_contains($kmsSource, 'cardValueValid((string)$row[\'type\'], (string)$row[\'value\'])'),
@@ -63,20 +42,10 @@ hardeningCheck(
     str_contains($paysSource, "ctype_digit((string)\$data['shopid'])"),
     'order creation does not reject non-numeric shop ids'
 );
-// Agent orders must be limited to the three defined levels.
-hardeningCheck(
-    str_contains($paysSource, "in_array((int)\$data['shopid'], [1, 2, 3], true)"),
-    'agent orders are not whitelisted to levels 1-3'
-);
 // Every non-money product must resolve a positive server-side price.
 hardeningCheck(
     str_contains($paysSource, "(!is_numeric(\$res_money) || (float)\$res_money <= 0)"),
     'orders can still be created for unpriced products'
-);
-// Site name travels into the gateway form, so it must be bounded.
-hardeningCheck(
-    str_contains($paysSource, 'mb_strlen($webname) > 40'),
-    'the sub-site name is not length-checked before entering the order'
 );
 
 // --- PaymentSettlement --------------------------------------------------
@@ -88,11 +57,6 @@ hardeningCheck(is_string($settleSource), 'Unable to inspect the payment settleme
 hardeningCheck(
     str_contains($settleSource, '|| !is_numeric($callbackAmount))'),
     'a callback without an amount is still accepted'
-);
-// The granted agent level must be one of the defined levels.
-hardeningCheck(
-    str_contains($settleSource, 'in_array($level, [1, 2, 3], true)'),
-    'settlement can still write an undefined agent level'
 );
 
 // --- epay signature -----------------------------------------------------

@@ -17,7 +17,7 @@ final class CheckCronAccess
         }
         $expected = getenv('CRON_KEY');
         if (!is_string($expected) || $expected === '') {
-            // A tenant's own configuration must not authorize global jobs.
+            // Only primary installation settings can authorize scheduled work.
             $expected = defined('WEB_ID') && (int)WEB_ID !== 1 ? '' : (string)Config::get('sys.cronkey', '');
         }
         if (!is_string($key) || $key === '' || $expected === '' || !hash_equals($expected, $key)) {

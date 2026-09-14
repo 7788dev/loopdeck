@@ -25,20 +25,10 @@ class Console
         return view("console/index", [
             "notice" => \app\index\model\Notice::getNoticeList(),
             "quota_used" => Accounts::getMyAccountNum(),
-            "agent" => is_Agent_Name(session("user.agent")),
             "user_count" => \app\index\model\Users::userCount(),
             "account_count" => Accounts::accountCount(),
             "job_count" => Jobs::jobCount(),
             "execute_count" => \app\index\model\Info::executeCount()
-        ]);
-    }
-
-    public function agent()
-    {
-        if (session("user.agent") == 0) return view("common/alert", ["msg" => "权限不足", "url" => "/index/console"]);
-        return view("console/agent/index", [
-            "all" => \app\index\model\Kms::getMyList(),
-            "used" => \app\index\model\Kms::getMyList(null, "used")
         ]);
     }
 
@@ -51,61 +41,15 @@ class Console
             case "vip" :
                 return view("console/shop/vip");
                 break;
-            case "agent" :
-                return view("console/shop/agent");
-                break;
             case "money" :
                 return view("console/shop/money");
                 break;
             case "card" :
                 return view("console/shop/card");
                 break;
-            case "site" :
-                if (config("sys.is_site") != 1) return view("common/alert", ["msg" => "未开启自助开通分站", "url" => "/index/console"]);
-                return view("console/shop/site", ["site_url" => explode(PHP_EOL, config("sys.site_url"))]);
-                break;
+            default:
+                return response('页面不存在', 404);
         }
-    }
-
-    public function douyin($act = "")
-    {
-        switch ($act) {
-            case 'login':
-            case 'add':
-                return view('console/douyin/login');
-            case 'list':
-                return view('console/douyin/list', ['list' => $this->douyinAccountList()]);
-        }
-        return view('common/alert', ['msg' => '页面不存在', 'url' => '/index/console']);
-    }
-
-    private function douyinAccountList(): array
-    {
-        $result = [];
-        $accounts = Accounts::getMyList('douyin');
-        if (!$accounts) {
-            return $result;
-        }
-
-        foreach ($accounts as $account) {
-            try {
-                $profile = safe_unserialize_array((string)$account['data']);
-            } catch (Throwable $exception) {
-                continue;
-            }
-            $userId = trim((string)($profile['user_id'] ?? $account['user_id'] ?? ''));
-            if ($userId === '') {
-                continue;
-            }
-            $result[] = [
-                'user_id' => $userId,
-                'nickname' => trim((string)($profile['nickname'] ?? '')) ?: '抖音用户 ' . substr($userId, 0, 8),
-                'avatar' => (string)($profile['avatar'] ?? ''),
-                'state' => (int)$account['state'],
-                'addtime' => (string)$account['addtime'],
-            ];
-        }
-        return $result;
     }
 
     public function bilibili($act = "", $mid = "")

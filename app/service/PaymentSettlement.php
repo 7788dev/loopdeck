@@ -7,9 +7,7 @@ namespace app\service;
 use app\index\model\Order;
 use app\index\model\Pays;
 use app\index\model\Users;
-use app\index\model\Weblist;
 use epay\AlipayNotify;
-use think\facade\Db;
 use Throwable;
 
 /**
@@ -23,7 +21,7 @@ use Throwable;
  */
 final class PaymentSettlement
 {
-    public const SHOPS = ['vip', 'quota', 'agent', 'money', 'site'];
+    public const SHOPS = ['vip', 'quota', 'money'];
 
     private const PAID_STATES = ['TRADE_SUCCESS', 'TRADE_FINISHED'];
 
@@ -133,23 +131,10 @@ final class PaymentSettlement
                 Users::where('uid', '=', $uid)->inc('quota', (int)is_Quota_Num($order['shopid']))->update();
                 break;
 
-            case 'agent':
-                // Only the three defined agent levels may ever be written here;
-                // shopid comes from the order row, which is bound at checkout.
-                $level = (int)$order['shopid'];
-                if (!in_array($level, [1, 2, 3], true)) {
-                    throw new \RuntimeException('order carries an undefined agent level');
-                }
-                Users::where('uid', '=', $uid)->update(['agent' => $level]);
-                break;
-
             case 'money':
                 Users::where('uid', '=', $uid)->inc('money', (float)$order['money'])->update();
                 break;
 
-            case 'site':
-                self::openSite($order);
-                break;
         }
     }
 
@@ -165,88 +150,6 @@ final class PaymentSettlement
             'vip_start' => date('Y-m-d'),
             'vip_end' => date('Y-m-d', strtotime('+' . $days . ' day', $base)),
         ]);
-    }
-
-    /**
-     * @param array<string,mixed> $order
-     */
-    private static function openSite(array $order): void
-    {
-        $uid = (int)$order['uid'];
-        $domain = self::orderSiteDomain($order);
-        if ($domain === '') {
-            throw new \RuntimeException('order carries no validated site domain');
-        }
-        if (Weblist::where('user_id', '=', $uid)->find() || Weblist::where('domain', '=', $domain)->find()) {
-            return;
-        }
-
-        $days = (int)is_Site_Day($order['shopid']);
-        $prefix = get_Prefix() . '_';
-        $user = Users::where('uid', '=', $uid)->find();
-        $webId = Weblist::field('sup_id,user_id,webname,domain,user_qq,mail,start_time,end_time,prefix,web_key')
-            ->insertGetId([
-                'sup_id' => (int)($order['zid'] ?? 0),
-                'user_id' => $uid,
-                'webname' => (string)$order['name'],
-                'domain' => $domain,
-                'user_qq' => (string)($user['qq'] ?? ''),
-                'mail' => (string)($user['mail'] ?? ''),
-                'start_time' => date('Y-m-d'),
-                'end_time' => date('Y-m-d', strtotime('+' . max(1, $days) . ' day')),
-                'prefix' => $prefix,
-                'web_key' => getRandStr(16),
-            ]);
-        if (!$webId) {
-            throw new \RuntimeException('site row could not be created');
-        }
-
-        foreach (self::siteSchemaStatements($prefix) as $statement) {
-            Db::query($statement);
-        }
-
-        Users::where('uid', '=', $uid)->update([
-            'power' => 6,
-            'web_id' => $webId,
-        ]);
-    }
-
-    /**
-     * The buyer picked the sub-site host at checkout, where it was validated
-     * against the main site and existing tenants. Read it back from the order
-     * instead of from a client-controlled cookie.
-     *
-     * @param array<string,mixed> $order
-     */
-    public static function orderSiteDomain(array $order): string
-    {
-        $payload = $order['data'] ?? '';
-        if (!is_string($payload) || $payload === '') {
-            return '';
-        }
-        $decoded = json_decode($payload, true);
-        $domain = is_array($decoded) ? trim((string)($decoded['siteUrl'] ?? '')) : '';
-        if ($domain === '' || strlen($domain) > 190) {
-            return '';
-        }
-        return preg_match('/\A[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?\z/', $domain) === 1 ? $domain : '';
-    }
-
-    /** @return array<int,string> */
-    private static function siteSchemaStatements(string $prefix): array
-    {
-        $sql = @file_get_contents(root_path() . 'public' . DIRECTORY_SEPARATOR . 'static' . DIRECTORY_SEPARATOR . 'site.sql');
-        if (!is_string($sql) || $sql === '') {
-            $sql = (string)@file_get_contents('./static/site.sql');
-        }
-        $statements = [];
-        foreach (explode(';', str_replace('cloud_', $prefix, $sql)) as $statement) {
-            $statement = trim($statement);
-            if ($statement !== '') {
-                $statements[] = $statement;
-            }
-        }
-        return $statements;
     }
 
     /**

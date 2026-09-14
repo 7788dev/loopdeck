@@ -20,12 +20,4 @@ class Weblist extends Model
         return $sitedays;
     }
 
-    public static function end_Time()
-    {
-        $start = strtotime(config('web.start_time'));
-        $end = strtotime(config('web.end_time'));
-        $res = ceil(($end - $start) / 86400);
-        return $res;
-    }
-
 }

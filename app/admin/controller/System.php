@@ -27,9 +27,7 @@ class System extends Common
             'job_count' => Jobs::jobCount(),
             'execute_count' => Info::executeCount(),
             'user_count' => Users::userCount(),
-            'agent_count' => Users::agentCount(),
             'notices' => Notice::getAdminNoticeList(),
-            'user_qq' => Weblist::where('web_id', '=', 1)->find()['user_qq'],
         ]);
         return View::fetch('system/index');
     }
@@ -94,21 +92,8 @@ class System extends Common
                 View::assign('webTitle', '配额价格设置');
                 return View::fetch('system/pay/quota');
                 break;
-            case 'agent':
-                View::assign('webTitle', '代理价格设置');
-                return View::fetch('system/pay/agent');
-                break;
-            case 'site':
-                if (WEB_ID != 1) {
-                    View::assign([
-                        'msg' => '非法请求',
-                        'url' => '/index/console'
-                    ]);
-                    exit(View::fetch('common/alert'));
-                }
-                View::assign('webTitle', '分站价格设置');
-                return View::fetch('system/pay/site');
-                break;
+            default:
+                return response('页面不存在', 404);
         }
     }
 
@@ -152,17 +137,8 @@ class System extends Common
                 View::assign('webTitle', '公告数据管理');
                 return View::fetch('system/data/notices');
                 break;
-            case 'sites':
-                if (WEB_ID != 1) {
-                    View::assign([
-                        'msg' => '非法请求',
-                        'url' => '/index/console'
-                    ]);
-                    exit(View::fetch('common/alert'));
-                }
-                View::assign('webTitle', '分站数据管理');
-                return View::fetch('system/data/sites');
-                break;
+            default:
+                return response('页面不存在', 404);
         }
     }
 

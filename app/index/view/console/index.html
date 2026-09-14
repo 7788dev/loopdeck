@@ -27,12 +27,12 @@
         </a>
     </div>
     <div class="col-4 col-md-4 col-xl-2">
-        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/shop/agent')}">
+        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/shop/quota')}">
             <div class="block-content">
                 <p class="my-3">
-                    <i class="fa fa-graduation-cap fa-2x"></i>
+                    <i class="fa fa-layer-group fa-2x"></i>
                 </p>
-                <p class="fw-semibold fs-sm">代理开通</p>
+                <p class="fw-semibold fs-sm">购买配额</p>
             </div>
         </a>
     </div>
@@ -149,7 +149,7 @@
                 <div class="row items-push text-center">
                     <div class="col-6">
                         <div class="mb-1"><i class="si si-user fa-2x"></i></div>
-                        <div class="fs-sm fw-medium text-muted">{$agent}</div>
+                        <div class="fs-sm fw-medium text-muted">{:session('user.power') == 6 ? '管理员' : '普通用户'}</div>
                     </div>
                     <div class="col-6">
                         <div class="mb-1"><i class="si si-wallet fa-2x"></i></div>

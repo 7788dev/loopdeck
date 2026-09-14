@@ -58,7 +58,7 @@ class Netease extends Common
                 continue;
             }
 
-            $user = Users::where('uid', '=', (int)($job['uid'] ?? 0))->where('state', 1)->find();
+            $user = Users::where('uid', '=', (int)($job['uid'] ?? 0))->where('web_id', 1)->where('state', 1)->find();
             if ($user === null) {
                 $this->disableJob($jobId, (string)($job['user_id'] ?? ''), (string)($job['do'] ?? ''), '用户不存在，任务已停用');
                 continue;

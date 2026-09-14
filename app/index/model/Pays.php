@@ -2,6 +2,7 @@
 
 namespace app\index\model;
 
+use app\service\PaymentSettlement;
 use think\Model;
 use think\facade\Session;
 
@@ -60,11 +61,11 @@ class Pays extends Model
 
     public static function Submit_Pay($data)
     {
-        Users::updateMyInfo(); //更新用户信息
-        $self = new static();
-        if (!in_array((string)($data['shop'] ?? ''), ['vip', 'quota', 'agent', 'money', 'site'], true)) {
+        if (!in_array((string)($data['shop'] ?? ''), PaymentSettlement::SHOPS, true)) {
             return resultJson(0, '未知的商品类型');
         }
+        Users::updateMyInfo(); //更新用户信息
+        $self = new static();
         // 商品白名单：未知 shopid 走不到对应分支的价格配置，必须直接拒绝。
         // money 类型的 shopid 是充值金额（可为小数），由分支内自行校验。
         if ($data['shop'] !== 'money'
@@ -86,47 +87,12 @@ class Pays extends Model
                 $name = is_Quota_Num($data['shopid']) . '份快乐';
                 $res_money = config('sys.' . $data['shop'] . '_price_' . $data['shopid']); //计算价格
                 break;
-            case 'agent':
-                // agent 等级只有 1-3；越界的 shopid 会在结算时被直接写入 users.agent
-                if (!in_array((int)$data['shopid'], [1, 2, 3], true)) {
-                    return resultJson(0, '商品不存在');
-                }
-                $name = '快乐' . is_Agent_Name($data['shopid']);
-                $res_money = config('sys.' . $data['shop'] . '_price_' . $data['shopid']); //计算价格
-                break;
             case 'money':
                 $res_money = round((float)$data['shopid'], 2);
                 if (!is_numeric($data['shopid']) || $res_money < 0.01 || $res_money > 1000) {
                     return resultJson(0, '充值金额需要在 0.01 到 1000 元之间');
                 }
                 $name = $res_money . '元';
-                break;
-            case 'site':
-                if (is_Site_Day($data['shopid']) <= 0) {
-                    return resultJson(0, '商品不存在');
-                }
-                $siteUrl = strtolower(trim((string)$data['prefix']) . '.' . trim((string)$data['domain']));
-                // The callback provisions the sub-site from this value, so it
-                // has to be a plain host name and nothing else.
-                if (strlen($siteUrl) > 190
-                    || preg_match('/\A[a-z0-9]([a-z0-9.-]*[a-z0-9])?\z/', $siteUrl) !== 1) {
-                    return resultJson(0, '分站域名格式不正确');
-                }
-                // webname 会进入支付网关的订单名和 HTML 表单，控制长度与可见字符
-                $webname = trim(strip_tags((string)($data['webname'] ?? '')));
-                if ($webname === '' || mb_strlen($webname) > 40) {
-                    return resultJson(0, '分站名称长度应为 1 到 40 个字符');
-                }
-                $name = $webname . "（{$siteUrl}）";
-                if ($siteUrl == $_SERVER['HTTP_HOST']) {
-                    return resultJson(0,'分站域名不能和主站相同');
-                } elseif (Weblist::where('user_id', '=', Session::get('user.uid'))->field('web_id')->find()){
-                    return resultJson(0,'您已经开通过分站');
-                } elseif (Weblist::where('domain', '=', $siteUrl)->find()) {
-                    return resultJson(0,'该域名前缀已被使用');
-                }
-                $pay_data = json_encode(['siteUrl' => $siteUrl]);
-                $res_money = config('sys.' . $data['shop'] . '_price_' . $data['shopid']);
                 break;
         }
         // An unknown or unpriced product would create an order whose settlement
@@ -147,7 +113,6 @@ class Pays extends Model
             'type' => $data['pay_type'],
             'shop' => $data['shop'],
             'shopid' => $data['shopid'],
-            'data'=> $pay_data ?? [],
             'zid' => config('web.web_id')
         ];
         if ($self->insert($insert)) {

@@ -2101,44 +2101,162 @@ class Netease
 
     public function evaluate()
     {
-        $body = $this->decodeBody($this->requestApi('/api/music/partner/daily/task/get', [], 'weapi', [
-            'domain' => 'https://mp.music.163.com',
-        ]));
-        if (($body['code'] ?? 0) !== 200) {
-            return $this->makeResult(201, (string)($body['message'] ?? '你还不是音乐合伙人，无法评分'));
+        $body = $this->partnerDailyTask();
+        return (int)($body['code'] ?? 0) === 200
+            ? $this->evaluate_Execute($body)
+            : $this->musicTaskFailure($body, '合伙人任务获取失败', true);
+    }
+
+    protected function partnerDailyTask(): array
+    {
+        // ACAne0320/ncmp: daily.py GET + signer.py WEAPI (0517539, 2026-05-05).
+        return $this->musicTaskBody($this->rawRequest(
+            'GET',
+            'https://interface.music.163.com/api/music/partner/daily/task/get',
+            ['referer' => 'https://mp.music.163.com/']
+        ));
+    }
+
+    protected function partnerTaskComplete(array $task): bool
+    {
+        // Counts take precedence over a stale/inconsistent completed flag.
+        if (array_key_exists('count', $task) || array_key_exists('completedCount', $task)) {
+            return isset($task['count'], $task['completedCount'])
+                && is_scalar($task['count']) && is_scalar($task['completedCount'])
+                && !is_bool($task['count']) && !is_bool($task['completedCount'])
+                && ctype_digit((string)$task['count']) && ctype_digit((string)$task['completedCount'])
+                && (int)$task['count'] > 0 && (int)$task['completedCount'] >= (int)$task['count'];
         }
-        if (!empty($body['data']['completed'])) {
-            return $this->makeResult(200, '今日评分任务已完成，无需重复执行');
+        if (in_array($task['completed'] ?? null, [true, 1, '1', 'true'], true)) {
+            return true;
         }
-        return $this->evaluate_Execute($body);
+        if (!is_array($task['works'] ?? null) || $task['works'] === []) {
+            return false;
+        }
+        foreach ($task['works'] as $work) {
+            if (!is_array($work) || !in_array($work['completed'] ?? null, [true, 1, '1', 'true'], true)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    protected function waitPartnerEvaluation(): void
+    {
+        // Match the upstream pacing; the next scheduled run re-reads completed works.
+        sleep(random_int(15, 20));
     }
 
     public function evaluate_Execute($data)
     {
+        if (!is_array($data) || (isset($data['code']) && (int)$data['code'] !== 200)) {
+            return $this->musicTaskFailure(is_array($data) ? $data : [], '合伙人任务获取失败', true);
+        }
+        $task = $data['data'] ?? null;
+        if (!is_array($task)) {
+            return $this->makeResult(201, '合伙人任务获取失败|原因=任务数据缺失');
+        }
+        if ($this->partnerTaskComplete($task)) {
+            return $this->makeResult(200, '今日评分任务已完成，无需重复执行', ['submitted' => 0]);
+        }
+        if (!is_array($task['works'] ?? null) || $task['works'] === []
+            || !is_scalar($task['id'] ?? null) || is_bool($task['id'])
+            || trim((string)$task['id']) === '' || (string)$task['id'] === '0') {
+            return $this->makeResult(201, '合伙人评分未完成|原因=未获取到有效的待评分作品');
+        }
+
         $range = array_values(array_filter(explode(',', (string)($this->config['evaluate_star'] ?? '2,3')), 'strlen'));
         $min = isset($range[0]) ? max(1, min(5, (int)$range[0])) : 2;
         $max = isset($range[1]) ? max($min, min(5, (int)$range[1])) : $min;
         $done = 0;
-        foreach ($data['data']['works'] ?? [] as $work) {
-            if (!empty($work['completed']) || empty($work['work']['id'])) {
+        $failed = [];
+        $seen = [];
+        $retryable = false;
+        foreach ($task['works'] as $work) {
+            if (is_array($work) && in_array($work['completed'] ?? null, [true, 1, '1', 'true'], true)) {
                 continue;
             }
+            $workId = is_array($work) ? ($work['work']['id'] ?? null) : null;
+            if (!is_scalar($workId) || is_bool($workId) || trim((string)$workId) === '' || (string)$workId === '0') {
+                $failed[] = '作品ID缺失';
+                continue;
+            }
+            if (isset($seen[(string)$workId])) {
+                continue;
+            }
+            $seen[(string)$workId] = true;
+            $this->waitPartnerEvaluation();
             $star = $min === $max ? $min : random_int($min, $max);
-            $response = $this->rawRequest('POST', 'https://mp.music.163.com/api/music/partner/work/evaluate', [
-                'params' => [
-                    'taskId' => $data['data']['id'] ?? '',
-                    'score' => (float)$star,
-                    'tags' => $star . '-A-1',
-                    'workId' => $work['work']['id'],
-                ],
-                'cookie' => $this->cookie,
-                'os' => 'android',
-            ]);
-            if (($this->decodeBody($response)['code'] ?? 0) === 200) {
+            $body = $this->musicTaskBody($this->requestApi('/api/music/partner/work/evaluate', [
+                'taskId' => $task['id'],
+                'score' => (string)$star,
+                'tags' => $star . '-A-1',
+                'workId' => $workId,
+                'customTags' => '%5B%5D',
+                'comment' => '',
+                'syncYunCircle' => 'false',
+            ], 'weapi', ['domain' => 'https://interface.music.163.com']));
+            if ((int)($body['code'] ?? 0) === 200) {
                 $done++;
+            } else {
+                $failed[] = $this->musicTaskFailure($body, '作品评分失败')['message'];
+                $retryable = $retryable || $this->musicTaskRetryable($body);
+                // Do not continue submitting after authentication or rate-limit errors.
+                if (in_array((int)($body['code'] ?? 0), [301, 401, 403, 429, 509], true)
+                    || str_contains((string)($body['message'] ?? $body['msg'] ?? ''), '频繁')) {
+                    break;
+                }
             }
         }
-        return $this->makeResult(200, '音乐合伙人歌曲评分完成，共评分' . $done . '首');
+
+        $verified = $this->partnerDailyTask();
+        $current = $verified['data'] ?? null;
+        $sameTask = is_array($current)
+            && (!isset($current['id']) || (is_scalar($current['id']) && (string)$current['id'] === (string)$task['id']));
+        if ((int)($verified['code'] ?? 0) === 200 && $sameTask && $this->partnerTaskComplete($current)) {
+            return $this->makeResult(200, '音乐合伙人评分完成|本次提交=' . $done . '|进度=服务端已确认', [
+                'submitted' => $done,
+                'completed' => true,
+            ]);
+        }
+        if ((int)($verified['code'] ?? 0) !== 200) {
+            $failed[] = $this->musicTaskFailure($verified, '评分进度核验失败')['message'];
+            $retryable = $retryable || $this->musicTaskRetryable($verified);
+        }
+        return $this->makeResult(201, '音乐合伙人评分未完成|本次提交=' . $done
+            . '|原因=' . ($failed ? implode('；', array_unique($failed)) : '服务端尚未确认全部完成'), [
+                'submitted' => $done,
+                'completed' => false,
+                'failures' => $failed,
+                'retry_after_seconds' => $retryable || !$failed ? 300 : 0,
+            ]);
+    }
+
+    protected function musicTaskBody(array $response): array
+    {
+        $body = $this->decodeBody($response);
+        $status = (int)($response['status'] ?? 200);
+        if (($status < 200 || $status >= 300) && (int)($body['code'] ?? 200) === 200) {
+            return ['code' => $status ?: -1, 'message' => 'HTTP请求失败'];
+        }
+        return $body;
+    }
+
+    protected function musicTaskRetryable(array $body): bool
+    {
+        $code = (int)($body['code'] ?? 0);
+        return $code <= 0 || $code === 408 || $code === 429 || ($code >= 500 && $code < 600)
+            || str_contains((string)($body['message'] ?? $body['msg'] ?? ''), '频繁');
+    }
+
+    protected function musicTaskFailure(array $body, string $label, bool $allowRetry = false): array
+    {
+        $code = (int)($body['code'] ?? 0);
+        $reason = (string)($body['message'] ?? $body['msg'] ?? '接口未返回有效结果');
+        return $this->makeResult(201, $label . '|code=' . $code . '|原因=' . $reason, [
+            'upstream_code' => $code,
+            'retry_after_seconds' => $allowRetry && $this->musicTaskRetryable($body) ? 300 : 0,
+        ]);
     }
 
     public function get_evaluate_star()
@@ -2279,35 +2397,134 @@ class Netease
 
     public function musician_task()
     {
-        $detail = $this->decodeBody($this->detail($this->userId));
-        $auth = $detail['profile']['mainAuthType']['desc'] ?? '';
-        if ($auth !== '网易音乐人') {
-            return $this->makeResult(201, '你还不是音乐人，无法完成任务');
+        // The workbench, not the localized profile badge, decides eligibility.
+        $missions = $this->musicianMissions();
+        if ((int)($missions['code'] ?? 0) !== 200) {
+            return $missions;
         }
-        $albums = $this->musician_album_list();
-        if (!empty($albums[0]['id'])) {
-            $songs = $this->album($albums[0]['id']);
-            $this->musician_song_id = $songs[0] ?? null;
+        if ($this->musicianSongId() === '') {
+            foreach ($this->musician_album_list() as $album) {
+                if (!is_array($album) || empty($album['id'])) {
+                    continue;
+                }
+                foreach ($this->album($album['id']) as $songId) {
+                    if (is_scalar($songId) && ctype_digit((string)$songId) && (float)$songId > 0) {
+                        $this->musician_song_id = $songId;
+                        break 2;
+                    }
+                }
+            }
         }
-        $this->musician_sign();
-        $this->watch_teaching_video();
-        $this->share_resource();
-        $this->musician_publishComment();
-        $this->musician_sendPrivateMsg();
-        $this->shareyourself();
-        $reward = $this->musician_finished_task();
-        return $this->makeResult(200, '音乐人任务完成' . (!empty($reward['message']) ? '；' . $reward['message'] : ''));
+
+        $results = [];
+        $success = true;
+        foreach ([
+            'musician_sign' => '登录音乐人中心',
+            'watch_teaching_video' => '观看课程',
+            'share_resource' => '分享歌曲',
+            'musician_publishComment' => '发布主创说',
+            'musician_sendPrivateMsg' => '回复粉丝私信',
+            'shareyourself' => '歌曲分享上报',
+            'musician_finished_task' => '领取音乐人云豆',
+        ] as $method => $label) {
+            try {
+                $result = $this->{$method}();
+                $raw = is_array($result) && array_key_exists('body', $result);
+                $body = $raw
+                    ? $this->musicTaskBody($result)
+                    : (is_array($result) ? $result : []);
+                if (!$raw && isset($body['code'], $body['message'])) {
+                    $results[$method] = $body;
+                } else {
+                    $results[$method] = (int)($body['code'] ?? 0) === 200
+                        ? $this->makeResult(200, $label . '成功')
+                        : $this->musicTaskFailure($body, $label . '失败');
+                }
+            } catch (Throwable $exception) {
+                $results[$method] = $this->makeResult(201, $label . '失败|原因=执行异常');
+            }
+            if ((int)$results[$method]['code'] !== 200) {
+                $success = false;
+            }
+        }
+
+        $messages = array_column($results, 'message');
+        return $this->makeResult($success ? 200 : 201,
+            ($success ? '音乐人任务执行完成' : '音乐人任务未全部完成') . '|结果=' . implode('；', $messages),
+            ['steps' => $results]
+        );
+    }
+
+    protected function musicianSongId(): string
+    {
+        $configured = $this->config['musician_song_id'] ?? '';
+        $songId = is_scalar($configured) ? trim((string)$configured) : '';
+        if ($songId === '' || $songId === '0') {
+            $songId = (string)($this->musician_song_id ?? '');
+        }
+        return ctype_digit($songId) && (float)$songId > 0 ? $songId : '';
+    }
+
+    public function musician_tasks(): array
+    {
+        return $this->musicTaskBody($this->requestApi('/api/nmusician/workbench/mission/cycle/list', [], 'weapi'));
+    }
+
+    public function musician_tasks_new(): array
+    {
+        return $this->musicTaskBody($this->requestApi('/api/nmusician/workbench/mission/stage/list', [], 'weapi'));
+    }
+
+    protected function musicianMissions(): array
+    {
+        $tasks = [];
+        foreach (['musician_tasks' => '周期任务', 'musician_tasks_new' => '阶段任务'] as $method => $label) {
+            $body = $this->{$method}();
+            if ((int)($body['code'] ?? 0) !== 200) {
+                return $this->musicTaskFailure($body, '音乐人' . $label . '获取失败');
+            }
+            if (!is_array($body['data']['list'] ?? null)) {
+                return $this->makeResult(201, '音乐人' . $label . '获取失败|原因=任务列表缺失');
+            }
+            foreach ($body['data']['list'] as $mission) {
+                if (!is_array($mission)) {
+                    return $this->makeResult(201, '音乐人' . $label . '获取失败|原因=任务格式异常');
+                }
+                if ($method === 'musician_tasks') {
+                    if (!isset($mission['status']) || !is_scalar($mission['status']) || !ctype_digit((string)$mission['status'])) {
+                        return $this->makeResult(201, '音乐人周期任务获取失败|原因=任务状态缺失');
+                    }
+                    $tasks[] = $mission;
+                    continue;
+                }
+                if (!is_array($mission['userStageTargetList'] ?? null)) {
+                    return $this->makeResult(201, '音乐人阶段任务获取失败|原因=阶段目标缺失');
+                }
+                foreach ($mission['userStageTargetList'] as $target) {
+                    if (!is_array($target) || !isset($target['status']) || !is_scalar($target['status'])
+                        || !ctype_digit((string)$target['status'])) {
+                        return $this->makeResult(201, '音乐人阶段任务获取失败|原因=阶段目标格式异常');
+                    }
+                    $tasks[] = array_replace($mission, $target, ['userMissionId' => $target['userMissionId'] ?? null]);
+                }
+            }
+        }
+        return $this->makeResult(200, '音乐人任务列表获取成功', ['tasks' => $tasks]);
     }
 
     public function musician_album_list(): array
     {
-        $body = $this->decodeBody($this->requestApi('/api/nmusician/production/common/artist/album/item/list/get', [], 'weapi'));
-        return $body['data']['list'] ?? [];
+        $body = $this->musicTaskBody($this->requestApi('/api/nmusician/production/common/artist/album/item/list/get', [], 'weapi'));
+        return (int)($body['code'] ?? 0) === 200 && is_array($body['data']['list'] ?? null)
+            ? $body['data']['list'] : [];
     }
 
     public function album($id): array
     {
-        $body = $this->decodeBody($this->requestApi('/api/v1/album/' . (string)$id, [], 'weapi'));
+        $body = $this->musicTaskBody($this->requestApi('/api/v1/album/' . (string)$id, [], 'weapi'));
+        if ((int)($body['code'] ?? 0) !== 200 || !is_array($body['songs'] ?? null)) {
+            return [];
+        }
         $ids = [];
         foreach ($body['songs'] ?? [] as $song) {
             if (isset($song['id'])) {
@@ -2350,35 +2567,49 @@ class Netease
         $last = [];
         for ($i = 0; $i < 2; $i++) {
             $last = $this->requestApi('/api/nmusician/workbench/creator/watch/college/lesson', [], 'weapi');
+            if ((int)($this->musicTaskBody($last)['code'] ?? 0) !== 200) {
+                return $last;
+            }
         }
         return $last;
     }
 
     public function share_resource()
     {
-        $songId = $this->config['musician_song_id'] ?? $this->musician_song_id;
+        $songId = $this->musicianSongId();
         if (!$songId) {
             return $this->makeResult(201, '音乐人任务：没有可分享的歌曲');
         }
         $message = '我真想拉起你的手，逃向初晴的天空和田野不畏缩也不回顾。';
-        $body = $this->decodeBody($this->requestApi('/api/share/friends/resource', [
+        $body = $this->musicTaskBody($this->requestApi('/api/share/friends/resource', [
             'type' => 'song',
             'msg' => $message,
             'id' => $songId,
         ], 'xeapi', ['os' => 'android', 'check_token' => 'v3']));
-        if (($body['code'] ?? 0) !== 200) {
-            return $this->makeResult(201, (string)($body['message'] ?? '音乐人任务：分享歌曲失败'));
+        if ((int)($body['code'] ?? 0) !== 200) {
+            return $this->musicTaskFailure($body, '音乐人任务：分享歌曲失败');
         }
+        $failed = [];
         $threadId = $body['event']['threadId'] ?? null;
         $eventId = $body['id'] ?? ($body['event']['id'] ?? null);
         if ($threadId) {
-            $comment = $this->decodeBody($this->comments_add(null, $message, 6, $threadId));
-            if (!empty($comment['comment']['commentId'])) {
-                $this->comments_delete(null, $comment['comment']['commentId'], 6, $threadId);
+            $comment = $this->musicTaskBody($this->comments_add(null, $message, 6, $threadId));
+            if ((int)($comment['code'] ?? 0) === 200 && !empty($comment['comment']['commentId'])) {
+                $deleted = $this->musicTaskBody($this->comments_delete(null, $comment['comment']['commentId'], 6, $threadId));
+                if ((int)($deleted['code'] ?? 0) !== 200) {
+                    $failed[] = '动态评论清理失败';
+                }
+            } else {
+                $failed[] = '动态评论失败';
             }
         }
         if ($eventId) {
-            $this->event_delete($eventId);
+            if ((int)($this->event_delete($eventId)['code'] ?? 0) !== 200) {
+                $failed[] = '分享动态清理失败';
+            }
+        }
+        if ($failed) {
+            return $this->makeResult(201, '音乐人任务：分享歌曲后续操作失败|原因=' . implode('；', $failed));
         }
         return $this->makeResult(200, '音乐人任务：分享歌曲成功');
     }
@@ -2419,8 +2650,8 @@ class Netease
 
     public function event_delete($id)
     {
-        $body = $this->decodeBody($this->requestApi('/api/event/delete', ['id' => $id], 'weapi'));
-        return $this->makeResult(($body['code'] ?? 0) === 200 ? 200 : 201, ($body['code'] ?? 0) === 200 ? '删除动态成功' : '删除动态失败');
+        $body = $this->musicTaskBody($this->requestApi('/api/event/delete', ['id' => $id], 'weapi'));
+        return $this->makeResult((int)($body['code'] ?? 0) === 200 ? 200 : 201, (int)($body['code'] ?? 0) === 200 ? '删除动态成功' : '删除动态失败');
     }
 
     public function _event_delete($id): array
@@ -2430,47 +2661,58 @@ class Netease
 
     public function musician_publishComment($content = '好听')
     {
-        $songId = $this->config['musician_song_id'] ?? $this->musician_song_id;
+        $songId = $this->musicianSongId();
         if (!$songId) {
             return $this->makeResult(201, '音乐人任务：没有可评论的歌曲');
         }
         $content = date('Y年m月d日') . '，希望你可以开心';
         $commentIds = [];
+        $failed = [];
         for ($i = 0; $i < 2; $i++) {
-            $body = $this->decodeBody($this->comments_add($songId, $content, 0));
-            if (!empty($body['comment']['commentId'])) {
+            $body = $this->musicTaskBody($this->comments_add($songId, $content, 0));
+            if ((int)($body['code'] ?? 0) === 200 && !empty($body['comment']['commentId'])) {
                 $commentIds[] = $body['comment']['commentId'];
+            } else {
+                $failed[] = $this->musicTaskFailure($body, '主创说发布失败')['message'];
             }
         }
         foreach ($commentIds as $commentId) {
-            $this->comments_delete($songId, $commentId, 0);
+            $deleted = $this->musicTaskBody($this->comments_delete($songId, $commentId, 0));
+            if ((int)($deleted['code'] ?? 0) !== 200) {
+                $failed[] = $this->musicTaskFailure($deleted, '主创说清理失败')['message'];
+            }
         }
-        return $this->makeResult($commentIds ? 200 : 201, $commentIds ? '音乐人任务：发布主创说成功' : '音乐人任务：发布主创说失败');
+        return $this->makeResult($failed ? 201 : 200,
+            $failed ? '音乐人任务：发布主创说未完成|原因=' . implode('；', array_unique($failed)) : '音乐人任务：发布主创说成功'
+        );
     }
 
     public function musician_sendPrivateMsg($type = 'text'): array
     {
-        $userId = $this->config['musician_follows_id'] ?? '';
-        if ($userId === '') {
+        $configured = $this->config['musician_follows_id'] ?? '';
+        $userId = is_scalar($configured) ? trim((string)$configured) : '';
+        if (!ctype_digit($userId) || (float)$userId <= 0) {
             return $this->makeResult(201, '音乐人任务：未配置私信用户ID');
         }
         $message = $this->config['musician_follows_msg'] ?? '';
         if ($message === '') {
             $message = date('Y年m月d日') . '，希望你可以开心';
         }
-        $body = $this->decodeBody($this->requestApi('/api/msg/private/send', [
+        $body = $this->musicTaskBody($this->requestApi('/api/msg/private/send', [
             'type' => $type,
             'msg' => $message,
             'userIds' => '[' . $userId . ']',
         ], 'eapi', ['os' => 'pc']));
-        return $this->makeResult(($body['code'] ?? 0) === 200 ? 200 : 201, ($body['code'] ?? 0) === 200 ? '音乐人任务：回复私信成功' : '音乐人任务：回复私信失败');
+        return (int)($body['code'] ?? 0) === 200
+            ? $this->makeResult(200, '音乐人任务：回复私信成功')
+            : $this->musicTaskFailure($body, '音乐人任务：回复私信失败');
     }
 
     public function shareyourself()
     {
-        $songId = $this->config['musician_song_id'] ?? $this->musician_song_id;
+        $songId = $this->musicianSongId();
         if (!$songId) {
-            return null;
+            return $this->makeResult(201, '音乐人任务：没有可上报分享的歌曲');
         }
         return $this->requestApi('/api/music/songshare/share/property', ['songId' => $songId], 'eapi', ['os' => 'pc']);
     }
@@ -2558,37 +2800,53 @@ class Netease
 
     public function musician_finished_task()
     {
-        $tasks = [];
-        $cycle = $this->decodeBody($this->requestApi('/api/nmusician/workbench/mission/cycle/list', [], 'weapi'));
-        foreach ($cycle['data']['list'] ?? [] as $task) {
-            if (($task['status'] ?? 0) === 20) {
-                $tasks[] = $task;
-            }
+        $missions = $this->musicianMissions();
+        if ((int)($missions['code'] ?? 0) !== 200) {
+            return $missions;
         }
-        $stage = $this->decodeBody($this->requestApi('/api/nmusician/workbench/mission/stage/list', [], 'weapi'));
-        foreach ($stage['data']['list'] ?? [] as $period) {
-            foreach ($period['userStageTargetList'] ?? [] as $target) {
-                if (($target['status'] ?? 0) === 20) {
-                    $tasks[] = ['userMissionId' => $target['userMissionId'], 'period' => $period['period']];
-                }
-            }
-        }
-        return $tasks ? $this->musician_cloudbean_obtain($tasks) : $this->makeResult(201, '没有待领取的音乐人云豆奖励');
+        $tasks = array_values(array_filter($missions['data']['tasks'], static function (array $task): bool {
+            return (int)($task['status'] ?? 0) === 20;
+        }));
+        return $this->musician_cloudbean_obtain($tasks);
     }
 
     public function musician_cloudbean_obtain($task)
     {
+        if (!is_array($task)) {
+            return $this->makeResult(201, '音乐人云豆奖励领取失败|原因=奖励任务格式异常');
+        }
         $count = 0;
+        $failed = [];
+        $seen = [];
         foreach ($task as $item) {
-            $body = $this->decodeBody($this->requestApi('/api/nmusician/workbench/mission/reward/obtain/new', [
-                'userMissionId' => $item['userMissionId'] ?? '',
-                'period' => $item['period'] ?? '',
+            if (!is_array($item) || !is_scalar($item['userMissionId'] ?? null)
+                || is_bool($item['userMissionId']) || trim((string)$item['userMissionId']) === ''
+                || (string)$item['userMissionId'] === '0' || !is_scalar($item['period'] ?? null)
+                || is_bool($item['period']) || !ctype_digit((string)$item['period'])) {
+                $failed[] = '奖励任务缺少userMissionId或period';
+                continue;
+            }
+            $key = (string)$item['userMissionId'] . ':' . (string)$item['period'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $body = $this->musicTaskBody($this->requestApi('/api/nmusician/workbench/mission/reward/obtain/new', [
+                'userMissionId' => $item['userMissionId'],
+                'period' => $item['period'],
             ], 'weapi'));
-            if (($body['code'] ?? 0) === 200) {
+            if ((int)($body['code'] ?? 0) === 200) {
                 $count++;
+            } else {
+                $failed[] = $this->musicTaskFailure($body, '云豆领取失败')['message'];
             }
         }
-        return $this->makeResult($count ? 200 : 201, $count ? '音乐人云豆奖励领取成功，共' . $count . '项' : '音乐人云豆奖励领取失败');
+        return $this->makeResult($failed ? 201 : 200,
+            $failed
+                ? '音乐人云豆奖励未全部领取|已领取=' . $count . '|原因=' . implode('；', array_unique($failed))
+                : ($count ? '音乐人云豆奖励领取成功|已领取=' . $count : '没有待领取的音乐人云豆奖励'),
+            ['claimed' => $count, 'failures' => $failed]
+        );
     }
 
     /**

@@ -196,6 +196,14 @@ final class WorkflowTransport implements TransportInterface
     }
 }
 
+final class WorkflowNetease extends Netease
+{
+    protected function waitPartnerEvaluation(): void
+    {
+        // Offline fixtures do not need the live API's scoring interval.
+    }
+}
+
 final class DakaLimitProbe extends Netease
 {
     public int $playlistDetailCalls = 0;
@@ -319,7 +327,7 @@ $sdk = new Client([
     ],
     'anti_cheat_token_v3' => 'workflow-token',
 ], $transport);
-$netease = new Netease(1, 'csrf', 'music-u', [
+$netease = new WorkflowNetease(1, 'csrf', 'music-u', [
     'daka_music_from' => 'personalized',
     'daka_limit' => 1,
     'daka_history_dir' => '',

@@ -33,6 +33,13 @@ LoopDeck 是基于 One Tool（2022）二次开发的一套开源云任务系统�
 - 需要密码时运行 `docker compose exec app loopdeck-db-info --show-password`，完整连接信息只显示在当前终端。
 - 安装后优先读取持久化的 `config/Db.php`；本次不修改 Compose、数据卷或数据库结构，已有站点可由更新器直接升级镜像。
 
+## 网易云音乐人和合伙人评分
+
+- 音乐人签到、周期/阶段任务和云豆领奖协议已按 [api-enhanced 4.40.1](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/tree/a8c781fd64faab17fedfd46e0615a2609307f163) 核对。账号资格由音乐人工作台接口判断；歌曲 ID 留空时自动查找自己的专辑歌曲，回复私信仍需配置粉丝 ID。
+- 音乐人任务会检查每个子任务及奖励领取结果。子任务失败、部分领奖失败或任务列表读取失败会如实报告；没有可领取奖励属于正常情况。
+- 合伙人每日评分按 [ncmp 上游协议](https://github.com/ACAne0320/ncmp/tree/0517539fa44d226a3b9cf7d6a68683f08aaa2ba3/src/core) 使用 `interface.music.163.com` 获取任务和 WEAPI 加密提交，保留原评分星数设置，评分间隔为 15–20 秒。提交后重新读取任务进度，服务端确认完成才报告成功；临时故障或进度未确认时由调度器稍后复查，已完成作品不会重复评分。
+- 离线回归：`php tests/NeteaseCreatorTasksTest.php`。只读在线检查：`php tests/NeteaseCreatorLiveSmoke.php`，可通过进程环境变量 `NETEASE_MUSIC_U`、`NETEASE_CSRF` 提供会话。该检查仅读取任务；未提供账号时只能验证接口可达，实际执行和入账仍需有音乐人/合伙人资格的账号验证。
+
 ## 网易云每日300首说明
 
 **网易云每日300首：终身未听硬过滤与有限自适应补批**

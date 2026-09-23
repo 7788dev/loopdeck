@@ -15,7 +15,7 @@ final class GuzzleTransport implements TransportInterface
 
     public function __construct(?ClientInterface $client = null)
     {
-        $this->client = $client ?? \app\service\HttpClientFactory::create();
+        $this->client = $client ?? new GuzzleClient(['http_errors' => false]);
     }
 
     public function request(string $method, string $url, array $options = []): array

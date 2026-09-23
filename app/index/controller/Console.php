@@ -7,12 +7,9 @@ use app\index\model\Jobs;
 use app\index\model\Tasks;
 use app\index\model\Users;
 use app\index\model\Accounts;
-use app\service\AccountSnapshot;
 use app\service\BilibiliTaskExecutor;
-use app\service\CheckinAccounts;
-use app\service\CheckinTaskExecutor;
-use app\service\PlatformRegistry;
 use app\service\UserNotificationSettings;
+use bilibili\Bilibili as BilibiliClient;
 use think\facade\Session;
 use Throwable;
 
@@ -25,10 +22,14 @@ class Console
 
     public function index()
     {
-        return view("console/index", array_merge(\app\service\ConsoleStatistics::totals(), [
+        return view("console/index", [
             "notice" => \app\index\model\Notice::getNoticeList(),
             "quota_used" => Accounts::getMyAccountNum(),
-        ]));
+            "user_count" => \app\index\model\Users::userCount(),
+            "account_count" => Accounts::accountCount(),
+            "job_count" => Jobs::jobCount(),
+            "execute_count" => \app\index\model\Info::executeCount()
+        ]);
     }
 
     public function shop($act = "")
@@ -121,10 +122,53 @@ class Console
             'nickname' => trim((string)($storedProfile['nickname'] ?? '')) ?: '哔哩哔哩用户 ' . $mid,
             'avatar' => (string)($storedProfile['avatar'] ?? ''),
         ];
-        $snapshot = (new \app\service\AccountSnapshot())->read($account->toArray());
-        // Create missing job rows before rendering: a switch drawn for a
-        // missing row shows "off" although toggling it would enable the task.
-        Jobs::refreshJob('bilibili', $mid, $uid);
+        $levelInfo = null;
+        $infoWarning = '';
+        try {
+            $bilibili = new BilibiliClient(
+                $credentials['mid'],
+                $credentials['mid_md5'],
+                $credentials['token'],
+                $credentials['csrf'],
+                $credentials['access_key'],
+                ['sid' => $credentials['sid']]
+            );
+            $nav = $bilibili->sdk()->nav();
+            $navData = is_array($nav['data'] ?? null) ? $nav['data'] : [];
+            $loggedOut = (($nav['code'] ?? -1) === 0
+                    && array_key_exists('isLogin', $navData)
+                    && empty($navData['isLogin']))
+                || $bilibili->sdk()->isAuthenticationFailure($nav);
+            if ($loggedOut) {
+                Accounts::where('type', 'bilibili')->where('user_id', $mid)->where('uid', $uid)->update(['state' => 0]);
+                Jobs::where('type', 'bilibili')->where('user_id', $mid)->where('uid', $uid)->update(['state' => -1]);
+                return view('common/alert', ['msg' => '登录状态已失效，请重新登录', 'url' => '/index/console/bilibili/add.html']);
+            }
+            if (($nav['code'] ?? -1) === 0 && !empty($navData['isLogin'])) {
+                $level = is_array($navData['level_info'] ?? null) ? $navData['level_info'] : [];
+                $currentLevel = max(0, (int)($level['current_level'] ?? 0));
+                $currentExp = max(0, (int)($level['current_exp'] ?? 0));
+                $nextExp = max($currentExp, (int)($level['next_exp'] ?? $currentExp));
+                $levelInfo = [
+                    'current_level' => $currentLevel,
+                    'next_level' => min(6, $currentLevel + 1),
+                    'current_exp' => $currentExp,
+                    'remaining_exp' => max(0, $nextExp - $currentExp),
+                    'money' => (string)($navData['money'] ?? '0'),
+                ];
+            } else {
+                $infoWarning = '暂时无法获取等级信息：' . (string)($nav['message'] ?? '上游服务异常');
+            }
+        } catch (Throwable $exception) {
+            $infoWarning = '暂时无法获取等级信息，请稍后刷新';
+        }
+
+        Jobs::refreshJob('bilibili', $mid);
+        Jobs::where('type', 'bilibili')
+            ->where('user_id', $mid)
+            ->where('uid', $uid)
+            ->whereIn('do', array_keys(BilibiliTaskExecutor::OFFLINE_TASKS))
+            ->update(['state' => 0, 'nextExecute' => 0]);
         $jobsByTask = [];
         foreach (Jobs::where('type', 'bilibili')->where('user_id', $mid)->where('uid', $uid)->select() as $job) {
             $jobsByTask[(string)$job['do']] = $job;
@@ -161,7 +205,8 @@ class Console
             'data' => $account,
             'a_data' => $profile,
             'timing' => (string)($account['timing'] ?? ''),
-            'snapshot' => $snapshot,
+            'level_info' => $levelInfo,
+            'info_warning' => $infoWarning,
             'task_rows' => $taskRows,
         ]);
     }
@@ -208,7 +253,7 @@ class Console
             case "info" :
                 $account = Accounts::findByUserId('netease', $user_id);
                 if ($account) {
-                    Jobs::refreshJob('netease', $user_id, (int)$account['uid']);
+                    Jobs::refreshJob('netease', $user_id);
                 }
                 return $this->neteaseInfo($account);
                 break;
@@ -231,7 +276,32 @@ class Console
         $userId = trim((string)($a_data['user_id'] ?? $account['user_id'] ?? ''));
         $timing = (string)($account['timing'] ?? '');
 
-        $snapshot = (new \app\service\AccountSnapshot())->read($account->toArray());
+        $details = [
+            'listenSongs' => 0,
+            'level_now' => 0,
+            'level_next' => 1,
+            'loginnum' => 0,
+            'listennum' => 0,
+        ];
+        $signature = '';
+        if ($userId !== '' && (string)($a_data['csrf'] ?? '') !== '' && (string)($a_data['musicu'] ?? '') !== '') {
+            try {
+                $netease = new \netease\Netease($userId, (string)$a_data['csrf'], (string)$a_data['musicu']);
+                $info = $netease->getMusicUserInfo();
+                if (is_array($info)) {
+                    $details = [
+                        'listenSongs' => (int)($info['listenSongs'] ?? 0),
+                        'level_now' => (int)($info['level'] ?? 0),
+                        'level_next' => ((int)($info['level'] ?? 0)) + 1,
+                        'loginnum' => max(0, (int)($info['nextLoginCount'] ?? 0) - (int)($info['nowLoginCount'] ?? 0)),
+                        'listennum' => max(0, (int)($info['nextPlayCount'] ?? 0) - (int)($info['nowPlayCount'] ?? 0)),
+                    ];
+                    $signature = (string)($info['profile']['signature'] ?? '');
+                }
+            } catch (Throwable $exception) {
+                // 上游不可达时等级信息留空展示
+            }
+        }
 
         // 一次 select 建 job 映射，替代模板内每任务一条 getJobInfo
         $jobsByTask = [];
@@ -264,8 +334,8 @@ class Console
                 'nickname' => (string)($a_data['nickname'] ?? ''),
             ],
             "timing" => $timing,
-            "snapshot" => $snapshot,
-            "signature" => $snapshot['signature'],
+            "details" => $details,
+            "signature" => $signature,
             "task_rows" => $taskRows,
         ]);
     }
@@ -330,7 +400,7 @@ class Console
         if (!$account) {
             return view("common/alert", ["msg" => "账号不存在或无权查看", "url" => "/index/console/heybox/list"]);
         }
-        Jobs::refreshJob('heybox', $uid, (int)$account['uid']);
+        Jobs::refreshJob('heybox', $uid);
 
         $a_data = safe_unserialize_array((string)$account['data']);
         $jobsByTask = [];
@@ -361,111 +431,6 @@ class Console
             ],
             "task_rows" => $taskRows,
         ]);
-    }
-
-    public function tieba($act = "", $user_id = "")
-    {
-        return $this->checkinPage('tieba', (string)$act, (string)$user_id);
-    }
-
-    public function quark($act = "", $user_id = "")
-    {
-        return $this->checkinPage('quark', (string)$act, (string)$user_id);
-    }
-
-    public function tianyi($act = "", $user_id = "")
-    {
-        return $this->checkinPage('tianyi', (string)$act, (string)$user_id);
-    }
-
-    public function aliyundrive($act = "", $user_id = "")
-    {
-        return $this->checkinPage('aliyundrive', (string)$act, (string)$user_id);
-    }
-
-    /** Pages of the daily check-in platforms (see app\service\PlatformRegistry). */
-    private function checkinPage(string $type, string $act, string $userId)
-    {
-        $platform = PlatformRegistry::get($type);
-        $listUrl = '/index/console/' . $type . '/list';
-        switch ($act) {
-            case 'add':
-                // add/<user_id> re-authenticates an existing account in place.
-                $current = null;
-                if ($userId !== '') {
-                    $account = $this->checkinAccount($type, $userId);
-                    if (!$account) {
-                        return view('common/alert', ['msg' => '账号不存在或无权操作', 'url' => $listUrl]);
-                    }
-                    $current = CheckinAccounts::display($account->toArray());
-                }
-                return view("console/{$type}/add", ['platform' => $platform, 'current' => $current]);
-            case 'list':
-                return view("console/{$type}/list", ['platform' => $platform] + $this->checkinList($type));
-            case 'info':
-                return $this->checkinInfo($type, $platform, $userId);
-        }
-        return view('common/alert', ['msg' => '页面不存在', 'url' => $listUrl]);
-    }
-
-    private function checkinList(string $type): array
-    {
-        $perPage = 12;
-        $query = static fn() => Accounts::where('uid', (int)Session::get('user.uid'))->where('zid', 1)->where('type', $type);
-        $total = (int)$query()->count('id');
-        $pages = max(1, (int)ceil($total / $perPage));
-        $page = min($pages, max(1, (int)request()->get('page', 1)));
-        $list = [];
-        foreach ($query()->order('addtime desc')->order('id desc')->page($page, $perPage)->select() as $account) {
-            $list[] = CheckinAccounts::display($account->toArray());
-        }
-        return ['list' => $list, 'total' => $total, 'page' => $page, 'pages' => $pages,
-            'prev_page' => max(1, $page - 1), 'next_page' => min($pages, $page + 1), 'page_numbers' => range(1, $pages)];
-    }
-
-    private function checkinInfo(string $type, array $platform, string $userId)
-    {
-        $account = $this->checkinAccount($type, $userId);
-        if (!$account) {
-            return view('common/alert', ['msg' => '账号不存在或无权查看', 'url' => '/index/console/' . $type . '/list']);
-        }
-        $uid = (int)$account['uid'];
-        Jobs::refreshJob($type, $userId, $uid);
-        $jobsByTask = [];
-        foreach (Jobs::where('type', $type)->where('user_id', $userId)->where('uid', $uid)->select() as $job) {
-            $jobsByTask[(string)$job['do']] = $job;
-        }
-        $taskRows = [];
-        foreach (Tasks::getTaskList($type) as $task) {
-            $job = $jobsByTask[(string)$task['execute_name']] ?? null;
-            $nextExecute = $job ? (int)$job['nextExecute'] : 0;
-            $taskRows[] = [
-                'icon' => (string)$task['icon'],
-                'name' => (string)$task['name'],
-                'describe' => (string)$task['describe'],
-                'execute_name' => (string)$task['execute_name'],
-                'last_execute' => $job && (string)$job['lastExecute'] !== '' ? (string)$job['lastExecute'] : '尚未执行',
-                'next_execute' => $job && (int)$job['state'] === 1 && $nextExecute > 0 ? date('m-d H:i', $nextExecute) : '',
-                'job_state' => $job ? (int)$job['state'] : 0,
-            ];
-        }
-        $row = $account->toArray();
-        return view("console/{$type}/info", [
-            'platform' => $platform,
-            'account' => CheckinAccounts::display($row),
-            'snapshot' => (new AccountSnapshot())->read($row),
-            'summary' => CheckinTaskExecutor::summary($row),
-            'task_rows' => $taskRows,
-        ]);
-    }
-
-    private function checkinAccount(string $type, string $userId)
-    {
-        if (preg_match('/\A[A-Za-z0-9_]{1,64}\z/', $userId) !== 1) {
-            return null;
-        }
-        return Accounts::where('uid', (int)Session::get('user.uid'))->where('zid', 1)
-            ->where('type', $type)->where('user_id', $userId)->find();
     }
 
     public function epic($act = "")

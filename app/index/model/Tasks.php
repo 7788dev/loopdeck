@@ -94,15 +94,15 @@ class Tasks extends Model
     private static function ensureBuiltinTasks($type): void
     {
         $type = (string)$type;
-        $definitions = array_merge(self::BUILTIN_TASKS[$type] ?? [], \app\service\PlatformRegistry::tasks($type));
-        if ($definitions === [] || isset(self::$builtinTasksSynced[$type])) {
+        if (!isset(self::BUILTIN_TASKS[$type]) || isset(self::$builtinTasksSynced[$type])) {
             return;
         }
 
-        $existing = (new static())->where('type', $type)
-            ->whereIn('execute_name', array_column($definitions, 'execute_name'))->column('*', 'execute_name');
-        foreach ($definitions as $task) {
-            $exists = $existing[$task['execute_name']] ?? null;
+        foreach (self::BUILTIN_TASKS[$type] as $task) {
+            $exists = (new static())
+                ->where('type', '=', $task['type'])
+                ->where('execute_name', '=', $task['execute_name'])
+                ->find();
             if ($exists) {
                 // Existing installations already have these rows, so an
                 // insert-only sync would leave the retired-share wording

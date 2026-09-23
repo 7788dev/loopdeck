@@ -171,28 +171,6 @@
                         </li>
                     </ul>
                 </li>
-                <li class="nav-main-heading">每日签到</li>
-                {foreach :\app\service\PlatformRegistry::platforms() as $navType => $navPlatform}
-                <li class="nav-main-item">
-                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
-                       data-toggle="submenu" href="#">
-                        <i class="nav-main-link-icon {$navPlatform.icon}"></i>
-                        <span class="nav-main-link-name">{$navPlatform.name}</span>
-                    </a>
-                    <ul class="nav-main-submenu">
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="/index/console/{$navType}/add">
-                                <span class="nav-main-link-name">添加账号</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="/index/console/{$navType}/list">
-                                <span class="nav-main-link-name">管理账号</span>
-                            </a>
-                        </li>
-                    </ul>
-                </li>
-                {/foreach}
                 <li class="nav-main-heading">其他</li>
                 <li class="nav-main-item">
                     <a class="nav-main-link" data-pjax href="{:url('/index/console/user/profile')}">

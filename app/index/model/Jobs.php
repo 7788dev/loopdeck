@@ -69,13 +69,11 @@ class Jobs extends Model
         $self = new static();
         $tasks = Tasks::getTaskList($type);
         $nextExecute = self::nextExecutionForAccount((string)$type, (string)$user_id, $uid);
-        $existing = array_fill_keys($self->where('type', $type)
-            ->where('uid', $uid)->where('user_id', $user_id)->column('do'), true);
         foreach ($tasks as $key => $value) {
             $taskName = (string)$value['execute_name'];
             $offline = $type === 'bilibili'
                 && BilibiliTaskExecutor::offlineReason($taskName) !== null;
-            if (!isset($existing[$taskName])) {
+            if (!$self::getJobInfo($type, $user_id, $value['execute_name'], $uid)) {
                 $self->create([
                     'uid' => $uid,
                     'type' => $type,

@@ -51,7 +51,59 @@
                 </button>
             </div>
         </div>
-        {include file="console/common/profile" /}
+        {if condition="$data.state eq 1"}
+        <div class="block block-rounded">
+            <div class="block-header block-header-default text-center">
+                <h3 class="block-title">
+                    <i class="fa fa-fw fa-info opacity-50"></i>
+                    等级信息
+                </h3>
+            </div>
+            <div class="block-content">
+                <table class="table table-borderless table-striped">
+                    <tbody>
+                    <tr>
+                        <td>
+                            <i class="fa fa-fw si si-star opacity-50 me-2"></i>
+                            <span class="fs-sm">当前等级：LV {$details['level_now']}</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <i class="fa fa-fw si si-music-tone-alt opacity-50 me-2"></i>
+                            <span class="fs-sm">累计听歌：{$details['listenSongs']}首</span>
+                        </td>
+                    </tr>
+                    {if condition="$details['level_now'] == 10"}
+                    <tr>
+                        <td class="text-center">
+                            <span class="fs-sm fw-semibold text-muted">等级已达满级</span>
+                        </td>
+                    </tr>
+                    {else /}
+                    <tr>
+                        <td class="text-center">
+                            <span class="fs-sm fw-semibold text-muted">—距升级 LV{$details['level_next']}—</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <i class="fa fa-fw si si-music-tone-alt opacity-50 me-2"></i>
+                            <span class="fs-sm">还需听歌：{$details['listennum']} 首</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <i class="fa fa-fw si si-check opacity-50 me-2"></i>
+                            <span class="fs-sm">还需登录：{$details['loginnum']} 天</span>
+                        </td>
+                    </tr>
+                    {/if}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {/if}
     </div>
     <div class="col-xl-8">
         <div class="block block-rounded">
@@ -146,7 +198,6 @@
 </div>
 {/block}
 {block name="foot"}
-<script src="/static/js/account_profile.js?v={:app_version()}"></script>
 <script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
 <script src="/static/js/plugins/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
 

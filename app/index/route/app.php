@@ -17,11 +17,6 @@ Route::group('console', function () {
     Route::rule('netease/[:act]/[:user_id]', 'console/netease');
     Route::rule('bilibili/[:act]/[:mid]', 'console/bilibili');
     Route::rule('heybox/[:act]/[:uid]', 'console/heybox');
-    // Daily check-in platforms (see app\service\PlatformRegistry).
-    Route::rule('tieba/[:act]/[:user_id]', 'console/tieba');
-    Route::rule('quark/[:act]/[:user_id]', 'console/quark');
-    Route::rule('tianyi/[:act]/[:user_id]', 'console/tianyi');
-    Route::rule('aliyundrive/[:act]/[:user_id]', 'console/aliyundrive');
     Route::rule('user/[:act]', 'console/user');
     Route::rule('shop/[:act]', 'console/shop');
     Route::rule('qrcode/[:act]/[:uid]', 'console/qrcode');
@@ -30,7 +25,7 @@ Route::group('console', function () {
 $retiredFeatureNotFound = static function () {
     return response('Not Found', 404);
 };
-foreach (['iqiyi', 'mihoyo', 'sport'] as $feature) {
+foreach (['iqiyi', 'tieba', 'mihoyo', 'sport'] as $feature) {
     Route::any("console/{$feature}/[:act]/[:uid]", $retiredFeatureNotFound);
     Route::any("ajax/{$feature}/[:act]", $retiredFeatureNotFound);
 }
@@ -40,15 +35,10 @@ foreach (['tool', 'wz'] as $feature) {
 }
 
 Route::group('ajax', function () {
-    Route::post('profile/refresh', 'profile/refresh');
     // NetEase has its own clean controller; keep the legacy public URL.
     Route::rule('netease/[:act]', 'netease/handle');
     Route::rule('bilibili/[:act]', 'bilibili/handle');
     Route::rule('heybox/[:act]', 'ajax/heybox');
-    Route::rule('tieba/[:act]', 'checkin/tieba');
-    Route::rule('quark/[:act]', 'checkin/quark');
-    Route::rule('tianyi/[:act]', 'checkin/tianyi');
-    Route::rule('aliyundrive/[:act]', 'checkin/aliyundrive');
     Route::rule('epic/act/[:act]', 'ajax/epic');
     Route::rule('qrcode/[:act]', 'ajax/qrcode');
 

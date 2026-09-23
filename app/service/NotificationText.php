@@ -19,7 +19,7 @@ final class NotificationText
 
     public static function provider(string $type): string
     {
-        return self::PROVIDERS[$type] ?? (PlatformRegistry::platforms()[$type]['name'] ?? self::clean($type, 30));
+        return self::PROVIDERS[$type] ?? self::clean($type, 30);
     }
 
     public static function dailySummary(string $date, array $rows): string

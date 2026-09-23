@@ -9,8 +9,6 @@ Do not edit generated or local-state directories such as `vendor/` and `runtime/
 ## Architecture & Security Gotchas
 
 - `extend/` is loaded via composer **classmap** (not the `app\` PSR-4 root) and adapters use their own namespaces (e.g. `namespace netease;`, `bilibili\sdk`). After adding or renaming classes there, run `composer dump-autoload`.
-- Every upstream platform gets its own folder and namespace under `extend/` (`extend/bilibili`, `extend/netease`, `extend/tieba`, `extend/quark`, …). Never group several platforms into one shared folder unless the maintainer explicitly asks for it; platform-agnostic glue (transport, base classes, interfaces) belongs in `app/service`.
-- Platform protocols must be pure HTTP (deterministic signing; running site JS in a patched JS VM is acceptable, bridging a real browser via CDP is not) and backed by sources updated within the last year, or by explicit recent confirmation that an older protocol still works. Record the checked sources and dates in the adapter's docblock; drop a platform instead of shipping an unverified protocol.
 - Scheduling is in-process: `cron/` plus `app\service\AutomaticSchedule` execute task classes directly behind a task-name whitelist. Never reintroduce URL self-invocation that puts cookies, `RUN_KEY`, or other secrets into query strings — that pattern was deliberately removed for security.
 - `runtime/netease-daka/` holds per-account task state files; deleting an account must remove its state file, and the scheduler prunes orphans after `DAKA_STATE_RETENTION_DAYS` (default 30).
 - User-facing templates, copy, and README are Simplified Chinese; keep new UI text consistent.

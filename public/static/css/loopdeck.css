@@ -15,3 +15,94 @@
 .nav-vip-heading {
     color: #70DB93;
 }
+
+/* 每日签到平台：沿用 Codebase 渐变与区块，只补充横幅装饰、签到日历和获取步骤 */
+.checkin-hero {
+    position: relative;
+    overflow: hidden;
+}
+
+.checkin-hero-mark {
+    position: absolute;
+    right: 1.25rem;
+    bottom: -1rem;
+    font-size: 6.5rem;
+    line-height: 1;
+    color: #fff;
+    opacity: .14;
+    pointer-events: none;
+}
+
+.checkin-avatar-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    font-size: 1.75rem;
+    color: #fff;
+}
+
+.checkin-steps {
+    counter-reset: checkin-step;
+    list-style: none;
+    padding-left: 0;
+}
+
+.checkin-steps > li {
+    position: relative;
+    padding: 0 0 .875rem 2.25rem;
+}
+
+.checkin-steps > li::before {
+    counter-increment: checkin-step;
+    content: counter(checkin-step);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: var(--checkin-accent, #0665d0);
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 600;
+    line-height: 1.5rem;
+    text-align: center;
+}
+
+.checkin-snippet {
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: .8125rem;
+    margin-bottom: 0;
+}
+
+.checkin-track {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: .375rem;
+}
+
+.checkin-day {
+    border-radius: .5rem;
+    padding: .375rem .125rem;
+    text-align: center;
+    font-size: .75rem;
+    line-height: 1.3;
+    min-width: 0;
+}
+
+.checkin-day small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: .8;
+}
+
+.checkin-forums .badge {
+    font-weight: 500;
+    margin: 0 .25rem .25rem 0;
+}

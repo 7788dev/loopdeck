@@ -1,0 +1,52 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+{php}
+$sign = [
+    'today' => ($summary['date'] ?? '') === date('Y-m-d'),
+    'success' => !empty($summary['success']),
+    'before' => !empty($summary['signed_before']),
+    'bonus' => max(0, (int)($summary['bonus_mb'] ?? 0)),
+    'when' => \app\service\CheckinView::time($summary['updated_at'] ?? 0),
+];
+{/php}
+<div class="row">
+    <div class="col-xl-4">
+        {include file="console/common/checkin_account" /}
+        {include file="console/tianyi/profile" /}
+    </div>
+    <div class="col-xl-8">
+        <div class="block block-rounded">
+            <div class="block-content block-content-full bg-gd-aqua checkin-hero">
+                <i class="fa fa-cloud-sun checkin-hero-mark" aria-hidden="true"></i>
+                <div class="row text-white text-center">
+                    <div class="col-4 py-2">
+                        <div class="fs-xs text-white-75">今日签到</div>
+                        <div class="fs-3 fw-bold">{if condition="$sign.today && $sign.success"}已完成{elseif condition="$sign.today" /}未成功{else /}未签到{/if}</div>
+                    </div>
+                    <div class="col-4 py-2">
+                        <div class="fs-xs text-white-75">本次奖励</div>
+                        <div class="fs-3 fw-bold">{if condition="$sign.today && $sign.bonus gt 0"}+{$sign.bonus} MB{elseif condition="$sign.today && $sign.before" /}已领过{else /}--{/if}</div>
+                    </div>
+                    <div class="col-4 py-2">
+                        <div class="fs-xs text-white-75">最近执行</div>
+                        <div class="fs-5 fw-bold mt-1">{if condition="$summary"}{$sign.when}{else /}尚未执行{/if}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="block-content block-content-full fs-sm text-muted">
+                {if condition="$sign.today && $sign.before"}
+                <i class="fa fa-info-circle me-1"></i>今天在其他设备上已经签到过，奖励不会重复发放。
+                {else /}
+                <i class="fa fa-info-circle me-1"></i>签到奖励为随机空间，直接计入个人云容量；会话失效时系统会先用令牌续期再签到。
+                {/if}
+            </div>
+        </div>
+        {include file="console/common/checkin_tasks" /}
+    </div>
+</div>
+{include file="console/common/checkin_logs" /}
+{/block}
+{block name="foot"}
+{include file="console/common/checkin_scripts" /}
+{/block}

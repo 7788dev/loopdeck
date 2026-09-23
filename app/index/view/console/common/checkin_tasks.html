@@ -1,0 +1,38 @@
+<div class="block block-rounded">
+    <div class="block-header block-header-default">
+        <h3 class="block-title"><i class="fa fa-fw fa-tasks opacity-50"></i> 挂机任务</h3>
+        <div class="block-options"><a class="btn btn-sm btn-alt-secondary" href="{$platform.url}" target="_blank" rel="noopener noreferrer"><i class="fa fa-external-link-alt me-1"></i>{$platform.short}官网</a></div>
+    </div>
+    <div class="block-content">
+        <div class="table-responsive">
+            <table class="table table-striped table-vcenter">
+                <tbody>
+                {foreach $task_rows as $v}
+                <tr>
+                    <td class="text-center" style="width: 64px;"><i class="fa-2x {$v.icon} text-{$platform.accent}"></i></td>
+                    <td>
+                        <p class="fw-semibold mb-1">{$v.name}
+                            {if condition="$v.job_state eq 1"}<span class="js-task-state badge bg-success">已开启</span>
+                            {elseif condition="$v.job_state eq -1" /}<span class="js-task-state badge bg-danger">账号失效</span>
+                            {else /}<span class="js-task-state badge bg-secondary">已暂停</span>{/if}
+                        </p>
+                        <p class="fs-xs text-muted mb-0">{$v.describe}</p>
+                    </td>
+                    <td class="d-none d-sm-table-cell fs-sm text-muted text-nowrap">
+                        <div><i class="far fa-clock opacity-75 me-1"></i>上次 {$v.last_execute}</div>
+                        {if condition="$v.next_execute neq ''"}<div><i class="far fa-calendar-alt opacity-75 me-1"></i>下次 {$v.next_execute}</div>{/if}
+                    </td>
+                    <td class="text-center" style="width: 64px;">
+                        <div class="form-check form-switch d-inline-block">
+                            <input type="checkbox" class="form-check-input js-checkin-toggle" aria-label="开关{$v.name}"
+                                   data-type="{$platform.type}" data-user-id="{$account.user_id}" data-task="{$v.execute_name}"
+                                   {if condition="$v.job_state eq 1"}checked{/if} {if condition="$account.state neq 1"}disabled{/if}>
+                        </div>
+                    </td>
+                </tr>
+                {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

@@ -75,6 +75,7 @@ class Common
             'qq' => 'QQ',
             'sport' => '小米运动',
             'heybox' => '小黑盒',
+            default => \app\service\NotificationText::provider((string)$type),
         };
         $stateChanged = Accounts::where('user_id', '=', $user_id)
             ->where('type', '=', $type)

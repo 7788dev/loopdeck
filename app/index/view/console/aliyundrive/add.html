@@ -1,0 +1,62 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+<div class="block block-rounded bg-gd-sun checkin-hero mb-3">
+    <i class="fa fa-hdd checkin-hero-mark" aria-hidden="true"></i>
+    <div class="block-content block-content-full">
+        <h2 class="h4 fw-bold text-white mb-1">{if condition="$current"}更新阿里云盘账号{else /}添加阿里云盘账号{/if}</h2>
+        <p class="text-white-75 fs-sm mb-0">每日自动签到并核验本月签到记录，登录令牌每次使用后自动轮换保存。</p>
+    </div>
+</div>
+<div class="row">
+    <div class="col-lg-7">
+        <div class="block block-rounded">
+            <div class="block-header block-header-default">
+                <h3 class="block-title"><i class="fa fa-key opacity-50 me-1"></i> 导入 Refresh Token</h3>
+            </div>
+            <div class="block-content">
+                {if condition="$current"}
+                <div class="alert alert-info fs-sm">正在更新账号 <strong>{$current.nickname}</strong>，请粘贴该账号新的 Refresh Token。</div>
+                {/if}
+                <form class="js-checkin-form" data-type="aliyundrive" data-expected="{$current.user_id|default=''}" autocomplete="off">
+                    <div class="mb-4">
+                        <label class="form-label" for="aliyundrive-token">Refresh Token</label>
+                        <textarea class="form-control font-monospace" id="aliyundrive-token" name="refresh_token" rows="4" maxlength="8192" spellcheck="false"
+                                  data-field="trim" data-label="Refresh Token" placeholder="粘贴 refresh_token 的值，或整段 token JSON"></textarea>
+                        <div class="form-text">保存后请不要在其他工具中继续使用同一个 Token，否则两边会互相顶掉。</div>
+                    </div>
+                    <div class="mb-4">
+                        <button type="submit" class="btn btn-alt-primary"><i class="fa fa-check opacity-50 me-1"></i> 验证并保存</button>
+                        <a class="btn btn-alt-secondary ms-1" href="/index/console/aliyundrive/list" data-pjax>返回列表</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="block block-rounded" style="--checkin-accent: {$platform.color};">
+            <div class="block-header block-header-default">
+                <h3 class="block-title"><i class="fa fa-question-circle opacity-50 me-1"></i> 如何获取 Refresh Token</h3>
+            </div>
+            <div class="block-content">
+                <ol class="checkin-steps fs-sm">
+                    <li>电脑浏览器登录 <a href="https://www.alipan.com/drive" target="_blank" rel="noopener noreferrer">www.alipan.com</a>。</li>
+                    <li>按 <kbd>F12</kbd> 打开「控制台 / Console」，粘贴下面的代码并回车：
+                        <div class="d-flex align-items-start bg-body-light rounded p-2 mt-2">
+                            <pre class="checkin-snippet flex-fill" id="aliyundrive-snippet">JSON.parse(localStorage.getItem('token')).refresh_token</pre>
+                            <button type="button" class="btn btn-sm btn-alt-secondary ms-2 js-copy-snippet" data-target="#aliyundrive-snippet" title="复制代码"><i class="far fa-copy"></i></button>
+                        </div>
+                    </li>
+                    <li>复制输出的字符串（不含引号）粘贴到左侧。</li>
+                </ol>
+                <div class="alert alert-warning fs-sm">
+                    签到后的奖励需要在阿里云盘 App 内领取（官方领奖接口要求 App 签名），系统会在日志和账号页提示待领取数量。
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/checkin_console.js?v={:app_version()}"></script>
+{/block}

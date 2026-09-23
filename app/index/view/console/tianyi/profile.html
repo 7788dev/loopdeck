@@ -1,0 +1,36 @@
+{php}
+$tianyiStats = (array)($snapshot['stats'] ?? []);
+$tianyiSpaces = array_values(array_filter([
+    ['label' => '个人云', 'icon' => 'fa fa-user', 'bar' => \app\service\CheckinView::capacity($tianyiStats)],
+    ['label' => '家庭云', 'icon' => 'fa fa-home', 'bar' => \app\service\CheckinView::capacity($tianyiStats, 'family_total', 'family_used')],
+], static fn(array $space): bool => $space['bar'] !== null));
+{/php}
+<div class="block block-rounded account-profile" data-type="{$snapshot.type}" data-user-id="{$snapshot.user_id}" data-stale="{if condition='$snapshot.stale'}1{else /}0{/if}">
+    <div class="block-header block-header-default">
+        <h3 class="block-title"><i class="fa fa-fw fa-server text-corporate"></i> 云盘容量</h3>
+        <button type="button" class="btn btn-sm btn-alt-primary js-refresh-profile" title="刷新账号信息"><i class="si si-refresh"></i> 刷新</button>
+    </div>
+    <div class="block-content">
+        {if condition="$snapshot.warning neq ''"}<p class="fs-sm text-warning" role="status">{$snapshot.warning}</p>{/if}
+        {foreach $tianyiSpaces as $space}
+        <div class="mb-3">
+            <div class="d-flex justify-content-between fs-sm mb-1">
+                <span><i class="{$space.icon} text-corporate me-1"></i>{$space.label}</span>
+                <span class="text-muted">{$space.bar.used} / {$space.bar.total}</span>
+            </div>
+            <div class="progress" style="height: 8px;" role="progressbar" aria-label="{$space.label}使用率" aria-valuenow="{$space.bar.percent}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar bg-{$space.bar.level}" style="width: {$space.bar.percent}%;"></div>
+            </div>
+            <div class="fs-xs text-muted mt-1">剩余 {$space.bar.free}</div>
+        </div>
+        {/foreach}
+        {if condition="count($snapshot.rows)"}
+        <table class="table table-borderless table-striped table-sm"><tbody>
+            {foreach $snapshot.rows as $row}
+            {notin name="row.label" value="个人云容量,已用空间,剩余空间,家庭云容量"}<tr><td class="fs-sm text-muted">{$row.label}</td><td class="fs-sm text-end">{$row.value}</td></tr>{/notin}
+            {/foreach}
+        </tbody></table>
+        {else /}<p class="text-muted fs-sm">尚未获取账号信息，可点击刷新。</p>{/if}
+        <p class="fs-xs text-muted js-profile-status" aria-live="polite">{if condition="$snapshot.updated_at"}更新于 {:date('m-d H:i:s', $snapshot.updated_at)}{else /}账号信息将在页面加载后更新{/if}</p>
+    </div>
+</div>

@@ -14,7 +14,10 @@ use app\service\AutomaticSchedule;
 use app\service\NotificationService;
 use app\service\EpicJobRunner;
 use app\service\BilibiliTaskExecutor;
+use app\service\CheckinTaskExecutor;
 use app\service\NeteaseSchedule;
+use app\service\NotificationText;
+use app\service\PlatformRegistry;
 use netease\Netease as NeteaseAPI;
 use think\facade\Request;
 use Throwable;
@@ -89,6 +92,7 @@ class Task extends Common
             'unscheduled' => 0,
             'invalid_accounts' => 0,
             'vip_expired' => 0,
+            'continued' => 0,
         ];
 
         try {
@@ -132,6 +136,9 @@ class Task extends Common
             'heybox' => ['sign'],
             'epic' => ['weeklyGameNotify'],
         ];
+        foreach (PlatformRegistry::types() as $checkinType) {
+            $taskMap[$checkinType] = [PlatformRegistry::DAILY_TASK];
+        }
         $now = time();
 
         foreach ($taskMap as $type => $tasks) {
@@ -364,6 +371,7 @@ class Task extends Common
                     'netease' => $this->executeNetease($taskName, $userId, $accountData, $jobConfig),
                     'bilibili' => $this->executeBilibili($taskName, $accountData, $jobConfig),
                     'heybox' => $this->executeHeybox($taskName, $accountData),
+                    default => (new CheckinTaskExecutor())->execute($taskName, $account->toArray()),
                 };
             } catch (Throwable $exception) {
                 $this->retryJob($jobId);
@@ -377,6 +385,15 @@ class Task extends Common
                 return;
             }
 
+            if (!empty($result['in_progress']) && empty($result['account_invalid'])) {
+                // A resumable check-in step: only the final step reports the outcome.
+                Jobs::where('id', $jobId)->update([
+                    'lastExecute' => date('Y-m-d H:i:s'),
+                    'nextExecute' => time() + max(60, min(3600, (int)($result['retry_after_seconds'] ?? 60))),
+                ]);
+                $summary['continued']++;
+                return;
+            }
             $this->writeLog($type, $userId, $taskName, (string)$result['message'], $this->statusTag($result));
             $this->notifications()->recordTask($user, $type, $userId, $taskName, (string)$task['name'], $result);
             if ($result['account_invalid']) {
@@ -413,7 +430,8 @@ class Task extends Common
         return ($type === 'netease' && in_array($task, self::NETEASE_TASKS, true))
             || ($type === 'bilibili' && BilibiliTaskExecutor::supports($task))
             || ($type === 'heybox' && $task === 'sign')
-            || ($type === 'epic' && $task === 'weeklyGameNotify');
+            || ($type === 'epic' && $task === 'weeklyGameNotify')
+            || (PlatformRegistry::supports($type) && $task === PlatformRegistry::DAILY_TASK);
     }
 
     private function notifications(): NotificationService
@@ -676,12 +694,7 @@ class Task extends Common
         $this->accountCache[$key] = null;
         $user = $this->user($uid);
         if ($stateChanged > 0 && $user) {
-            $provider = match ($type) {
-                'netease' => '网易云音乐',
-                'bilibili' => '哔哩哔哩',
-                default => $type,
-            };
-            $this->notifications()->sendAccountInvalid($user, $provider, $userId);
+            $this->notifications()->sendAccountInvalid($user, NotificationText::provider($type), $userId);
         }
     }
 

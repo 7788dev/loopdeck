@@ -1,0 +1,74 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+{php}
+$report = [
+    'total' => (int)($summary['total'] ?? 0), 'done' => (int)($summary['done'] ?? 0),
+    'skipped' => (int)($summary['skipped'] ?? 0), 'failed' => (int)($summary['failed'] ?? 0),
+    'pending' => (int)($summary['pending'] ?? 0), 'bonus' => (int)($summary['bonus'] ?? 0),
+    'failed_names' => array_values(array_filter((array)($summary['failed_names'] ?? []), 'is_string')),
+    'skipped_names' => array_values(array_filter((array)($summary['skipped_names'] ?? []), 'is_string')),
+    'today' => ($summary['date'] ?? '') === date('Y-m-d'),
+    'running' => !empty($summary['in_progress']),
+    'when' => \app\service\CheckinView::time($summary['updated_at'] ?? 0),
+];
+$report['percent'] = \app\service\CheckinView::percent($report['done'] + $report['skipped'], $report['total']);
+{/php}
+<div class="row">
+    <div class="col-xl-4">
+        {include file="console/common/checkin_account" /}
+        {include file="console/tieba/profile" /}
+    </div>
+    <div class="col-xl-8">
+        <div class="block block-rounded">
+            <div class="block-header block-header-default">
+                <h3 class="block-title"><i class="fa fa-fw fa-flag-checkered text-primary opacity-75"></i> 签到战报</h3>
+                <div class="block-options fs-sm text-muted">
+                    {if condition="$summary"}{if condition="$report.today"}今日{else /}最近一次{/if} · {$report.when}{else /}尚未执行{/if}
+                </div>
+            </div>
+            <div class="block-content">
+                {if condition="$summary"}
+                <div class="row text-center g-sm mb-3">
+                    <div class="col-6 col-md-3"><div class="py-2 rounded bg-body-light"><div class="fs-3 fw-bold">{$report.total}</div><div class="fs-xs text-muted">关注贴吧</div></div></div>
+                    <div class="col-6 col-md-3"><div class="py-2 rounded bg-body-light"><div class="fs-3 fw-bold text-success">{$report.done}</div><div class="fs-xs text-muted">已签到</div></div></div>
+                    <div class="col-6 col-md-3"><div class="py-2 rounded bg-body-light"><div class="fs-3 fw-bold text-danger">{$report.failed}</div><div class="fs-xs text-muted">失败</div></div></div>
+                    <div class="col-6 col-md-3"><div class="py-2 rounded bg-body-light"><div class="fs-3 fw-bold text-primary">+{$report.bonus}</div><div class="fs-xs text-muted">获得经验</div></div></div>
+                </div>
+                <div class="progress mb-1" style="height: 8px;" role="progressbar" aria-label="签到进度" aria-valuenow="{$report.percent}" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar bg-success" style="width: {$report.percent}%;"></div>
+                </div>
+                <p class="fs-xs text-muted mb-3">
+                    完成 {$report.percent}%
+                    {if condition="$report.skipped gt 0"} · 跳过 {$report.skipped} 个（贴吧已关闭或账号在该吧受限）{/if}
+                    {if condition="$report.running"} · 仍有 {$report.pending} 个贴吧排队签到中{/if}
+                </p>
+                {if condition="count($report.failed_names)"}
+                <div class="checkin-forums mb-2">
+                    <div class="fs-sm fw-semibold mb-1">签到失败的贴吧</div>
+                    {foreach $report.failed_names as $name}<span class="badge bg-danger-light text-danger">{$name}吧</span>{/foreach}
+                    {if condition="$report.failed gt count($report.failed_names)"}<span class="badge bg-body-light text-muted">等 {$report.failed} 个</span>{/if}
+                </div>
+                {/if}
+                {if condition="count($report.skipped_names)"}
+                <div class="checkin-forums mb-2">
+                    <div class="fs-sm fw-semibold mb-1">已跳过的贴吧</div>
+                    {foreach $report.skipped_names as $name}<span class="badge bg-body-light text-muted">{$name}吧</span>{/foreach}
+                </div>
+                {/if}
+                {else /}
+                <div class="text-center py-4">
+                    <i class="fa fa-paw fa-2x text-primary opacity-50"></i>
+                    <p class="fs-sm text-muted mt-2 mb-0">设置挂机时间后，系统会在每天该时间逐个签到关注的贴吧，战报会显示在这里。</p>
+                </div>
+                {/if}
+            </div>
+        </div>
+        {include file="console/common/checkin_tasks" /}
+    </div>
+</div>
+{include file="console/common/checkin_logs" /}
+{/block}
+{block name="foot"}
+{include file="console/common/checkin_scripts" /}
+{/block}

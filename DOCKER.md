@@ -2,7 +2,7 @@
 
 项目镜像使用 PHP 8.2、Nginx/PHP-FPM Alpine 和 MySQL 8.4。应用以非 root 用户运行，启用 OPcache，配置、运行时文件、会话、上传文件和数据库均通过命名卷持久化。
 
-GitHub Actions 会在 `main` 分支或 `v*` 标签更新时，在 GitHub 上构建 `linux/amd64` 与 `linux/arm64` 镜像并发布到 `ghcr.io/7788dev/loopdeck`。本地和生产服务器不需要构建镜像。
+GitHub Actions 会在 `main` 分支或 `v*` 标签更新时，分别在 GitHub 原生 x86 与 Arm runner 上并行构建 `linux/amd64` 与 `linux/arm64` 镜像（不使用 QEMU 模拟），再合并为多架构镜像发布到 `ghcr.io/7788dev/loopdeck`。本地和生产服务器不需要构建镜像。
 
 PHP 依赖由根目录的 `composer.json` 声明、由 `composer.lock` 精确锁定。镜像构建会在独立阶段执行 `composer validate`、`composer install --no-dev`、`composer audit` 和全部离线回归测试；`vendor/` 不进入 Git，也不会从开发机复制进镜像。
 

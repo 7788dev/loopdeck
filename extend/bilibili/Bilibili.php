@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace bilibili;
 
+use app\service\TaskMessage;
 use bilibili\sdk\Client;
 
 class Bilibili
@@ -182,24 +183,24 @@ class Bilibili
         }
         $reward = $this->client->dailyReward();
         if (($reward['code'] ?? -1) === 0 && !empty($reward['data']['watch'])) {
-            return ['code' => 1, 'message' => '主站任务：今日观看任务已完成'];
+            return ['code' => 1, 'status' => 'already', 'message' => '今日观看已完成'];
         }
 
         $video = $this->selectVideos(1, 'random')[0] ?? null;
         if ($video === null) {
-            return ['code' => 0, 'message' => '主站任务：未找到可观看的视频'];
+            return ['code' => 0, 'message' => '暂无可观看的视频'];
         }
         $start = $this->client->startVideo($video);
         if (($start['code'] ?? -1) !== 0) {
-            return $this->failure($start, '主站任务：开始观看失败');
+            return $this->failure($start, '开始观看失败');
         }
         $played = max(1, min((int)($video['duration'] ?? 60), 60));
         $heartbeat = $this->client->videoHeartbeat($video, $played);
         $history = $this->client->historyReport($video, $played);
         if (($heartbeat['code'] ?? -1) !== 0 && ($history['code'] ?? -1) !== 0) {
-            return $this->failure($heartbeat, '主站任务：观看进度上报失败');
+            return $this->failure($heartbeat, '观看进度上报失败');
         }
-        return ['code' => 1, 'message' => '主站任务：av' . $video['aid'] . ' 观看成功'];
+        return ['code' => 1, 'status' => 'done', 'message' => '观看任务已完成'];
     }
 
     public function shareAid(): array
@@ -218,26 +219,26 @@ class Bilibili
         }
         $estimate = max(0, min(5, (int)($this->config['add_coin_num'] ?? 0)));
         if ($estimate === 0) {
-            return ['code' => 0, 'message' => '主站任务：投币数量未配置'];
+            return ['code' => 0, 'message' => '投币数量未配置'];
         }
         $coinExp = $this->client->todayCoinExp();
         $used = ($coinExp['code'] ?? -1) === 0 ? intdiv(max(0, (int)($coinExp['data'] ?? 0)), 10) : 0;
         $stock = max(0, (int)floor((float)($nav['money'] ?? 0)));
         if ($used >= $estimate) {
-            return ['code' => 1, 'message' => '主站任务：今日投币已达到配置数量'];
+            return ['code' => 1, 'message' => '今日投币已完成'];
         }
         if ($stock <= 0) {
-            return ['code' => 1, 'message' => '主站任务：硬币余额不足'];
+            return ['code' => 1, 'message' => '硬币余额不足，今日未投币'];
         }
         if ($used >= 5) {
-            return ['code' => 1, 'message' => '主站任务：今日投币经验已满'];
+            return ['code' => 1, 'message' => '今日投币经验已满，未投币'];
         }
         $target = min(max(0, $estimate - $used), $stock, max(0, 5 - $used));
 
         $mode = ($this->config['add_coin_mode'] ?? 'random') === 'fixed' ? 'fixed' : 'random';
         $videos = $this->selectVideos($target, $mode);
         if ($videos === []) {
-            return ['code' => 0, 'message' => '主站任务：未找到可投币的视频'];
+            return ['code' => 0, 'message' => '暂无可投币的视频'];
         }
 
         $success = 0;
@@ -254,11 +255,13 @@ class Bilibili
             $errors[] = (string)($response['message'] ?? $response['msg'] ?? '未知错误');
         }
         if ($success === 0 && $errors !== []) {
-            return ['code' => 0, 'message' => '主站任务：每日投币失败：' . implode('；', array_unique($errors))];
+            return ['code' => 0, 'message' => '投币失败', 'errors' => array_values(array_unique($errors))];
         }
         return [
             'code' => 1,
-            'message' => "主站任务：每日投币，硬币库存 {$stock}，计划 {$target}，成功 {$success}",
+            'message' => $success < $target
+                ? "已投币 {$success}/{$target} 枚，硬币余额 {$stock}"
+                : "已投币 {$success} 枚，硬币余额 {$stock}",
         ];
     }
 
@@ -269,16 +272,15 @@ class Bilibili
         }
         $before = $this->client->dailyReward();
         if (($before['code'] ?? -1) !== 0) {
-            return $this->failure($before, '主站每日经验：任务状态读取失败');
+            return $this->failure($before, '任务状态读取失败');
         }
 
-        $messages = [];
+        $items = [];
         $success = true;
         $beforeData = is_array($before['data'] ?? null) ? $before['data'] : [];
         if (empty($beforeData['watch'])) {
             $watch = $this->watchAid();
             $success = $success && (int)($watch['code'] ?? 0) === 1;
-            $messages[] = (string)($watch['message'] ?? '观看任务执行失败');
         }
         // Bilibili removed the main-site daily share task. Do not call
         // shareAid() here: dailyexperience must remain useful for login,
@@ -288,17 +290,22 @@ class Bilibili
         $afterData = ($after['code'] ?? -1) === 0 && is_array($after['data'] ?? null)
             ? $after['data']
             : $beforeData;
-        $status = static fn(bool $done): string => $done ? '完成' : '已上报，状态待同步';
-        $messages[] = '登录' . $status(!empty($afterData['login']));
-        $messages[] = '观看' . $status(!empty($afterData['watch']));
-        $messages[] = '分享已下架';
+        $items[] = [
+            'label' => '登录',
+            'status' => !empty($afterData['login']) ? TaskMessage::DONE : TaskMessage::FAILED,
+        ];
+        $items[] = [
+            'label' => '观看',
+            'status' => !empty($afterData['watch']) ? TaskMessage::DONE : TaskMessage::FAILED,
+        ];
 
         $coin = $this->client->todayCoinExp();
-        if (($coin['code'] ?? -1) === 0) {
-            $messages[] = '投币经验' . max(0, (int)($coin['data'] ?? 0)) . '/50';
-        } else {
-            $messages[] = '投币经验读取失败';
-        }
+        $items[] = [
+            'status' => TaskMessage::NONE,
+            'text' => ($coin['code'] ?? -1) === 0
+                ? '投币经验 ' . max(0, (int)($coin['data'] ?? 0)) . '/50'
+                : '投币经验读取失败',
+        ];
 
         $log = $this->client->experienceLog();
         if (($log['code'] ?? -1) === 0) {
@@ -309,12 +316,12 @@ class Bilibili
                     $todayExperience += (int)($entry['delta'] ?? 0);
                 }
             }
-            $messages[] = '经验日志今日+' . max(0, $todayExperience);
+            $items[] = ['status' => TaskMessage::NONE, 'text' => '今日经验+' . max(0, $todayExperience)];
         }
 
         return [
             'code' => $success ? 1 : 0,
-            'message' => '主站每日经验：' . implode('；', array_values(array_unique(array_filter($messages)))),
+            'message' => TaskMessage::compose($items),
         ];
     }
 
@@ -328,13 +335,13 @@ class Bilibili
             if ($this->client->isAuthenticationFailure($privilege)) {
                 $this->cookiezt = true;
             }
-            return $this->failure($privilege, '大会员每日经验：权益状态读取失败');
+            return $this->failure($privilege, '大会员权益状态读取失败');
         }
 
         $data = is_array($privilege['data'] ?? null) ? $privilege['data'] : [];
         $activeVip = !empty($data['is_vip']) || (int)($data['vip_status'] ?? 0) === 1;
         if (!$activeVip) {
-            return ['code' => 1, 'message' => '大会员每日经验：当前账号不是有效大会员，已安全跳过'];
+            return ['code' => 1, 'message' => '当前账号非大会员，已跳过'];
         }
 
         $dailyBenefit = null;
@@ -345,24 +352,24 @@ class Bilibili
             }
         }
         if ((int)($dailyBenefit['state'] ?? 0) === 1) {
-            return ['code' => 1, 'message' => '大会员每日经验：今日已经领取'];
+            return ['code' => 1, 'message' => '今日已领取'];
         }
         if ((int)($dailyBenefit['state'] ?? 0) === 2) {
             $watch = $this->watchAid();
             if ((int)($watch['code'] ?? 0) !== 1) {
-                return ['code' => 0, 'message' => '大会员每日经验：前置观看任务失败；' . (string)($watch['message'] ?? '')];
+                return ['code' => 0, 'message' => '前置观看任务失败'];
             }
         }
 
         $claim = $this->client->claimVipExperience();
         $code = (int)($claim['code'] ?? -1);
         if ($code === 0) {
-            return ['code' => 1, 'message' => '大会员每日经验：领取成功'];
+            return ['code' => 1, 'message' => '大会员经验已领取'];
         }
         if ($code === 69198) {
-            return ['code' => 1, 'message' => '大会员每日经验：今日已经领取'];
+            return ['code' => 1, 'message' => '今日已领取'];
         }
-        return $this->failure($claim, '大会员每日经验：领取失败');
+        return $this->failure($claim, '大会员经验领取失败');
     }
 
     public function manga_sign(): array
@@ -376,9 +383,11 @@ class Bilibili
                 && str_contains(strtolower($duplicateMessage), 'duplicate'))
             || ((int)($response['code'] ?? 0) === 1 && str_contains($duplicateMessage, '不能重复签到'));
         if (($response['code'] ?? -1) === 0 || $duplicate) {
-            return ['code' => 1, 'message' => $duplicate ? '漫画签到：今日已签到' : '漫画签到：成功'];
+            return $duplicate
+                ? ['code' => 1, 'status' => 'already', 'message' => '今日已签到']
+                : ['code' => 1, 'status' => 'done', 'message' => '签到已完成'];
         }
-        return $this->failure($response, '漫画签到：失败');
+        return $this->failure($response, '签到失败');
     }
 
     public function manga_share(): array
@@ -389,31 +398,33 @@ class Bilibili
         $response = $this->client->mangaShare();
         if (($response['code'] ?? -1) === 0) {
             $message = (string)($response['msg'] ?? '');
-            return ['code' => 1, 'message' => $message === '今日已分享' ? '漫画分享：今日已分享' : '漫画分享：成功'];
+            return $message === '今日已分享'
+                ? ['code' => 1, 'status' => 'already', 'message' => '今日已分享']
+                : ['code' => 1, 'status' => 'done', 'message' => '分享已完成'];
         }
-        return $this->failure($response, '漫画分享：失败');
+        return $this->failure($response, '分享失败');
     }
 
     public function dailyBagPC(): array
     {
-        return $this->liveCompatibility('PC 日常/周常礼包', fn(): array => $this->client->liveDailyBagPc());
+        return $this->liveCompatibility('PC 礼包', fn(): array => $this->client->liveDailyBagPc());
     }
 
     public function dailyBagAPP(): array
     {
-        return $this->liveCompatibility('APP 日常/周常礼包', fn(): array => $this->client->liveDailyBagApp());
+        return $this->liveCompatibility('APP 礼包', fn(): array => $this->client->liveDailyBagApp());
     }
 
     public function webHeart(): array
     {
         $roomId = $this->config['global_room'] ?? 1;
-        return $this->liveCompatibility('PC 在线心跳', fn(): array => $this->client->liveWebHeart($roomId));
+        return $this->liveCompatibility('PC 心跳', fn(): array => $this->client->liveWebHeart($roomId));
     }
 
     public function appHeart(): array
     {
         $roomId = $this->config['global_room'] ?? 1;
-        return $this->liveCompatibility('APP 在线心跳', fn(): array => $this->client->liveAppHeart($roomId));
+        return $this->liveCompatibility('APP 心跳', fn(): array => $this->client->liveAppHeart($roomId));
     }
 
     public function getGroupList(): array
@@ -440,10 +451,11 @@ class Bilibili
         if (($response['code'] ?? -1) === 0 && (int)($response['data']['status'] ?? 0) === 0) {
             return [
                 'code' => 1,
-                'message' => '在应援团 ' . $name . ' 中签到成功，增加 ' . (int)($response['data']['add_num'] ?? 0) . ' 点亲密度',
+                'add_num' => (int)($response['data']['add_num'] ?? 0),
+                'message' => '应援团「' . $name . '」签到成功',
             ];
         }
-        return $this->failure($response, '在应援团 ' . $name . ' 中签到失败');
+        return $this->failure($response, '应援团「' . $name . '」签到失败');
     }
 
     public function gift_heart(): array
@@ -454,12 +466,12 @@ class Bilibili
         }
         $response = $this->client->liveGiftHeart($roomId);
         if (($response['code'] ?? -1) !== 0) {
-            return $this->failure($response, '心跳礼物领取失败');
+            return $this->failure($response, '礼物领取失败');
         }
         if ((int)($response['data']['heart_status'] ?? 0) === 0) {
-            return ['code' => 1, 'message' => '心跳礼物：当前没有可领取的礼物'];
+            return ['code' => 1, 'message' => '暂无可领取的礼物'];
         }
-        return ['code' => 1, 'message' => '心跳礼物领取请求成功'];
+        return ['code' => 1, 'message' => '礼物已领取'];
     }
 
     public function check_daily(): array
@@ -484,12 +496,12 @@ class Bilibili
 
     public function appSilver2coin(): array
     {
-        return $this->silverExchange('APP 银瓜子兑换硬币', fn(): array => $this->client->liveSilverToCoinApp());
+        return $this->silverExchange('APP 银瓜子', fn(): array => $this->client->liveSilverToCoinApp());
     }
 
     public function pcSilver2coin(): array
     {
-        return $this->silverExchange('PC 银瓜子兑换硬币', fn(): array => $this->client->liveSilverToCoinPc());
+        return $this->silverExchange('PC 银瓜子', fn(): array => $this->client->liveSilverToCoinPc());
     }
 
     /** @return array<string,mixed>|null */
@@ -602,9 +614,9 @@ class Bilibili
         }
         $response = $request();
         if (($response['code'] ?? -1) === 0) {
-            return ['code' => 1, 'message' => $label . '：请求成功'];
+            return ['code' => 1, 'status' => 'done', 'message' => $label . '已完成'];
         }
-        return $this->failure($response, $label . '：上游接口不可用或任务已下线');
+        return $this->failure($response, $label . '不可用或已下线');
     }
 
     private function silverExchange(string $label, callable $request): array
@@ -614,13 +626,13 @@ class Bilibili
         }
         $response = $request();
         if (($response['code'] ?? -1) === 0) {
-            return ['code' => 1, 'message' => $label . '：请求成功'];
+            return ['code' => 1, 'status' => 'done', 'message' => $label . '已兑换为硬币'];
         }
         $message = (string)($response['message'] ?? $response['msg'] ?? '');
         if (str_contains($message, '余额不足')) {
-            return ['code' => 1, 'message' => $label . '：银瓜子余额不足'];
+            return ['code' => 1, 'status' => 'none', 'message' => '银瓜子余额不足，今日未兑换'];
         }
-        return $this->failure($response, $label . '：兑换失败');
+        return $this->failure($response, $label . '兑换失败');
     }
 
     private function loginSuccess(string $refreshToken, string $accessKey = ''): array

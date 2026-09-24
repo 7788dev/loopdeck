@@ -94,7 +94,7 @@ cronSafetyCheck(is_string($neteaseSource), 'Unable to inspect the netease contro
 
 cronSafetyCheck(
     str_contains($neteaseSource, 'catch (Throwable $exception)')
-        && str_contains($neteaseSource, '任务调度异常，已安排稍后重试')
+        && str_contains($neteaseSource, '执行异常，稍后自动重试')
         && str_contains($neteaseSource, "\$this->statusTag(['retry_after_seconds' => 300])"),
     'netease runJob does not isolate exceptions as retrying'
 );
@@ -116,7 +116,7 @@ cronSafetyCheck(is_string($bilibiliSource), 'Unable to inspect the bilibili cont
 
 // Exceptions reschedule the job through the lease; the log tag must say so.
 cronSafetyCheck(
-    str_contains($bilibiliSource, '[重试中] 任务调度异常，已安排稍后重试'),
+    str_contains($bilibiliSource, '[重试中] 执行异常，稍后自动重试'),
     'bilibili scheduler exceptions are not tagged as retrying'
 );
 cronSafetyCheck(

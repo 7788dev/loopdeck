@@ -537,7 +537,7 @@ workflowCheck($idleProbe->scrobbleCalls === 1, 'The pending batch did not bound 
 $idleStopped = $idleProbe->daka_new();
 workflowCheck((int)($idleStopped['data']['submitted'] ?? -1) === 0, 'A stalled day submitted another batch');
 workflowCheck(
-    str_contains((string)($idleStopped['message'] ?? ''), '自动核验'),
+    str_contains((string)($idleStopped['message'] ?? ''), '自动重试'),
     'The pending day did not explain that it will verify again'
 );
 foreach (glob($idleDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $idleFile) {
@@ -573,7 +573,7 @@ workflowCheck((int)($batchCapResult['data']['submitted'] ?? -1) === 0, 'The batc
 workflowCheck((int)($batchCapResult['data']['retry_after_seconds'] ?? 0) > 0, 'The batch cap disabled late verification');
 workflowCheck($batchCapProbe->scrobbleCalls === 0, 'The batch cap called the reporting protocol');
 workflowCheck(
-    str_contains((string)($batchCapResult['message'] ?? ''), '仅核验'),
+    str_contains((string)($batchCapResult['message'] ?? ''), '已达上限'),
     'The capped day did not explain why it stopped sending'
 );
 foreach (glob($batchCapDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $batchCapFile) {
@@ -645,7 +645,7 @@ foreach ($results as $name => $result) {
     workflowCheck((int)($result['code'] ?? 0) === 200, $name . ' did not complete successfully');
 }
 workflowCheck(
-    str_contains((string)($results['daka_new']['message'] ?? ''), '上报 1'),
+    str_contains((string)($results['daka_new']['message'] ?? ''), '本次已听歌 1'),
     'Daily 300-song workflow did not use immediate api-enhanced reporting'
 );
 

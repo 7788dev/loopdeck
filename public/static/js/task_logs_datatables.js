@@ -75,9 +75,9 @@
         columns: [
             {"title": "ID", "data": "id"},
             {"title": "任务名称", "data": "do", "render": x.renderText},
-            {"title": "任务响应", "data": "response", "render": renderStatus},
+            {"title": "状态", "data": "response", "render": renderStatus},
             {"title": "时间", "data": "addtime", "render": renderTime},
-            {"title": "响应详情", "data": "response", "className": "none", "render": renderDetail}
+            {"title": "执行详情", "data": "response", "className": "none", "render": renderDetail}
         ],
         ordering: false,
         pagingType: "full_numbers",

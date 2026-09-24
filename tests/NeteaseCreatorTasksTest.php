@@ -190,7 +190,8 @@ foreach ([['code' => 500, 'message' => 'service unavailable'], ['code' => 405, '
     [$partner] = creatorFixture([$dailyPath => [$daily, $daily], $ratingPath => [$failure, $failure]]);
     $result = $partner->evaluate();
     creatorCheck($result['code'] === 201 && $result['data']['submitted'] === 0, 'All failed ratings became a success');
-    creatorCheck(str_contains($result['message'], $failure['message']), 'Rating failure reason was discarded');
+    $failurePayload = json_encode($result['data']['failures'] ?? [], JSON_UNESCAPED_UNICODE);
+    creatorCheck(is_string($failurePayload) && str_contains($failurePayload, $failure['message']), 'Rating failure reason was discarded');
     creatorCheck($result['data']['retry_after_seconds'] === ($failure['code'] === 500 ? 300 : 0),
         'Permanent rating failures must not be retried as transient failures');
 }
@@ -200,7 +201,8 @@ foreach ([['code' => 500, 'message' => 'service unavailable'], ['code' => 405, '
 ]);
 $partial = $partner->evaluate();
 creatorCheck($partial['code'] === 201 && $partial['data']['submitted'] === 1, 'Partial rating failure was hidden');
-creatorCheck(str_contains($partial['message'], '操作太频繁'), 'The msg error field was ignored');
+$partialFailures = json_encode($partial['data']['failures'] ?? [], JSON_UNESCAPED_UNICODE);
+creatorCheck(is_string($partialFailures) && str_contains($partialFailures, '操作太频繁'), 'The msg error field was ignored');
 
 [$partner, $transport] = creatorFixture([
     $dailyPath => [$daily, $daily], $ratingPath => [['code' => 301, 'message' => '需要登录']],

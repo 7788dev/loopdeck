@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace bilibili;
 
+use app\service\TaskMessage;
 use bilibili\sdk\Client;
 
 class BiliHelper extends Bilibili
@@ -27,17 +28,26 @@ class BiliHelper extends Bilibili
 
     public function manga(): array
     {
-        return $this->combine([parent::manga_sign(), parent::manga_share()]);
+        return $this->compose([
+            ['签到', parent::manga_sign()],
+            ['分享', parent::manga_share()],
+        ]);
     }
 
     public function dailybag(): array
     {
-        return $this->combine([parent::dailyBagAPP(), parent::dailyBagPC()]);
+        return $this->compose([
+            ['APP 礼包', parent::dailyBagAPP()],
+            ['PC 礼包', parent::dailyBagPC()],
+        ], ['done_suffix' => '已领取']);
     }
 
     public function doubleheart(): array
     {
-        return $this->combine([parent::webHeart(), parent::appHeart()]);
+        return $this->compose([
+            ['PC 心跳', parent::webHeart()],
+            ['APP 心跳', parent::appHeart()],
+        ]);
     }
 
     public function groupsignIn(): array
@@ -48,15 +58,39 @@ class BiliHelper extends Bilibili
         }
         $groups = is_array($list['groups'] ?? null) ? $list['groups'] : [];
         if ($groups === []) {
-            return ['code' => 1, 'message' => $list['message'] ?? '没有需要签到的应援团'];
+            return ['code' => 1, 'message' => '应援团今日均已签到'];
         }
-        $results = [];
+        $signed = 0;
+        $intimacy = 0;
+        $failures = [];
         foreach ($groups as $group) {
-            if (is_array($group)) {
-                $results[] = parent::signInGroup($group);
+            if (!is_array($group)) {
+                continue;
+            }
+            $result = parent::signInGroup($group);
+            if ((int)($result['code'] ?? 0) === 1) {
+                $signed++;
+                $intimacy += (int)($result['add_num'] ?? 0);
+                continue;
+            }
+            $message = trim((string)($result['message'] ?? ''));
+            if ($message !== '') {
+                $failures[] = $message;
             }
         }
-        return $this->combine($results);
+        if ($signed === 0) {
+            return [
+                'code' => 0,
+                'message' => '应援团签到失败',
+                'failures' => $failures,
+            ];
+        }
+        return [
+            'code' => $failures === [] ? 1 : 0,
+            'message' => '已为 ' . $signed . ' 个应援团签到，亲密度+' . $intimacy
+                . ($failures === [] ? '' : '，部分应援团签到失败'),
+            'failures' => $failures,
+        ];
     }
 
     public function giftheart(): array
@@ -71,7 +105,10 @@ class BiliHelper extends Bilibili
 
     public function silver2coin(): array
     {
-        return $this->combine([parent::pcSilver2coin(), parent::appSilver2coin()]);
+        return $this->compose([
+            ['PC', parent::pcSilver2coin()],
+            ['APP', parent::appSilver2coin()],
+        ], ['done_suffix' => '端银瓜子已兑换为硬币']);
     }
 
     public function dailyexperience(): array
@@ -84,23 +121,38 @@ class BiliHelper extends Bilibili
         return parent::vipExperience();
     }
 
-    private function combine(array $results): array
+    /**
+     * 把多个子任务结果按 TaskMessage 模板合成一条详情文案。失败子项保留
+     * 适配器的短句；成功子项只按状态合并，不再各自成句。
+     */
+    private function compose(array $pairs, array $options = []): array
     {
-        if ($results === []) {
-            return ['code' => 1, 'message' => '没有需要执行的子任务'];
-        }
+        $items = [];
         $success = true;
-        $messages = [];
-        foreach ($results as $result) {
+        foreach ($pairs as $pair) {
+            [$label, $result] = $pair;
             if (!is_array($result)) {
                 $success = false;
+                $items[] = ['label' => $label, 'status' => TaskMessage::FAILED];
                 continue;
             }
-            $success = $success && (int)($result['code'] ?? 0) === 1;
-            if (!empty($result['message'])) {
-                $messages[] = (string)$result['message'];
-            }
+            $code = (int)($result['code'] ?? 0);
+            $success = $success && $code === 1;
+            $status = (string)($result['status'] ?? ($code === 1 ? TaskMessage::DONE : TaskMessage::FAILED));
+            $items[] = [
+                'label' => $label,
+                'status' => $status,
+                'text' => $status === TaskMessage::FAILED
+                    ? trim((string)($result['message'] ?? ''))
+                    : null,
+            ];
         }
-        return ['code' => $success ? 1 : 0, 'message' => implode('；', $messages)];
+        if ($items === []) {
+            return ['code' => 1, 'message' => '没有需要执行的子任务'];
+        }
+        return [
+            'code' => $success ? 1 : 0,
+            'message' => TaskMessage::compose($items, $options),
+        ];
     }
 }

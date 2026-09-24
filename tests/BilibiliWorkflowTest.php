@@ -230,7 +230,7 @@ biliWorkflowCheck($coinTransport->callCount('/x/web-interface/coin/add') === 2, 
 ], ['add_coin_num' => 1, 'add_coin_mode' => 'random']);
 $coinDoneResult = $coinDone->coinAdd();
 biliWorkflowCheck($coinDoneResult['code'] === 1, 'configured daily coin target was not treated as complete');
-biliWorkflowCheck(str_contains($coinDoneResult['message'], '已达到配置数量'), 'configured daily coin target message is unclear');
+biliWorkflowCheck(str_contains($coinDoneResult['message'], '今日投币已完成'), 'configured daily coin target message is unclear');
 biliWorkflowCheck(!$coinDoneTransport->called('/x/web-interface/coin/add'), 'coinadd repeated spending after reaching configured daily target');
 
 [$dailyExperience, $dailyExperienceTransport] = biliWorkflow([
@@ -247,9 +247,8 @@ biliWorkflowCheck(!$coinDoneTransport->called('/x/web-interface/coin/add'), 'coi
 ]);
 $dailyExperienceResult = $dailyExperience->dailyexperience();
 biliWorkflowCheck($dailyExperienceResult['code'] === 1, 'daily experience workflow failed');
-biliWorkflowCheck(str_contains($dailyExperienceResult['message'], '投币经验20/50'), 'daily experience did not report coin experience');
-biliWorkflowCheck(str_contains($dailyExperienceResult['message'], '分享已下架'), 'daily experience did not report retired share task');
-biliWorkflowCheck(substr_count($dailyExperienceResult['message'], '分享已下架') === 1, 'daily experience duplicated retired share status');
+biliWorkflowCheck(str_contains($dailyExperienceResult['message'], '投币经验 20/50'), 'daily experience did not report coin experience');
+biliWorkflowCheck(!str_contains($dailyExperienceResult['message'], '分享已下架'), 'daily experience still reports the permanently retired share task');
 biliWorkflowCheck(!$dailyExperienceTransport->called('/x/web-interface/share/add'), 'daily experience attempted the retired share request');
 biliWorkflowCheck($dailyExperienceTransport->called('/x/member/web/exp/log'), 'daily experience did not verify the experience log');
 
@@ -259,7 +258,7 @@ biliWorkflowCheck($dailyExperienceTransport->called('/x/member/web/exp/log'), 'd
 ]);
 $nonVipExperienceResult = $nonVipExperience->vipexperience();
 biliWorkflowCheck($nonVipExperienceResult['code'] === 1, 'non-VIP account was treated as a task failure');
-biliWorkflowCheck(str_contains($nonVipExperienceResult['message'], '安全跳过'), 'non-VIP skip message is unclear');
+biliWorkflowCheck(str_contains($nonVipExperienceResult['message'], '已跳过'), 'non-VIP skip message is unclear');
 biliWorkflowCheck(!$nonVipExperienceTransport->called('/x/vip/experience/add'), 'non-VIP account attempted to claim VIP experience');
 
 [$vipExperience, $vipExperienceTransport] = biliWorkflow([

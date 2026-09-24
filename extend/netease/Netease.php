@@ -2,6 +2,7 @@
 
 namespace netease;
 
+use app\service\TaskMessage;
 use netease\sdk\Client as CloudMusicClient;
 use netease\sdk\Ncbl;
 use Throwable;
@@ -383,9 +384,9 @@ class Netease
         $status = $this->decodeBody($this->getInfo($this->cookie));
         if (($status['code'] ?? 0) === 301) {
             $this->cookiezt = true;
-            return $this->makeResult(201, '登录状态已失效');
+            return $this->makeResult(201, '登录已失效，请重新扫码登录');
         }
-        return $this->makeResult(200, '每日登录成功');
+        return $this->makeResult(200, '登录成功');
     }
 
     public function sign()
@@ -393,12 +394,12 @@ class Netease
         $body = $this->decodeBody($this->requestApi('/api/point/dailyTask', ['type' => 1], 'eapi', ['os' => 'pc']));
         if (($body['code'] ?? 0) === 301) {
             $this->cookiezt = true;
-            return $this->makeResult(201, '登录状态已失效');
+            return $this->makeResult(201, '登录已失效，请重新扫码登录');
         }
         if (($body['code'] ?? 0) === -2) {
-            return $this->makeResult(200, '今日已签到，无需重复执行');
+            return $this->makeResult(200, '今日已签到');
         }
-        return $this->makeResult(($body['code'] ?? 0) === 200 ? 200 : 201, (string)($body['message'] ?? $body['msg'] ?? '每日签到完成'));
+        return $this->makeResult(($body['code'] ?? 0) === 200 ? 200 : 201, ($body['code'] ?? 0) === 200 ? '签到成功' : '签到失败');
     }
 
     public function personalized($limit)
@@ -1654,14 +1655,12 @@ class Netease
         }
         $success = $this->scrobbleBatch($songs);
         if ($success <= 0) {
-            return $this->makeResult(201, '歌曲ID：' . $songId . ' 的NCBL日志未获服务器文件确认，请稍后重试');
+            return $this->makeResult(201, '歌曲 ' . $songId . ' 的播放上报未被确认，请稍后重试');
         }
         return $this->makeResult(
             200,
-            '歌曲ID：' . $songId . ' 的NCBL完播文件确认' . $success . '/' . $times . '次；起播文件确认'
-            . $this->lastScrobbleStarts . '/' . $times . '次，提交时长约'
-            . (int)ceil($this->lastScrobbleSeconds / 60) . '分钟，耗时约'
-            . round($this->lastScrobbleElapsedSeconds, 1) . '秒；文件确认不等同于累计统计已入账',
+            '歌曲 ' . $songId . ' 已提交完播上报 ' . $success . '/' . $times . ' 次，提交时长约 '
+            . (int)ceil($this->lastScrobbleSeconds / 60) . ' 分钟；实际计数以网易云入账为准',
             [
                 'plv_confirmed' => $this->lastScrobbleStarts,
                 'pld_confirmed' => $success,
@@ -1691,7 +1690,7 @@ class Netease
             ]);
         }
         if ($beforeCode !== 200) {
-            return $this->makeResult(201, '读取网易云累计听歌失败，等待自动重试', [
+            return $this->makeResult(201, '网易云听歌数据读取失败，稍后自动重试', [
                 'submitted' => 0,
                 'retry_after_seconds' => $this->dakaRetryDelay($retrySeconds),
                 'target_reached' => false,
@@ -1849,8 +1848,7 @@ class Netease
             $nextVerificationAt = 0;
             $persist(true, true);
             return $this->makeResult(200,
-                '网易云每日300首打卡成功 | 进度 ' . $actualProgressBefore . '/' . $target
-                . ' | 累计 ' . $listenSongs,
+                '今日已完成，无需重复打卡',
                 [
                     'submitted' => 0,
                     'daily_target' => $target,
@@ -2042,25 +2040,17 @@ class Netease
         }
         $persist($completed, $retryAfter === 0);
 
-        $message = '网易云每日300首打卡' . ($completed ? '成功' : ($retryAfter > 0 ? '待核验' : '失败'))
-            . ' | 进度 ' . $actualProgressBefore . '/' . $target
-            . ' | 本次内部批次 ' . $internalBatches
-            . ' | 本次上报 ' . $submittedThisRun
-            . ' | 累计 ' . $listenSongs . '→' . $currentListenSongs;
-        if ($reason !== '' && !$completed) {
-            $message .= ' | ' . $reason;
-        }
-        if ($retryAfter > 0) {
-            $message .= ' | ' . (int)ceil($retryAfter / 60) . '分钟后自动核验';
-        }
-        $rejectionSummary = '';
-        if ($runRejections !== []) {
-            $parts = [];
-            foreach ($runRejections as $key => $count) {
-                $parts[] = $key . '×' . $count;
-            }
-            $rejectionSummary = implode(' ', $parts);
-            $message .= ' | 拒绝 ' . $rejectionSummary;
+        $delta = max(0, $currentListenSongs - $listenSongs);
+        if ($completed) {
+            $message = '本次已听歌 ' . $delta . ' 首，累计听歌总数由 ' . $listenSongs
+                . ' 首变更为 ' . $currentListenSongs . ' 首';
+        } elseif ($retryAfter > 0) {
+            $capped = str_contains($reason, '上限');
+            $message = '已确认 ' . $actualProgressBefore . '/' . $target . '，'
+                . ($capped ? '本次上报已达上限' : '其余待网易云入账')
+                . '，' . (int)ceil($retryAfter / 60) . ' 分钟后自动重试';
+        } else {
+            $message = '已完成 ' . $actualProgressBefore . '/' . $target . '，今日上报已截止';
         }
 
         return $this->makeResult($completed ? 200 : 201, $message, [
@@ -2087,6 +2077,7 @@ class Netease
             'repeat_submitted_total' => $repeatSubmittedTotal,
             'topups_used' => $topupsUsed,
             'rejections' => $runRejections,
+            'reason' => $reason,
             'target_reached' => $completed,
             'attempts' => $attempts,
             'stalled_runs' => $stalledRuns,
@@ -2154,15 +2145,15 @@ class Netease
         }
         $task = $data['data'] ?? null;
         if (!is_array($task)) {
-            return $this->makeResult(201, '合伙人任务获取失败|原因=任务数据缺失');
+            return $this->makeResult(201, '今日暂无待评分作品');
         }
         if ($this->partnerTaskComplete($task)) {
-            return $this->makeResult(200, '今日评分任务已完成，无需重复执行', ['submitted' => 0]);
+            return $this->makeResult(200, '今日评分已完成', ['submitted' => 0]);
         }
         if (!is_array($task['works'] ?? null) || $task['works'] === []
             || !is_scalar($task['id'] ?? null) || is_bool($task['id'])
             || trim((string)$task['id']) === '' || (string)$task['id'] === '0') {
-            return $this->makeResult(201, '合伙人评分未完成|原因=未获取到有效的待评分作品');
+            return $this->makeResult(201, '今日暂无待评分作品');
         }
 
         $range = array_values(array_filter(explode(',', (string)($this->config['evaluate_star'] ?? '2,3')), 'strlen'));
@@ -2178,7 +2169,7 @@ class Netease
             }
             $workId = is_array($work) ? ($work['work']['id'] ?? null) : null;
             if (!is_scalar($workId) || is_bool($workId) || trim((string)$workId) === '' || (string)$workId === '0') {
-                $failed[] = '作品ID缺失';
+                $failed[] = ['label' => '作品评分失败', 'code' => null, 'reason' => '作品ID缺失'];
                 continue;
             }
             if (isset($seen[(string)$workId])) {
@@ -2199,7 +2190,11 @@ class Netease
             if ((int)($body['code'] ?? 0) === 200) {
                 $done++;
             } else {
-                $failed[] = $this->musicTaskFailure($body, '作品评分失败')['message'];
+                $failed[] = [
+                    'label' => '作品评分失败',
+                    'code' => (int)($body['code'] ?? 0),
+                    'reason' => (string)($body['message'] ?? $body['msg'] ?? ''),
+                ];
                 $retryable = $retryable || $this->musicTaskRetryable($body);
                 // Do not continue submitting after authentication or rate-limit errors.
                 if (in_array((int)($body['code'] ?? 0), [301, 401, 403, 429, 509], true)
@@ -2214,17 +2209,21 @@ class Netease
         $sameTask = is_array($current)
             && (!isset($current['id']) || (is_scalar($current['id']) && (string)$current['id'] === (string)$task['id']));
         if ((int)($verified['code'] ?? 0) === 200 && $sameTask && $this->partnerTaskComplete($current)) {
-            return $this->makeResult(200, '音乐合伙人评分完成|本次提交=' . $done . '|进度=服务端已确认', [
+            return $this->makeResult(200, '已提交 ' . $done . ' 个作品的评分', [
                 'submitted' => $done,
                 'completed' => true,
             ]);
         }
         if ((int)($verified['code'] ?? 0) !== 200) {
-            $failed[] = $this->musicTaskFailure($verified, '评分进度核验失败')['message'];
+            $failed[] = [
+                'label' => '评分进度核验失败',
+                'code' => (int)($verified['code'] ?? 0),
+                'reason' => (string)($verified['message'] ?? $verified['msg'] ?? ''),
+            ];
             $retryable = $retryable || $this->musicTaskRetryable($verified);
         }
-        return $this->makeResult(201, '音乐合伙人评分未完成|本次提交=' . $done
-            . '|原因=' . ($failed ? implode('；', array_unique($failed)) : '服务端尚未确认全部完成'), [
+        $retry = $retryable || $failed === [];
+        return $this->makeResult(201, '已提交 ' . $done . ' 个，剩余评分未确认' . ($retry ? '，将自动重试' : ''), [
                 'submitted' => $done,
                 'completed' => false,
                 'failures' => $failed,
@@ -2253,8 +2252,9 @@ class Netease
     {
         $code = (int)($body['code'] ?? 0);
         $reason = (string)($body['message'] ?? $body['msg'] ?? '接口未返回有效结果');
-        return $this->makeResult(201, $label . '|code=' . $code . '|原因=' . $reason, [
+        return $this->makeResult(201, $label . '失败', [
             'upstream_code' => $code,
+            'upstream_reason' => $reason,
             'retry_after_seconds' => $allowRetry && $this->musicTaskRetryable($body) ? 300 : 0,
         ]);
     }
@@ -2283,20 +2283,20 @@ class Netease
         if (isset($reward['message'])) {
             $messages[] = $reward['message'];
         }
-        return $this->makeResult(200, implode('；', array_unique($messages)));
+        return $this->makeResult(200, TaskMessage::join($messages));
     }
 
     public function yunbei_sign()
     {
         $status = $this->decodeBody($this->requestApi('/api/point/signed/get', [], 'weapi'));
         if (!empty($status['data']['signed']) || !empty($status['data']['todaySignedIn'])) {
-            return $this->makeResult(200, '今日云贝已签到，无需重复执行');
+            return $this->makeResult(200, '云贝今日已签到');
         }
         $body = $this->decodeBody($this->requestApi('/api/pointmall/user/sign', [], 'weapi'));
         $code = (int)($body['code'] ?? 0);
         if ($code === 200 || $code === -2) {
             $point = $body['data']['point'] ?? ($body['point'] ?? 0);
-            return $this->makeResult(200, $point ? '云贝签到成功，云贝+' . $point : '云贝签到成功');
+            return $this->makeResult(200, $point ? '签到成功，云贝+' . $point : '签到成功');
         }
         return $this->makeResult(201, (string)($body['message'] ?? '云贝签到失败'));
     }
@@ -2314,7 +2314,7 @@ class Netease
         $body = $this->decodeBody($this->requestApi('/api/yunbei/task/visit/mall', [], 'weapi'));
         return $this->makeResult(
             ($body['code'] ?? 0) === 200 ? 200 : 201,
-            ($body['code'] ?? 0) === 200 ? '云贝任务：浏览商城成功' : (string)($body['message'] ?? '云贝任务：浏览商城失败')
+            ($body['code'] ?? 0) === 200 ? '浏览商城已完成' : (string)($body['message'] ?? '浏览商城失败')
         );
     }
 
@@ -2322,7 +2322,7 @@ class Netease
     {
         $body = $this->decodeBody($this->requestApi('/api/vipnewcenter/app/level/task/external', ['type' => 1], 'eapi'));
         $success = ($body['code'] ?? 0) === 200 && (($body['data']['code'] ?? 200) === 200);
-        return $this->makeResult($success ? 200 : 201, $success ? '云贝任务：浏览会员中心成功' : '云贝任务：浏览会员中心失败');
+        return $this->makeResult($success ? 200 : 201, $success ? '浏览会员中心已完成' : '浏览会员中心失败');
     }
 
     public function yunbei_rcmd_submit(
@@ -2336,7 +2336,7 @@ class Netease
             $songid = $this->pickLocalSongId();
         }
         if ($songid === '') {
-            return $this->makeResult(201, '云贝任务：未获取到可推荐歌曲');
+            return $this->makeResult(201, '暂无可推荐的歌曲');
         }
         $body = $this->decodeBody($this->requestApi('/api/yunbei/rcmd/song/submit', [
             'songId' => $songid,
@@ -2347,7 +2347,7 @@ class Netease
         ], 'weapi'));
         return $this->makeResult(
             ($body['code'] ?? 0) === 200 ? 200 : 201,
-            ($body['code'] ?? 0) === 200 ? '云贝任务：云贝推歌成功' : (string)($body['message'] ?? '云贝任务：云贝推歌失败')
+            ($body['code'] ?? 0) === 200 ? '云贝推歌已完成' : (string)($body['message'] ?? '云贝推歌失败')
         );
     }
 
@@ -2372,7 +2372,7 @@ class Netease
         $body = $this->decodeBody($this->requestApi('/api/point/dailyTask', ['type' => 3], 'eapi', ['os' => 'android']));
         return $this->makeResult(
             in_array((int)($body['code'] ?? 0), [200, -2], true) ? 200 : 201,
-            in_array((int)($body['code'] ?? 0), [200, -2], true) ? '云贝任务：分享歌曲/歌单成功' : '云贝任务：分享歌曲/歌单失败'
+            in_array((int)($body['code'] ?? 0), [200, -2], true) ? '分享歌曲已完成' : '分享歌曲失败'
         );
     }
 
@@ -2392,7 +2392,7 @@ class Netease
                 $count += (int)($task['taskPoint'] ?? 0);
             }
         }
-        return $this->makeResult($count > 0 ? 200 : 201, $count > 0 ? '云贝任务完成，共领取' . $count . '云贝' : '没有待领取的云贝奖励');
+        return $this->makeResult($count > 0 ? 200 : 201, $count > 0 ? '已领取' . $count . '云贝' : '暂无可领取的云贝奖励');
     }
 
     public function musician_task()
@@ -2417,6 +2417,7 @@ class Netease
         }
 
         $results = [];
+        $items = [];
         $success = true;
         foreach ([
             'musician_sign' => '登录音乐人中心',
@@ -2437,22 +2438,21 @@ class Netease
                     $results[$method] = $body;
                 } else {
                     $results[$method] = (int)($body['code'] ?? 0) === 200
-                        ? $this->makeResult(200, $label . '成功')
-                        : $this->musicTaskFailure($body, $label . '失败');
+                        ? $this->makeResult(200, $label . '已完成')
+                        : $this->musicTaskFailure($body, $label);
                 }
             } catch (Throwable $exception) {
-                $results[$method] = $this->makeResult(201, $label . '失败|原因=执行异常');
+                $results[$method] = $this->makeResult(201, $label . '失败');
             }
-            if ((int)$results[$method]['code'] !== 200) {
-                $success = false;
-            }
+            $ok = (int)$results[$method]['code'] === 200;
+            $success = $success && $ok;
+            $items[] = [
+                'label' => $label,
+                'status' => $ok ? TaskMessage::DONE : TaskMessage::FAILED,
+            ];
         }
 
-        $messages = array_column($results, 'message');
-        return $this->makeResult($success ? 200 : 201,
-            ($success ? '音乐人任务执行完成' : '音乐人任务未全部完成') . '|结果=' . implode('；', $messages),
-            ['steps' => $results]
-        );
+        return $this->makeResult($success ? 200 : 201, TaskMessage::compose($items), ['steps' => $results]);
     }
 
     protected function musicianSongId(): string
@@ -2481,29 +2481,29 @@ class Netease
         foreach (['musician_tasks' => '周期任务', 'musician_tasks_new' => '阶段任务'] as $method => $label) {
             $body = $this->{$method}();
             if ((int)($body['code'] ?? 0) !== 200) {
-                return $this->musicTaskFailure($body, '音乐人' . $label . '获取失败');
+                return $this->musicTaskFailure($body, '音乐人任务列表获取');
             }
             if (!is_array($body['data']['list'] ?? null)) {
-                return $this->makeResult(201, '音乐人' . $label . '获取失败|原因=任务列表缺失');
+                return $this->makeResult(201, '音乐人任务列表获取失败');
             }
             foreach ($body['data']['list'] as $mission) {
                 if (!is_array($mission)) {
-                    return $this->makeResult(201, '音乐人' . $label . '获取失败|原因=任务格式异常');
+                    return $this->makeResult(201, '音乐人任务列表获取失败');
                 }
                 if ($method === 'musician_tasks') {
                     if (!isset($mission['status']) || !is_scalar($mission['status']) || !ctype_digit((string)$mission['status'])) {
-                        return $this->makeResult(201, '音乐人周期任务获取失败|原因=任务状态缺失');
+                        return $this->makeResult(201, '音乐人任务列表获取失败');
                     }
                     $tasks[] = $mission;
                     continue;
                 }
                 if (!is_array($mission['userStageTargetList'] ?? null)) {
-                    return $this->makeResult(201, '音乐人阶段任务获取失败|原因=阶段目标缺失');
+                    return $this->makeResult(201, '音乐人任务列表获取失败');
                 }
                 foreach ($mission['userStageTargetList'] as $target) {
                     if (!is_array($target) || !isset($target['status']) || !is_scalar($target['status'])
                         || !ctype_digit((string)$target['status'])) {
-                        return $this->makeResult(201, '音乐人阶段任务获取失败|原因=阶段目标格式异常');
+                        return $this->makeResult(201, '音乐人任务列表获取失败');
                     }
                     $tasks[] = array_replace($mission, $target, ['userMissionId' => $target['userMissionId'] ?? null]);
                 }
@@ -2578,7 +2578,7 @@ class Netease
     {
         $songId = $this->musicianSongId();
         if (!$songId) {
-            return $this->makeResult(201, '音乐人任务：没有可分享的歌曲');
+            return $this->makeResult(201, '暂无可分享的歌曲');
         }
         $message = '我真想拉起你的手，逃向初晴的天空和田野不畏缩也不回顾。';
         $body = $this->musicTaskBody($this->requestApi('/api/share/friends/resource', [
@@ -2587,7 +2587,7 @@ class Netease
             'id' => $songId,
         ], 'xeapi', ['os' => 'android', 'check_token' => 'v3']));
         if ((int)($body['code'] ?? 0) !== 200) {
-            return $this->musicTaskFailure($body, '音乐人任务：分享歌曲失败');
+            return $this->musicTaskFailure($body, '分享歌曲');
         }
         $failed = [];
         $threadId = $body['event']['threadId'] ?? null;
@@ -2609,9 +2609,9 @@ class Netease
             }
         }
         if ($failed) {
-            return $this->makeResult(201, '音乐人任务：分享歌曲后续操作失败|原因=' . implode('；', $failed));
+            return $this->makeResult(201, '分享歌曲失败', ['failures' => $failed]);
         }
-        return $this->makeResult(200, '音乐人任务：分享歌曲成功');
+        return $this->makeResult(200, '分享歌曲已完成');
     }
 
     protected function threadId($songId, $type, $threadId = null)
@@ -2663,7 +2663,7 @@ class Netease
     {
         $songId = $this->musicianSongId();
         if (!$songId) {
-            return $this->makeResult(201, '音乐人任务：没有可评论的歌曲');
+            return $this->makeResult(201, '暂无可评论的歌曲');
         }
         $content = date('Y年m月d日') . '，希望你可以开心';
         $commentIds = [];
@@ -2683,7 +2683,8 @@ class Netease
             }
         }
         return $this->makeResult($failed ? 201 : 200,
-            $failed ? '音乐人任务：发布主创说未完成|原因=' . implode('；', array_unique($failed)) : '音乐人任务：发布主创说成功'
+            $failed ? '发布主创说失败' : '发布主创说已完成',
+            $failed ? ['failures' => array_values(array_unique($failed))] : null
         );
     }
 
@@ -2692,7 +2693,7 @@ class Netease
         $configured = $this->config['musician_follows_id'] ?? '';
         $userId = is_scalar($configured) ? trim((string)$configured) : '';
         if (!ctype_digit($userId) || (float)$userId <= 0) {
-            return $this->makeResult(201, '音乐人任务：未配置私信用户ID');
+            return $this->makeResult(201, '暂未配置私信对象');
         }
         $message = $this->config['musician_follows_msg'] ?? '';
         if ($message === '') {
@@ -2704,15 +2705,15 @@ class Netease
             'userIds' => '[' . $userId . ']',
         ], 'eapi', ['os' => 'pc']));
         return (int)($body['code'] ?? 0) === 200
-            ? $this->makeResult(200, '音乐人任务：回复私信成功')
-            : $this->musicTaskFailure($body, '音乐人任务：回复私信失败');
+            ? $this->makeResult(200, '回复粉丝私信已完成')
+            : $this->musicTaskFailure($body, '回复粉丝私信');
     }
 
     public function shareyourself()
     {
         $songId = $this->musicianSongId();
         if (!$songId) {
-            return $this->makeResult(201, '音乐人任务：没有可上报分享的歌曲');
+            return $this->makeResult(201, '暂无可上报分享的歌曲');
         }
         return $this->requestApi('/api/music/songshare/share/property', ['songId' => $songId], 'eapi', ['os' => 'pc']);
     }
@@ -2813,7 +2814,7 @@ class Netease
     public function musician_cloudbean_obtain($task)
     {
         if (!is_array($task)) {
-            return $this->makeResult(201, '音乐人云豆奖励领取失败|原因=奖励任务格式异常');
+            return $this->makeResult(201, '音乐人云豆奖励领取失败');
         }
         $count = 0;
         $failed = [];
@@ -2843,8 +2844,8 @@ class Netease
         }
         return $this->makeResult($failed ? 201 : 200,
             $failed
-                ? '音乐人云豆奖励未全部领取|已领取=' . $count . '|原因=' . implode('；', array_unique($failed))
-                : ($count ? '音乐人云豆奖励领取成功|已领取=' . $count : '没有待领取的音乐人云豆奖励'),
+                ? '云豆领取 ' . $count . ' 项成功，其余领取失败'
+                : ($count ? '云豆奖励已领取（' . $count . ' 项）' : '暂无可领取的云豆奖励'),
             ['claimed' => $count, 'failures' => $failed]
         );
     }
@@ -2860,12 +2861,12 @@ class Netease
         $before = $this->vip_growthpoint();
         $userLevel = $before['data']['userLevel'] ?? null;
         if ((int)($before['code'] ?? 0) !== 200 || !is_array($userLevel)) {
-            return $this->makeResult(201, (string)($before['message'] ?? '未检测到有效的网易云黑胶会员'));
+            return $this->makeResult(201, (string)($before['message'] ?? '未检测到有效的黑胶会员'));
         }
         $active = !array_key_exists('normal', $userLevel) || !empty($userLevel['normal']);
         $expireTime = (int)($userLevel['expireTime'] ?? 0);
         if (!$active || ($expireTime > 0 && $expireTime < (int)round(microtime(true) * 1000))) {
-            return $this->makeResult(201, '网易云黑胶会员已过期，无法执行VIP成长任务');
+            return $this->makeResult(201, '黑胶会员已过期，任务已跳过');
         }
 
         $messages = [];
@@ -2880,7 +2881,7 @@ class Netease
 
         $timeMachine = $this->vip_timemachine();
         if ((int)($timeMachine['code'] ?? 0) === 200) {
-            $messages[] = '黑胶时光机浏览完成';
+            $messages[] = '黑胶时光机已完成';
         } else {
             $messages[] = '黑胶时光机浏览失败';
             $success = false;
@@ -2897,7 +2898,7 @@ class Netease
         if ($unclaimedIds) {
             $claim = $this->vip_growthpoint_get($unclaimedIds);
             if ((int)($claim['code'] ?? 0) === 200) {
-                $messages[] = '已领取完成任务的成长值';
+                $messages[] = '已领取成长值';
             } else {
                 $messages[] = (string)($claim['message'] ?? '成长值领取失败');
                 $success = false;
@@ -2912,13 +2913,13 @@ class Netease
         if ((int)($claimAll['code'] ?? 0) === 200) {
             $remainingWorth = $this->vipUnclaimedWorth($this->vip_tasks_v1());
             $claimedWorth = max(0, $unclaimedWorth - $remainingWorth);
-            if ($unclaimedWorth > 0) {
-                $messages[] = $remainingWorth === 0
-                    ? '已领取' . $claimedWorth . '成长值奖励'
-                    : '成长值领取已提交，剩余待领取' . $remainingWorth;
-            } else {
-                $messages[] = '当前没有遗漏的成长值奖励';
-            }
+                if ($unclaimedWorth > 0) {
+                    $messages[] = $remainingWorth === 0
+                        ? '已领取' . $claimedWorth . '成长值'
+                        : '已提交领取，剩余' . $remainingWorth . '成长值待入账';
+                } else {
+                    $messages[] = '暂无遗漏的成长值奖励';
+                }
         } elseif ($unclaimedWorth > 0) {
             $messages[] = (string)($claimAll['message'] ?? '一键领取成长值失败');
             $success = false;
@@ -2927,9 +2928,9 @@ class Netease
         $after = $this->vip_growthpoint();
         $afterPoint = (int)($after['data']['userLevel']['growthPoint'] ?? $beforePoint);
         $delta = max(0, $afterPoint - $beforePoint);
-        $messages[] = '当前成长值' . $afterPoint . ($delta > 0 ? '，本次+' . $delta : '');
+        $messages[] = $delta > 0 ? '成长值+' . $delta . '（当前' . $afterPoint . '）' : '当前成长值' . $afterPoint;
 
-        return $this->makeResult($success ? 200 : 201, implode('；', array_unique($messages)), [
+        return $this->makeResult($success ? 200 : 201, TaskMessage::join($messages), [
             'signed' => !empty($sign['signed']),
             'listened' => (int)($listen['data']['reported'] ?? 0),
             'unclaimed_worth_before' => $unclaimedWorth,
@@ -2994,7 +2995,7 @@ class Netease
             'taskSign' => $taskSign,
             'checkinDetail' => $checkinDetail,
             'signed' => $signed,
-            'message' => $signed ? '黑胶乐签打卡成功' : '黑胶乐签打卡失败',
+            'message' => $signed ? '乐签已打卡' : '乐签打卡失败',
         ];
     }
 
@@ -3046,7 +3047,7 @@ class Netease
         }
         return $this->makeResult(
             $reported === 3 ? 200 : 201,
-            $reported === 3 ? 'VIP歌曲听歌上报完成，共3首' : 'VIP歌曲听歌上报完成' . $reported . '/3首',
+            $reported === 3 ? 'VIP 听歌 3/3' : 'VIP 听歌 ' . $reported . '/3',
             ['reported' => $reported, 'songs' => $result]
         );
     }

@@ -89,8 +89,8 @@ $netease = new InspectableNetease('1', 'csrf-token', 'music-token', [
 ], $sdk);
 $result = $netease->listen();
 listenToolCheck((int)($result['code'] ?? 0) === 200, 'Listening tool did not report success');
-listenToolCheck(str_contains((string)$result['message'], 'NCBL完播文件确认2/2次'), 'Listening tool returned the wrong confirmed count');
-listenToolCheck(str_contains((string)$result['message'], '提交时长约6分钟'), 'Listening tool did not report submitted listening minutes');
+listenToolCheck(str_contains((string)$result['message'], '完播上报 2/2 次'), 'Listening tool returned the wrong confirmed count');
+listenToolCheck(str_contains((string)$result['message'], '提交时长约 6 分钟'), 'Listening tool did not report submitted listening minutes');
 listenToolCheck($netease->scrobbleStarts() === 2, 'Listening tool did not submit recent-play footprints');
 listenToolCheck($netease->scrobbleSeconds() === 360, 'Listening tool did not submit the real song durations');
 listenToolCheck($netease->scrobbleSongIds() === [347230, 347230], 'Listening tool did not retain accepted play IDs');

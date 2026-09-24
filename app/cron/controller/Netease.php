@@ -134,7 +134,7 @@ class Netease extends Common
                     'netease',
                     (string)$job['user_id'],
                     (string)$job['do'],
-                    '任务完成状态写入失败，已安排稍后重试',
+                    '执行结果写入失败，稍后自动重试',
                     $this->statusTag(['retry_after_seconds' => 300])
                 );
                 continue;
@@ -193,7 +193,7 @@ class Netease extends Common
                 'netease',
                 $account['user_id'],
                 $do,
-                (string)($execute['message'] ?? '网易云任务执行完成'),
+                (string)($execute['message'] ?? '任务执行完成'),
                 $this->statusTag($execute)
             ); // 写入运行日志
             return $execute;
@@ -202,7 +202,7 @@ class Netease extends Common
             $this->scheduleRetry($jobId);
             $this->writeLog(
                 'netease', $account['user_id'], $do,
-                '任务调度异常，已安排稍后重试',
+                '执行异常，稍后自动重试',
                 $this->statusTag(['retry_after_seconds' => 300])
             );
             return null;

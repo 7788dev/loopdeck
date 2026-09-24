@@ -92,7 +92,7 @@ class Bilibili extends Common
             $globalConfig = $this->globalConfig((int)$job['uid'], $userId);
             if ($accountData === null || $jobConfig === null || $globalConfig === null) {
                 Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
-                TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[失败] 账号或任务配置损坏');
+                TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[失败] 账号或任务配置异常');
                 return;
             }
 
@@ -122,7 +122,7 @@ class Bilibili extends Common
             ]);
         } catch (Throwable $exception) {
             // 租约未推进，任务稍后自动重试；日志标签按仓库规范走 [重试中]
-            TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[重试中] 任务调度异常，已安排稍后重试');
+            TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[重试中] 执行异常，稍后自动重试');
         }
     }
 

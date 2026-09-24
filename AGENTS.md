@@ -9,10 +9,11 @@ Do not edit generated or local-state directories such as `vendor/` and `runtime/
 ## Architecture & Security Gotchas
 
 - `extend/` is loaded via composer **classmap** (not the `app\` PSR-4 root) and adapters use their own namespaces (e.g. `namespace netease;`, `bilibili\sdk`). After adding or renaming classes there, run `composer dump-autoload`.
-- Scheduling is in-process: `cron/` plus `app\service\AutomaticSchedule` execute task classes directly behind a task-name whitelist. Never reintroduce URL self-invocation that puts cookies, `RUN_KEY`, or other secrets into query strings — that pattern was deliberately removed for security.
+- Scheduling is in-process: `cron/` plus `app\service\AutomaticSchedule` execute task classes directly behind a task-name whitelist. Never reintroduce URL self-invocation that puts cookies, `RUN_KEY`, or other secrets into query strings — that pattern was deliberately removed for security ([decision](.agents/notes/implemented/architecture/2026-09-03-in-process-scheduling.md)).
 - `runtime/netease-daka/` holds per-account task state files; deleting an account must remove its state file, and the scheduler prunes orphans after `DAKA_STATE_RETENTION_DAYS` (default 30).
 - User-facing templates, copy, and README are Simplified Chinese; keep new UI text consistent.
-- Cron task-log entries have a fixed shape: a `[成功]`/`[重试中]`/`[失败]` prefix derived from `Common::statusTag()` in `app/cron/controller/Common.php`, followed by compact pipe-separated key-value response text. Route every task result through that helper instead of hand-formatting status prefixes, and map scheduler exceptions that reschedule a job to `[重试中]`.
+- Frontend console: new platform task entries join the existing `VIP 功能` nav group in `app/index/view/console/head.html` — never create a new nav group for them ([decision](.agents/notes/rejected/architecture/2026-09-24-daily-checkin-platforms.md)).
+- Cron task-log entries have a fixed shape: a `[成功]`/`[重试中]`/`[失败]` prefix derived from `Common::statusTag()` in `app/cron/controller/Common.php`, followed by user-facing detail copy composed through the `app\service\TaskMessage` templates — multi-subtask results must never hand-write whole sentences, and "将自动重试" may only appear for results that genuinely retry in minutes ([decision](.agents/notes/implemented/architecture/2026-09-25-task-message-copy-composer.md)). Route every task result through that helper instead of hand-formatting status prefixes, and map scheduler exceptions that reschedule a job to `[重试中]`.
 - `DOCKER.md` covers container deployment and the updater flow; consult it before touching `docker/`, `compose.yaml`, or `app/service/SystemUpdater.php`.
 
 ## Build, Test, and Development Commands
@@ -21,7 +22,7 @@ Do not edit generated or local-state directories such as `vendor/` and `runtime/
 - `php think run` starts the ThinkPHP development server (after configuring the database).
 - `php tests/AutomaticScheduleTest.php` runs one offline regression test.
 - `for test_file in tests/*Test.php; do php "$test_file"; done` runs the same offline suite used by the Docker build.
-- `docker build -t loopdeck:local .` validates dependencies, runs tests, and builds the image. GitHub Actions only builds/publishes the image — the offline tests run here, not in a separate CI job.
+- `docker build -t loopdeck:local .` validates dependencies, runs tests, and builds the image. GitHub Actions only builds/publishes the image — the offline tests run here, not in a separate CI job (multi-platform build: [decision](.agents/notes/implemented/process/2026-09-24-ci-native-runner-build.md)).
 - `sh docker/deploy.sh` prepares configuration and starts the app, scheduler, updater, and MySQL services; the default app port is `8001`. After initial setup, `docker compose up --wait` reuses the saved configuration.
 
 For containers, run `sh docker/deploy.sh` to generate and persist database credentials automatically; copy `.env.example` to `.env` first only when customizing options such as an external MySQL host. Docker Compose 2.20.0+ is required. Use `config/Db.example.php` for local database configuration.
@@ -34,6 +35,8 @@ Follow the existing PSR-12-style PHP: four-space indentation, braces on new line
 
 Tests are executable PHP scripts, not PHPUnit cases. Name regressions `FeatureNameTest.php`, load `vendor/autoload.php`, throw on failed assertions, and print a success line. Cover every bug fix and important branch; no percentage threshold is enforced. `LiveSmoke.php` scripts contact upstream services and run only when invoked explicitly.
 
+Every feature removal must be pinned by "no longer reachable" assertions in `tests/FeatureRemovalTest.php`, landed in the same commit as the deletion ([decision](.agents/notes/implemented/testing/2026-09-15-feature-removal-pinned-by-test.md)).
+
 `DockerDeploymentTest.php` executes deployment scripts against a stub Docker CLI in a temporary directory. On Windows, set `LOOPDECK_TEST_SHELL` to Git for Windows `bin/sh.exe`; Linux uses `sh` from `PATH`.
 
 ## Commit & Pull Request Guidelines
@@ -43,3 +46,7 @@ History uses concise Conventional Commit subjects: `feat: add ...`, `fix: preven
 ## Security & Configuration
 
 Never commit `.env`, `config/Db.php`, credentials, tokens, logs, or generated uploads. Keep secret examples inert, and review dependency changes with `composer audit --locked`.
+
+## Agent Notes
+
+Durable decision records ("why" and "what was rejected") live in `.agents/notes/` — one home per fact, landed in the same commit as the code they explain. Rules above link to the note that justifies them. Format and lifecycle: [.agents/notes/README.md](.agents/notes/README.md).

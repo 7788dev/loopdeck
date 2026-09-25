@@ -130,8 +130,22 @@ try {
     $settled->counter = 7749;
     $success = $settled->daka_new();
     settlementCheck($success['code'] === 200 && $success['data']['daily_actual_progress'] === 300, 'Delayed 300-song accounting did not complete');
+    settlementCheck($success['message'] === '本次已听歌 300 首，累计听歌总数由 7449 首变更为 7749 首', 'The settlement confirmation did not report the day\'s real totals');
+    settlementCheck($success['data']['listen_songs_before'] === 7449
+        && $success['data']['listen_songs_after'] === 7749
+        && $success['data']['listen_songs_delta'] === 300, 'The settlement confirmation lost its counter payload');
+    settlementCheck(empty($success['data']['skipped_duplicate']), 'A settlement confirmation was flagged as a duplicate trigger');
     settlementCheck($settled->batches === [] && $success['data']['retry_after_seconds'] === 0, 'A completed day reported or retried again');
     settlementCheck(settlementState($directory)['listen_songs_baseline'] === 7449, 'Restarting moved the daily baseline');
+
+    // Once the day is closed, a manual re-check stays a no-op and keeps the
+    // duplicate notice instead of pretending to listen again.
+    $repeat = new SettlementProbe($directory, $morning + 360);
+    $repeat->counter = 7749;
+    $repeatResult = $repeat->daka_new();
+    settlementCheck($repeatResult['message'] === '今日已完成，无需重复打卡' && $repeat->batches === [], 'A post-completion re-trigger replayed the task');
+    settlementCheck(!empty($repeatResult['data']['skipped_duplicate']) && $repeatResult['data']['listen_songs_delta'] === 0, 'The duplicate trigger lost its no-op payload');
+    settlementCheck(settlementState($directory)['listen_songs_baseline'] === 7449, 'A duplicate trigger moved the daily baseline');
 
     $tomorrow = new SettlementProbe($directory, $morning + 86400);
     $tomorrow->counter = 7749;

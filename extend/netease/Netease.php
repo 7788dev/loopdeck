@@ -1846,9 +1846,23 @@ class Netease
 
         if ($actualProgressBefore >= $target) {
             $nextVerificationAt = 0;
+            // A same-day state that is not yet completed means a previous run
+            // submitted its batches and left settlement to the scheduler; this
+            // run only confirms the settled counter and must report the day's
+            // real totals. The duplicate notice stays for post-completion runs.
+            $alreadyCompleted = $sameDay && !empty($dailyState['completed']);
+            if ($alreadyCompleted) {
+                $confirmedBefore = $listenSongs;
+                $confirmedDelta = 0;
+                $message = '今日已完成，无需重复打卡';
+            } else {
+                $confirmedBefore = $baseline;
+                $confirmedDelta = max(0, $observedBefore - $baseline);
+                $message = '本次已听歌 ' . $confirmedDelta . ' 首，累计听歌总数由 '
+                    . $confirmedBefore . ' 首变更为 ' . $observedBefore . ' 首';
+            }
             $persist(true, true);
-            return $this->makeResult(200,
-                '今日已完成，无需重复打卡',
+            return $this->makeResult(200, $message,
                 [
                     'submitted' => 0,
                     'daily_target' => $target,
@@ -1856,14 +1870,15 @@ class Netease
                     'daily_actual_progress' => $actualProgressBefore,
                     'daily_remaining' => 0,
                     'target_reached' => true,
-                    'skipped_duplicate' => true,
+                    'skipped_duplicate' => $alreadyCompleted,
+                    'verification_only' => !$alreadyCompleted,
                     'attempts' => $attempts,
                     'internal_batches' => 0,
                     'retry_after_seconds' => 0,
                     'protocol_wait_seconds' => 0,
-                    'listen_songs_before' => $listenSongs,
-                    'listen_songs_after' => $listenSongs,
-                    'listen_songs_delta' => 0,
+                    'listen_songs_before' => $confirmedBefore,
+                    'listen_songs_after' => $observedBefore,
+                    'listen_songs_delta' => $confirmedDelta,
                 ]
             );
         }

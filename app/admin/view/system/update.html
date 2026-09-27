@@ -27,6 +27,7 @@
                     <div class="fs-4 fw-semibold">
                         {if condition="$status eq 'updated'"}<span class="text-success">已更新</span>
                         {elseif condition="$status eq 'up_to_date'"}<span class="text-success">已是最新</span>
+                        {elseif condition="$status eq 'checking'"}<span class="text-info">正在检查</span>
                         {elseif condition="$status eq 'failed'"}<span class="text-danger">检查失败</span>
                         {elseif condition="$status eq 'rolled_back'"}<span class="text-warning">已回滚</span>
                         {elseif condition="$status eq 'disabled'"}<span class="text-muted">已禁用</span>
@@ -40,15 +41,36 @@
         <div class="alert alert-warning">{$error}</div>
         {else /}
         <div class="alert alert-info mb-4">
-            系统由 updater 容器每 {$check_interval_seconds} 秒自动检查。检测到新版本后会选择可用且较快的镜像代理，校验版本并重启应用；数据库和持久化数据不会删除。
+            系统由 updater 容器每 {$check_interval_seconds} 秒自动检查。检测到新版本后会选择可用且较快的镜像代理，校验版本并重启应用；数据库和持久化数据不会删除。发布新镜像后可点击“立即检查”，无需等待下一次定时检查。
         </div>
         {/if}
 
+        {if condition="$check_request_stale"}
+        <div class="alert alert-warning">
+            更新器超过 2 分钟未处理立即检查请求，请确认 updater 容器正在运行，并查看 <code>docker compose logs --tail=100 updater</code>。
+        </div>
+        {/if}
+
+        <div class="d-flex flex-wrap align-items-center mb-4">
+            <button id="updater-check-button" type="button" class="btn btn-alt-primary me-3 mb-2"
+                    data-version="{$current_version}" data-checked-at="{$last_checked_at}"
+                    data-watch="{if condition="$check_requested_at || $status eq 'checking'"}1{else /}0{/if}"
+                    {if condition="!$manual_check_available || $check_requested_at || $status eq 'checking'"}disabled{/if}>
+                <i class="fa fa-sync-alt opacity-50 me-1"></i> 立即检查
+            </button>
+            <span class="text-muted fs-sm mb-2">
+                {if condition="!$manual_check_available"}{$manual_check_hint}
+                {elseif condition="$check_requested_at"}已提交检查请求（{$check_requested_at}），等待更新器处理；两次检查至少间隔 60 秒，完成后本页自动刷新。
+                {elseif condition="$status eq 'checking'"}更新器正在检查（开始于 {$check_started_at}），完成后本页自动刷新。
+                {else /}让 updater 立即检查版本并按原流程校验、更新，不会跳过镜像版本校验和健康检查。{/if}
+            </span>
+        </div>
+
         <dl class="row mb-0">
             <dt class="col-sm-3">最近检查</dt>
-            <dd class="col-sm-9">{if condition="$last_checked_at"}{$last_checked_at}{else /}尚未检查{/if}</dd>
+            <dd class="col-sm-9">{if condition="$last_checked_at"}{$last_checked_at}{if condition="$trigger eq 'manual'"}（后台立即检查）{/if}{else /}尚未检查{/if}</dd>
             <dt class="col-sm-3">下次检查</dt>
-            <dd class="col-sm-9">{if condition="$next_check_at"}{$next_check_at}{else /}由 updater 启动后安排{/if}</dd>
+            <dd class="col-sm-9">{if condition="$status eq 'checking'"}本次检查结束后安排{elseif condition="$next_check_at"}{$next_check_at}{else /}由 updater 启动后安排{/if}</dd>
             <dt class="col-sm-3">版本来源</dt>
             <dd class="col-sm-9 text-break">{if condition="$version_source"}{$version_source}{else /}{$version_url}{/if}</dd>
             <dt class="col-sm-3">镜像来源</dt>
@@ -58,4 +80,53 @@
         </dl>
     </div>
 </div>
+{/block}
+{block name="foot"}
+<script>
+    (function () {
+        var button = document.getElementById('updater-check-button');
+        if (!button) return;
+
+        // Reload once the updater has reported a newer result. Request errors
+        // are expected while an update restarts the app, so keep polling.
+        function watch(attempt) {
+            if (!document.body.contains(button)) return;
+            if (attempt >= 120) {
+                x.notify('检查仍在进行，请稍后刷新页面查看结果', 'warning');
+                return;
+            }
+            setTimeout(function () {
+                x.ajax('/admin/ajax/updater/status', null, function (data) {
+                    var state = data && data.code === 1 ? data.data : null;
+                    if (state && (state.current_version !== button.dataset.version
+                        || (!state.check_requested_at && state.status !== 'checking'
+                            && (state.checked_at || '') !== button.dataset.checkedAt))) {
+                        window.location.reload();
+                        return;
+                    }
+                    watch(attempt + 1);
+                }, function () {
+                    watch(attempt + 1);
+                }, false);
+            }, 5000);
+        }
+
+        button.addEventListener('click', function () {
+            button.disabled = true;
+            x.ajax('/admin/ajax/updater/check', {}, function (data) {
+                x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+                if (data.code === 1) {
+                    watch(0);
+                } else {
+                    button.disabled = false;
+                }
+            }, function () {
+                button.disabled = false;
+                x.notify('请求失败，请稍后重试', 'danger');
+            });
+        });
+
+        if (button.dataset.watch === '1') watch(0);
+    })();
+</script>
 {/block}

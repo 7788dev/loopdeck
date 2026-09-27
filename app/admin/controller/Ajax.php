@@ -16,6 +16,7 @@ use app\index\controller\Common;
 use app\index\model\Kms;
 use app\index\model\Users;
 use app\service\BilibiliTaskExecutor;
+use app\service\SystemUpdater;
 use PHPMailer\PHPMailer\PHPMailer;
 use think\exception\ValidateException;
 use think\facade\Db;
@@ -420,6 +421,38 @@ class Ajax extends Common
                         return $notices->findById($data['id']);
                 }
                 break;
+        }
+        return response('未知操作', 404);
+    }
+
+    /**
+     * The page may only read the updater state or queue an earlier check;
+     * the updater container keeps every Docker operation to itself.
+     */
+    public function updater($act = null)
+    {
+        if (WEB_ID != 1) {
+            return resultJson(0, '非法请求');
+        }
+        $updater = new SystemUpdater();
+        switch ($act) {
+            case 'status':
+                return resultJson(1, '', array_intersect_key($updater->status(), array_flip([
+                    'current_version',
+                    'latest_version',
+                    'status',
+                    'message',
+                    'checked_at',
+                    'check_requested_at',
+                    'check_request_stale',
+                    'manual_check_available',
+                ])));
+            case 'check':
+                if (!Request::isPost()) {
+                    return resultJson(0, '请求方式无效');
+                }
+                $result = $updater->requestCheck();
+                return resultJson($result['accepted'] ? 1 : 0, $result['message']);
         }
         return response('未知操作', 404);
     }

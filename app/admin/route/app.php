@@ -11,6 +11,8 @@
 use think\facade\Route;
 
 Route::get('system/update', 'system/update');
+//自动更新状态与立即检查 Ajax
+Route::rule('ajax/updater/[:act]', 'ajax/updater');
 
 //系统设置
 Route::rule('system/set/[:act]', 'system/set');

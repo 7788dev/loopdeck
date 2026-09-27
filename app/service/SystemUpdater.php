@@ -7,17 +7,25 @@ namespace app\service;
 use Throwable;
 
 /**
- * Read-only view of the in-container automatic updater state.
+ * View of the in-container automatic updater state, plus a request to check
+ * earlier than scheduled.
  *
- * Updating is intentionally owned by docker/auto-updater.php. Keeping the
- * web process read-only removes the old privileged POST endpoint and makes a
- * compromised admin session unable to invoke Docker through the application.
+ * Updating is intentionally owned by docker/auto-updater.php. The web process
+ * never invokes Docker: a check request is only an empty marker file next to
+ * the shared state file, so a compromised admin session can at most move the
+ * next check earlier. It cannot choose an image, a version source or a command.
  */
 final class SystemUpdater
 {
     private const DEFAULT_STATE_FILE = '/var/lib/loopdeck/runtime/auto-updater-state.json';
     private const DEFAULT_VERSION_SOURCE = 'https://api.github.com/repos/7788dev/loopdeck/contents/VERSION?ref=main';
     private const DEFAULT_INTERVAL_SECONDS = 21600;
+    // docker/auto-updater.php derives the same marker path from the state file.
+    private const CHECK_REQUEST_SUFFIX = '.check-request';
+    // The updater polls every 5 seconds and spaces checks at least 60 seconds apart.
+    private const CHECK_REQUEST_STALE_SECONDS = 120;
+    // Longer than the default worst case: every mirror pull timing out, then a restart.
+    private const CHECKING_STALE_SECONDS = 7200;
 
     private string $stateFile;
     private bool $enabled;
@@ -85,6 +93,12 @@ final class SystemUpdater
             'last_checked_at' => null,
             'last_update_at' => null,
             'next_check_at' => null,
+            'check_started_at' => null,
+            'trigger' => null,
+            'manual_check_available' => false,
+            'manual_check_hint' => $this->enabled ? '尚未检测到自动更新器，请确认 updater 容器正在运行' : '自动更新已禁用',
+            'check_requested_at' => null,
+            'check_request_stale' => false,
             'state_file' => $this->stateFile,
             'check_interval_seconds' => $this->checkInterval,
             'error' => null,
@@ -124,6 +138,8 @@ final class SystemUpdater
             'checked_at',
             'last_update_at',
             'next_check_at',
+            'check_started_at',
+            'trigger',
         ] as $field) {
             if (isset($decoded[$field]) && is_scalar($decoded[$field])) {
                 $status[$field] = mb_substr(trim((string)$decoded[$field]), 0, 500);
@@ -146,13 +162,77 @@ final class SystemUpdater
         if (isset($decoded['error']) && is_scalar($decoded['error'])) {
             $status['error'] = mb_substr(trim((string)$decoded['error']), 0, 500);
         }
+        if ($status['status'] === 'checking') {
+            $startedAt = strtotime((string)($status['check_started_at'] ?? ''));
+            if ($startedAt !== false && time() - $startedAt > self::CHECKING_STALE_SECONDS) {
+                $status['status'] = 'failed';
+                $status['message'] = '更新器检查长时间未结束';
+                $status['error'] = '检查已超过 2 小时未完成，请查看 updater 容器日志';
+            }
+        }
         if ($status['status'] === 'failed' && $status['error'] === null) {
             $status['error'] = '自动更新器报告失败，请查看 updater 容器日志';
+        }
+
+        // Updaters older than this feature neither poll nor advertise the marker.
+        $status['manual_check_available'] = $status['updater_available']
+            && ($decoded['accepts_check_requests'] ?? false) === true;
+        if ($status['manual_check_available']) {
+            $status['manual_check_hint'] = null;
+        } elseif ($status['updater_available']) {
+            $status['manual_check_hint'] = '当前更新器尚未支持立即检查，updater 自动升级后即可使用，请稍后刷新或查看 updater 容器日志';
+        } else {
+            $status['manual_check_hint'] = '自动更新已禁用';
+        }
+        $requestFile = $this->checkRequestFile();
+        $requestedAt = is_file($requestFile) ? @filemtime($requestFile) : false;
+        if ($requestedAt !== false) {
+            $status['check_requested_at'] = gmdate('c', $requestedAt);
+            $status['check_request_stale'] = $status['status'] !== 'checking'
+                && time() - $requestedAt > self::CHECK_REQUEST_STALE_SECONDS;
         }
 
         $checkedAt = strtotime((string)($status['checked_at'] ?? ''));
         $status['state_age_seconds'] = $checkedAt === false ? null : max(0, time() - $checkedAt);
         return $status;
+    }
+
+    /**
+     * Ask the updater to run its next check now.
+     *
+     * @return array{accepted:bool,message:string}
+     */
+    public function requestCheck(): array
+    {
+        $status = $this->status();
+        if (!$status['manual_check_available']) {
+            return ['accepted' => false, 'message' => (string)$status['manual_check_hint']];
+        }
+        $pending = ['accepted' => true, 'message' => '已有立即检查请求在等待更新器处理'];
+        if ($status['check_requested_at'] !== null) {
+            return $pending;
+        }
+
+        // Exclusive creation queues exactly one request across concurrent clicks.
+        $marker = @fopen($this->checkRequestFile(), 'x');
+        if ($marker === false) {
+            clearstatcache(true, $this->checkRequestFile());
+            return is_file($this->checkRequestFile())
+                ? $pending
+                : ['accepted' => false, 'message' => '检查请求写入失败，请确认 app_data 卷可写'];
+        }
+        fclose($marker);
+        return [
+            'accepted' => true,
+            'message' => $status['status'] === 'checking'
+                ? '已提交检查请求，将在本次检查结束后执行'
+                : '已通知更新器立即检查，通常几秒内开始',
+        ];
+    }
+
+    private function checkRequestFile(): string
+    {
+        return $this->stateFile . self::CHECK_REQUEST_SUFFIX;
     }
 
     private function configuredVersionSource(): string

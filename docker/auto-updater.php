@@ -11,9 +11,16 @@ declare(strict_types=1);
  * the database service. A version is selected from the highest value reported
  * by all configured sources; image mirrors are then ordered by probe latency
  * and verified with the OCI version label before they are used.
+ *
+ * The admin page can move the next check earlier by creating an empty marker
+ * next to the state file. The marker carries no image, source or command, so
+ * the web process never decides what the updater runs.
  */
 final class LoopDeckAutoUpdater
 {
+    private const CHECK_REQUEST_POLL_SECONDS = 5;
+    private const CHECK_REQUEST_COOLDOWN_SECONDS = 60;
+
     private const DEFAULT_VERSION_SOURCES = [
         'https://api.github.com/repos/7788dev/loopdeck/contents/VERSION?ref=main',
         'https://cdn.jsdelivr.net/gh/7788dev/loopdeck@main/VERSION',
@@ -41,6 +48,9 @@ final class LoopDeckAutoUpdater
     private int $retryInterval;
     private int $probeTimeout;
     private int $pullTimeout;
+    private bool $acceptsCheckRequests = false;
+    private bool $checkRequestUnlinkWarned = false;
+    private int $lastCheckStartedAt = 0;
     private ?Closure $commandRunner;
 
     public function __construct(?callable $commandRunner = null)
@@ -97,13 +107,16 @@ final class LoopDeckAutoUpdater
             return 0;
         }
 
+        // Only the long-running loop polls for admin requests; --once exits.
+        $this->acceptsCheckRequests = !$once;
         try {
+            $request = null;
             do {
-                $success = $this->runOnce();
+                $success = $this->runOnce($request);
                 if ($once) {
                     return $success ? 0 : 1;
                 }
-                sleep($success ? $this->checkInterval : $this->retryInterval);
+                $request = $this->waitForNextCheck($success ? $this->checkInterval : $this->retryInterval);
             } while (true);
         } finally {
             flock($lock, LOCK_UN);
@@ -111,11 +124,22 @@ final class LoopDeckAutoUpdater
         }
     }
 
-    private function runOnce(): bool
+    /** @param array{requested_at:string}|null $request an admin request consumed by the wait loop */
+    private function runOnce(?array $request = null): bool
     {
-        $checkedAt = gmdate('c');
+        $this->lastCheckStartedAt = time();
+        $checkedAt = gmdate('c', $this->lastCheckStartedAt);
+        $trigger = $request === null ? 'automatic' : 'manual';
+        if ($this->enabled) {
+            if ($request !== null) {
+                $this->log('收到后台立即检查请求');
+            }
+            $this->writeCheckingState($checkedAt, $trigger, $request);
+        }
         $metadata = [
             'checked_at' => $checkedAt,
+            'trigger' => $trigger,
+            'requested_at' => $request['requested_at'] ?? null,
             'current_version' => $this->currentVersion(),
             'latest_version' => null,
             'update_available' => false,
@@ -241,6 +265,74 @@ final class LoopDeckAutoUpdater
         $this->log('应用已更新到 ' . $latestVersion . '，来源 ' . $pulled['repository']);
 
         return $this->syncUpdater($metadata, $this->runningImageId('app'));
+    }
+
+    /**
+     * Sleep until the next scheduled check, waking early for an admin request.
+     *
+     * @return array{requested_at:string}|null
+     */
+    private function waitForNextCheck(int $seconds): ?array
+    {
+        $deadline = time() + $seconds;
+        while (($remaining = $deadline - time()) > 0) {
+            $request = $this->consumeCheckRequest();
+            if ($request !== null) {
+                return $request;
+            }
+            sleep(min(self::CHECK_REQUEST_POLL_SECONDS, $remaining));
+        }
+        return $this->consumeCheckRequest();
+    }
+
+    /**
+     * The marker's content is never read: only its existence and mtime matter,
+     * and the cooldown bounds how often a request can reach upstream sources.
+     *
+     * @return array{requested_at:string}|null
+     */
+    private function consumeCheckRequest(): ?array
+    {
+        $marker = $this->checkRequestFile();
+        clearstatcache(true, $marker);
+        if (time() - $this->lastCheckStartedAt < self::CHECK_REQUEST_COOLDOWN_SECONDS) {
+            return null;
+        }
+        $requestedAt = @filemtime($marker);
+        if ($requestedAt === false) {
+            return null;
+        }
+        if (!@unlink($marker)) {
+            clearstatcache(true, $marker);
+            if (is_file($marker) && !$this->checkRequestUnlinkWarned) {
+                $this->checkRequestUnlinkWarned = true;
+                $this->log('无法删除立即检查请求文件，已忽略该请求');
+            }
+            return null;
+        }
+        return ['requested_at' => gmdate('c', min($requestedAt, time()))];
+    }
+
+    /** app/service/SystemUpdater.php creates the marker at this same path. */
+    private function checkRequestFile(): string
+    {
+        return $this->stateFile . '.check-request';
+    }
+
+    /** Keep the last result visible while a check, possibly a long pull, runs. */
+    private function writeCheckingState(string $startedAt, string $trigger, ?array $request): void
+    {
+        $previous = is_file($this->stateFile)
+            ? json_decode((string)@file_get_contents($this->stateFile), true)
+            : null;
+        $this->writeState(array_merge(is_array($previous) ? $previous : [], [
+            'status' => 'checking',
+            'message' => $request === null ? '正在检查新版本' : '正在执行后台请求的立即检查',
+            'error' => null,
+            'check_started_at' => $startedAt,
+            'trigger' => $trigger,
+            'requested_at' => $request['requested_at'] ?? null,
+        ]));
     }
 
     /** A short-lived external container survives the old updater's shutdown. */
@@ -732,6 +824,7 @@ final class LoopDeckAutoUpdater
         }
         $state['schema'] = 1;
         $state['enabled'] = $this->enabled;
+        $state['accepts_check_requests'] = $this->acceptsCheckRequests;
         $json = json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
         if (!is_string($json)) {
             return;

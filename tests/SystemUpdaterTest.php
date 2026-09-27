@@ -69,10 +69,11 @@ updaterCheck($disabledStatus['updater_available'] === false, 'Disabled updater w
 $adminRoute = file_get_contents(dirname(__DIR__) . '/app/admin/route/app.php');
 $adminAjax = file_get_contents(dirname(__DIR__) . '/app/admin/controller/Ajax.php');
 $updateView = file_get_contents(dirname(__DIR__) . '/app/admin/view/system/update.html');
-updaterCheck(!str_contains((string)$adminRoute, "ajax/update"), 'Manual update route is still registered');
-updaterCheck(!str_contains((string)$adminAjax, 'SystemUpdater'), 'Admin Ajax still exposes the updater service');
+updaterCheck(preg_match('~ajax/update\b~', (string)$adminRoute) !== 1, 'Manual update route is still registered');
+updaterCheck(preg_match('/function\s+update\s*\(/', (string)$adminAjax) !== 1
+    && !str_contains((string)$adminAjax, '->trigger('), 'Admin Ajax still exposes a manual update action');
 updaterCheck(!str_contains((string)$updateView, 'system-update-button'), 'Manual update button is still rendered');
-updaterCheck(!str_contains((string)$updateView, '/admin/ajax/update'), 'Manual update JavaScript endpoint is still rendered');
+updaterCheck(preg_match('~/admin/ajax/update\b~', (string)$updateView) !== 1, 'Manual update JavaScript endpoint is still rendered');
 updaterCheck(!method_exists(SystemUpdater::class, 'trigger'), 'SystemUpdater still exposes a manual trigger');
 
 @unlink($stateFile);

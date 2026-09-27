@@ -223,6 +223,104 @@ biliWorkflowCheck(!$shareTransport->called('/x/web-interface/share/add'), 'retir
 $coinResult = $coin->coinAdd();
 biliWorkflowCheck($coinResult['code'] === 1, 'coinadd workflow failed');
 biliWorkflowCheck($coinTransport->callCount('/x/web-interface/coin/add') === 2, 'coinadd did not submit two SDK requests');
+biliWorkflowCheck(str_contains($coinResult['message'], '硬币余额 3'), 'coinadd reported the coin balance from before spending');
+
+// Videos coined on earlier days answer 34005; they must be skipped in favour
+// of spare candidates instead of ending the run with 0 coins reported as success.
+[$coinCapped, $coinCappedTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(10)],
+    '/x/web-interface/coin/today/exp' => [['code' => 0, 'data' => 0]],
+    '/x/web-interface/popular' => [[
+        'code' => 0,
+        'data' => ['list' => [
+            ['aid' => 170001], ['aid' => 170002], ['aid' => 170003], ['aid' => 170004],
+        ]],
+    ]],
+    '/x/web-interface/coin/add' => [
+        ['code' => 34005, 'message' => '超过投币上限啦~'],
+        ['code' => 34005, 'message' => '超过投币上限啦~'],
+        ['code' => 0, 'message' => '0'],
+        ['code' => 0, 'message' => '0'],
+    ],
+], ['add_coin_num' => 2, 'add_coin_mode' => 'random']);
+$coinCappedResult = $coinCapped->coinAdd();
+biliWorkflowCheck($coinCappedResult['code'] === 1, 'coinadd stopped at a video that reached its coin cap');
+biliWorkflowCheck($coinCappedTransport->callCount('/x/web-interface/coin/add') === 4, 'coinadd did not move on to spare candidates after 34005');
+biliWorkflowCheck(str_contains($coinCappedResult['message'], '已投币 2 枚'), 'coinadd did not report coins spent on spare candidates');
+
+[$coinNone, $coinNoneTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(10)],
+    '/x/web-interface/coin/today/exp' => [['code' => 0, 'data' => 0]],
+    '/x/web-interface/popular' => [[
+        'code' => 0,
+        'data' => ['list' => [['aid' => 170001], ['aid' => 170002]]],
+    ]],
+    '/x/web-interface/coin/add' => [
+        ['code' => 34005, 'message' => '超过投币上限啦~'],
+        ['code' => 34005, 'message' => '超过投币上限啦~'],
+    ],
+], ['add_coin_num' => 3, 'add_coin_mode' => 'random']);
+$coinNoneResult = $coinNone->coinAdd();
+biliWorkflowCheck($coinNoneResult['code'] === 0, 'coinadd reported success without spending a single coin');
+biliWorkflowCheck(str_contains($coinNoneResult['message'], '投币失败'), 'zero-coin coinadd message does not say it failed');
+biliWorkflowCheck(!str_contains($coinNoneResult['message'], '0/3'), 'zero-coin coinadd still reports a 0/N progress line');
+
+[$coinBroke, $coinBrokeTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(10)],
+    '/x/web-interface/coin/today/exp' => [['code' => 0, 'data' => 0]],
+    '/x/web-interface/popular' => [[
+        'code' => 0,
+        'data' => ['list' => [['aid' => 170001], ['aid' => 170002], ['aid' => 170003]]],
+    ]],
+    '/x/web-interface/coin/add' => [['code' => -104, 'message' => '硬币不足']],
+], ['add_coin_num' => 2, 'add_coin_mode' => 'random']);
+$coinBrokeResult = $coinBroke->coinAdd();
+biliWorkflowCheck($coinBrokeResult['code'] === 0, 'coinadd with insufficient coins was reported as successful');
+biliWorkflowCheck(str_contains($coinBrokeResult['message'], '硬币不足'), 'coinadd failure did not surface the upstream reason');
+biliWorkflowCheck($coinBrokeTransport->callCount('/x/web-interface/coin/add') === 1, 'coinadd kept spending after running out of coins');
+
+[$coinGone, $coinGoneTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(10)],
+    '/x/web-interface/coin/today/exp' => [['code' => 0, 'data' => 0]],
+    '/x/web-interface/popular' => [[
+        'code' => 0,
+        'data' => ['list' => [['aid' => 170001], ['aid' => 170002], ['aid' => 170003]]],
+    ]],
+    '/x/web-interface/coin/add' => [
+        ['code' => 10003, 'message' => '不存在该稿件'],
+        ['code' => 0, 'message' => '0'],
+    ],
+], ['add_coin_num' => 1, 'add_coin_mode' => 'random']);
+$coinGoneResult = $coinGone->coinAdd();
+biliWorkflowCheck($coinGoneResult['code'] === 1, 'coinadd gave up after a per-video error');
+biliWorkflowCheck($coinGoneTransport->callCount('/x/web-interface/coin/add') === 2, 'coinadd did not retry the next candidate after a per-video error');
+
+[$coinLoggedOut, $coinLoggedOutTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(10)],
+    '/x/web-interface/coin/today/exp' => [['code' => 0, 'data' => 0]],
+    '/x/web-interface/popular' => [[
+        'code' => 0,
+        'data' => ['list' => [['aid' => 170001], ['aid' => 170002], ['aid' => 170003]]],
+    ]],
+    '/x/web-interface/coin/add' => [['code' => -101, 'message' => '账号未登录']],
+], ['add_coin_num' => 3, 'add_coin_mode' => 'random']);
+$coinLoggedOutResult = $coinLoggedOut->coinAdd();
+biliWorkflowCheck($coinLoggedOutResult['code'] === 0, 'coinadd with a logged-out session was reported as successful');
+biliWorkflowCheck($coinLoggedOutTransport->callCount('/x/web-interface/coin/add') === 1, 'coinadd kept trying candidates after an account-level error');
+
+$cappedList = [];
+for ($aid = 180001; $aid <= 180012; $aid++) {
+    $cappedList[] = ['aid' => $aid];
+}
+[$coinAllCapped, $coinAllCappedTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(10)],
+    '/x/web-interface/coin/today/exp' => [['code' => 0, 'data' => 0]],
+    '/x/web-interface/popular' => [['code' => 0, 'data' => ['list' => $cappedList]]],
+    '/x/web-interface/coin/add' => array_fill(0, 12, ['code' => 34005, 'message' => '超过投币上限啦~']),
+], ['add_coin_num' => 1, 'add_coin_mode' => 'random']);
+$coinAllCappedResult = $coinAllCapped->coinAdd();
+biliWorkflowCheck($coinAllCappedResult['code'] === 0, 'coinadd with every candidate capped was reported as successful');
+biliWorkflowCheck($coinAllCappedTransport->callCount('/x/web-interface/coin/add') === 10, 'coinadd did not bound its coin requests');
 
 [$coinDone, $coinDoneTransport] = biliWorkflow([
     '/x/web-interface/nav' => [biliNav(5)],

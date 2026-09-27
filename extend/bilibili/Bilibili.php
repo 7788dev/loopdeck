@@ -236,32 +236,56 @@ class Bilibili
         $target = min(max(0, $estimate - $used), $stock, max(0, 5 - $used));
 
         $mode = ($this->config['add_coin_mode'] ?? 'random') === 'fixed' ? 'fixed' : 'random';
-        $videos = $this->selectVideos($target, $mode);
+        // Coin against the raw candidate list: the spare candidates replace
+        // videos that were already coined on earlier days.
+        $videos = $this->candidateVideos($target, $mode);
         if ($videos === []) {
             return ['code' => 0, 'message' => '暂无可投币的视频'];
         }
 
         $success = 0;
+        $attempts = 0;
         $errors = [];
-        foreach (array_slice($videos, 0, $target) as $video) {
-            $response = $this->client->coinVideo((int)$video['aid']);
-            if (($response['code'] ?? -1) === 0) {
+        foreach ($videos as $video) {
+            // Also bound the burst of coin requests when most candidates are capped.
+            if ($success >= $target || $attempts >= 10) {
+                break;
+            }
+            $id = (int)($video['aid'] ?? 0) > 0 ? (int)$video['aid'] : (string)($video['bvid'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+            $attempts++;
+            $response = $this->client->coinVideo($id);
+            $code = (int)($response['code'] ?? -1);
+            if ($code === 0) {
                 $success++;
                 continue;
             }
-            if ((int)($response['code'] ?? 0) === 34005) {
-                break;
+            // 34005: this video already holds its maximum coins from us;
+            // 34002: the video is our own. Neither says anything about the
+            // next candidate, so move on instead of ending the run.
+            if ($code === 34005 || $code === 34002) {
+                continue;
             }
             $errors[] = (string)($response['message'] ?? $response['msg'] ?? '未知错误');
+            // Per-video errors (missing video, bad amount, too frequent, bad
+            // request) may clear on the next candidate; account-level ones
+            // such as -104 out of coins or -101 logged out will not.
+            if (!in_array($code, [10003, 34003, 34004, -400], true) || count($errors) >= 3) {
+                break;
+            }
         }
-        if ($success === 0 && $errors !== []) {
-            return ['code' => 0, 'message' => '投币失败', 'errors' => array_values(array_unique($errors))];
+        if ($success === 0) {
+            $reason = $errors !== [] ? $errors[0] : '候选视频均已达投币上限';
+            return ['code' => 0, 'message' => "投币失败：{$reason}", 'errors' => array_values(array_unique($errors))];
         }
+        $remaining = max(0, $stock - $success);
         return [
             'code' => 1,
             'message' => $success < $target
-                ? "已投币 {$success}/{$target} 枚，硬币余额 {$stock}"
-                : "已投币 {$success} 枚，硬币余额 {$stock}",
+                ? "已投币 {$success}/{$target} 枚，硬币余额 {$remaining}"
+                : "已投币 {$success} 枚，硬币余额 {$remaining}",
         ];
     }
 
@@ -528,22 +552,9 @@ class Bilibili
     protected function selectVideos(int $count, string $mode): array
     {
         $count = max(1, min(10, $count));
-        $response = $mode === 'fixed' ? $this->client->dynamicFeed('video') : $this->client->popular(1, max(20, $count * 3));
-        $candidates = $mode === 'fixed'
-            ? $this->dynamicCandidates($response)
-            : $this->popularCandidates($response);
-        if ($candidates === [] && $mode === 'fixed') {
-            $candidates = $this->popularCandidates($this->client->popular(1, max(20, $count * 3)));
-        }
-
         $videos = [];
-        $seen = [];
-        foreach ($candidates as $candidate) {
-            $identity = (string)($candidate['aid'] ?? $candidate['bvid'] ?? '');
-            if ($identity === '' || isset($seen[$identity])) {
-                continue;
-            }
-            $seen[$identity] = true;
+        foreach ($this->candidateVideos($count, $mode) as $candidate) {
+            $identity = (int)($candidate['aid'] ?? 0) > 0 ? (string)$candidate['aid'] : (string)($candidate['bvid'] ?? '');
             $detail = $this->client->videoDetail($identity);
             $view = $detail['data']['View'] ?? $detail['data'] ?? [];
             if (is_array($view) && !empty($view['aid']) && !empty($view['cid'])) {
@@ -561,6 +572,38 @@ class Bilibili
             }
         }
         return $videos;
+    }
+
+    /**
+     * Deduplicated candidates without per-video detail lookups. Random mode
+     * shuffles the popular list: it barely changes day to day, so taking its
+     * head would pick the same (already coined) videos every run.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    protected function candidateVideos(int $count, string $mode): array
+    {
+        $size = max(20, $count * 3);
+        $response = $mode === 'fixed' ? $this->client->dynamicFeed('video') : $this->client->popular(1, $size);
+        $candidates = $mode === 'fixed'
+            ? $this->dynamicCandidates($response)
+            : $this->popularCandidates($response);
+        if ($candidates === [] && $mode === 'fixed') {
+            $candidates = $this->popularCandidates($this->client->popular(1, $size));
+            $mode = 'random';
+        }
+        if ($mode === 'random') {
+            shuffle($candidates);
+        }
+
+        $unique = [];
+        foreach ($candidates as $candidate) {
+            $identity = (int)($candidate['aid'] ?? 0) > 0 ? (string)$candidate['aid'] : (string)($candidate['bvid'] ?? '');
+            if ($identity !== '' && !isset($unique[$identity])) {
+                $unique[$identity] = $candidate;
+            }
+        }
+        return array_values($unique);
     }
 
     /** @return array<int,array<string,mixed>> */

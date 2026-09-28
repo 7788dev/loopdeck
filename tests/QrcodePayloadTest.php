@@ -4,17 +4,21 @@ declare(strict_types=1);
 
 require __DIR__ . '/FunctionalDatabaseBootstrap.php';
 
-foreach (['https://pay.example/a?x=1&y=a%2Bb', 'wxp://f2f0fixture?token=a%2Bb'] as $payload) {
-    fixtureRequest([], ['text' => $payload]);
-    $response = (new app\index\controller\Index())->createQrcode();
-    functionalCheck($response->getCode() === 200, 'QR renderer rejected a valid payload');
-    $file = tempnam(sys_get_temp_dir(), 'qr-test-');
-    try {
-        file_put_contents($file, $response->getContent());
-        $decoded = (new Zxing\QrReader($file))->text();
-        functionalCheck($decoded === $payload, 'QR payload changed during URL decoding');
-    } finally {
-        unlink($file);
+// Exercise seeds that previously selected poorly readable masks.
+foreach ([0, 2, 5, 25] as $seed) {
+    mt_srand($seed);
+    foreach (['https://pay.example/a?x=1&y=a%2Bb', 'wxp://f2f0fixture?token=a%2Bb'] as $payload) {
+        fixtureRequest([], ['text' => $payload]);
+        $response = (new app\index\controller\Index())->createQrcode();
+        functionalCheck($response->getCode() === 200, 'QR renderer rejected a valid payload');
+        $file = tempnam(sys_get_temp_dir(), 'qr-test-');
+        try {
+            file_put_contents($file, $response->getContent());
+            $decoded = (new Zxing\QrReader($file))->text();
+            functionalCheck($decoded === $payload, 'QR payload changed during URL decoding');
+        } finally {
+            unlink($file);
+        }
     }
 }
 functionalCheck(payment_qrcode_url('wechat', 'wxp://fixture') === 'wxp://fixture', 'WeChat native QR was rejected');

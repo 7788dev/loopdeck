@@ -137,7 +137,7 @@ docker compose down
 
 更新由同一个 LoopDeck 镜像中的 `updater` 容器负责，默认每 6 小时检查一次。更新器挂载 Docker socket、只读项目目录和 `app_data` 状态卷，但只会操作 `app`、`scheduler`、`updater` 三个服务，绝不会删除 MySQL、数据库卷或应用数据卷。
 
-从 v1.2.11 起，发布新镜像后可在后台“自动更新状态”页点击“立即检查”，让更新器提前执行一次检查，不必等待下一次定时检查。按钮只在 `app_data` 卷的状态文件旁创建一个空的请求标记 `runtime/auto-updater-state.json.check-request`，不携带镜像名、版本源或命令；更新器每 5 秒查看一次标记，取走后按与定时检查完全相同的流程选源、校验版本标签并做健康检查，两次检查至少间隔 60 秒。Web 进程仍不接触 Docker socket。该按钮需要 updater 自身为 v1.2.11 及以上：旧版 updater 把应用升级到新版时会一并重建自己，之后按钮即可使用。
+从 v1.2.11 起，发布新镜像后可在后台“自动更新状态”页点击“立即检查”，让更新器提前执行一次检查，不必等待下一次定时检查。按钮只在 `app_data` 卷的状态文件旁创建一个空的请求标记 `runtime/auto-updater-state.json.check-request`，不携带镜像名、版本源或命令；更新器每 1 秒查看一次标记，取走后按与定时检查完全相同的流程选源、校验版本标签并做健康检查，两次检查至少间隔 60 秒。Web 进程仍不接触 Docker socket。该按钮需要 updater 自身为 v1.2.11 及以上：旧版 updater 把应用升级到新版时会一并重建自己，之后按钮即可使用。
 
 `updater` 不提供 Web 服务，因此 Compose 会关闭基础 PHP/Nginx 镜像继承的 HTTP healthcheck；共享状态卷由应用 UID 82 初始化，更新器仅保留写入该卷所需的 `DAC_OVERRIDE` capability。
 
@@ -159,7 +159,7 @@ v1.2.2 及更早版本的更新器可能在重建自身时停止。首次修复�
 | `UPDATE_VERSION_SOURCES` | 多个 GitHub 镜像地址 | 逗号分隔，可增删来源 |
 | `UPDATE_IMAGE_REPOSITORIES` | 多个 GHCR 代理 | 逗号分隔，使用仓库名而非标签 |
 
-后台“自动更新状态”页面展示最近检查、版本源、镜像源和回滚结果，并提供上述“立即检查”按钮；检查进行中或请求等待处理时页面会自动刷新结果。状态文件位于 `app_data` 卷的 `runtime/auto-updater-state.json`，也可直接查看 updater 日志：
+后台“自动更新状态”页面展示最近检查、版本源、镜像源和回滚结果，并提供上述“立即检查”按钮；点击后立即显示提交与等待状态；冷却期间显示倒计时，检查时每秒读取阶段、来源响应数量和已用时间，完成后原位展示结果。下载、重启、健康检查期间持续写入心跳；应用重启断线时页面自动重连，不重复提交检查。页面显示实际阶段而非估算的下载百分比。状态文件位于 `app_data` 卷的 `runtime/auto-updater-state.json`，也可直接查看 updater 日志：
 
 ```bash
 docker compose ps

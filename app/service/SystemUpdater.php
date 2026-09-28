@@ -22,7 +22,7 @@ final class SystemUpdater
     private const DEFAULT_INTERVAL_SECONDS = 21600;
     // docker/auto-updater.php derives the same marker path from the state file.
     private const CHECK_REQUEST_SUFFIX = '.check-request';
-    // The updater polls every 5 seconds and spaces checks at least 60 seconds apart.
+    // The updater polls every second and spaces checks at least 60 seconds apart.
     private const CHECK_REQUEST_STALE_SECONDS = 120;
     // Longer than the default worst case: every mirror pull timing out, then a restart.
     private const CHECKING_STALE_SECONDS = 7200;
@@ -95,6 +95,10 @@ final class SystemUpdater
             'next_check_at' => null,
             'check_started_at' => null,
             'trigger' => null,
+            'phase' => null, 'phase_started_at' => null, 'updated_at' => null, 'finished_at' => null,
+            'manual_check_not_before' => null, 'cooldown_seconds' => 0, 'elapsed_seconds' => 0,
+            'heartbeat_age_seconds' => null, 'probe_completed' => 0, 'probe_total' => 0,
+            'mirror_attempt' => 0, 'mirror_total' => 0,
             'manual_check_available' => false,
             'manual_check_hint' => $this->enabled ? '尚未检测到自动更新器，请确认 updater 容器正在运行' : '自动更新已禁用',
             'check_requested_at' => null,
@@ -139,7 +143,7 @@ final class SystemUpdater
             'last_update_at',
             'next_check_at',
             'check_started_at',
-            'trigger',
+            'trigger', 'phase', 'phase_started_at', 'updated_at', 'finished_at', 'manual_check_not_before',
         ] as $field) {
             if (isset($decoded[$field]) && is_scalar($decoded[$field])) {
                 $status[$field] = mb_substr(trim((string)$decoded[$field]), 0, 500);
@@ -192,6 +196,16 @@ final class SystemUpdater
                 && time() - $requestedAt > self::CHECK_REQUEST_STALE_SECONDS;
         }
 
+        foreach (['probe_completed', 'probe_total', 'mirror_attempt', 'mirror_total'] as $field) {
+            $status[$field] = max(0, min(1000, (int)($decoded[$field] ?? 0)));
+        }
+        $started = strtotime((string)($status['check_started_at'] ?? $status['checked_at'] ?? ''));
+        $notBefore = strtotime((string)($status['manual_check_not_before'] ?? ''));
+        $status['cooldown_seconds'] = max(0, ($notBefore ?: ($started ? $started + 60 : 0)) - time());
+        $finished = strtotime((string)($status['finished_at'] ?? ''));
+        $status['elapsed_seconds'] = $started ? max(0, ($finished ?: time()) - $started) : 0;
+        $heartbeat = strtotime((string)($status['updated_at'] ?? ''));
+        $status['heartbeat_age_seconds'] = $heartbeat ? max(0, time() - $heartbeat) : null;
         $checkedAt = strtotime((string)($status['checked_at'] ?? ''));
         $status['state_age_seconds'] = $checkedAt === false ? null : max(0, time() - $checkedAt);
         return $status;

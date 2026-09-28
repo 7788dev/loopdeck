@@ -99,3 +99,64 @@ for (const [platform, functions] of Object.entries({netease: ['musicianTask', 'e
     assert.equal(typeof context.x.ajax, 'function', 'Login pages must work without optional clipboard and PJAX plugins');
 }
 console.log('Frontend interaction tests passed');
+
+
+// Run the real updater controller against a small DOM and controlled network.
+(async function updaterProgressInteractions() {
+    const elements = new Map();
+    const timers = new Map();
+    let id = 0, attached = true, requests = [];
+    const element = name => {
+        if (!elements.has(name)) elements.set(name, {textContent: '', className: '', style: {}, hidden: false,
+            addEventListener(event, handler) {this[event] = handler;}, removeEventListener(event) {delete this[event];}});
+        return elements.get(name);
+    };
+    const panel = {querySelector: selector => element(selector)};
+    const window = {};
+    const context = vm.createContext({window, document: {body: {contains: () => attached}}, Date, Math, String,
+        Number, AbortController, setTimeout: (fn, delay) => {timers.set(++id, {fn, delay}); return id;},
+        clearTimeout: timer => timers.delete(timer), setInterval: () => ++id, clearInterval() {},
+        fetch: (url, options) => new Promise((resolve, reject) => requests.push({url, options, resolve, reject}))});
+    vm.runInContext(read('public/static/js/updater-progress.js'), context);
+    const settle = async () => {for (let i = 0; i < 12; i++) await Promise.resolve();};
+    const runTimer = delay => {
+        const match = [...timers].find(([, timer]) => timer.delay === delay);
+        assert.ok(match, 'Expected polling timer ' + delay);
+        timers.delete(match[0]); match[1].fn();
+    };
+    const state = {current_version: '1.2.13', checked_at: 'old', status: 'up_to_date',
+        manual_check_available: true, cooldown_seconds: 35};
+    const stop = window.LoopDeckUpdater.mount(panel, state, '/check', '/status');
+    runTimer(0);
+    requests.shift().resolve({ok: true, json: async () => ({code: 1, data: state})});
+    await settle();
+    element('#updater-check-button').click();
+    assert.equal(element('#updater-button-label').textContent, '正在提交…');
+    assert.equal(element('#updater-check-button').disabled, true);
+    element('#updater-check-button').click();
+    assert.equal(requests.length, 1, 'Repeated clicks posted duplicate requests');
+    requests.shift().resolve({ok: true, json: async () => ({code: 1})});
+    await settle();
+    assert.match(element('#updater-live-detail').textContent, /35 秒/);
+    runTimer(0);
+    requests.shift().resolve({ok: true, json: async () => ({code: 1, data: {...state, status: 'checking',
+        phase: 'versions', probe_completed: 2, probe_total: 5, message: '正在检查版本', heartbeat_age_seconds: 0}})});
+    await settle();
+    assert.match(element('#updater-live-detail').textContent, /2\/5/);
+    assert.equal(element('#updater-status').textContent, '检查版本');
+    runTimer(1000);
+    requests.shift().reject(new Error('restart'));
+    await settle();
+    assert.match(element('#updater-connection').textContent, /自动重连/);
+    runTimer(2000);
+    requests.shift().resolve({ok: true, json: async () => ({code: 1, data: {...state, checked_at: 'new',
+        status: 'updated', current_version: '1.2.14', message: '<img onerror=alert(1)>', finished_at: 'now'}})});
+    await settle();
+    assert.equal(element('#updater-current').textContent, 'v1.2.14');
+    assert.equal(element('#updater-status').textContent, '更新完成');
+    assert.equal(element('#updater-check-button').disabled, false);
+    assert.equal(element('#updater-result').textContent, '<img onerror=alert(1)>');
+    attached = false; stop();
+    assert.equal(timers.size, 0, 'Leaving the page retained polling timers');
+    console.log('Updater live progress and reconnection interactions passed');
+})().catch(error => {console.error(error); process.exitCode = 1;});

@@ -18,7 +18,7 @@ declare(strict_types=1);
  */
 final class LoopDeckAutoUpdater
 {
-    private const CHECK_REQUEST_POLL_SECONDS = 5;
+    private const CHECK_REQUEST_POLL_SECONDS = 1;
     private const CHECK_REQUEST_COOLDOWN_SECONDS = 60;
 
     private const DEFAULT_VERSION_SOURCES = [
@@ -52,6 +52,8 @@ final class LoopDeckAutoUpdater
     private bool $checkRequestUnlinkWarned = false;
     private int $lastCheckStartedAt = 0;
     private ?Closure $commandRunner;
+    private array $progressState = [];
+    private float $lastProgressWrite = 0;
 
     public function __construct(?callable $commandRunner = null)
     {
@@ -127,6 +129,7 @@ final class LoopDeckAutoUpdater
     /** @param array{requested_at:string}|null $request an admin request consumed by the wait loop */
     private function runOnce(?array $request = null): bool
     {
+        $this->progressState = [];
         $this->lastCheckStartedAt = time();
         $checkedAt = gmdate('c', $this->lastCheckStartedAt);
         $trigger = $request === null ? 'automatic' : 'manual';
@@ -162,6 +165,7 @@ final class LoopDeckAutoUpdater
 
         $metadata['enabled'] = true;
         $currentVersion = (string)$metadata['current_version'];
+        $this->progress('versions', '正在并行检查版本来源', ['current_version' => $currentVersion]);
         $versionResult = $this->latestVersion();
         if ($versionResult === null) {
             $metadata['status'] = 'failed';
@@ -201,6 +205,7 @@ final class LoopDeckAutoUpdater
             return false;
         }
 
+        $this->progress('mirrors', '发现新版本，正在探测镜像来源', $metadata);
         $probes = $this->probeRepositories();
         $metadata['image_probes'] = $probes;
         if ($probes === []) {
@@ -246,7 +251,9 @@ final class LoopDeckAutoUpdater
             return false;
         }
 
+        $this->progress('restart', '镜像已校验，正在重启应用', $metadata);
         if (!$this->restartApplication()) {
+            $this->progress('rollback', '新版本未就绪，正在恢复原版本');
             $this->rollback($oldImageId);
             $metadata['status'] = 'rolled_back';
             $metadata['message'] = '新版本健康检查失败，已回滚旧镜像';
@@ -326,6 +333,11 @@ final class LoopDeckAutoUpdater
             ? json_decode((string)@file_get_contents($this->stateFile), true)
             : null;
         $this->writeState(array_merge(is_array($previous) ? $previous : [], [
+            'phase' => 'starting',
+            'phase_started_at' => $startedAt,
+            'finished_at' => null,
+            'probe_completed' => 0,
+            'probe_total' => 0,
             'status' => 'checking',
             'message' => $request === null ? '正在检查新版本' : '正在执行后台请求的立即检查',
             'error' => null,
@@ -496,11 +508,13 @@ final class LoopDeckAutoUpdater
                 continue;
             }
             $reference = $repository . ':' . $version;
+            $this->progress('pull', '正在下载镜像，已缓存的镜像层会复用', ['image_repository' => $repository, 'image' => $reference, 'mirror_attempt' => array_search($probe, $probes, true) + 1, 'mirror_total' => count($probes)]);
             $pull = $this->runDocker(['pull', $reference], $this->pullTimeout);
             if (!$pull['ok']) {
                 $this->log('拉取 ' . $reference . ' 失败：' . $this->shortError($pull['stderr']));
                 continue;
             }
+            $this->progress('verify', '镜像下载完成，正在校验版本标签');
             $label = $this->runDocker([
                 'image', 'inspect', '--format', '{{index .Config.Labels "org.opencontainers.image.version"}}', $reference
             ], 30);
@@ -525,6 +539,7 @@ final class LoopDeckAutoUpdater
             $this->log('应用容器重建失败：' . $this->shortError($result['stderr']));
             return false;
         }
+        $this->progress('health', '应用正在启动，等待健康检查通过');
         return $this->waitForHealthy(180);
     }
 
@@ -655,6 +670,7 @@ final class LoopDeckAutoUpdater
         while (true) {
             $stdout .= (string)stream_get_contents($pipes[1]);
             $stderr .= (string)stream_get_contents($pipes[2]);
+            $this->heartbeat();
             $status = proc_get_status($process);
             if (!$status['running']) {
                 break;
@@ -718,14 +734,23 @@ final class LoopDeckAutoUpdater
                 curl_setopt($handle, CURLOPT_NOBODY, true);
             }
             curl_multi_add_handle($multi, $handle);
-            $handles[(int)$handle] = [$handle, $url, microtime(true)];
+            $handles[] = [$handle, $url, microtime(true)];
         }
 
+        if ($this->progressState !== []) {
+            $this->progressState['probe_completed'] = 0;
+            $this->progressState['probe_total'] = count($handles);
+            $this->heartbeat(true);
+        }
         $active = null;
         do {
             $status = curl_multi_exec($multi, $active);
         } while ($status === CURLM_CALL_MULTI_PERFORM);
         while ($active && $status === CURLM_OK) {
+            while ($info = curl_multi_info_read($multi)) {
+                $this->progressState['probe_completed'] = ($this->progressState['probe_completed'] ?? 0) + 1;
+            }
+            $this->heartbeat();
             if (curl_multi_select($multi, 1.0) === -1) {
                 usleep(10000);
             }
@@ -734,6 +759,10 @@ final class LoopDeckAutoUpdater
             } while ($status === CURLM_CALL_MULTI_PERFORM);
         }
 
+        if ($this->progressState !== []) {
+            $this->progressState['probe_completed'] = count($handles);
+            $this->heartbeat(true);
+        }
         $responses = [];
         foreach ($handles as [$handle, $url, $started]) {
             $error = curl_error($handle);
@@ -816,12 +845,38 @@ final class LoopDeckAutoUpdater
             . (string)($parts['path'] ?? '');
     }
 
+    private function progress(string $phase, string $message, array $details = []): void
+    {
+        if ($this->progressState === []) return;
+        $this->writeState(array_merge($this->progressState, $details, [
+            'status' => 'checking', 'phase' => $phase, 'message' => $message,
+            'phase_started_at' => gmdate('c'), 'probe_completed' => 0, 'probe_total' => 0,
+        ]));
+    }
+
+    private function heartbeat(bool $force = false): void
+    {
+        if (($this->progressState['status'] ?? '') === 'checking'
+            && ($force || microtime(true) - $this->lastProgressWrite >= 1)) {
+            $this->writeState($this->progressState);
+        }
+    }
+
     private function writeState(array $state): void
     {
         $directory = dirname($this->stateFile);
         if (!is_dir($directory) && !@mkdir($directory, 0775, true) && !is_dir($directory)) {
             return;
         }
+        $state = array_merge($this->progressState, $state);
+        $state['updated_at'] = gmdate('c');
+        $state['manual_check_not_before'] = gmdate('c', $this->lastCheckStartedAt + self::CHECK_REQUEST_COOLDOWN_SECONDS);
+        if (($state['status'] ?? '') !== 'checking') {
+            $state['phase'] = 'complete';
+            $state['finished_at'] = gmdate('c');
+        }
+        $this->progressState = $state;
+        $this->lastProgressWrite = microtime(true);
         $state['schema'] = 1;
         $state['enabled'] = $this->enabled;
         $state['accepts_check_requests'] = $this->acceptsCheckRequests;

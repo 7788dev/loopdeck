@@ -443,7 +443,10 @@ class Ajax extends Common
                     'checked_at',
                     'check_requested_at',
                     'check_request_stale',
-                    'manual_check_available',
+                    'manual_check_available', 'manual_check_hint', 'error', 'check_started_at',
+                    'phase', 'phase_started_at', 'updated_at', 'finished_at', 'cooldown_seconds',
+                    'elapsed_seconds', 'heartbeat_age_seconds', 'probe_completed', 'probe_total',
+                    'mirror_attempt', 'mirror_total', 'next_check_at', 'version_source', 'image_repository',
                 ])));
             case 'check':
                 if (!Request::isPost()) {

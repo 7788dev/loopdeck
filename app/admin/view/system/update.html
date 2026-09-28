@@ -1,7 +1,7 @@
 {extend name="common/layout"/}
 {block name="head"} {include file="system/head" /}{/block}
 {block name="main"}
-<div class="block block-rounded">
+<div id="updater-panel" class="block block-rounded">
     <div class="block-header block-header-default">
         <h3 class="block-title">{$webTitle}</h3>
     </div>
@@ -10,13 +10,13 @@
             <div class="col-md-4 mb-3 mb-md-0">
                 <div class="p-3 bg-body-light rounded h-100">
                     <div class="text-muted fs-sm">当前版本</div>
-                    <div class="fs-3 fw-semibold text-primary">v{$current_version}</div>
+                    <div id="updater-current" class="fs-3 fw-semibold text-primary">v{$current_version}</div>
                 </div>
             </div>
             <div class="col-md-4 mb-3 mb-md-0">
                 <div class="p-3 bg-body-light rounded h-100">
                     <div class="text-muted fs-sm">已探测最新版本</div>
-                    <div class="fs-3 fw-semibold text-success">
+                    <div id="updater-latest" class="fs-3 fw-semibold text-success">
                         {if condition="$latest_version"}v{$latest_version}{else /}等待检查{/if}
                     </div>
                 </div>
@@ -24,7 +24,7 @@
             <div class="col-md-4">
                 <div class="p-3 bg-body-light rounded h-100">
                     <div class="text-muted fs-sm">自动更新状态</div>
-                    <div class="fs-4 fw-semibold">
+                    <div id="updater-status" class="fs-4 fw-semibold">
                         {if condition="$status eq 'updated'"}<span class="text-success">已更新</span>
                         {elseif condition="$status eq 'up_to_date'"}<span class="text-success">已是最新</span>
                         {elseif condition="$status eq 'checking'"}<span class="text-info">正在检查</span>
@@ -37,96 +37,65 @@
             </div>
         </div>
 
-        {if condition="$error"}
-        <div class="alert alert-warning">{$error}</div>
-        {else /}
         <div class="alert alert-info mb-4">
-            系统由 updater 容器每 {$check_interval_seconds} 秒自动检查。检测到新版本后会选择可用且较快的镜像代理，校验版本并重启应用；数据库和持久化数据不会删除。发布新镜像后可点击“立即检查”，无需等待下一次定时检查。
+            点击后将立即反馈检查进度。发现新版本会自动下载、校验并更新，数据库和持久化数据会保留。
         </div>
-        {/if}
 
-        {if condition="$check_request_stale"}
-        <div class="alert alert-warning">
-            更新器超过 2 分钟未处理立即检查请求，请确认 updater 容器正在运行，并查看 <code>docker compose logs --tail=100 updater</code>。
+        <div class="rounded border p-3 mb-4" role="region" aria-label="更新实时进度">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <strong id="updater-live-title" role="status" aria-live="polite">{$message}</strong>
+                <span id="updater-elapsed" class="text-muted fs-sm"></span>
+            </div>
+            <div id="updater-activity-track" class="progress my-3" style="height: 6px" aria-hidden="true">
+                <div id="updater-activity" class="progress-bar bg-info" style="width: 0"></div>
+            </div>
+            <p id="updater-live-detail" class="text-muted mb-2">
+                {if condition="$check_requested_at"}已提交检查请求，等待更新器处理。
+                {elseif condition="!$manual_check_available"}{$manual_check_hint}
+                {else /}检查过程会在此实时显示，无需刷新页面。{/if}
+            </p>
+            <div id="updater-connection" class="fs-sm text-muted" role="status"></div>
+            <div id="updater-warning" class="alert alert-warning mt-3 mb-0" {if condition="!$check_request_stale"}hidden{/if}>
+                更新器尚未响应，请确认 updater 容器正在运行。
+            </div>
         </div>
-        {/if}
-
-        <div class="d-flex flex-wrap align-items-center mb-4">
-            <button id="updater-check-button" type="button" class="btn btn-alt-primary me-3 mb-2"
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+            <button id="updater-check-button" type="button" class="btn btn-alt-primary"
                     data-version="{$current_version}" data-checked-at="{$last_checked_at}"
                     data-watch="{if condition="$check_requested_at || $status eq 'checking'"}1{else /}0{/if}"
                     {if condition="!$manual_check_available || $check_requested_at || $status eq 'checking'"}disabled{/if}>
-                <i class="fa fa-sync-alt opacity-50 me-1"></i> 立即检查
+                <i id="updater-check-icon" class="fa fa-sync-alt me-1"></i><span id="updater-button-label">立即检查</span>
             </button>
-            <span class="text-muted fs-sm mb-2">
-                {if condition="!$manual_check_available"}{$manual_check_hint}
-                {elseif condition="$check_requested_at"}已提交检查请求（{$check_requested_at}），等待更新器处理；两次检查至少间隔 60 秒，完成后本页自动刷新。
-                {elseif condition="$status eq 'checking'"}更新器正在检查（开始于 {$check_started_at}），完成后本页自动刷新。
-                {else /}让 updater 立即检查版本并按原流程校验、更新，不会跳过镜像版本校验和健康检查。{/if}
-            </span>
+            <span class="text-muted fs-sm">发现新版本后自动下载并校验，更新期间页面会自动重连。</span>
         </div>
 
         <dl class="row mb-0">
             <dt class="col-sm-3">最近检查</dt>
-            <dd class="col-sm-9">{if condition="$last_checked_at"}{$last_checked_at}{if condition="$trigger eq 'manual'"}（后台立即检查）{/if}{else /}尚未检查{/if}</dd>
+            <dd id="updater-checked" class="col-sm-9">{if condition="$last_checked_at"}{$last_checked_at}{if condition="$trigger eq 'manual'"}（后台立即检查）{/if}{else /}尚未检查{/if}</dd>
             <dt class="col-sm-3">下次检查</dt>
-            <dd class="col-sm-9">{if condition="$status eq 'checking'"}本次检查结束后安排{elseif condition="$next_check_at"}{$next_check_at}{else /}由 updater 启动后安排{/if}</dd>
+            <dd id="updater-next" class="col-sm-9">{if condition="$status eq 'checking'"}本次检查结束后安排{elseif condition="$next_check_at"}{$next_check_at}{else /}由 updater 启动后安排{/if}</dd>
             <dt class="col-sm-3">版本来源</dt>
-            <dd class="col-sm-9 text-break">{if condition="$version_source"}{$version_source}{else /}{$version_url}{/if}</dd>
+            <dd id="updater-source" class="col-sm-9 text-break">{if condition="$version_source"}{$version_source}{else /}{$version_url}{/if}</dd>
             <dt class="col-sm-3">镜像来源</dt>
-            <dd class="col-sm-9">{if condition="$image_repository"}{$image_repository}{else /}尚未选择{/if}</dd>
+            <dd id="updater-image" class="col-sm-9 text-break">{if condition="$image_repository"}{$image_repository}{else /}尚未选择{/if}</dd>
             <dt class="col-sm-3">最近结果</dt>
-            <dd class="col-sm-9">{if condition="$message"}{$message}{else /}暂无结果{/if}</dd>
+            <dd id="updater-result" class="col-sm-9">{if condition="$message"}{$message}{else /}暂无结果{/if}</dd>
         </dl>
     </div>
 </div>
 {/block}
 {block name="foot"}
+<script src="/static/js/updater-progress.js?v={:app_version()}"></script>
 <script>
-    (function () {
-        var button = document.getElementById('updater-check-button');
-        if (!button) return;
-
-        // Reload once the updater has reported a newer result. Request errors
-        // are expected while an update restarts the app, so keep polling.
-        function watch(attempt) {
-            if (!document.body.contains(button)) return;
-            if (attempt >= 120) {
-                x.notify('检查仍在进行，请稍后刷新页面查看结果', 'warning');
-                return;
-            }
-            setTimeout(function () {
-                x.ajax('/admin/ajax/updater/status', null, function (data) {
-                    var state = data && data.code === 1 ? data.data : null;
-                    if (state && (state.current_version !== button.dataset.version
-                        || (!state.check_requested_at && state.status !== 'checking'
-                            && (state.checked_at || '') !== button.dataset.checkedAt))) {
-                        window.location.reload();
-                        return;
-                    }
-                    watch(attempt + 1);
-                }, function () {
-                    watch(attempt + 1);
-                }, false);
-            }, 5000);
-        }
-
-        button.addEventListener('click', function () {
-            button.disabled = true;
-            x.ajax('/admin/ajax/updater/check', {}, function (data) {
-                x.notify(data.message, data.code === 1 ? 'success' : 'warning');
-                if (data.code === 1) {
-                    watch(0);
-                } else {
-                    button.disabled = false;
-                }
-            }, function () {
-                button.disabled = false;
-                x.notify('请求失败，请稍后重试', 'danger');
-            });
-        });
-
-        if (button.dataset.watch === '1') watch(0);
-    })();
+    LoopDeckUpdater.mount(document.getElementById('updater-panel'), {
+        current_version: {:js_string($current_version)},
+        checked_at: {:js_string($last_checked_at)},
+        status: {:js_string($status)},
+        message: {:js_string($message)},
+        check_requested_at: {:js_string($check_requested_at)},
+        manual_check_available: {:json_encode($manual_check_available)},
+        manual_check_hint: {:js_string($manual_check_hint)},
+        cooldown_seconds: {$cooldown_seconds}
+    }, '/admin/ajax/updater/check', '/admin/ajax/updater/status');
 </script>
 {/block}

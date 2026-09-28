@@ -33,6 +33,9 @@ RUN apk add --no-cache tzdata docker-cli docker-cli-compose \
 
 FROM php-base AS dependencies
 
+# Execute browser logic and database regressions only in the build stage.
+RUN apk add --no-cache nodejs && install-php-extensions pdo_sqlite
+
 ENV COMPOSER_ALLOW_SUPERUSER=1 \
     COMPOSER_HOME=/tmp/composer
 
@@ -65,7 +68,8 @@ COPY VERSION think ./
 
 RUN composer dump-autoload --no-dev --no-scripts --classmap-authoritative \
     && php think service:discover \
-    && set -eu; for test_file in tests/*Test.php; do php "$test_file"; done
+    && set -eu; for test_file in tests/*Test.php; do php "$test_file"; done \
+    && node tests/FrontendInteractionTest.js
 
 FROM php-base AS runtime
 

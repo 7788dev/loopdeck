@@ -18,16 +18,12 @@ class Captcha extends Model
                 if ($row['time'] > time() - 60) {
                     return ['code' => -1, 'message' => '发送邮件之间需要相隔60秒'];
                 }
-                $where['send'] = $number;
-                $where['time'] = ['>', time() - 3600 * 24];
-                $count = $self->where($where)->count();
-                if ($count > 6) {
+                $count = $self->where('send', $number)->where('time', '>', time() - 86400)->count();
+                if ($count >= 6) {
                     return ['code' => -1, 'message' => '该邮箱发送次数过多，请更换邮箱'];
                 }
-                $where['ip'] = real_ip();
-                $where['time'] = ['>', time() - 3600 * 24];
-                $count = $self->where($where)->count();
-                if ($count > 10) {
+                $count = $self->where('ip', real_ip())->where('time', '>', time() - 86400)->count();
+                if ($count >= 10) {
                     return ['code' => -1, 'message' => '该邮箱今日发送次数过多，请更换邮箱'];
                  }
                 }
@@ -50,7 +46,7 @@ class Captcha extends Model
                     return ['code' => 0, 'message' => '发送邮件失败，请联系管理员'];
                 }
         } else {
-            return ['code' => 1, 'message' => '邮箱格式不合法'];
+            return ['code' => 0, 'message' => '邮箱格式不合法'];
         }
     }
 

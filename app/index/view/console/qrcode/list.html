@@ -49,10 +49,10 @@
                     </p>
                 </div>
                 <div class="col-sm-6 py-2 text-md-end">
-                    <a class="btn btn-sm btn-outline-secondary me-1 my-1" data-bs-toggle="modal" data-bs-target="#address" data-address-label="三合一收款地址：" data-address="{:get_Domain()}index/index/qrcode.html?name={:urlencode($v.name)}">
+                    <a class="btn btn-sm btn-outline-secondary me-1 my-1" data-bs-toggle="modal" data-bs-target="#address" data-address-label="三合一收款地址：" data-address="{:get_Domain()}index/index/qrcode.html?uid={$value.uid}&amp;name={:rawurlencode($v.name)}">
                         <i class="si si-tag opacity-50 me-1"></i> 地址
                     </a>
-                    <a class="btn btn-sm btn-outline-danger me-1 my-1" onclick="ajax_qrcode_delete('{$user_id}')">
+                    <a class="btn btn-sm btn-outline-danger me-1 my-1" data-user-id="{$user_id}" onclick="ajax_qrcode_delete(this.dataset.userId)">
                         <i class="fa fa-times opacity-50 me-1"></i> 删除
                     </a>
                 </div>
@@ -102,7 +102,7 @@
 
     function ajax_qrcode_delete(user_id)
     {
-        x.del('/index/ajax/qrcode/delete', 'user_id=' + user_id, function (data) {
+        x.del('/index/ajax/qrcode/delete', {user_id: user_id}, function (data) {
             if (data.code == 1) {
                 x.notify(data.message, 'success');
                 setTimeout(function () {

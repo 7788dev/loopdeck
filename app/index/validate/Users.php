@@ -9,12 +9,12 @@ class Users extends Validate
     protected $rule = [
         'username' => 'require|min:5|max:25',
         'password' => 'require|min:6|max:64',
-        'qq' => 'require|number|max:10',
+        'qq' => 'require|regex:/^[0-9]{5,15}$/',
         'captcha|验证码' => 'require|captcha',
         'outpass' => 'require|min:6|max:64',
         'repass' => 'require|confirm:password',
         'mail' => 'require|email',
-        'nickname' => 'require|min:1|chsAlphaNum|max:8',
+        'nickname' => 'require|min:1|max:32',
     ];
 
     protected $message = [
@@ -32,7 +32,7 @@ class Users extends Validate
         'repass.require' => '二次密码确认不能为空',
         'nickname.require' => '昵称不能为空',
         'nickname.min' => '请输入不低于1位的昵称',
-        'nickname.max' => '请输入1-8位的昵称',
+        'nickname.max' => '请输入1-32位的昵称',
         'nickname.chsAlphaNum' => '昵称只能是汉字、字母和数字',
     ];
 

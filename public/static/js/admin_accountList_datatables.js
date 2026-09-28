@@ -65,7 +65,7 @@
             "className": "",
             "sortable": false,
             "render": function (data, type, row, meta) {
-                return "<button type=\"button\"class=\"btn btn-sm btn-alt-danger\"data-bs-toggle=\"tooltip\" onclick=\"ajax_account_delete('" + row.user_id + "');\"><i class=\"fa fa-trash-alt\"></i></button>";
+                return "<button type=\"button\"class=\"btn btn-sm btn-alt-danger\"data-bs-toggle=\"tooltip\" onclick=\"ajax_account_delete('" + Number(row.id) + "');\"><i class=\"fa fa-trash-alt\"></i></button>";
             }
         },],
         pagingType: "simple_numbers",

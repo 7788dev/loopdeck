@@ -68,14 +68,12 @@
             area: '320px',
             content: '<div class="form-floating"><input type="number" class="form-control" id="limit" name="limit" placeholder="清理数量" value="50"><label class="form-label" for="limit">清理数量</label></div>',
             yes: function (index, dom) {
+                const limit = x.getval('#limit');
                 layer.close(index);
-                var loading = layer.load(2);
-                x.ajax('/admin/ajax/clearLogs', {limit: x.getval('#limit')}, function (data) {
+                x.ajax('/admin/ajax/clearLogs', {limit: limit}, function (data) {
                     if (data.code == 1) {
-                        x.close(loading);
                         x.notify(data.message, 'success');
                     } else {
-                        x.close(loading);
                         x.notify(data.message, 'warning');
                     }
                 })

@@ -19,7 +19,7 @@ loginQrCheck(
     'QR encoder class-map casing changed unexpectedly'
 );
 
-foreach (['Netease.php', 'Bilibili.php'] as $controllerName) {
+foreach (['Netease.php', 'Bilibili.php', 'Ajax.php', 'Index.php'] as $controllerName) {
     $source = file_get_contents($root . '/app/index/controller/' . $controllerName);
     loginQrCheck(
         is_string($source) && str_contains($source, 'use netease\\QRcode;'),

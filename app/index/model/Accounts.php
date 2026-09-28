@@ -46,6 +46,11 @@ class Accounts extends Model
     public static function addQrcode($type = null, $user_id = null, $data = [])
     {
         $self = new static();
+        // Public payment links identify a code by name within this site.
+        if ($self->where('type', 'qrcode')->where('user_id', $user_id)
+            ->where('zid', WEB_ID)->where('uid', '<>', Session::get('user.uid'))->find()) {
+            return resultJson(0, '收款识别码已被使用，请更换识别码');
+        }
         $query = $self->where('type', '=', $type)
             ->where('user_id', '=', $user_id)
             ->where('uid', '=', Session::get('user.uid'));

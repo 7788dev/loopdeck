@@ -7,7 +7,7 @@ use app\index\model\Accounts;
 use app\index\model\Users;
 use app\index\model\Weblist;
 use app\service\ApplicationVersion;
-use netease\Qrcode;
+use netease\QRcode;
 use think\facade\Request;
 use think\facade\View;
 
@@ -53,10 +53,20 @@ class Index extends Common
     public function qrcode()
     {
         $name = trim((string)Request::get('name', ''));
-        $account = Accounts::where('type', '=', 'qrcode')
+        $query = Accounts::where('type', '=', 'qrcode')
             ->where('user_id', '=', $name)
-            ->where('zid', '=', WEB_ID)
-            ->find();
+            ->where('zid', '=', WEB_ID);
+        $uid = Request::get('uid', '');
+        if ($uid !== '') {
+            if (!is_scalar($uid) || !ctype_digit((string)$uid) || (int)$uid <= 0) {
+                return response('收款码参数错误', 400);
+            }
+            $query->where('uid', (int)$uid);
+        }
+        if ((clone $query)->count() > 1) {
+            return response('收款识别码存在重复，请收款人重新生成二维码', 409);
+        }
+        $account = $query->find();
         if (!$account) {
             return response('收款码不存在', 404);
         }
@@ -77,19 +87,19 @@ class Index extends Common
         $type = str_contains($agent, 'micromessenger') ? 'wechat' : 'qq';
         return View::fetch('index/default/qrcode', [
             'type' => $type,
-            'url' => safe_http_url((string)($data[$type . '_url'] ?? '')),
+            'url' => payment_qrcode_url($type, (string)($data[$type . '_url'] ?? '')),
             'name' => (string)($data['name'] ?? ''),
         ]);
     }
 
     public function createQrcode()
     {
-        $text = urldecode((string)Request::get('text', ''));
+        $text = (string)Request::get('text', '');
         if ($text === '' || strlen($text) > 2048 || preg_match('/[\x00-\x1F]/', $text)) {
             return response('二维码内容无效', 400);
         }
         ob_start();
-        (new Qrcode())->png($text, false, QR_ECLEVEL_M, 8, 2);
+        (new QRcode())->png($text, false, QR_ECLEVEL_M, 8, 2);
         $image = (string)ob_get_clean();
         return response($image, 200, ['Content-Type' => 'image/png']);
     }

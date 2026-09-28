@@ -38,6 +38,8 @@ Follow the existing PSR-12-style PHP: four-space indentation, braces on new line
 
 Tests are executable PHP scripts, not PHPUnit cases. Name regressions `FeatureNameTest.php`, load `vendor/autoload.php`, throw on failed assertions, and print a success line. Cover every bug fix and important branch; no percentage threshold is enforced. `LiveSmoke.php` scripts contact upstream services and run only when invoked explicitly.
 
+The full suite also needs Node and `pdo_sqlite`: run `node tests/FrontendInteractionTest.js` after the PHP suite. Windows PHP can enable SQLite with `-d extension=pdo_sqlite`. Keep stateful regressions on the isolated in-memory fixture and exercise rendered scripts, rather than relying only on source-string assertions ([decision](.agents/notes/implemented/testing/2026-09-28-runtime-usability-regressions.md)).
+
 Every feature removal must be pinned by "no longer reachable" assertions in `tests/FeatureRemovalTest.php`, landed in the same commit as the deletion ([decision](.agents/notes/implemented/testing/2026-09-15-feature-removal-pinned-by-test.md)).
 
 `DockerDeploymentTest.php` executes deployment scripts against a stub Docker CLI in a temporary directory. On Windows, set `LOOPDECK_TEST_SHELL` to Git for Windows `bin/sh.exe`; Linux uses `sh` from `PATH`.

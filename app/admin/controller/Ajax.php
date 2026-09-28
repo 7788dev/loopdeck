@@ -36,6 +36,17 @@ class Ajax extends Common
         return false;
     }
 
+    public function clearLogs()
+    {
+        $limit = filter_var(Request::post('limit'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 1000]]);
+        if (!Request::isPost() || $limit === false) {
+            return resultJson(0, '清理数量必须在 1 到 1000 之间');
+        }
+        $ids = Db::name('task_logs')->order('id', 'asc')->limit($limit)->column('id');
+        $deleted = $ids ? Db::name('task_logs')->whereIn('id', $ids)->delete() : 0;
+        return resultJson(1, '已清理 ' . $deleted . ' 条最早的任务日志');
+    }
+
     public function set($act = null)
     {
         switch ($act) {
@@ -231,9 +242,10 @@ class Ajax extends Common
                             $requiresVip = (int)($editable['vip'] ?? $oTask['vip']) === 1;
                             foreach ($jobs->where('do', '=', $oTask['execute_name'])->select() as $value) {
                                 $user = Users::findByUid($value['uid']);
-                                $state = $offline
+                                // Editing copy or prices must not enable tasks the user paused.
+                                $state = $offline || ($requiresVip && (int)strtotime((string)($user['vip_end'] ?? '')) <= time())
                                     ? 0
-                                    : (($requiresVip && empty($user['vip_start'])) ? 0 : 1);
+                                    : (int)$value['state'];
                                 $updates = ['state' => $state];
                                 if ($offline) {
                                     $updates['nextExecute'] = 0;
@@ -345,9 +357,9 @@ class Ajax extends Common
                         break;
                     case 'account':
                         $id = Request::post('id');
-                        Accounts::delByid($id);
-                        Jobs::delByid($id);
-                        return resultJson(1, '删除成功');
+                        return Accounts::delByid($id)
+                            ? resultJson(1, '删除成功')
+                            : resultJson(0, '账号不存在或删除失败');
                         break;
                 }
                 break;
@@ -364,6 +376,7 @@ class Ajax extends Common
                                 return resultJson(-1, $e->getMessage());
                             }
                            $up['password'] = password_hash((string)$data['password'], PASSWORD_DEFAULT);
+                           $up['sid'] = null;
                         }
                         foreach (['vip_start' => 'vip_start', 'vip_end' => 'vip_end'] as $field) {
                             $value = trim((string)($data[$field] ?? ''));

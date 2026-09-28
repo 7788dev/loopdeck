@@ -68,13 +68,40 @@ class Accounts extends Model
         return false;
     }
 
-    public static function delByid($id)
+    public static function delByid($id, bool $cleanupState = true)
     {
-        $self = new static();
-        if ($self->where('user_id', '=', $id)->where('zid', '=', WEB_ID)->delete()) {
-            return true;
+        $account = \think\facade\Db::transaction(static function () use ($id) {
+            $account = self::where('id', $id)->where('zid', WEB_ID)->lock(true)->find();
+            if (!$account) {
+                return null;
+            }
+            \think\facade\Db::name('jobs')->where('type', $account['type'])
+                ->where('user_id', $account['user_id'])->where('uid', $account['uid'])->delete();
+            if (!self::where('type', $account['type'])->where('user_id', $account['user_id'])->where('id', '<>', $account['id'])->find()) {
+                \think\facade\Db::name('task_logs')->where('type', $account['type'])
+                    ->where('user_id', $account['user_id'])->delete();
+            }
+            $data = $account->toArray();
+            $account->delete();
+            return $data;
+        });
+        if ($account && $cleanupState) {
+            self::forgetAccountState($account);
         }
-        return false;
+        return $account !== null;
+    }
+
+    public static function forgetAccountState(array $account): void
+    {
+        if ($account['type'] === 'netease' && !self::where('type', 'netease')->where('user_id', $account['user_id'])->find()) {
+            try {
+                (new \netease\Netease((string)$account['user_id'], '', '', [
+                    'auto_anonymous_token' => false, 'cache_dir' => '',
+                ]))->forgetDakaState();
+            } catch (\Throwable $exception) {
+                // The scheduler also prunes orphaned state files.
+            }
+        }
     }
 
     public static function delByUserid($uid)

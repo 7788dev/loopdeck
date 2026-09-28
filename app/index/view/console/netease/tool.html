@@ -78,15 +78,16 @@
 
         var button = $('#listen-submit');
         button.prop('disabled', true);
-        var loading = layer.load(2);
         x.ajax('/index/ajax/netease/listen', {
             user_id: userId,
             songid: songId,
             times: times
         }, function (data) {
-            x.close(loading);
             button.prop('disabled', false);
             x.notify(data.message, data.code === 1 ? 'success' : 'warning');
+        }, function () {
+            button.prop('disabled', false);
+            x.notify('请求失败，请检查网络后重试', 'danger');
         });
     }
 </script>

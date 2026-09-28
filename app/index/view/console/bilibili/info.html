@@ -124,7 +124,7 @@
                                 </td>
                                 <td class="d-none d-sm-table-cell"><i class="far fa-clock opacity-75"></i> {$v.last_execute}</td>
                                 <td class="text-center">
-                                    <button type="button" class="btn btn-sm btn-alt-primary mx-2" data-config='{$v.config_json|raw}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)">配置</button>
+                                    <button type="button" class="btn btn-sm btn-alt-primary mx-2" data-config='{$v.config_json}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)">配置</button>
                                 </td>
                             </tr>
                             {else /}
@@ -138,7 +138,7 @@
                                             <span class="badge bg-secondary ms-1">已下架</span>
                                         {/if}
                                         {if condition="$v.more"}
-                                            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 mx-1" data-config='{$v.config_json|raw}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="si si-settings"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 mx-1" data-config='{$v.config_json}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="si si-settings"></i></button>
                                         {/if}
                                     </p>
                                     <p class="fs-xs text-muted mb-0">
@@ -153,9 +153,9 @@
                                             {if condition="$v.offline"}
                                             <input type="checkbox" class="form-check-input" disabled title="{$v.offline_reason}">
                                             {elseif condition="$v.job_state eq 1" /}
-                                            <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}');" checked>
+                                            <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}', this);" checked>
                                             {else /}
-                                            <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}');">
+                                            <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}', this);">
                                             {/if}
                                         </div>
                                     </div>
@@ -229,19 +229,16 @@
                 }
             },
             yes: function (index, dom) {
-                layer.close(index);
-                var loading = layer.load(2);
                 const params = JSON.stringify($(dom).find("form").parseForm());
+                layer.close(index);
                 x.ajax('/index/ajax/bilibili/set', {do: execute_name, user_id: {$a_data['mid']}, config: params}, function (data) {
                     if (data.code == 1) {
-                        x.close(loading);
                         x.notify(data.message, 'success');
                         setTimeout(function () {
                             // x.pjax('/index/console/bilibili/info/{$a_data["mid"]}');
                             window.location.href = '/index/console/bilibili/info/{$a_data["mid"]}';
                         }, 1000)
                     } else {
-                        x.close(loading);
                         x.notify(data.message, 'warning');
                     }
                 })
@@ -269,19 +266,16 @@
                 }
             },
             yes: function (index, dom) {
-                layer.close(index);
-                var loading = layer.load(2);
                 const params = JSON.stringify($(dom).find("form").parseForm());
+                layer.close(index);
                 x.ajax('/index/ajax/bilibili/set', {do: execute_name, user_id: {$a_data['mid']}, config: params}, function (data) {
                     if (data.code == 1) {
-                        x.close(loading);
                         x.notify(data.message, 'success');
                         setTimeout(function () {
                             // x.pjax('/index/console/bilibili/info/{$a_data["mid"]}');
                             window.location.href = '/index/console/bilibili/info/{$a_data["mid"]}';
                         }, 1000)
                     } else {
-                        x.close(loading);
                         x.notify(data.message, 'warning');
                     }
                 })
@@ -289,21 +283,9 @@
         });
     }
 
-    function ajax_set_zt(execute_name, user_id)
+    function ajax_set_zt(execute_name, user_id, input)
     {
-        x.ajax('/index/ajax/bilibili/set','act=zt&do=' + execute_name + '&user_id=' + user_id, function (data) {
-            if (data.code == 1) {
-                x.notify(data.message, 'success');
-            } else if (data.code == -1) {
-                x.notify(data.message, 'danger');
-                setTimeout(function () {
-                    // x.pjax('/index/console/bilibili/info/{$a_data["mid"]}');
-                    window.location.href = '/index/console/bilibili/info/{$a_data["mid"]}';
-                }, 1500)
-            } else {
-                x.notify(data.message, 'warning');
-            }
-        });
+        x.taskSwitch('/index/ajax/bilibili/set', execute_name, user_id, input);
     }
 
     function ajax_reexecute_task(user_id)
@@ -331,7 +313,7 @@
             closeBtn: 0,
             shadeClose: true,
             zIndex: '1000',
-            area: ['20%'],//设置相对于父页面的大小
+            area: [Math.min(420, window.innerWidth - 32) + 'px'],//设置相对于父页面的大小
             content: '<div class="form-floating col-xl-12 mb-2"><input type="text" class="js-flatpickr form-control" id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"data-allow-input="true"><label class="form-label" for="timing">挂机时间</label></div><div><span class="text-danger">未设置时不会自动执行；清空时间并保存可关闭自动挂机。<br></span><span class="fw-semibold">挂机时间说明：系统在您设定的时间为您挂机。<br>特殊说明：若您设置的时间内系统有大量账号需要排队执行，则可能会出现延迟执行的情况，系统仅保证在您设定的时间之后进行执行</span></div>',
             success: function (res, index) {
                 if (typeof timing !== 'undefined') {
@@ -340,18 +322,16 @@
                 Codebase.helpersOnLoad(['js-flatpickr']);
             },
             yes: function (index, dom) {
+                const selectedTiming = x.getval('#timing');
                 layer.close(index);
-                var loading = layer.load(2);
-                x.ajax('/index/ajax/bilibili/set', {act: 'timing', user_id: {$a_data['mid']}, timing: x.getval('#timing')}, function (data) {
+                x.ajax('/index/ajax/bilibili/set', {act: 'timing', user_id: {$a_data['mid']}, timing: selectedTiming}, function (data) {
                     if (data.code == 1) {
-                        x.close(loading);
                         x.notify(data.message, 'success');
                         setTimeout(function () {
                             // x.pjax('/index/console/bilibili/info/{$a_data["mid"]}');
                             window.location.href = '/index/console/bilibili/info/{$a_data["mid"]}';
                         }, 1000)
                     } else {
-                        x.close(loading);
                         x.notify(data.message, 'warning');
                     }
                 })

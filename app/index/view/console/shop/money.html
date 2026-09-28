@@ -37,7 +37,7 @@
                     <form onsubmit="return false;">
                         <div class="mb-4">
                             <div class="input-group input-group-lg">
-                                <input type="number" class="form-control" id="money" name="money" placeholder="0.00">
+                                <input type="number" class="form-control" id="money" name="money" min="0.01" max="1000" step="0.01" placeholder="0.00">
                                 <span class="input-group-text fw-semibold">元</span>
                             </div>
                         </div>
@@ -102,6 +102,7 @@
 
     function ajax_shop_money(pay_type)
     {
+        const money = x.getval('#money');
         x.ajax('/index/ajax/shop/buy', {shop: 'money', shopid: money, pay_type: pay_type}, function (data) {
             if (data.code == 1) {
                 layer.closeAll();

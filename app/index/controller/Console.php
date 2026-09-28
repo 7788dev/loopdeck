@@ -284,11 +284,13 @@ class Console
             'listennum' => 0,
         ];
         $signature = '';
+        $infoAvailable = false;
         if ($userId !== '' && (string)($a_data['csrf'] ?? '') !== '' && (string)($a_data['musicu'] ?? '') !== '') {
             try {
                 $netease = new \netease\Netease($userId, (string)$a_data['csrf'], (string)$a_data['musicu']);
                 $info = $netease->getMusicUserInfo();
                 if (is_array($info)) {
+                    $infoAvailable = isset($info['listenSongs'], $info['level']);
                     $details = [
                         'listenSongs' => (int)($info['listenSongs'] ?? 0),
                         'level_now' => (int)($info['level'] ?? 0),
@@ -335,6 +337,7 @@ class Console
             ],
             "timing" => $timing,
             "details" => $details,
+            "info_available" => $infoAvailable,
             "signature" => $signature,
             "task_rows" => $taskRows,
         ]);

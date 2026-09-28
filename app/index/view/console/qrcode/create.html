@@ -56,6 +56,12 @@
 <script>
     $(document).ready(function () {
         $('input[type="file"]').on('change', function () {
+            const input = this;
+            const target = $('#' + input.id + '_url');
+            target.val('');
+            $('#qrcode').empty();
+            if (!input.files.length) return;
+            const file = input.files[0];
             const formData = new FormData();
             formData.append('file', this.files[0]);
             formData.append('type', $(this).attr('id'));
@@ -67,7 +73,8 @@
                 contentType: false,
                 processData: false,
                 success: function (res) {
-                    layer.closeAll();
+                    layer.close(index);
+                    if (input.files[0] !== file) return;
                     if (res.code === 1) {
                         x.notify(res.message, 'success');
                         $('#' + res.data.type + '_url').val(res.data.url);
@@ -76,11 +83,12 @@
                     }
                 },
                 error: function () {
-                    layer.closeAll();
+                    layer.close(index);
                     x.notify('上传失败，请检查网络后重试', 'danger');
                 }
             });
         });
+        $('form').on('reset', function () { $('#qrcode').empty(); });
     })
 
     function ajax_create_qrcode() {
@@ -111,7 +119,7 @@
         const imgUrl = $("#qrcode-img").attr("src");
         const link = document.createElement("a");
         link.href = imgUrl;
-        link.download = "pay.jpg";
+        link.download = "pay.png";
         link.style.display = "none";
         document.body.appendChild(link);
         link.click();

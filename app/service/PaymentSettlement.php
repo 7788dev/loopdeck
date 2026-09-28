@@ -9,6 +9,7 @@ use app\index\model\Pays;
 use app\index\model\Users;
 use epay\AlipayNotify;
 use Throwable;
+use think\facade\Db;
 
 /**
  * Single entry point for e-pay gateway callbacks.
@@ -35,7 +36,8 @@ final class PaymentSettlement
         if (!in_array($shop, self::SHOPS, true)) {
             return self::failure('未知的支付回调类型');
         }
-        if (!(new AlipayNotify($epayConfig))->verifyReturn()) {
+        if (!is_string($callback['sign'] ?? null)
+            || !(new AlipayNotify($epayConfig))->getSignVeryfy($callback, $callback['sign'])) {
             return self::failure('订单效验失败');
         }
 
@@ -61,53 +63,31 @@ final class PaymentSettlement
             return self::failure('trade_status=' . (string)($callback['trade_status'] ?? ''), $order);
         }
 
-        // A single conditional UPDATE is the claim: only the request that moves
-        // the order out of state 0 is allowed to grant the product, so replays
-        // and concurrent callbacks cannot double-credit an account.
-        $claimed = (int)Pays::where('orderid', '=', $orderId)
-            ->where('status', '=', 0)
-            ->update([
-                'status' => 2,
-                'endtime' => date('Y-m-d H:i:s'),
-            ]);
-        if ($claimed !== 1) {
-            return [
-                'ok' => true,
-                'applied' => false,
-                'message' => '订单已处理',
-                'order' => $order,
-            ];
-        }
-
-        Order::add([
-            'uid' => (int)$order['uid'],
-            'type' => (string)$order['type'],
-            'orderid' => $orderId,
-            'trade_no' => (string)($callback['trade_no'] ?? ''),
-            'time' => date('Y-m-d H:i:s'),
-            'name' => (string)$order['name'],
-            'money' => $order['money'],
-            'status' => 2,
-            'zid' => (int)($order['zid'] ?? 0),
-        ]);
-
         try {
-            self::grant($order);
+            return Db::transaction(static function () use ($orderId, $callback, $order): array {
+                $locked = Pays::where('orderid', $orderId)->lock(true)->find();
+                if (!$locked) {
+                    throw new \RuntimeException('Order disappeared');
+                }
+                if ((int)$locked['status'] !== 0) {
+                    return ['ok' => true, 'applied' => false, 'message' => '订单已处理', 'order' => $order];
+                }
+                self::grant($order);
+                if (!Order::add([
+                    'uid' => (int)$order['uid'], 'type' => (string)$order['type'],
+                    'orderid' => $orderId, 'trade_no' => (string)($callback['trade_no'] ?? ''),
+                    'time' => date('Y-m-d H:i:s'), 'name' => (string)$order['name'],
+                    'money' => $order['money'], 'status' => 2, 'zid' => (int)($order['zid'] ?? 0),
+                ])) {
+                    throw new \RuntimeException('Payment record failed');
+                }
+                $locked->save(['status' => 2, 'endtime' => date('Y-m-d H:i:s')]);
+                return ['ok' => true, 'applied' => true,
+                    'message' => '开通' . (string)$order['name'] . '成功，感谢您的购买', 'order' => $order];
+            });
         } catch (Throwable $exception) {
-            return [
-                'ok' => false,
-                'applied' => false,
-                'message' => '订单已支付，但开通失败，请联系站长处理',
-                'order' => $order,
-            ];
+            return self::failure('支付结果暂未入账，请稍后刷新；若持续失败请联系站长', $order);
         }
-
-        return [
-            'ok' => true,
-            'applied' => true,
-            'message' => '开通' . (string)$order['name'] . '成功，感谢您的购买',
-            'order' => $order,
-        ];
     }
 
     /**
@@ -122,13 +102,20 @@ final class PaymentSettlement
             throw new \RuntimeException('order has no owner');
         }
 
+        if (!Users::where('uid', $uid)->lock(true)->find()) {
+            throw new \RuntimeException('Order owner missing');
+        }
         switch ((string)$order['shop']) {
             case 'vip':
                 self::grantVip($uid, (int)is_Vip_Day($order['shopid']));
                 break;
 
             case 'quota':
-                Users::where('uid', '=', $uid)->inc('quota', (int)is_Quota_Num($order['shopid']))->update();
+                $quota = (int)is_Quota_Num($order['shopid']);
+                if ($quota <= 0) {
+                    throw new \RuntimeException('Invalid quota product');
+                }
+                Users::where('uid', '=', $uid)->inc('quota', $quota)->update();
                 break;
 
             case 'money':
@@ -141,7 +128,7 @@ final class PaymentSettlement
     private static function grantVip(int $uid, int $days): void
     {
         if ($days <= 0) {
-            return;
+            throw new \RuntimeException('Invalid VIP product');
         }
         $user = Users::where('uid', '=', $uid)->find();
         $current = $user ? strtotime((string)($user['vip_end'] ?? '')) : false;

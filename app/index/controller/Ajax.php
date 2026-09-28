@@ -16,7 +16,7 @@ use app\service\NotificationSite;
 use app\service\EpicSubscription;
 use app\service\BilibiliTaskExecutor;
 use app\service\UserNotificationSettings;
-use netease\Qrcode;
+use netease\QRcode;
 use think\exception\ValidateException;
 use think\facade\Request;
 use think\facade\Session;
@@ -43,7 +43,7 @@ class Ajax extends Common
 		if ($act === "add") {
 			$heyboxId = trim((string)Request::post("heybox_id", ""));
 			$pkey = trim((string)Request::post("pkey", ""));
-			if ($heyboxId === "" || $pkey === "" || strlen($heyboxId) > 32 || strlen($pkey) > 1024) {
+			if ($heyboxId === "" || !ctype_digit($heyboxId) || $pkey === "" || strlen($heyboxId) > 32 || strlen($pkey) > 1024) {
 				return resultJson(0, "heybox_id 或 pkey 格式错误");
 			}
 			// 与 netease/bilibili 一致：账号全局唯一，否则两个用户绑定同一
@@ -109,9 +109,9 @@ class Ajax extends Common
 			foreach (["alipay_url", "qq_url", "wechat_url"] as $field) {
 				// These end up in a public redirect and in the console UI, so
 				// only absolute http(s) URLs are accepted.
-				$value = safe_http_url((string)($data[$field] ?? ""));
+				$value = payment_qrcode_url(str_replace('_url', '', $field), (string)($data[$field] ?? ""));
 				if ($value === "" || preg_match('/[\x00-\x1F]/', $value)) {
-					return resultJson(0, "收款码内容必须是 http/https 开头的收款链接");
+					return resultJson(0, "收款码内容无效，请上传收款二维码（微信支持 wxp 收款码）");
 				}
 				$data[$field] = $value;
 			}
@@ -122,9 +122,12 @@ class Ajax extends Common
 				"wechat_url" => $data["wechat_url"],
 			];
 			$saved = Accounts::addQrcode("qrcode", $name, $data);
-			$payload = get_Domain() . "index/index/qrcode?name=" . rawurlencode($name);
+			if ((int)($saved->getData()['code'] ?? 0) !== 1) {
+				return $saved;
+			}
+			$payload = get_Domain() . "index/index/qrcode?uid=" . (int)Session::get('user.uid') . '&name=' . rawurlencode($name);
 			ob_start();
-			(new Qrcode())->png($payload, false, QR_ECLEVEL_M, 8, 2);
+			(new QRcode())->png($payload, false, QR_ECLEVEL_M, 8, 2);
 			$image = base64_encode((string)ob_get_clean());
 			return resultJson(1, "生成成功", $image);
 		}
@@ -269,6 +272,13 @@ class Ajax extends Common
 				} catch (ValidateException $exception) {
 					return resultJson(0, $exception->getMessage());
 				}
+				if (Users::where('mail', $data['mail'])->where('uid', '<>', Session::get('user.uid'))->find()) {
+					return resultJson(0, '该邮箱已被其他账号使用，请更换邮箱');
+				}
+				$current = Users::findByUid(Session::get('user.uid'));
+				if ($current && $current['nickname'] === $data['nickname'] && $current['qq'] === $data['qq'] && $current['mail'] === $data['mail']) {
+					return resultJson(1, '资料未变化，无需重复保存');
+				}
 				if (Users::updateByUid(Session::get("user.uid"), $data)) {
 					return resultJson(1, "修改成功");
 				} else {
@@ -327,6 +337,10 @@ class Ajax extends Common
 		switch ($act) {
 			case "buy":
 				$_var_55 = Request::post();
+				if (!isset($_var_55['shop'], $_var_55['shopid'], $_var_55['pay_type'])
+					|| !is_string($_var_55['shop']) || !is_scalar($_var_55['shopid']) || !is_string($_var_55['pay_type'])) {
+					return resultJson(0, '购买参数不完整');
+				}
 				if ($_var_55["pay_type"] == "ypay" && $_var_55["shop"] == "vip") {
 					return Pays::YpayVip($_var_55);
 				} elseif ($_var_55["pay_type"] == "ypay" && $_var_55["shop"] == "quota") {

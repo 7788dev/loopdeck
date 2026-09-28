@@ -112,8 +112,10 @@ securityHardeningCheck(
     'A signed callback is not bound to the product recorded on the order'
 );
 securityHardeningCheck(
-    str_contains($settlement, "->where('status', '=', 0)"),
-    'The order is not claimed with a conditional update, so a replay can grant twice'
+    str_contains($settlement, 'Db::transaction(')
+        && str_contains($settlement, '->lock(true)->find()')
+        && str_contains($settlement, "(int)\$locked['status'] !== 0"),
+    'Settlement must lock and check the order inside its grant transaction (runtime replay coverage: PaymentWorkflowTest)'
 );
 securityHardeningCheck(
     !str_contains($settlement, "Session::get"),

@@ -26,76 +26,81 @@ class Kms extends Model
      */
     public static function activate($data)
     {
-        $self = new static();
-        $uid = (int)Session::get('user.uid');
-        $km = (string)($data['km'] ?? '');
-        $row = $self->where('km', $km)->where('zid', '=', WEB_ID)->find();
-        if (!$row) {
-            return resultJson(-1, '系统不存在这张卡密，请检查是否输入错误!');
-        }
-        if ((int)$row['useid'] !== 0) {
-            return resultJson(-1, '该卡密已经被使用');
-        }
-        if (!in_array((string)$row['type'], ['vip', 'quota'], true)) {
-            return resultJson(-1, '未知的卡密类型');
-        }
-        // Cards must carry a value this system actually defines, otherwise a
-        // forged legacy row could grant VIP days or quota out of range.
-        if (!self::cardValueValid((string)$row['type'], (string)$row['value'])) {
-            return resultJson(-1, '卡密面值异常，请联系管理员');
-        }
-
-        // Claiming the card and granting it used to be two statements, so the
-        // same card could be redeemed twice by two concurrent requests. Claim
-        // first with a conditional update and only then grant.
-        $claimed = (int)$self->where('km', '=', $km)
-            ->where('zid', '=', WEB_ID)
-            ->where('useid', '=', 0)
-            ->update([
-                'useid' => $uid,
-                'usetime' => date("Y-m-d H:i:s"),
-            ]);
-        if ($claimed !== 1) {
-            return resultJson(-1, '该卡密已经被使用');
-        }
-
-        try {
-            switch ((string)$row['type']) {
-                case 'vip':
-                    $user = Users::findByUid($uid);
-                    $current = $user ? strtotime((string)($user['vip_end'] ?? '')) : false;
-                    $renewal = ($current !== false && $current > time());
-                    $vip_end = date("Y-m-d", strtotime("+" . (int)$row['value'] . " day", $renewal ? $current : time()));
-                    $granted = Users::where('uid', '=', $uid)->update([
-                        'vip_start' => date("Y-m-d"),
-                        'vip_end' => $vip_end,
-                    ]) !== false;
-                    $message = $renewal
-                        ? '恭喜您通过卡密成功续费会员，到期时间：' . $vip_end
-                        : '恭喜您通过卡密成功开通会员，到期时间：' . $vip_end;
-                    break;
-
-                case 'quota':
-                    $granted = Users::where('uid', '=', $uid)->inc('quota', (int)$row['value'])->update() !== false;
-                    $message = '恭喜您成功通过卡密购买了：' . $row['value'] . '个配额';
-                    break;
-
+        return Db::transaction(static function () use ($data) {
+            $self = new static();
+            $uid = (int)Session::get('user.uid');
+            $km = trim((string)($data['km'] ?? ''));
+            if (!Users::where('uid', $uid)->lock(true)->find()) {
+                return resultJson(0, '用户不存在');
             }
-        } catch (\Throwable $exception) {
-            $granted = false;
-            $message = '';
-        }
+            $row = $self->where('km', $km)->where('zid', '=', WEB_ID)->find();
+            if (!$row) {
+                return resultJson(-1, '系统不存在这张卡密，请检查是否输入错误!');
+            }
+            if ((int)$row['useid'] !== 0) {
+                return resultJson(-1, '该卡密已经被使用');
+            }
+            if (!in_array((string)$row['type'], ['vip', 'quota'], true)) {
+                return resultJson(-1, '未知的卡密类型');
+            }
+            // Cards must carry a value this system actually defines, otherwise a
+            // forged legacy row could grant VIP days or quota out of range.
+            if (!self::cardValueValid((string)$row['type'], (string)$row['value'])) {
+                return resultJson(-1, '卡密面值异常，请联系管理员');
+            }
 
-        if (!$granted) {
-            // Put the card back so a failed grant does not consume it.
-            $self->where('km', '=', $km)
-                ->where('useid', '=', $uid)
-                ->update(['useid' => 0, 'usetime' => null]);
-            return resultJson(0, '未知错误');
-        }
+            // Claiming the card and granting it used to be two statements, so the
+            // same card could be redeemed twice by two concurrent requests. Claim
+            // first with a conditional update and only then grant.
+            $claimed = (int)$self->where('km', '=', $km)
+                ->where('zid', '=', WEB_ID)
+                ->where('useid', '=', 0)
+                ->update([
+                    'useid' => $uid,
+                    'usetime' => date("Y-m-d H:i:s"),
+                ]);
+            if ($claimed !== 1) {
+                return resultJson(-1, '该卡密已经被使用');
+            }
 
-        Users::updateMyInfo();
-        return resultJson(1, $message);
+            try {
+                switch ((string)$row['type']) {
+                    case 'vip':
+                        $user = Users::findByUid($uid);
+                        $current = $user ? strtotime((string)($user['vip_end'] ?? '')) : false;
+                        $renewal = ($current !== false && $current > time());
+                        $vip_end = date("Y-m-d", strtotime("+" . (int)$row['value'] . " day", $renewal ? $current : time()));
+                        $granted = Users::where('uid', '=', $uid)->update([
+                            'vip_start' => date("Y-m-d"),
+                            'vip_end' => $vip_end,
+                        ]) !== false;
+                        $message = $renewal
+                            ? '恭喜您通过卡密成功续费会员，到期时间：' . $vip_end
+                            : '恭喜您通过卡密成功开通会员，到期时间：' . $vip_end;
+                        break;
+
+                    case 'quota':
+                        $granted = Users::where('uid', '=', $uid)->inc('quota', (int)$row['value'])->update() !== false;
+                        $message = '恭喜您成功通过卡密购买了：' . $row['value'] . '个配额';
+                        break;
+
+                }
+            } catch (\Throwable $exception) {
+                $granted = false;
+                $message = '';
+            }
+
+            if (!$granted) {
+                // Put the card back so a failed grant does not consume it.
+                $self->where('km', '=', $km)
+                    ->where('useid', '=', $uid)
+                    ->update(['useid' => 0, 'usetime' => null]);
+                return resultJson(0, '未知错误');
+            }
+
+            Users::updateMyInfo();
+            return resultJson(1, $message);
+        });
     }
 
     /**
@@ -134,7 +139,7 @@ class Kms extends Model
             ];
         }
         foreach (array_chunk($rows, 500) as $chunk) {
-            Db::table('cloud_kms')->insertAll($chunk);
+            Db::name('kms')->insertAll($chunk);
         }
 
         $success = '';

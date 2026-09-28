@@ -168,6 +168,21 @@ if (!function_exists('safe_http_url')) {
     }
 }
 
+if (!function_exists('payment_qrcode_url')) {
+    // WeChat's wxp payload is rendered as a QR image, never as a redirect.
+    function payment_qrcode_url(string $type, string $value): string
+    {
+        $value = trim($value);
+        if (strlen($value) > 2048 || preg_match('/[\x00-\x20]/', $value)) {
+            return '';
+        }
+        if ($type === 'wechat' && preg_match('#\Awxp://[A-Za-z0-9/_?=&%+.-]+\z#', $value)) {
+            return $value;
+        }
+        return safe_http_url($value);
+    }
+}
+
 if (!function_exists('is_cross_origin_request')) {
     /**
      * True only when the browser positively reported a foreign origin.

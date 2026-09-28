@@ -60,6 +60,9 @@
                 </h3>
             </div>
             <div class="block-content">
+                {if condition="!$info_available"}
+                <p class="alert alert-warning">暂时无法获取网易云等级信息，请稍后刷新；任务配置仍可修改。</p>
+                {else /}
                 <table class="table table-borderless table-striped">
                     <tbody>
                     <tr>
@@ -101,6 +104,7 @@
                     {/if}
                     </tbody>
                 </table>
+                {/if}
             </div>
         </div>
         {/if}
@@ -140,9 +144,9 @@
                                 <div class="btn-group">
                                     <div class="form-check form-switch">
                                         {if condition="$v.job_state eq 1"}
-                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}');" checked>
+                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}', this);" checked>
                                         {else /}
-                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}');">
+                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}', this);">
                                         {/if}
                                     </div>
                                 </div>
@@ -251,18 +255,15 @@
                 }
             },
             yes: function (index, dom) {
-                layer.close(index);
-                var loading = layer.load(2);
                 const params = JSON.stringify($(dom).find("form").parseForm());
+                layer.close(index);
                 x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {$a_data['user_id']}, config: params}, function (data) {
                     if (data.code == 1) {
-                        x.close(loading);
                         x.notify(data.message, 'success');
                         setTimeout(function () {
                             window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
                         }, 1000)
                     } else {
-                        x.close(loading);
                         x.notify(data.message, 'warning');
                     }
                 })
@@ -287,18 +288,15 @@
                 }
             },
             yes: function (index, dom) {
-                layer.close(index);
-                var loading = layer.load(2);
                 const params = JSON.stringify($(dom).find("form").parseForm());
+                layer.close(index);
                 x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {$a_data['user_id']}, config: params}, function (data) {
                     if (data.code == 1) {
-                        x.close(loading);
                         x.notify(data.message, 'success');
                         setTimeout(function () {
                             window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
                         }, 1000)
                     } else {
-                        x.close(loading);
                         x.notify(data.message, 'warning');
                     }
                 })
@@ -342,18 +340,15 @@
                 }
             },
             yes: function (index, dom) {
-                layer.close(index);
-                var loading = layer.load(2);
                 const params = JSON.stringify($(dom).find("form").parseForm());
+                layer.close(index);
                 x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {$a_data['user_id']}, config: params}, function (data) {
                     if (data.code == 1) {
-                        x.close(loading);
                         x.notify(data.message, 'success');
                         setTimeout(function () {
                             window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
                         }, 1000)
                     } else {
-                        x.close(loading);
                         x.notify(data.message, 'warning');
                     }
                 })
@@ -361,21 +356,9 @@
         });
     }
 
-    function ajax_set_zt(execute_name, user_id)
+    function ajax_set_zt(execute_name, user_id, input)
     {
-        x.ajax('/index/ajax/netease/set','act=zt&do=' + execute_name + '&user_id=' + user_id, function (data) {
-            if (data.code == 1) {
-                x.notify(data.message, 'success');
-            } else if (data.code == -1) {
-                x.notify(data.message, 'danger');
-                setTimeout(function () {
-                    // x.pjax('/index/console/netease/info/{$data["user_id"]}');
-                    window.location.href = '/index/console/netease/info/{$data["user_id"]}';
-                },1500)
-            } else {
-                x.notify(data.message, 'warning');
-            }
-        });
+        x.taskSwitch('/index/ajax/netease/set', execute_name, user_id, input);
     }
 
     function ajax_reexecute_task(user_id)
@@ -406,9 +389,7 @@
         if (!/^\d+$/.test(times) || Number(times) < 1 || Number(times) > 300) {
             return x.notify('播放次数必须在 1 到 300 之间', 'warning');
         }
-        var loading = layer.load(2);
         x.ajax("/index/ajax/netease/listen", {user_id: user_id ,songid: songid, times: times}, function (data) {
-            x.close(loading);
             if (data.code == 1) {
                 $("#tool_listen_songid").val(null);
                 $("#tool_listen_times").val(null);
@@ -428,7 +409,7 @@
             closeBtn: 0,
             shadeClose: true,
             zIndex: '1000',
-            area: ['20%'],//设置相对于父页面的大小
+            area: [Math.min(420, window.innerWidth - 32) + 'px'],//设置相对于父页面的大小
             content: '<div class="form-floating col-xl-12 mb-2"><input type="text" class="js-flatpickr form-control" id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"data-allow-input="true"><label class="form-label" for="timing">挂机时间</label></div><div><span class="text-danger">未设置时不会自动执行；清空时间并保存可关闭自动挂机。<br></span><span class="fw-semibold">挂机时间说明：系统每天会在您设定的时间后随机延迟 3–15 分钟执行，以降低固定时间挂机带来的风控风险。<br>特殊说明：若同时有大量账号排队，实际执行时间仍可能继续顺延。</span></div>',
             success: function (res, index) {
                 if (typeof timing !== 'undefined') {
@@ -437,18 +418,16 @@
                 Codebase.helpersOnLoad(['js-flatpickr']);
             },
             yes: function (index, dom) {
+                const selectedTiming = x.getval('#timing');
                 layer.close(index);
-                var loading = layer.load(2);
-                x.ajax('/index/ajax/netease/set', {act: 'timing', user_id: {$a_data['user_id']}, timing: x.getval('#timing')}, function (data) {
+                x.ajax('/index/ajax/netease/set', {act: 'timing', user_id: {$a_data['user_id']}, timing: selectedTiming}, function (data) {
                     if (data.code == 1) {
-                        x.close(loading);
                         x.notify(data.message, 'success');
                         setTimeout(function () {
                             // x.pjax('/index/console/netease/info/{$a_data["user_id"]}');
                             window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
                         }, 1000)
                     } else {
-                        x.close(loading);
                         x.notify(data.message, 'warning');
                     }
                 })

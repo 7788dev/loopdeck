@@ -31,7 +31,7 @@
                 <img class="img-avatar img-avatar-thumb" src="{$v.avatar}" alt="">
             </div>
             <div class="block-content">
-                        <div class="fw-semibold mb-1">{$v.nickname}</div>
+                        <div class="fw-semibold mb-1">{$v.displayname|default='小黑盒用户'}</div>
                         {if condition="$value.state eq 1"}
                         <div class="fs-sm text-success mb-1">正常运行中</div>
                         {else /}
@@ -43,7 +43,7 @@
             <div class="block-content block-content-full ">
                 <div class="row g-sm">
                     <div class="col-8">
-                        <a class="btn btn-sm btn-alt-primary w-100" href="{:url('/index/console/heybox/info/')}{$value.user_id}" data-pjax>
+                        <a class="btn btn-sm btn-alt-primary w-100" href="/index/console/heybox/info/{$value.user_id}" data-pjax>
                             管理账号
                         </a>
                     </div>

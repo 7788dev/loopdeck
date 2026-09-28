@@ -115,13 +115,14 @@ class Users extends Model
             // The old token was md5() over predictable material; use a token
             // that cannot be reconstructed from anything an attacker knows.
             $token = bin2hex(random_bytes(24));
-            Users::updateByUid($user_data['uid'], [
-                'sid' => $token
-            ]);
             $sign = get_Domain() . 'index/login/reset/?mail=' . rawurlencode((string)$data['mail'])
                 . '&token=' . $token . '&access=' . rawurlencode(get_os());
             $content = get_mail_tempale(2, $user_data, $sign);
             if ($result = Captcha::send_captcha($data['mail'], '找回密码', $content)) {
+                if ((int)$result['code'] !== 1) {
+                    return resultJson($result['code'], $result['message']);
+                }
+                Users::updateByUid($user_data['uid'], ['sid' => $token]);
                 Captcha::add([
                         'type' => '2',
                         'code' => $token,
@@ -188,27 +189,27 @@ class Users extends Model
             return resultJson(-1, '重置链接已失效，请重新获取');
         }
 
-        $burned = (int)(new Captcha())
-            ->where('id', '=', $captcha['id'])
-            ->where('status', '=', 0)
-            ->update(['status' => 1]);
-        if ($burned !== 1) {
+        try {
+            $updated = \think\facade\Db::transaction(static function () use ($captcha, $row, $data): bool {
+                $burned = (int)(new Captcha())->where('id', $captcha['id'])->where('status', 0)->update(['status' => 1]);
+                if ($burned !== 1) {
+                    return false;
+                }
+                if (Users::where('uid', $row['uid'])->update([
+                    'password' => self::hashLoginPassword((string)$data['repass']), 'sid' => null,
+                ]) !== 1) {
+                    throw new \RuntimeException('Password update failed');
+                }
+                return true;
+            });
+        } catch (\Throwable $exception) {
+            return resultJson(0, '重置密码失败，请稍后重试，链接仍可使用');
+        }
+        if (!$updated) {
             return resultJson(-1, '重置链接已失效，请重新获取');
         }
-
-        $updated = Users::where('uid', '=', $row['uid'])->update([
-            'password' => self::hashLoginPassword((string)$data['repass']),
-            'sid' => null,
-        ]);
-        if ($updated === false) {
-            return resultJson(0, '重置密码失败，请重新操作！');
-        }
-
-        Users::login([
-            'username' => $row['username'],
-            'password' => $data['password'],
-        ]);
-        return resultJson(1, '重置密码成功，登录中');
+        Session::delete('user');
+        return resultJson(1, '重置密码成功，请重新登录');
     }
 
     /**
@@ -241,7 +242,7 @@ class Users extends Model
             self::recordFailedLogin((string)$data['username']);
             return resultJson(-1, '用户名或密码错误');
         }
-        if ($row['state'] !== 1) {
+        if ((int)$row['state'] !== 1) {
             self::recordFailedLogin((string)$data['username']);
             return resultJson(-1, '该账号已被封禁');
         }
@@ -328,7 +329,7 @@ class Users extends Model
             return resultJson(-1, '原密码错误');
         } else {
             $newPass = self::hashLoginPassword((string)$data['repass']);
-            if (Users::where('uid', '=', Session::get('user.uid'))->update(['password' => $newPass])) {
+            if (Users::where('uid', '=', Session::get('user.uid'))->update(['password' => $newPass, 'sid' => null])) {
                 Session::delete('user');
                 return resultJson(1, '修改成功，请重新登录');
             } else {
@@ -533,7 +534,25 @@ class Users extends Model
         if ((int)$uid === 1 || !self::adminMayManage($uid)) {
             return false;
         }
-        return (int)self::adminScopedQuery()->where('uid', '=', $uid)->delete() > 0;
+        $accounts = [];
+        $deleted = \think\facade\Db::transaction(static function () use ($uid, &$accounts): bool {
+            if (!self::adminScopedQuery()->where('uid', $uid)->lock(true)->find()) {
+                return false;
+            }
+            $accounts = Accounts::where('uid', $uid)->where('zid', 1)->select()->toArray();
+            foreach ($accounts as $account) {
+                \app\admin\model\Accounts::delByid($account['id'], false);
+            }
+            // Includes account-independent jobs such as Epic reminders.
+            Jobs::where('uid', $uid)->delete();
+            return (int)self::adminScopedQuery()->where('uid', '=', $uid)->delete() > 0;
+        });
+        if ($deleted) {
+            foreach ($accounts as $account) {
+                \app\admin\model\Accounts::forgetAccountState($account);
+            }
+        }
+        return $deleted;
     }
 
 

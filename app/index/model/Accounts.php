@@ -38,7 +38,7 @@ class Accounts extends Model
                 Jobs::add($type, $user_id);
                 return resultJson(1, '登录成功');
             } else {
-                return resultJson(0, '账号配额不足，请先购买挂机配额后再试');
+                return resultJson(0, '账号配额不足，请联系管理员分配配额或使用兑换码兑换后再试');
             }
         }
     }
@@ -77,7 +77,7 @@ class Accounts extends Model
                 $self->insert($data);
                 return resultJson(1, '添加成功');
             } else {
-                return resultJson(0, '账号配额不足，请先购买挂机配额后再试');
+                return resultJson(0, '账号配额不足，请联系管理员分配配额或使用兑换码兑换后再试');
             }
         }
     }

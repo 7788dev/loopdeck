@@ -2,6 +2,8 @@
 
 本次检查从安装、前台入口、账号与任务、付款、个人中心、后台管理到更新器，逐项核对页面、控制器、模型和现有测试。修复以用户能够完成操作、失败时不误报成功、已有选择不被意外覆盖为准。
 
+本文前半部保留发布时的审查历史；后续在线支付、余额与定价逻辑已删除，见[当前权益分配方式](../README.md#配额与兑换码)。
+
 ## 已修复的问题
 
 | 场景 | 原来的实际问题 | 修复与验证 |
@@ -53,7 +55,7 @@
 | Epic 游戏目录、周五计划、提醒队列、去重 | `EpicWorkflowTest`、`NotificationWorkflowTest`、`CronControllerSafetyTest` |
 | 调度、领取执行权、多平台隔离、日志排序与结果文案 | `AutomaticScheduleTest`、`NeteaseScheduleTest`、`JobClaimingTest`、`ServiceIsolationTest`、`TaskLogsOrderingTest`、`TaskMessageTest` |
 | Bark、PushPlus、WxPusher、邮件、每日汇总、失败隔离 | `BarkNotificationTest`、`NotificationWorkflowTest`、`NotificationTransportTest`、`NotificationFailureIsolationTest`、`MailTemplateTest`、`SmtpConnectionReuseTest` |
-| 会员、配额、余额、卡密、签名与支付入账 | `PaymentWorkflowTest`、`CommerceHardeningTest`、`SecurityHardeningTest` |
+| 注册赠送、管理员配额、兑换码与已删除支付边界 | `QuotaWorkflowTest`、`FeatureRemovalTest`、`CommerceHardeningTest`、`SecurityHardeningTest` |
 | 收款码导入、配额、重名、协议、生成与解码 | `AccountLifecycleTest`、`QrcodePayloadTest`、`TemplateRenderingTest` |
 | 后台账号/用户删除、任务编辑、公告、模板设置、单站配置 | `AdminWorkflowTest`、`AccountLifecycleTest`、`AdminTemplateSettingsTest`、`SingleSiteConfigTest` |
 | 已下架功能不可达 | `FeatureRemovalTest` |
@@ -64,7 +66,7 @@
 - 编译并检查 74 个未下架模板文件；实际渲染 64 个模板，另加 7 个账号列表/详情有数据场景，共 71 个场景。`TemplateRenderingTest` 同时调用 Node 检查渲染后的脚本语法。
 - 新增的数据库测试使用 SQLite 内存库和实际 Think ORM，不读取 `.env`、`config/Db.php`，不连接站点数据库。测试涵盖状态更新、事务回滚和重复提交；SQLite 不模拟 MySQL 并发锁调度。
 - Docker 构建的 dependencies 阶段提供 `pdo_sqlite` 和 Node，运行以上测试；这两个测试依赖不加入最终运行阶段。
-- 本地 Windows：启用 PHP 的 `pdo_sqlite`，并把 `LOOPDECK_TEST_SHELL` 指向实际的 Git `bin/sh.exe`。例如每个测试使用 `php -d extension=pdo_sqlite tests/PaymentWorkflowTest.php`。需要 Node 在 PATH 中。
+- 本地 Windows：启用 PHP 的 `pdo_sqlite`，并把 `LOOPDECK_TEST_SHELL` 指向实际的 Git `bin/sh.exe`。例如每个测试使用 `php -d extension=pdo_sqlite tests/QuotaWorkflowTest.php`。需要 Node 在 PATH 中。
 - 浏览器使用临时、无真实凭据的模板预览，检查了账号页面和时间弹窗布局；前端保存及错误回退以可重复执行的 JS 测试为准。
 
 ## 实测边界

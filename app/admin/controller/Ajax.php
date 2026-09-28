@@ -6,7 +6,6 @@ namespace app\admin\controller;
 use app\admin\model\Accounts;
 use app\admin\model\Jobs;
 use app\admin\model\Notice;
-use app\admin\model\Order;
 use app\admin\model\Tasks;
 use app\admin\model\Weblist;
 use app\admin\validate\Notices as NoticesValidate;
@@ -166,15 +165,6 @@ class Ajax extends Common
                 } catch (\Throwable $exception) {
                     return resultJson(0, '测试邮件发送失败，请检查 SMTP 配置');
                 }
-        }
-    }
-
-    public function pay($act = null)
-    {
-        switch ($act) {
-            case 'order':
-                return Order::getOrderList();
-                break;
         }
     }
 
@@ -392,11 +382,6 @@ class Ajax extends Common
                             }
                             $up[$field] = (int)$value;
                         }
-                        $money = trim((string)($data['money'] ?? '0'));
-                        if ($money !== '' && !is_numeric($money)) {
-                            return resultJson(0, '余额必须是数字');
-                        }
-                        $up['money'] = round((float)$money, 2);
                         $qq = trim((string)($data['qq'] ?? ''));
                         if ($qq !== '' && (!ctype_digit($qq) || strlen($qq) > 15)) {
                             return resultJson(0, 'QQ号格式无效');

@@ -159,13 +159,4 @@ frontEndCheck(
     'the layout still closes </head> more than once'
 );
 
-// --- Card naming: a 6-month card must not be sold as 季 -----------------
-
-$vipView = file_get_contents($root . '/app/index/view/console/shop/vip.html');
-frontEndCheck(is_string($vipView), 'Unable to inspect the vip shop view');
-frontEndCheck(
-    !preg_match('/包季VIP<\/h3>\s*<\/div>\s*<div class="block-content bg-body-light">\s*<div class="h1[^"]*">[^<]*<\/div>\s*<div class="fw-medium text-muted mb-4">每 6 月/', $vipView),
-    'a 6-month plan is still labelled 包季 (quarterly)'
-);
-
 echo "Front-end repair tests passed\n";

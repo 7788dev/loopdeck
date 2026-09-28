@@ -73,30 +73,6 @@ class System extends Common
         }
     }
 
-    public function pay($act = null)
-    {
-        switch ($act) {
-            case 'set':
-                View::assign('webTitle', '网站支付配置');
-                return View::fetch('/system/pay/set');
-                break;
-            case 'order':
-                View::assign('webTitle', '网站订单列表');
-                return View::fetch('system/pay/order');
-                break;
-            case 'vip':
-                View::assign('webTitle', 'VIP价格设置');
-                return View::fetch('system/pay/vip');
-                break;
-            case 'quota':
-                View::assign('webTitle', '配额价格设置');
-                return View::fetch('system/pay/quota');
-                break;
-            default:
-                return response('页面不存在', 404);
-        }
-    }
-
     public function task($act = null)
     {
         if (WEB_ID != 1) {
@@ -130,7 +106,7 @@ class System extends Common
                 return View::fetch('system/data/accounts');
                 break;
             case 'kms':
-                View::assign('webTitle', '卡密数据管理');
+                View::assign('webTitle', '兑换码数据管理');
                 return View::fetch('system/data/kms');
                 break;
             case 'notices':

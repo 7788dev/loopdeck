@@ -4,7 +4,6 @@ config/Db.php
 /runtime/
 .security-quarantine/
 public/static/uploads/
-extend/alipay/log/
 
 .idea/
 .vscode/

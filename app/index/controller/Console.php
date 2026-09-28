@@ -35,15 +35,6 @@ class Console
     public function shop($act = "")
     {
         switch ($act) {
-            case "quota" :
-                return view("console/shop/quota");
-                break;
-            case "vip" :
-                return view("console/shop/vip");
-                break;
-            case "money" :
-                return view("console/shop/money");
-                break;
             case "card" :
                 return view("console/shop/card");
                 break;

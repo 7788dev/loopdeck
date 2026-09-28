@@ -19,6 +19,8 @@ Do not edit generated or local-state directories such as `vendor/` and `runtime/
 - The web process never drives Docker: the admin 「立即检查」 button may only create the empty `auto-updater-state.json.check-request` marker, and the updater keeps choosing sources, images and commands itself — never add a web endpoint that updates, pulls or passes parameters to the updater ([decision](.agents/notes/implemented/architecture/2026-09-28-updater-manual-check-request.md)).
 - Never report a run that accomplished nothing as success: when zero of N actions land (e.g. `已投币 0/3`), return failure with the upstream reason, and treat per-item refusals such as Bilibili 34005 (video already coined) as skip-and-continue, not end-of-run ([decision](.agents/notes/implemented/architecture/2026-09-28-bilibili-coin-skip-capped-videos.md)).
 
+- Do not reintroduce payment gateways, online purchases, balances or pricing. Entitlements come from registration gifts, administrator settings and administrator-issued redemption codes ([decision](.agents/notes/implemented/architecture/2026-09-28-admin-managed-entitlements.md)).
+
 ## Build, Test, and Development Commands
 
 - `composer install` installs locked PHP dependencies and refreshes autoloading.

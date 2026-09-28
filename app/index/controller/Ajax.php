@@ -6,7 +6,6 @@ namespace app\index\controller;
 use app\index\model\Accounts;
 use app\index\model\Jobs;
 use app\index\model\Kms;
-use app\index\model\Pays;
 use app\index\model\TaskLogs;
 use app\index\model\Tasks;
 use app\index\model\Users;
@@ -335,24 +334,11 @@ class Ajax extends Common
 	public function shop($act = null)
 	{
 		switch ($act) {
-			case "buy":
-				$_var_55 = Request::post();
-				if (!isset($_var_55['shop'], $_var_55['shopid'], $_var_55['pay_type'])
-					|| !is_string($_var_55['shop']) || !is_scalar($_var_55['shopid']) || !is_string($_var_55['pay_type'])) {
-					return resultJson(0, '购买参数不完整');
-				}
-				if ($_var_55["pay_type"] == "ypay" && $_var_55["shop"] == "vip") {
-					return Pays::YpayVip($_var_55);
-				} elseif ($_var_55["pay_type"] == "ypay" && $_var_55["shop"] == "quota") {
-					return Pays::YpayQuota($_var_55);
-				} else {
-					return Pays::Submit_Pay($_var_55);
-				}
-				break;
 			case "activate":
 				$_var_55 = Request::post();
 				return Kms::activate($_var_55);
-				break;
+			default:
+				return response("页面不存在", 404);
 		}
 	}
 	public function clearCache()

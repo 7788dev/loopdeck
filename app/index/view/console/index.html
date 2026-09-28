@@ -16,33 +16,12 @@
 </div>
 <div class="row g-sm mb-1">
     <div class="col-4 col-md-4 col-xl-2">
-        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/shop/vip')}">
-            <div class="block-content ribbon ribbon-bookmark ribbon-danger ribbon-left">
-                <div class="ribbon-box opacity-75">热门</div>
-                <p class="my-3">
-                    <i class="fa fa-chess-queen fa-2x"></i>
-                </p>
-                <p class="fw-semibold fs-sm">会员开通</p>
-            </div>
-        </a>
-    </div>
-    <div class="col-4 col-md-4 col-xl-2">
-        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/shop/quota')}">
+        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/shop/card')}">
             <div class="block-content">
                 <p class="my-3">
                     <i class="fa fa-layer-group fa-2x"></i>
                 </p>
-                <p class="fw-semibold fs-sm">购买配额</p>
-            </div>
-        </a>
-    </div>
-    <div class="col-4 col-md-4 col-xl-2">
-        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/shop/money')}">
-            <div class="block-content ribbon ribbon-bookmark ribbon-primary ribbon-left">
-                <p class="my-3">
-                    <i class="fa fa-wallet fa-2x"></i>
-                </p>
-                <p class="fw-semibold fs-sm">充值余额</p>
+                <p class="fw-semibold fs-sm">兑换码兑换</p>
             </div>
         </a>
     </div>
@@ -152,8 +131,8 @@
                         <div class="fs-sm fw-medium text-muted">{:session('user.power') == 6 ? '管理员' : '普通用户'}</div>
                     </div>
                     <div class="col-6">
-                        <div class="mb-1"><i class="si si-wallet fa-2x"></i></div>
-                        <div class="fs-sm fw-medium text-muted">{:session('user.money')} 元</div>
+                        <div class="mb-1"><i class="fa fa-layer-group fa-2x"></i></div>
+                        <div class="fs-sm fw-medium text-muted">配额：{:session('user.quota')} 个</div>
                     </div>
                 </div>
             </div>

@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-[功能回归引导](../../../../tests/FunctionalDatabaseBootstrap.php)使用 SQLite 内存库和真实 ORM，覆盖保存、删除、购买、回调与密码重置。测试库不读取站点配置，使用非默认表前缀。
+[功能回归引导](../../../../tests/FunctionalDatabaseBootstrap.php)使用 SQLite 内存库和真实 ORM，覆盖保存、删除、注册赠送、管理员设置配额、兑换码与密码重置。测试库不读取站点配置，使用非默认表前缀。
 
 [模板渲染](../../../../tests/TemplateRenderingTest.php)执行模板并检查生成的脚本；[前端交互测试](../../../../tests/FrontendInteractionTest.js)执行提交函数、关闭弹窗和失败回退。Node 和 SQLite 扩展仅安装在 Docker dependencies 测试阶段。
 

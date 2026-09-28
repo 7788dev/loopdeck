@@ -32,16 +32,6 @@ CREATE TABLE `cloud_configs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `cloud_configs` (`k`, `v`) VALUES
-                                           ('vip_price_1', '1'),
-                                           ('vip_price_2', '3'),
-                                           ('vip_price_3', '5'),
-                                           ('vip_price_4', '8'),
-                                           ('vip_price_5', '0.1'),
-                                           ('vip_price_6', '0.2'),
-                                           ('quota_price_1', '1'),
-                                           ('quota_price_2', '3'),
-                                           ('quota_price_3', '5'),
-                                           ('quota_price_4', '8'),
                                            ('login_system_type', '2'),
                                            ('reExecute_time', '300'),
                                            ('interval', '50'),
@@ -51,7 +41,8 @@ INSERT INTO `cloud_configs` (`k`, `v`) VALUES
                                            ('bark_enabled', '0'),
                                            ('is_netease_tool', '0'),
                                            ('netease_tool_limit', '3'),
-                                           ('OrderPlacementMethod','0');
+                                           ('reg_free_quota', '0'),
+                                           ('reg_free_quota_num', '0');
 
 CREATE TABLE `cloud_info` (
                               `sysid` int(11) NOT NULL,
@@ -85,7 +76,7 @@ CREATE TABLE `cloud_kms` (
                              `addtime` varchar(255) DEFAULT NULL,
                              `usetime` datetime DEFAULT NULL,
                              `zid` int(11) NOT NULL DEFAULT '1'
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `cloud_notice` (
                                 `id` int(11) NOT NULL,
@@ -98,34 +89,7 @@ CREATE TABLE `cloud_notice` (
                                 `zid` int(11) DEFAULT '1'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
-CREATE TABLE `cloud_order` (
-                               `trade_no` varchar(64) NOT NULL,
-                               `type` varchar(20) DEFAULT NULL,
-                               `uid` int(11) DEFAULT NULL,
-                               `orderid` varchar(64) DEFAULT NULL,
-                               `time` datetime DEFAULT NULL,
-                               `name` varchar(64) DEFAULT NULL,
-                               `money` decimal(10,2) NOT NULL DEFAULT '0.00',
-                               `status` int(1) NOT NULL DEFAULT '0',
-                               `zid` int(11) NOT NULL DEFAULT '1'
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
-CREATE TABLE `cloud_pays` (
-                              `id` int(11) NOT NULL,
-                              `uid` int(11) NOT NULL,
-                              `qq` char(20) DEFAULT NULL,
-                              `orderid` char(64) DEFAULT NULL,
-                              `addtime` datetime DEFAULT NULL,
-                              `endtime` datetime DEFAULT NULL,
-                              `name` char(64) DEFAULT NULL,
-                              `money` decimal(6,2) NOT NULL DEFAULT '0.00',
-                              `type` varchar(10) DEFAULT NULL,
-                              `shop` varchar(225) DEFAULT NULL,
-                              `shopid` int(11) NOT NULL DEFAULT '0',
-                              `data` text NULL,
-                              `status` tinyint(3) NOT NULL DEFAULT '0',
-                              `zid` int(11) NOT NULL DEFAULT '1'
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
 CREATE TABLE `cloud_tasks` (
                                `id` int(11) NOT NULL,
@@ -183,7 +147,6 @@ CREATE TABLE `cloud_users` (
                                `qq` varchar(255) DEFAULT NULL,
                                `mail` varchar(255) DEFAULT NULL,
                                `nickname` varchar(255) DEFAULT NULL,
-                               `money` decimal(10,2) DEFAULT '0.00',
                                `quota` int(11) DEFAULT '0',
                                `vip_start` date DEFAULT NULL,
                                `vip_end` date DEFAULT NULL,
@@ -256,15 +219,7 @@ ALTER TABLE `cloud_notice`
     ADD PRIMARY KEY (`id`) USING BTREE,
     ADD KEY `idx_notice_site` (`zid`,`type`,`sort`,`addtime`);
 
-ALTER TABLE `cloud_order`
-    ADD PRIMARY KEY (`trade_no`),
-    ADD KEY `idx_order_site` (`zid`,`time`),
-    ADD KEY `idx_order_uid` (`uid`,`orderid`);
 
-ALTER TABLE `cloud_pays`
-    ADD PRIMARY KEY (`id`),
-    ADD KEY `idx_pays_order` (`orderid`),
-    ADD KEY `idx_pays_uid` (`uid`,`status`);
 
 ALTER TABLE `cloud_tasks`
     ADD PRIMARY KEY (`id`),
@@ -307,8 +262,6 @@ ALTER TABLE `cloud_kms`
 ALTER TABLE `cloud_notice`
     MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
-ALTER TABLE `cloud_pays`
-    MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `cloud_tasks`
     MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;

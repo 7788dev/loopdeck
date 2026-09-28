@@ -106,42 +106,6 @@
                         {/if}
                     </ul>
                 </li>
-                <li class="nav-main-item">
-                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
-                       data-toggle="submenu" href="#">
-                        <i class="nav-main-link-icon far fa-money-bill-alt"></i>
-                        <span class="nav-main-link-name">支付配置</span>
-                    </a>
-                    <ul class="nav-main-submenu">
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/pay/set')}">
-                                <span class="nav-main-link-name">支付接口配置</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/pay/order')}">
-                                <span class="nav-main-link-name">交易订单列表</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/pay/vip')}">
-                                <span class="nav-main-link-name">会员价格设置</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/pay/quota')}">
-                                <span class="nav-main-link-name">配额价格设置</span>
-                            </a>
-                        </li>
-                        {if condition="config('sys.is_qqdg') == 1"}
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/pay/dg')}">
-                                <span class="nav-main-link-name">代练价格设置</span>
-                            </a>
-                        </li>
-                        {/if}
-                    </ul>
-                </li>
                 {if condition="WEB_ID eq 1"}
                 <li class="nav-main-item">
                     <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
@@ -184,7 +148,7 @@
                         </li>
                         <li class="nav-main-item">
                             <a class="nav-main-link" data-pjax href="{:url('/admin/system/data/kms')}">
-                                <span class="nav-main-link-name">卡密数据管理</span>
+                                <span class="nav-main-link-name">兑换码数据管理</span>
                             </a>
                         </li>
                         <li class="nav-main-item">

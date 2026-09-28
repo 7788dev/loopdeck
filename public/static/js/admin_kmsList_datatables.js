@@ -49,13 +49,13 @@
             {"title": "ID", "data": "id"},
             {"title": "类型", "data": "type", "className":"", "render": function (data, type, row, meta) {
                     if (data == 'vip') {
-                        return "<span class=\"text-corporate\">VIP卡密</span>";
+                        return "<span class=\"text-corporate\">VIP兑换码</span>";
                     } else if (data == 'quota') {
-                        return "<span class=\"text-earth\">配额卡密</span>";
+                        return "<span class=\"text-earth\">配额兑换码</span>";
                     }
                     return "<span class=\"text-muted\">已停用</span>";
                 }},
-            {"title": "卡密", "data": "km", "render": function (data, type, row, meta) {
+            {"title": "兑换码", "data": "km", "render": function (data, type, row, meta) {
                     if (row.useid != 0) {
                         return "<s>" + data + "</s>"
                     } else {
@@ -173,12 +173,12 @@ function ajax_del_notUsedkm() {
 function ajax_add_km()
 {
     layer.open({
-        title: "生成卡密",
+        title: "生成兑换码",
         btn: ['生成', '取消'],
         btnAlign: 'c',
         closeBtn: 0,
         shadeClose: true,
-        content: '<form id="add-form"><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><div class="form-floating mb-4"><select class="form-select" id="type" name="type" aria-label="类型" size="1" onchange="typeChange(this);"><option value="vip">VIP卡密</option><option value="quota">配额卡密</option></select><label class="form-label" for="type">卡密类型</label></div></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><select class="form-select" id="value-vip" size="1" placeholder="."><option value="5">3 天</option><option value="6">7 天</option><option value="1">1 个月</option><option value="2">3 个月</option><option value="3">6 个月</option><option value="4">12 个月</option></select><select class="form-select" id="value-quota" size="1" placeholder="." style="display: none"><option value="1">1 个</option><option value="2">3 个</option><option value="3">5 个</option><option value="4">10 个</option></select><label class="form-label" for="type">卡密面值</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><div class="form-floating mb-4"><select class="form-select" id="num" name="type" size="1" placeholder="."><option value="1">1 张</option><option value="5">5 张</option><option value="20">20 张</option><option value="50">50 张</option><option value="100">100 张</option></select><label class="form-label" for="num">卡密数量</label></div></div></div></div></form>',
+        content: '<form id="add-form"><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><div class="form-floating mb-4"><select class="form-select" id="type" name="type" aria-label="类型" size="1" onchange="typeChange(this);"><option value="vip">VIP兑换码</option><option value="quota">配额兑换码</option></select><label class="form-label" for="type">兑换码类型</label></div></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><select class="form-select" id="value-vip" size="1" placeholder="."><option value="5">3 天</option><option value="6">7 天</option><option value="1">1 个月</option><option value="2">3 个月</option><option value="3">6 个月</option><option value="4">12 个月</option></select><select class="form-select" id="value-quota" size="1" placeholder="." style="display: none"><option value="1">1 个</option><option value="2">3 个</option><option value="3">5 个</option><option value="4">10 个</option></select><label class="form-label" for="type">兑换码面值</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><div class="form-floating mb-4"><select class="form-select" id="num" name="type" size="1" placeholder="."><option value="1">1 张</option><option value="5">5 张</option><option value="20">20 张</option><option value="50">50 张</option><option value="100">100 张</option></select><label class="form-label" for="num">兑换码数量</label></div></div></div></div></form>',
         yes: function (index, dom) {
             var type = $('#type').val(), value = $("#value-" + type).val(), num = $('#num').val();
             x.ajax('/admin/ajax/data/add/km', {type: type, value: value, num: num}, function (data) {
@@ -198,7 +198,7 @@ function ajax_add_km()
 function copy_km(km)
 {
     layer.open({
-        title: "生成卡密成功",
+        title: "生成兑换码成功",
         btn: ['<div class="copy" id="copy">全部复制</div>', '取消'],
         btnAlign: 'c',
         closeBtn: 0,

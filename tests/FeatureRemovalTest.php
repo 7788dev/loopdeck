@@ -10,11 +10,8 @@ use app\admin\controller\System;
 use app\admin\model\Weblist;
 use app\index\controller\Ajax;
 use app\index\controller\Console;
-use app\index\controller\Epay;
 use app\index\model\Kms;
-use app\index\model\Pays;
 use app\service\NotificationSite;
-use app\service\PaymentSettlement;
 use think\facade\Config;
 use think\facade\Session;
 
@@ -35,16 +32,26 @@ set_exception_handler(static function (Throwable $error): void {
     exit(1);
 });
 
-foreach (['agent', 'site', 'unknown'] as $shop) {
+foreach (['agent', 'site', 'vip', 'quota', 'money', 'unknown'] as $shop) {
     removalCheck((new Console())->shop($shop)->getCode() === 404, 'Retired shop page remains reachable');
-    removalCheck((new System())->pay($shop)->getCode() === 404, 'Retired price settings remain reachable');
-    removalCheck(Pays::Submit_Pay(['shop' => $shop])->getData()['code'] === 0, 'Retired product creates an order');
-    $result = PaymentSettlement::settle($shop, [], []);
-    removalCheck(!$result['ok'] && !$result['applied'], 'Retired callback grants a product');
-    removalCheck(!method_exists(Epay::class, $shop . '_Notify') && !method_exists(Epay::class, $shop . '_Return'),
-        'Retired callback remains auto-routable');
 }
-removalCheck(PaymentSettlement::SHOPS === ['vip', 'quota', 'money'], 'Supported products changed unexpectedly');
+removalCheck((new Ajax())->shop('buy')->getCode() === 404, 'Purchase action remains reachable');
+removalCheck(!method_exists(System::class, 'pay') && !method_exists(AdminAjax::class, 'pay'),
+    'Payment settings or order actions remain auto-routable');
+removalCheck(!method_exists(app\index\model\Users::class, 'spendBalance'), 'Balance spending logic remains');
+foreach (['app/index/controller/Epay.php', 'app/index/controller/Alipay.php',
+    'app/index/model/Pays.php', 'app/service/PaymentSettlement.php', 'app/admin/model/Order.php',
+    'app/index/view/common/alipay.html', 'public/static/js/admin_order_datatables.js',
+    'app/index/view/console/shop/vip.html',
+    'app/index/view/console/shop/quota.html', 'app/index/view/console/shop/money.html'] as $path) {
+    removalCheck(!is_file($root . '/' . $path), 'Payment implementation remains: ' . $path);
+}
+foreach (['extend/epay', 'extend/alipay', 'app/admin/view/system/pay'] as $directory) {
+    removalCheck(glob($root . '/' . $directory . '/*') === [], 'Payment SDK or settings remain');
+}
+$schema = file_get_contents($root . '/app/install/install.sql');
+removalCheck(!preg_match('/cloud_(?:pays|order)|vip_price_|quota_price_|OrderPlacementMethod|`money`/', $schema),
+    'Fresh installation recreates payment schema or settings');
 removalCheck((new System())->data('sites')->getCode() === 404, 'Retired site management page remains reachable');
 foreach (['list' => 'sites', 'add' => 'site', 'delete' => 'site', 'set' => 'site', 'info' => 'site'] as $act => $action) {
     removalCheck((new AdminAjax())->data($act, $action)->getCode() === 404, 'Retired management operation remains reachable');
@@ -83,18 +90,18 @@ foreach ([
     removalCheck(!is_file($root . '/' . $path), 'Retired feature file remains: ' . $path);
 }
 
-define('PJAX', true);
+define('PJAX', false);
 define('WEB_ID', 1);
 $_SERVER['HTTP_USER_AGENT'] = 'LoopDeck offline test';
 Config::set(['webname' => 'LoopDeck', 'title' => '测试面板', 'user_qq' => '10000'], 'web');
-Config::set(['OrderPlacementMethod' => 0, 'is_site' => 1, 'reg_free_agent' => 1], 'sys');
+Config::set(['OrderPlacementMethod' => 1, 'is_alipay' => 1, 'is_wxpay' => 1, 'epay_url' => 'https://pay.example/', 'is_site' => 1, 'reg_free_agent' => 1], 'sys');
 Session::set('user', ['uid' => 1, 'web_id' => 1, 'power' => 6, 'agent' => 3, 'nickname' => '测试用户',
     'qq' => '10000', 'mail' => 'qa@example.invalid', 'money' => 10, 'quota' => 5, 'vip_start' => null, 'vip_end' => null]);
 $data = ['webTitle' => '测试页面', 'notice' => [], 'notices' => [], 'user_count' => 1,
     'quota_used' => 0, 'account_count' => 0, 'job_count' => 0, 'execute_count' => 0];
 foreach ([
-    'index' => ['console/index', 'console/user/faq', 'console/shop/vip', 'console/shop/quota', 'console/shop/card'],
-    'admin' => ['system/index', 'system/set/reg', 'system/pay/set', 'system/data/users', 'system/data/kms'],
+    'index' => ['console/index', 'console/user/faq', 'console/shop/card'],
+    'admin' => ['system/index', 'system/set/reg', 'system/data/users', 'system/data/kms'],
 ] as $application => $views) {
     $engine = new think\Template(['view_path' => $root . '/app/' . $application . '/view/',
         'cache_path' => $cache . 'templates/' . $application . '/']);
@@ -109,7 +116,12 @@ foreach ([
         removalCheck($html !== '', 'Remaining page failed to render: ' . $view);
         removalCheck(!preg_match('/分站|代理|抖音|\/console\/douyin|\/shop\/(?:agent|site)/u', $html),
             'Retired navigation reappeared with legacy settings: ' . $view);
+        removalCheck(!preg_match('/购买|充值|支付配置|价格设置|余额|\/shop\/(?:vip|quota|money)|\/system\/pay/u', $html),
+            'Payment UI reappeared with legacy settings: ' . $view);
+        if ($application === 'index') {
+            removalCheck(str_contains($html, '/index/console/shop/card'), 'Legacy settings hid redemption');
+        }
     }
 }
 
-echo "Feature removal and retained commerce view tests passed\n";
+echo "Feature removal and retained entitlement view tests passed\n";

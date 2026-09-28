@@ -8,7 +8,7 @@ v1.2.7 移除了分站(subsite)、代理(reseller)与抖音功能,更早移除�
 
 ## Decision
 
-约定:每次移除功能,必须在 [tests/FeatureRemovalTest.php](../../../../tests/FeatureRemovalTest.php) 补上"移除后不可达"的断言,并与删除代码同一次提交落地。该测试目前钉住:退役商店页面 404、控制器动作不存在、Epay 回调方法不可自动路由、`PaymentSettlement::SHOPS` 封闭为 `['vip','quota','money']`、退役商品无法下单/结算、代理发卡方法不存在、归档站点设置不可改。落地提交:`0605dd3`(2026-09-15)。
+约定:每次移除功能,必须在 [tests/FeatureRemovalTest.php](../../../../tests/FeatureRemovalTest.php) 补上"移除后不可达"的断言,并与删除代码同一次提交落地。该测试目前钉住:退役商店页面 404、购买动作 404、支付控制器/SDK/结算模型和后台支付动作已删除、首次安装不创建支付结构、旧配置不恢复购买入口或隐藏兑换入口、代理发卡方法不存在、归档站点设置不可改。落地提交:`0605dd3`(2026-09-15)。
 
 ## Alternatives considered
 

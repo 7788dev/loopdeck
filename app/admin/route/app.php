@@ -18,10 +18,6 @@ Route::rule('ajax/updater/[:act]', 'ajax/updater');
 Route::rule('system/set/[:act]', 'system/set');
 //系统设置 Ajax
 Route::rule('ajax/set/[:act]', 'ajax/set');
-//支付设置
-Route::rule('system/pay/[:act]', 'system/pay');
-//支付设置 Ajax
-Route::rule('ajax/pay/[:act]', 'ajax/pay');
 //任务设置
 Route::rule('system/task/[:act]', 'system/task');
 //任务设置Ajax

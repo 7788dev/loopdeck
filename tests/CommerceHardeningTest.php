@@ -3,11 +3,9 @@
 declare(strict_types=1);
 
 /**
- * Regression tests for the card / payment hardening pass.
+ * Regression tests for card validation and account security.
  *
- * Covers: card value validation, zero-amount balance spend, Submit_Pay shopid
- * whitelisting, payment settlement amount enforcement, callback signatures
- * and the password-reset token length mismatch.
+ * Covers card value validation and the password-reset token length mismatch.
  */
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -30,63 +28,6 @@ hardeningCheck(is_string($kmsSource), 'Unable to inspect the kms model');
 hardeningCheck(
     str_contains($kmsSource, 'cardValueValid((string)$row[\'type\'], (string)$row[\'value\'])'),
     'card redemption does not validate the stored card value'
-);
-
-// --- Pays: order creation ----------------------------------------------
-
-$paysSource = file_get_contents($root . '/app/index/model/Pays.php');
-hardeningCheck(is_string($paysSource), 'Unable to inspect the pays model');
-
-// shopid must be a numeric product id before any price lookup.
-hardeningCheck(
-    str_contains($paysSource, "ctype_digit((string)\$data['shopid'])"),
-    'order creation does not reject non-numeric shop ids'
-);
-// Every non-money product must resolve a positive server-side price.
-hardeningCheck(
-    str_contains($paysSource, "(!is_numeric(\$res_money) || (float)\$res_money <= 0)"),
-    'orders can still be created for unpriced products'
-);
-
-// --- PaymentSettlement --------------------------------------------------
-
-$settleSource = file_get_contents($root . '/app/service/PaymentSettlement.php');
-hardeningCheck(is_string($settleSource), 'Unable to inspect the payment settlement service');
-
-// A callback without an amount must fail, not pass.
-hardeningCheck(
-    str_contains($settleSource, '|| !is_numeric($callbackAmount))'),
-    'a callback without an amount is still accepted'
-);
-
-// --- epay signature -----------------------------------------------------
-
-$coreSource = file_get_contents($root . '/extend/epay/AliPayCore.php');
-hardeningCheck(is_string($coreSource), 'Unable to inspect the epay core');
-
-// The MD5 signature comparison must be constant-time.
-hardeningCheck(
-    str_contains($coreSource, 'hash_equals($mysgin, $sign)'),
-    'the gateway signature is compared with == instead of hash_equals'
-);
-
-// The auto-generated payment form must escape attribute values.
-$submitSource = file_get_contents($root . '/extend/epay/AlipaySubmit.php');
-hardeningCheck(is_string($submitSource), 'Unable to inspect the epay submit class');
-hardeningCheck(
-    str_contains($submitSource, "htmlspecialchars((string)\$val, ENT_QUOTES, 'UTF-8')"),
-    'the payment form does not escape hidden field values'
-);
-
-// --- Users: balance and reset link --------------------------------------
-
-$usersSource = file_get_contents($root . '/app/index/model/Users.php');
-hardeningCheck(is_string($usersSource), 'Unable to inspect the users model');
-
-// Zero-amount debits must be refused (price key holes resolved to 0 before).
-hardeningCheck(
-    str_contains($usersSource, '0 元放行'),
-    'spendBalance still treats a zero amount as a successful purchase'
 );
 
 // --- Login: reset token length ------------------------------------------

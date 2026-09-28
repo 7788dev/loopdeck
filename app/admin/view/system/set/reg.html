@@ -57,22 +57,7 @@
                     </div>
                 </div>
             </div>
-            <hr>
-            <div class="row">
-                <div class="col-lg-12 col-xl-6">
-                    <div class="mb-4">
-                        <label class="form-label">赠送余额</label>
-                        <select class="form-select" id="reg_free_money" name="reg_free_money" default="{:config('sys.reg_free_money')}">
-                            <option value="0">关闭</option>
-                            <option value="1" {if condition="config('sys.reg_free_money') eq 1" }selected {/if}>开启</option>
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="form-label" for="reg_free_money_num">赠送余额面值</label>
-                        <input type="text" class="form-control" id="reg_free_money_num" name="reg_free_money_num" value="{:config('sys.reg_free_money_num')}" placeholder="输入赠送的面值">
-                    </div>
-                </div>
-            </div>
+            <p class="text-muted">关闭赠送或赠送数量为 0 时，新用户初始配额为 0。管理员可在用户管理中设置配额，或生成兑换码交给用户兑换。</p>
         </form>
     </div>
 </div>

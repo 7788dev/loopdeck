@@ -15,7 +15,7 @@ function scripts(file) {
 }
 
 function environment() {
-    const state = {closed: false, sent: [], values: {'#timing': '18:35', '#money': '12.34'}};
+    const state = {closed: false, sent: [], values: {'#timing': '18:35', '#km': 'fixture-code'}};
     const chain = {pjax() {return this;}, on() {return this;}, each() {return this;}, ready() {return this;},
         find() {return this;}, prop(name, value) {state[name] = value; return this;},
         parseForm() {return state.closed ? {} : {selected: 'saved-value'};}};
@@ -34,9 +34,13 @@ function environment() {
 
 {
     const {state, context} = environment();
-    vm.runInContext(scripts('app/index/view/console/shop/money.html'), context);
-    context.ajax_shop_money('alipay');
-    assert.equal(state.sent[0].data.shopid, '12.34', 'Recharge must send the amount, not window.money or an out-of-scope variable');
+    vm.runInContext(scripts('app/index/view/console/shop/card.html'), context);
+    context.ajax_km_activate();
+    assert.equal(state.sent[0].url, '/index/ajax/shop/activate');
+    assert.equal(state.sent[0].data.km, 'fixture-code', 'Redemption must submit the entered code');
+    state.values['#km'] = '';
+    context.ajax_km_activate();
+    assert.equal(state.sent.length, 1, 'Empty codes must not be submitted');
 }
 for (const platform of ['netease', 'bilibili', 'heybox']) {
     const {state, context} = environment();

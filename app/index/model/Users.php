@@ -62,9 +62,6 @@ class Users extends Model
             if (config('sys.reg_free_quota') == 1) {
                 $quota = config('sys.reg_free_quota_num');
             }
-            if (config('sys.reg_free_money') == 1) {
-                $money = config('sys.reg_free_money_num');
-            }
             $ret = $self->create([
                 'web_id' => WEB_ID,
                 'username' => $data['username'],
@@ -72,7 +69,6 @@ class Users extends Model
                 'qq' => $data['qq'],
                 'mail' => $data['qq'] . '@qq.com',
                 'nickname' => get_qqname($data['qq']),
-                'money' => $money ?? 0.00,
                 'quota' => $quota ?? 0,
                 'vip_start' => $vip_start ?? null,
                 'vip_end' => $vip_end ?? null,
@@ -462,33 +458,6 @@ class Users extends Model
         } else {
             return false;
         }
-    }
-
-    /**
-     * Atomically take an amount off the account balance.
-     *
-     * Reading the balance, comparing it and writing back an absolute value in
-     * PHP lets two concurrent requests both pass the check and both write
-     * `balance - price`, so the second purchase is effectively free. The check
-     * and the decrement have to happen in the same statement.
-     */
-    public static function spendBalance($uid, float $amount): bool
-    {
-        $uid = (int)$uid;
-        if ($uid <= 0 || $amount < 0) {
-            return false;
-        }
-        if ($amount === 0.0) {
-            // 0 元放行会让"价格键缺失 → (float)null === 0"的请求变成免费购买，
-            // 任何扣费路径都必须有正数金额；免费发放应显式走别的代码路径。
-            return false;
-        }
-
-        return (int)(new static())
-            ->where('uid', '=', $uid)
-            ->where('money', '>=', $amount)
-            ->dec('money', $amount)
-            ->update() === 1;
     }
 
     /**

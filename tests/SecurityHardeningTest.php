@@ -103,36 +103,6 @@ foreach (['javascript:alert(1)', 'data:text/html,<script>', 'ftp://x/y', '', 'no
     securityHardeningCheck(safe_http_url($unsafeUrl) === '', 'An unsafe URL was accepted: ' . $unsafeUrl);
 }
 
-// --- Payment callbacks -------------------------------------------------------
-
-$settlement = file_get_contents($root . '/app/service/PaymentSettlement.php');
-securityHardeningCheck(is_string($settlement), 'Unable to inspect the payment settlement service');
-securityHardeningCheck(
-    str_contains($settlement, "(string)\$order['shop'] !== \$shop"),
-    'A signed callback is not bound to the product recorded on the order'
-);
-securityHardeningCheck(
-    str_contains($settlement, 'Db::transaction(')
-        && str_contains($settlement, '->lock(true)->find()')
-        && str_contains($settlement, "(int)\$locked['status'] !== 0"),
-    'Settlement must lock and check the order inside its grant transaction (runtime replay coverage: PaymentWorkflowTest)'
-);
-securityHardeningCheck(
-    !str_contains($settlement, "Session::get"),
-    'Settlement still reads the beneficiary from the session instead of the order'
-);
-
-$epay = file_get_contents($root . '/app/index/controller/Epay.php');
-securityHardeningCheck(is_string($epay), 'Unable to inspect the payment controller');
-securityHardeningCheck(
-    !str_contains($epay, "\$_SERVER['HTTP_HOST']"),
-    'Gateway callback URLs are still built from the Host header'
-);
-securityHardeningCheck(
-    str_contains($epay, "->where('uid', '=', Session::get('user.uid'))"),
-    'Order lookup on the payment submit page is not scoped to the caller'
-);
-
 // --- Administrative account scope --------------------------------------------
 
 $adminAjaxSource = $adminAjax;
@@ -160,11 +130,6 @@ securityHardeningCheck(
 securityHardeningCheck(
     str_contains($usersModel, 'RESET_TOKEN_TTL'),
     'The password reset token has no expiry'
-);
-securityHardeningCheck(
-    str_contains($usersModel, "->where('money', '>=', \$amount)")
-        && str_contains($usersModel, "->dec('money', \$amount)"),
-    'Balance spending is not a single conditional statement'
 );
 securityHardeningCheck(
     str_contains($usersModel, '用户名或密码错误'),

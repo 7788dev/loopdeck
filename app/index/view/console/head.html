@@ -65,39 +65,10 @@
                     </a>
                 </li>
                 <li class="nav-main-item">
-                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
-                       data-toggle="submenu" href="#">
-                        <i class="nav-main-link-icon si si-basket-loaded"></i>
-                        <span class="nav-main-link-name">自助商店</span>
+                    <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/card')}">
+                        <i class="nav-main-link-icon fa fa-ticket-alt"></i>
+                        <span class="nav-main-link-name">兑换码兑换</span>
                     </a>
-                    <ul class="nav-main-submenu">
-                        {if condition="config('sys.OrderPlacementMethod') eq 0 or config('sys.OrderPlacementMethod') eq 1"}
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/quota')}">
-                                <span class="nav-main-link-name">购买配额</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/vip')}">
-                                <span class="nav-main-link-name">购买会员</span>
-                            </a>
-                        </li>
-                        
-                       
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/money')}">
-                                <span class="nav-main-link-name">充值余额</span>
-                            </a>
-                        </li>
-                        {/if}
-                        {if condition="config('sys.OrderPlacementMethod') eq 0 or config('sys.OrderPlacementMethod') eq 2"}
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/index/console/shop/card')}">
-                                <span class="nav-main-link-name">卡密激活</span>
-                            </a>
-                        </li>
-                        {/if}
-                    </ul>
                 </li>
 
                 <li class="nav-main-heading nav-vip-heading">VIP 功能</li>

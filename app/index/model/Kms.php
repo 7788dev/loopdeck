@@ -16,7 +16,7 @@ class Kms extends Model
     private const MAX_BATCH = 1000;
 
     /**
-     * activate 卡密激活
+     * activate 兑换码激活
      * @param $data
      * @return Json|void
      * @throws DataNotFoundException
@@ -35,18 +35,18 @@ class Kms extends Model
             }
             $row = $self->where('km', $km)->where('zid', '=', WEB_ID)->find();
             if (!$row) {
-                return resultJson(-1, '系统不存在这张卡密，请检查是否输入错误!');
+                return resultJson(-1, '系统不存在这张兑换码，请检查是否输入错误!');
             }
             if ((int)$row['useid'] !== 0) {
-                return resultJson(-1, '该卡密已经被使用');
+                return resultJson(-1, '该兑换码已经被使用');
             }
             if (!in_array((string)$row['type'], ['vip', 'quota'], true)) {
-                return resultJson(-1, '未知的卡密类型');
+                return resultJson(-1, '未知的兑换码类型');
             }
             // Cards must carry a value this system actually defines, otherwise a
             // forged legacy row could grant VIP days or quota out of range.
             if (!self::cardValueValid((string)$row['type'], (string)$row['value'])) {
-                return resultJson(-1, '卡密面值异常，请联系管理员');
+                return resultJson(-1, '兑换码面值异常，请联系管理员');
             }
 
             // Claiming the card and granting it used to be two statements, so the
@@ -60,7 +60,7 @@ class Kms extends Model
                     'usetime' => date("Y-m-d H:i:s"),
                 ]);
             if ($claimed !== 1) {
-                return resultJson(-1, '该卡密已经被使用');
+                return resultJson(-1, '该兑换码已经被使用');
             }
 
             try {
@@ -75,13 +75,13 @@ class Kms extends Model
                             'vip_end' => $vip_end,
                         ]) !== false;
                         $message = $renewal
-                            ? '恭喜您通过卡密成功续费会员，到期时间：' . $vip_end
-                            : '恭喜您通过卡密成功开通会员，到期时间：' . $vip_end;
+                            ? '恭喜您通过兑换码成功延长会员，到期时间：' . $vip_end
+                            : '恭喜您通过兑换码成功开通会员，到期时间：' . $vip_end;
                         break;
 
                     case 'quota':
                         $granted = Users::where('uid', '=', $uid)->inc('quota', (int)$row['value'])->update() !== false;
-                        $message = '恭喜您成功通过卡密购买了：' . $row['value'] . '个配额';
+                        $message = '恭喜您通过兑换码获得了：' . $row['value'] . '个配额';
                         break;
 
                 }
@@ -195,7 +195,7 @@ class Kms extends Model
     {
         $type = (string)($data['type'] ?? '');
         if (!in_array($type, ['vip', 'quota'], true)) {
-            return resultJson(0, '未知的卡密类型');
+            return resultJson(0, '未知的兑换码类型');
         }
         $count = (int)($data['num'] ?? 0);
         if ($count < 1 || $count > self::MAX_BATCH) {

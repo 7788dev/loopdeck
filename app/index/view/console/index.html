@@ -117,11 +117,11 @@
                         <span class="fs-xs">UID: {:session('user.uid')}</span>
                     </div>
                     {if session('user.vip_start')}
-                    <div class="fs-sm text-white-75">VIP会员 - {:session('user.vip_end')}</div>
+                    <div class="fs-sm text-white-75">{:membership_label(session('user.vip_end'))}</div>
                     {else /}
                     <div class="fs-sm text-white-75">普通用户</div>
                     {/if}
-                    <div class="fs-sm text-white-75">共 {:session('user.quota')} 个配额，已使用 {$quota_used} 个</div>
+                    <div class="fs-sm text-white-75">账号总数 {:account_limit_label(session('user.quota'))}，已使用 {$quota_used} 个，所有平台共用</div>
                 </div>
             </div>
             <div class="block-content">
@@ -132,7 +132,7 @@
                     </div>
                     <div class="col-6">
                         <div class="mb-1"><i class="fa fa-layer-group fa-2x"></i></div>
-                        <div class="fs-sm fw-medium text-muted">配额：{:session('user.quota')} 个</div>
+                        <div class="fs-sm fw-medium text-muted">账号总数：{:account_limit_label(session('user.quota'))}</div>
                     </div>
                 </div>
             </div>

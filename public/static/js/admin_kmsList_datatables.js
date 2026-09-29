@@ -48,45 +48,23 @@
         columns: [
             {"title": "ID", "data": "id"},
             {"title": "类型", "data": "type", "className":"", "render": function (data, type, row, meta) {
-                    if (data == 'vip') {
-                        return "<span class=\"text-corporate\">VIP兑换码</span>";
+                    if (data == 'bundle') {
+                        return "<span class=\"text-primary\">统一兑换码</span>";
+                    } else if (data == 'vip') {
+                        return "<span class=\"text-corporate\">旧版会员码</span>";
                     } else if (data == 'quota') {
-                        return "<span class=\"text-earth\">配额兑换码</span>";
+                        return "<span class=\"text-earth\">旧版配额码</span>";
                     }
                     return "<span class=\"text-muted\">已停用</span>";
                 }},
             {"title": "兑换码", "data": "km", "render": function (data, type, row, meta) {
                     if (row.useid != 0) {
-                        return "<s>" + data + "</s>"
+                        return "<s>" + x.escapeHtml(data) + "</s>"
                     } else {
-                        return data;
+                        return x.escapeHtml(data);
                     }
                 }},
-            {"title": "面值", "data": "value", "className":"", "render": function (data, type, row, meta) {
-                    if (row.type == 'vip') {
-                        return formartDay(data)
-                    } else if (row.type == 'quota') {
-                        return "<span class=\"text-default\">" + data + " 个配额</span>";
-                    }
-                    return "—";
-                    function formartDay(day){
-                        var i = parseInt(day / 365), month;
-                        if(i == 0){
-                            month = day / 30;
-                            if(month < 1){
-                                return "<span class=\"text-default\">" + parseInt(data) + " 天</span>";
-                            }else{
-                                return "<span class=\"text-default\">" + parseInt(month) + " 个月</span>";
-                            }
-                        } else {
-                            if (i == 21) {
-                                return '永久';
-                            } else {
-                                return parseInt(day /365) + '年';
-                            }
-                        }
-                    }
-                }},
+            {"title": "兑换权益", "data": "benefits", "render": x.renderText},
             {"title": "状态", "data": "useid", "className":"", "render": function (data, type, row, meta) {
                     if (data == 0) {
                         return "<span class=\"badge bg-success\">未使用</span>";
@@ -172,56 +150,90 @@ function ajax_del_notUsedkm() {
 
 function ajax_add_km()
 {
+    var submitting = false, form;
+    function updateSummary() {
+        var days = form.elements.vip_days.value, accounts = form.elements.account_limit.value;
+        form.querySelector('#km-summary').textContent = '每张：'
+            + (days === '' ? '请填写会员时长' : Number(days) === 0 ? '永久会员' : '会员 ' + days + ' 天') + ' · '
+            + (accounts === '' ? '请填写账号总数' : Number(accounts) === 0 ? '账号数量不限' : '账号总数 ' + accounts + ' 个');
+    }
     layer.open({
+        type: 1,
         title: "生成兑换码",
+        area: [Math.min(620, window.innerWidth - 32) + 'px'],
+        maxHeight: window.innerHeight - 32,
         btn: ['生成', '取消'],
         btnAlign: 'c',
-        closeBtn: 0,
-        shadeClose: true,
-        content: '<form id="add-form"><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><div class="form-floating mb-4"><select class="form-select" id="type" name="type" aria-label="类型" size="1" onchange="typeChange(this);"><option value="vip">VIP兑换码</option><option value="quota">配额兑换码</option></select><label class="form-label" for="type">兑换码类型</label></div></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><select class="form-select" id="value-vip" size="1" placeholder="."><option value="5">3 天</option><option value="6">7 天</option><option value="1">1 个月</option><option value="2">3 个月</option><option value="3">6 个月</option><option value="4">12 个月</option></select><select class="form-select" id="value-quota" size="1" placeholder="." style="display: none"><option value="1">1 个</option><option value="2">3 个</option><option value="3">5 个</option><option value="4">10 个</option></select><label class="form-label" for="type">兑换码面值</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><div class="form-floating mb-4"><select class="form-select" id="num" name="type" size="1" placeholder="."><option value="1">1 张</option><option value="5">5 张</option><option value="20">20 张</option><option value="50">50 张</option><option value="100">100 张</option></select><label class="form-label" for="num">兑换码数量</label></div></div></div></div></form>',
+        shadeClose: false,
+        content: $('#redemption-form-template').html(),
+        success: function (dom) {
+            form = dom.find('form')[0];
+            var preset = form.querySelector('#km-preset');
+            preset.value = '1';
+            preset.addEventListener('change', function () {
+                var option = preset.options[preset.selectedIndex];
+                if (preset.value !== '') {
+                    form.elements.vip_days.value = option.dataset.days;
+                    form.elements.account_limit.value = option.dataset.accounts;
+                }
+                updateSummary();
+            });
+            ['vip_days', 'account_limit'].forEach(function (name) {
+                form.elements[name].addEventListener('input', function () {
+                    preset.value = '';
+                    updateSummary();
+                });
+            });
+            updateSummary();
+        },
+        cancel: function () { return !submitting; },
+        btn2: function () { return !submitting; },
         yes: function (index, dom) {
-            var type = $('#type').val(), value = $("#value-" + type).val(), num = $('#num').val();
-            x.ajax('/admin/ajax/data/add/km', {type: type, value: value, num: num}, function (data) {
+            if (submitting || !form.reportValidity()) return;
+            var payload = {vip_days: form.elements.vip_days.value,
+                account_limit: form.elements.account_limit.value, num: form.elements.num.value};
+            submitting = true;
+            dom.find('.layui-layer-btn0').text('正在生成…');
+            function reset() {
+                submitting = false;
+                dom.find('.layui-layer-btn0').text('生成');
+            }
+            x.ajax('/admin/ajax/data/add/km', payload, function (data) {
+                reset();
                 if (data.code == 1) {
-                    var table = $("#kmsList").DataTable();
-                    table.ajax.reload();
-                    layer.closeAll();
-                    copy_km(data.data.copy);
+                    $("#kmsList").DataTable().ajax.reload();
+                    layer.close(index);
+                    copy_km(data.data.copy, data.data.benefits, data.data.count);
                 } else {
                     layer.msg(data.message);
                 }
-            })
+            }, function () {
+                reset();
+                x.notify('请求未完成，请先查询列表确认是否已生成，再决定是否重试', 'warning');
+            });
         },
     });
 }
 
-function copy_km(km)
+function copy_km(km, benefits, count)
 {
     layer.open({
+        type: 1,
         title: "生成兑换码成功",
-        btn: ['<div class="copy" id="copy">全部复制</div>', '取消'],
+        area: [Math.min(620, window.innerWidth - 32) + 'px'],
+        btn: ['<div class="copy" id="copy">复制全部兑换码</div>', '关闭'],
         btnAlign: 'c',
         closeBtn: 0,
         shadeClose: true,
-        zIndex: 1,
-        content: "<div data-clipboard-text='' id='success'></div>",
+        content: '<div class="p-3"><p id="km-issued-summary">'
+            + x.escapeHtml('共 ' + count + ' 张，每张：' + benefits)
+            + '</p><pre id="success" style="max-height:280px;overflow:auto;white-space:pre-wrap">'
+            + x.escapeHtml(km) + '</pre></div>',
         success: function (index, dom) {
-          var html = km.replace(/\n/g,"<br/>");
-          $('#success').html(html) ;
           $('#copy').attr('data-clipboard-text',km);
         },
         yes: function (index, dom) {
 
         },
     });
-}
-
-function typeChange(o) {
-    if (o.value == 'vip') {
-        $('#value-vip').show();
-        $('#value-quota').hide();
-    } else if (o.value == 'quota') {
-        $('#value-vip').hide();
-        $('#value-quota').show();
-    }
 }

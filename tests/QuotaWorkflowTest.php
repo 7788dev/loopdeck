@@ -33,8 +33,10 @@ fixtureRequest(['id' => 2, 'quota' => 5, 'state' => 1, 'qq' => '1234500', 'mail'
 functionalCheck((new AdminAjax())->data('set', 'user')->getData()['code'] === 1, 'Admin quota assignment failed');
 functionalCheck((int)Db::name('users')->where('uid', 2)->value('quota') === 5, 'Admin quota assignment was not persisted');
 
-fixtureRequest(['type' => 'quota', 'value' => '2', 'num' => '2']);
-functionalCheck((new AdminAjax())->data('add', 'km')->getData()['code'] === 1, 'Admin card generation failed');
+Db::name('kms')->insertAll([
+    ['type' => 'quota', 'value' => 3, 'km' => 'legacy-quota-1', 'zid' => 1],
+    ['type' => 'quota', 'value' => 3, 'km' => 'legacy-quota-2', 'zid' => 1],
+]);
 functionalCheck(Db::name('kms')->count() === 2, 'Card batch was not stored');
 $cards = Db::name('kms')->column('km');
 Session::set('user', Db::name('users')->find(2));
@@ -60,12 +62,22 @@ Db::name('kms')->insert(['km' => 'old-money-card', 'type' => 'money', 'value' =>
 functionalCheck(Kms::activate(['km' => 'old-money-card'])->getData()['code'] !== 1, 'Legacy balance card was redeemed');
 
 Session::set('user', Db::name('users')->find(1));
-functionalCheck(Kms::admin_add(['type' => 'vip', 'value' => '5', 'num' => '1'])->getData()['code'] === 1,
-    'Retained membership card generation failed');
+Db::name('kms')->insert(['type' => 'vip', 'value' => 3, 'km' => 'legacy-vip', 'zid' => 1]);
 $vipCard = Db::name('kms')->where('type', 'vip')->value('km');
 Session::set('user', Db::name('users')->find(3));
 functionalCheck(Kms::activate(['km' => $vipCard])->getData()['code'] === 1, 'Membership card redemption failed');
 functionalCheck(strtotime((string)Db::name('users')->where('uid', 3)->value('vip_end')) > time(),
     'Membership card did not grant time');
+
+fixtureRequest(['id' => 2, 'quota_unlimited' => '1', 'vip_permanent' => '1', 'state' => 1]);
+functionalCheck((new AdminAjax())->data('set', 'user')->getData()['code'] === 1, 'Admin unlimited entitlement edit failed');
+functionalCheck((int)Db::name('users')->where('uid', 2)->value('quota') === app\service\RedemptionPlan::UNLIMITED_ACCOUNTS,
+    'Admin edit did not preserve unlimited accounts');
+functionalCheck(Db::name('users')->where('uid', 2)->value('vip_end') === app\service\RedemptionPlan::PERMANENT_VIP_END,
+    'Admin edit did not preserve permanent membership');
+fixtureRequest(['id' => 2, 'quota' => 0, 'state' => 1]);
+functionalCheck((new AdminAjax())->data('set', 'user')->getData()['code'] === 1, 'Admin entitlement reset failed');
+functionalCheck((int)Db::name('users')->where('uid', 2)->value('quota') === 0
+    && Db::name('users')->where('uid', 2)->value('vip_end') === null, 'Admin zero slots accidentally grant unlimited membership');
 
 echo "Registration gifts, administrator quotas and redemption workflow tests passed\n";

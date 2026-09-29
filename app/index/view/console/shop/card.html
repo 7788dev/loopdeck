@@ -8,7 +8,7 @@
                 兑换码兑换
             </h2>
             <h3 class="fs-base fw-medium text-muted mb-0">
-                配额由管理员设置或注册时赠送。配额不足时，请联系管理员获取兑换码；兑换后按类型增加配额或会员时长。
+                一张兑换码可同时开通或延长会员，并设置账号总数。所有平台共用一个账号上限，无需分别分配。
             </h3>
         </div>
     </div>
@@ -20,12 +20,13 @@
                 <span class="text-white fs-sm">账户明细</span>
             </a>
             <div class="block-content block-content-full">
-                <div class="fw-semibold mb-2">配额数量：{:session('user.quota')} 个</div>
+                <div class="fw-semibold mb-2" id="redeemed-account-limit">账号总数：{:account_limit_label(session('user.quota'))}（所有平台共用）</div>
                 {if session('user.vip_start')}
-                <div class="fw-semibold mb-2">VIP：{:session('user.vip_end')}</div>
+                <div class="fw-semibold mb-2" id="redeemed-vip-end">{:membership_label(session('user.vip_end'))}</div>
                 {else /}
-                <div class="fw-semibold mb-2">普通用户</div>
+                <div class="fw-semibold mb-2" id="redeemed-vip-end">普通用户</div>
                 {/if}
+                <p class="fs-sm text-muted mb-0">例如总数 7 个，可绑定 2 个哔哩哔哩 + 5 个网易云，也可全部绑定网易云。兑换码会员时长为 0 表示永久会员，账号总数为 0 表示数量不限。续期不叠加账号总数，已有更高上限和永久权益会保留。旧版配额码仍按原规则增加名额。</p>
             </div>
         </div>
     </div>
@@ -43,7 +44,7 @@
                             </div>
                         </div>
                         <div class="mb-4">
-                            <button type="submit" class="btn btn-lg w-100 btn-alt-primary" onclick="ajax_km_activate();">确定兑换</button>
+                            <button type="submit" id="redeem-button" class="btn btn-lg w-100 btn-alt-primary" onclick="ajax_km_activate();">确定兑换</button>
                         </div>
                     </form>
                 </div>
@@ -54,17 +55,32 @@
 {/block}
 {block name="foot"}
 <script>
+    var redemptionPending = false;
     function ajax_km_activate()
     {
+        if (redemptionPending) return;
         var km = x.getval('#km', '请先输入兑换码');
         if (!km) return;
+        redemptionPending = true;
+        $('#redeem-button').prop('disabled', true);
+        function reset() {
+            redemptionPending = false;
+            $('#redeem-button').prop('disabled', false);
+        }
         x.ajax('/index/ajax/shop/activate', {km: km}, function (data) {
+            reset();
             if (data.code == 1) {
+                $('#redeemed-account-limit').text('账号总数：' + data.data.account_limit_label + '（所有平台共用）');
+                $('#redeemed-vip-end').text(data.data.membership_label);
+                $('#km').val('');
                 x.notify(data.message, 'success');
             } else {
                 x.notify(data.message, 'warning');
             }
-        })
+        }, function () {
+            reset();
+            x.notify('请求未完成，请刷新查看权益；已兑换的码不会重复生效', 'warning');
+        });
     }
 </script>
 {/block}

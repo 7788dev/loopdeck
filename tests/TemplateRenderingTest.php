@@ -12,6 +12,10 @@ $cachePath = sys_get_temp_dir() . '/loopdeck-render-' . bin2hex(random_bytes(6))
 mkdir($cachePath);
 $app->config->set(['webname' => 'LoopDeck', 'title' => '测试站点', 'web_id' => 1, 'user_qq' => '10000', 'index_template' => 'default', 'login_template' => 'default'], 'web');
 $variables = [
+    'redemption_presets' => app\service\RedemptionPlan::presets(),
+    'redemption_max_days' => app\service\RedemptionPlan::MAX_DAYS,
+    'redemption_max_accounts' => app\service\RedemptionPlan::MAX_ACCOUNTS,
+    'redemption_max_batch' => app\service\RedemptionPlan::MAX_BATCH,
     'webTitle' => '测试', 'mail' => 'test@example.com', 'users' => [], 'list' => [], 'notice' => [], 'notices' => [],
     'timeCount' => 1, 'userCount' => 1, 'quota_used' => 0, 'user_count' => 1, 'account_count' => 0, 'job_count' => 0, 'execute_count' => 0,
     'accounts' => [], 'daily_limit' => 10, 'task_rows' => [], 'timing' => '', 'signature' => '', 'info_warning' => '', 'info_available' => false, 'level_info' => null,
@@ -79,6 +83,25 @@ try {
             }
         }
     }
+    $savedUser = think\facade\Session::get('user');
+    think\facade\Session::set('user.quota', app\service\RedemptionPlan::UNLIMITED_ACCOUNTS);
+    think\facade\Session::set('user.vip_start', date('Y-m-d'));
+    think\facade\Session::set('user.vip_end', app\service\RedemptionPlan::PERMANENT_VIP_END);
+    foreach (['console/index.html', 'console/shop/card.html'] as $relative) {
+        $engine = new think\Template(['view_path' => $root . '/app/index/view/', 'cache_path' => $cachePath]);
+        ob_start();
+        try {
+            $engine->fetch($root . '/app/index/view/' . $relative, $variables);
+            $html = ob_get_contents();
+            functionalCheck(str_contains($html, '永久会员') && str_contains($html, '账号总数：不限'), 'Unlimited account display missing');
+            functionalCheck(!str_contains($html, '9999-12-31') && !str_contains($html, '-1 个'), 'Storage sentinels leaked into the page');
+            $renderedPages['permanent/' . $relative] = $html;
+            $count++;
+        } finally {
+            ob_end_clean();
+        }
+    }
+    think\facade\Session::set('user', $savedUser);
 } finally {
     restore_error_handler();
     foreach (glob($cachePath . '*') as $file) unlink($file);

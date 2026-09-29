@@ -2,6 +2,7 @@
 
 namespace app\index\model;
 
+use app\service\RedemptionPlan;
 use think\db\exception\DataNotFoundException;
 use think\db\exception\DbException;
 use think\db\exception\ModelNotFoundException;
@@ -12,9 +13,6 @@ use think\response\Json;
 
 class Kms extends Model
 {
-    /** Upper bound for one card-generation request. */
-    private const MAX_BATCH = 1000;
-
     /**
      * activate 兑换码激活
      * @param $data
@@ -26,97 +24,89 @@ class Kms extends Model
      */
     public static function activate($data)
     {
-        return Db::transaction(static function () use ($data) {
-            $self = new static();
-            $uid = (int)Session::get('user.uid');
-            $km = trim((string)($data['km'] ?? ''));
-            if (!Users::where('uid', $uid)->lock(true)->find()) {
-                return resultJson(0, '用户不存在');
-            }
-            $row = $self->where('km', $km)->where('zid', '=', WEB_ID)->find();
-            if (!$row) {
-                return resultJson(-1, '系统不存在这张兑换码，请检查是否输入错误!');
-            }
-            if ((int)$row['useid'] !== 0) {
-                return resultJson(-1, '该兑换码已经被使用');
-            }
-            if (!in_array((string)$row['type'], ['vip', 'quota'], true)) {
-                return resultJson(-1, '未知的兑换码类型');
-            }
-            // Cards must carry a value this system actually defines, otherwise a
-            // forged legacy row could grant VIP days or quota out of range.
-            if (!self::cardValueValid((string)$row['type'], (string)$row['value'])) {
-                return resultJson(-1, '兑换码面值异常，请联系管理员');
-            }
-
-            // Claiming the card and granting it used to be two statements, so the
-            // same card could be redeemed twice by two concurrent requests. Claim
-            // first with a conditional update and only then grant.
-            $claimed = (int)$self->where('km', '=', $km)
-                ->where('zid', '=', WEB_ID)
-                ->where('useid', '=', 0)
-                ->update([
-                    'useid' => $uid,
-                    'usetime' => date("Y-m-d H:i:s"),
-                ]);
-            if ($claimed !== 1) {
-                return resultJson(-1, '该兑换码已经被使用');
-            }
-
-            try {
-                switch ((string)$row['type']) {
-                    case 'vip':
-                        $user = Users::findByUid($uid);
-                        $current = $user ? strtotime((string)($user['vip_end'] ?? '')) : false;
-                        $renewal = ($current !== false && $current > time());
-                        $vip_end = date("Y-m-d", strtotime("+" . (int)$row['value'] . " day", $renewal ? $current : time()));
-                        $granted = Users::where('uid', '=', $uid)->update([
-                            'vip_start' => date("Y-m-d"),
-                            'vip_end' => $vip_end,
-                        ]) !== false;
-                        $message = $renewal
-                            ? '恭喜您通过兑换码成功延长会员，到期时间：' . $vip_end
-                            : '恭喜您通过兑换码成功开通会员，到期时间：' . $vip_end;
-                        break;
-
-                    case 'quota':
-                        $granted = Users::where('uid', '=', $uid)->inc('quota', (int)$row['value'])->update() !== false;
-                        $message = '恭喜您通过兑换码获得了：' . $row['value'] . '个配额';
-                        break;
-
-                }
-            } catch (\Throwable $exception) {
-                $granted = false;
-                $message = '';
-            }
-
-            if (!$granted) {
-                // Put the card back so a failed grant does not consume it.
-                $self->where('km', '=', $km)
-                    ->where('useid', '=', $uid)
-                    ->update(['useid' => 0, 'usetime' => null]);
-                return resultJson(0, '未知错误');
-            }
-
-            Users::updateMyInfo();
-            return resultJson(1, $message);
-        });
-    }
-
-    /**
-     * Only the configured VIP day and quota tiers can be minted or granted.
-     */
-    private static function cardValueValid(string $type, $value): bool
-    {
-        $value = trim((string)$value);
-        if ($value === '' || !ctype_digit($value)) {
-            return false;
+        if (!is_string($data['km'] ?? null) || trim($data['km']) === '' || strlen($data['km']) > 255) {
+            return resultJson(0, '请输入有效的兑换码');
         }
-        return match ($type) {
-            'vip' => in_array((int)$value, [3, 7, 30, 90, 180, 365], true),
-            'quota' => in_array((int)$value, [1, 3, 5, 10], true),
-            default => false,
-        };
+        $uid = (int)Session::get('user.uid');
+        $km = trim($data['km']);
+        try {
+            $result = Db::transaction(static function () use ($uid, $km) {
+                // Lock the owner before the card, also serializing separate codes
+                // redeemed concurrently by the same user.
+                $user = Users::where('uid', $uid)->where('web_id', WEB_ID)->lock(true)->find();
+                if (!$user) {
+                    return resultJson(0, '用户不存在');
+                }
+                $row = static::where('km', $km)->where('zid', WEB_ID)->lock(true)->find();
+                if (!$row) {
+                    return resultJson(-1, '系统不存在这张兑换码，请检查是否输入错误');
+                }
+                if ((int)$row['useid'] !== 0) {
+                    return resultJson(-1, '该兑换码已经被使用');
+                }
+                $plan = RedemptionPlan::fromCard((string)$row['type'], (string)$row['value']);
+                if ($plan === null) {
+                    return resultJson(-1, '兑换码权益无效或已停用，请联系管理员');
+                }
+
+                $updates = [];
+                $parts = [];
+                $quota = (int)$user['quota'];
+                $bundle = $row['type'] === 'bundle';
+                if ($bundle || $row['type'] === 'quota') {
+                    if ($quota !== RedemptionPlan::UNLIMITED_ACCOUNTS) {
+                        $quota = $bundle
+                            ? ($plan['account_limit'] === 0 ? RedemptionPlan::UNLIMITED_ACCOUNTS : max($quota, $plan['account_limit']))
+                            : $quota + $plan['account_limit'];
+                    }
+                    if ($quota > RedemptionPlan::MAX_ACCOUNTS) {
+                        return resultJson(0, '账号总数超出允许范围，请联系管理员');
+                    }
+                    $updates['quota'] = $quota;
+                    $parts[] = '账号总数：' . RedemptionPlan::accountLimitLabel($quota) . '（所有平台共用）';
+                }
+                $vipEnd = (string)($user['vip_end'] ?? '');
+                if ($bundle || $row['type'] === 'vip') {
+                    $current = strtotime($vipEnd);
+                    $renewal = $current !== false && $current > time();
+                    if ($vipEnd === RedemptionPlan::PERMANENT_VIP_END || ($bundle && $plan['vip_days'] === 0)) {
+                        $vipEnd = RedemptionPlan::PERMANENT_VIP_END;
+                        array_unshift($parts, '永久会员');
+                    } else {
+                        $expires = strtotime('+' . $plan['vip_days'] . ' day', $renewal ? $current : time());
+                        $vipEnd = date('Y-m-d', min($expires, strtotime(RedemptionPlan::PERMANENT_VIP_END)));
+                        array_unshift($parts, '会员已' . ($renewal ? '延长' : '开通') . ' ' . $plan['vip_days'] . ' 天，到期时间：' . $vipEnd);
+                    }
+                    $updates['vip_start'] = $renewal && !empty($user['vip_start']) ? $user['vip_start'] : date('Y-m-d');
+                    $updates['vip_end'] = $vipEnd;
+                }
+                if ($quota === (int)$user['quota'] && $vipEnd === (string)($user['vip_end'] ?? '')) {
+                    return resultJson(0, '当前权益已包含该兑换码的权益，无需兑换，兑换码仍可使用');
+                }
+                $claimed = static::where('id', $row['id'])->where('zid', WEB_ID)->where('useid', 0)
+                    ->update(['useid' => $uid, 'usetime' => date('Y-m-d H:i:s')]);
+                if ($claimed !== 1) {
+                    return resultJson(-1, '该兑换码已经被使用');
+                }
+                // One user update and a surrounding transaction make the two
+                // benefits and the card claim succeed or roll back together.
+                if (Users::where('uid', $uid)->update($updates) === false) {
+                    throw new \RuntimeException('Unable to grant redemption benefits');
+                }
+                return resultJson(1, '兑换成功：' . implode('；', $parts), [
+                    'account_limit' => $quota,
+                    'vip_end' => $vipEnd,
+                    'account_limit_label' => RedemptionPlan::accountLimitLabel($quota),
+                    'membership_label' => RedemptionPlan::membershipLabel($vipEnd),
+                ]);
+            });
+        } catch (\Throwable $exception) {
+            return resultJson(0, '兑换失败，权益未变更且兑换码未使用，请稍后重试');
+        }
+        if ($result->getData()['code'] === 1) {
+            Users::updateMyInfo();
+        }
+        return $result;
     }
 
     /**
@@ -138,8 +128,16 @@ class Kms extends Model
                 'zid' => WEB_ID,
             ];
         }
-        foreach (array_chunk($rows, 500) as $chunk) {
-            Db::name('kms')->insertAll($chunk);
+        try {
+            Db::transaction(static function () use ($rows) {
+                foreach (array_chunk($rows, 500) as $chunk) {
+                    if (Db::name('kms')->insertAll($chunk) !== count($chunk)) {
+                        throw new \RuntimeException('Unable to issue complete card batch');
+                    }
+                }
+            });
+        } catch (\Throwable $exception) {
+            return resultJson(0, '生成失败，未保存兑换码，请稍后重试');
         }
 
         $success = '';
@@ -148,7 +146,10 @@ class Kms extends Model
             $success .= '<p class="fs-lg fw-semibold mb-1">' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . '</p>';
             $copy .= $code . "\n";
         }
-        return resultJson(1, '生成成功', ['km' => $success, 'copy' => $copy]);
+        return resultJson(1, '生成成功', [
+            'km' => $success, 'copy' => $copy,
+            'benefits' => RedemptionPlan::description($type, $value), 'count' => $count,
+        ]);
     }
 
     public static function getKmList()
@@ -173,10 +174,15 @@ class Kms extends Model
         $total = $total->count('id');
 
         if ($result = $query->order('a.id desc')->limit($start, $length)->select()) {
+            $rows = $result->toArray();
+            foreach ($rows as &$row) {
+                $row['benefits'] = RedemptionPlan::description((string)$row['type'], (string)$row['value']);
+            }
+            unset($row);
             return [
                 'total' => $total,
                 'page' => input('post.page'),
-                'data' => $result,
+                'data' => $rows,
             ];
         }
         return false;
@@ -193,25 +199,20 @@ class Kms extends Model
 
     public static function admin_add($data)
     {
-        $type = (string)($data['type'] ?? '');
-        if (!in_array($type, ['vip', 'quota'], true)) {
-            return resultJson(0, '未知的兑换码类型');
+        if (($data['type'] ?? 'bundle') !== 'bundle') {
+            return resultJson(0, '请刷新页面，使用会员时长和账号总数生成兑换码');
         }
-        $count = (int)($data['num'] ?? 0);
-        if ($count < 1 || $count > self::MAX_BATCH) {
-            return resultJson(0, '生成数量需要在 1 到 ' . self::MAX_BATCH . ' 之间');
+        $count = RedemptionPlan::integer($data['num'] ?? null, RedemptionPlan::MAX_BATCH);
+        if ($count === null || $count < 1) {
+            return resultJson(0, '生成数量需要是 1 到 ' . RedemptionPlan::MAX_BATCH . ' 之间的整数');
         }
-
-        if ($type === 'vip') {
-            $value = is_Vip_Day($data['value']);
-        } else {
-            $value = is_Quota_Num($data['value']);
-        }
-        if ($value <= 0 || !self::cardValueValid($type, (string)$value)) {
-            return resultJson(0, '商品不存在');
+        $plan = RedemptionPlan::fromInput($data);
+        if ($plan === null) {
+            return resultJson(0, '会员天数需为 0–' . RedemptionPlan::MAX_DAYS . ' 的整数，账号总数需为 0–'
+                . RedemptionPlan::MAX_ACCOUNTS . ' 的整数；0 分别表示永久会员和账号数量不限');
         }
 
-        return self::issueCards($type, $value, $count);
+        return self::issueCards('bundle', json_encode($plan, JSON_THROW_ON_ERROR), $count);
     }
 
     public static function AdminDelUse()

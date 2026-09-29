@@ -14,6 +14,7 @@
     </div>
 
     <div class="block-content block-content-full">
+        <p class="text-muted">一张兑换码可同时设置会员时长和账号总数。所有平台共用一个账号上限，例如 2 个哔哩哔哩 + 5 个网易云，或 7 个网易云，账号总数都是 7 个。</p>
         <div class="col-lg-12 space-y-2">
             <div class="row row-cols-lg-auto g-3 align-items-center">
                 <div class="col-4">
@@ -23,8 +24,9 @@
                 <div class="col-4">
                     <select class="form-select" id="search-type">
                         <option selected="" value="">兑换码类型</option>
-                        <option value="vip">VIP兑换码</option>
-                        <option value="quota">配额兑换码</option>
+                        <option value="bundle">统一兑换码</option>
+                        <option value="vip">旧版会员码</option>
+                        <option value="quota">旧版配额码</option>
                     </select>
                 </div>
                 <div class="col-4">
@@ -55,6 +57,38 @@
         </table>
     </div>
 </div>
+<template id="redemption-form-template">
+    <form id="redemption-form" class="p-3" onsubmit="return false;">
+        <div class="mb-3">
+            <label class="form-label" for="km-preset">快捷套餐</label>
+            <select class="form-select" id="km-preset">
+                <option value="">自定义</option>
+                {volist name="redemption_presets" id="preset"}
+                <option value="{$key}" data-days="{$preset.vip_days}" data-accounts="{$preset.account_limit}">{$preset.name} · {if $preset.vip_days == 0}永久会员{else /}{$preset.vip_days} 天{/if} / {if $preset.account_limit == 0}账号不限{else /}{$preset.account_limit} 个账号{/if}</option>
+                {/volist}
+            </select>
+            <div class="form-text">选择后自动填写，仍可修改为所需天数和总数。</div>
+        </div>
+        <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+                <label class="form-label" for="km-vip-days">会员时长（天）</label>
+                <input class="form-control" type="number" id="km-vip-days" name="vip_days" min="0" max="{$redemption_max_days}" step="1" value="30" required>
+                <div class="form-text">0 表示永久会员。</div>
+            </div>
+            <div class="col-sm-6">
+                <label class="form-label" for="km-account-limit">账号总数（个）</label>
+                <input class="form-control" type="number" id="km-account-limit" name="account_limit" min="0" max="{$redemption_max_accounts}" step="1" value="7" required>
+                <div class="form-text">所有平台合计，0 表示数量不限。</div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="km-count">生成数量（张）</label>
+            <input class="form-control" type="number" id="km-count" name="num" min="1" max="{$redemption_max_batch}" step="1" value="1" required>
+        </div>
+        <div class="alert alert-info mb-3" id="km-summary" role="status" aria-live="polite"></div>
+        <p class="fs-sm text-muted mb-0">两项都填 0 即为永久会员、账号数量不限。有限天数在会员未到期时续期，已到期时从当天开始；已有永久会员和无限账号权益会保留。账号总数不叠加，也不降低已有更高上限，名额长期有效。</p>
+    </form>
+</template>
 {/block}
 {block name="foot"}
 <script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
@@ -63,5 +97,5 @@
 <script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
 <script src="/static/js/plugins/datatables-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
 
-<script src="/static/js/admin_kmsList_datatables.js"></script>
+<script src="/static/js/admin_kmsList_datatables.js?v={:app_version()}"></script>
 {/block}

@@ -281,21 +281,7 @@ class Ajax extends Common
             case 'add':
                 switch ($do) {
                     case 'km':
-                        $data = Request::post();
-                        switch ($data['type']) {
-                            case 'vip':
-                            case 'quota':
-                                //自动验证
-                                try {
-                                    validate(\app\index\validate\Kms::class)->scene('add')->check($data);
-                                } catch (ValidateException $e) {
-                                    //验证失败 输出错误信息
-                                    return resultJson(-1, $e->getMessage());
-                                }
-                                return Kms::admin_add($data);
-                                break;
-                        }
-                        break;
+                        return Kms::admin_add(Request::post());
                     case 'notice':
                         $data = Request::post();
                         //自动验证
@@ -375,7 +361,15 @@ class Ajax extends Common
                             }
                             $up[$field] = $value === '' ? null : $value;
                         }
+                        if ((string)($data['vip_permanent'] ?? '') === '1') {
+                            $up['vip_end'] = \app\service\RedemptionPlan::PERMANENT_VIP_END;
+                            $up['vip_start'] = $up['vip_start'] ?? date('Y-m-d');
+                        }
                         foreach (['quota' => 100000, 'state' => 1] as $field => $max) {
+                            if ($field === 'quota' && (string)($data['quota_unlimited'] ?? '') === '1') {
+                                $up[$field] = \app\service\RedemptionPlan::UNLIMITED_ACCOUNTS;
+                                continue;
+                            }
                             $value = trim((string)($data[$field] ?? '0'));
                             if ($value !== '' && (!ctype_digit($value) || (int)$value > $max)) {
                                 return resultJson(0, '用户属性取值超出允许范围');

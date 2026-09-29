@@ -34,6 +34,7 @@ Session::set('user.uid', 2);
 functionalCheck(Accounts::addQrcode('qrcode', 'fixture', $data)->getData()['code'] === 0, 'Public QR name collided across users');
 Session::set('user.uid', 1);
 Session::set('user.quota', 0);
+Db::name('users')->where('uid', 1)->update(['quota' => 0]);
 functionalCheck(Accounts::addQrcode('qrcode', 'fixture', $data)->getData()['code'] === 1, 'Existing QR update incorrectly requires extra quota');
 fixtureRequest($data + ['name' => 'new']);
 fixtureRequest(array_replace($data, ['name' => 'new']));

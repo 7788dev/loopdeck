@@ -107,6 +107,10 @@ class System extends Common
                 break;
             case 'kms':
                 View::assign('webTitle', '兑换码数据管理');
+                View::assign('redemption_presets', \app\service\RedemptionPlan::presets());
+                View::assign('redemption_max_days', \app\service\RedemptionPlan::MAX_DAYS);
+                View::assign('redemption_max_accounts', \app\service\RedemptionPlan::MAX_ACCOUNTS);
+                View::assign('redemption_max_batch', \app\service\RedemptionPlan::MAX_BATCH);
                 return View::fetch('system/data/kms');
                 break;
             case 'notices':

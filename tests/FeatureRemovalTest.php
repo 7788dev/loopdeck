@@ -63,19 +63,23 @@ removalCheck(Kms::admin_add(['type' => 'agent'])->getData()['code'] === 0, 'Admi
 removalCheck(!Weblist::updateByWebid(2, ['webname' => 'Archived']), 'Archived site settings can still be changed');
 removalCheck(!(new NotificationSite())->get(2)['exists'], 'Archived site still provides notification configuration');
 
-// Stored card values are days/counts, whereas the generation form submits product IDs.
-$validateCard = new ReflectionMethod(Kms::class, 'cardValueValid');
+// Legacy stored card values remain redeemable; generation no longer accepts product IDs.
 foreach (['vip' => [3, 7, 30, 90, 180, 365], 'quota' => [1, 3, 5, 10]] as $type => $values) {
     foreach ($values as $value) {
-        removalCheck($validateCard->invoke(null, $type, (string)$value), 'A supported card cannot be redeemed');
+        removalCheck(app\service\RedemptionPlan::fromCard($type, (string)$value) !== null, 'A supported card cannot be redeemed');
     }
     foreach (['', '0', '-1', '2', '9999', '1.5', 'abc'] as $value) {
-        removalCheck(!$validateCard->invoke(null, $type, $value), 'An invalid card value is accepted');
+        removalCheck(app\service\RedemptionPlan::fromCard($type, $value) === null, 'An invalid card value is accepted');
     }
     removalCheck(Kms::admin_add(['type' => $type, 'value' => '9999', 'num' => 1])->getData()['code'] === 0,
         'Invalid card product reaches issuance');
 }
-removalCheck(!$validateCard->invoke(null, 'agent', '3'), 'Legacy reseller card still grants access');
+removalCheck(app\service\RedemptionPlan::fromCard('agent', '3') === null, 'Legacy reseller card still grants access');
+foreach (['vip', 'quota'] as $type) {
+    removalCheck(Kms::admin_add(['type' => $type, 'value' => '1', 'num' => '1'])->getData()['code'] === 0,
+        'Split card generation is still reachable');
+}
+removalCheck(!is_file($root . '/app/index/validate/Kms.php'), 'Obsolete product-ID validator remains');
 
 foreach ([
     'app/index/controller/Douyin.php', 'app/admin/validate/Weblist.php',
@@ -97,7 +101,10 @@ Config::set(['webname' => 'LoopDeck', 'title' => '测试面板', 'user_qq' => '1
 Config::set(['OrderPlacementMethod' => 1, 'is_alipay' => 1, 'is_wxpay' => 1, 'epay_url' => 'https://pay.example/', 'is_site' => 1, 'reg_free_agent' => 1], 'sys');
 Session::set('user', ['uid' => 1, 'web_id' => 1, 'power' => 6, 'agent' => 3, 'nickname' => '测试用户',
     'qq' => '10000', 'mail' => 'qa@example.invalid', 'money' => 10, 'quota' => 5, 'vip_start' => null, 'vip_end' => null]);
-$data = ['webTitle' => '测试页面', 'notice' => [], 'notices' => [], 'user_count' => 1,
+$data = ['redemption_presets' => app\service\RedemptionPlan::presets(), 'webTitle' => '测试页面', 'notice' => [], 'notices' => [], 'user_count' => 1,
+    'redemption_max_days' => app\service\RedemptionPlan::MAX_DAYS,
+    'redemption_max_accounts' => app\service\RedemptionPlan::MAX_ACCOUNTS,
+    'redemption_max_batch' => app\service\RedemptionPlan::MAX_BATCH,
     'quota_used' => 0, 'account_count' => 0, 'job_count' => 0, 'execute_count' => 0];
 foreach ([
     'index' => ['console/index', 'console/user/faq', 'console/shop/card'],

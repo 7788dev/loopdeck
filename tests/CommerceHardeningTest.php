@@ -26,7 +26,7 @@ hardeningCheck(is_string($kmsSource), 'Unable to inspect the kms model');
 
 // Redemption must also reject out-of-range card values.
 hardeningCheck(
-    str_contains($kmsSource, 'cardValueValid((string)$row[\'type\'], (string)$row[\'value\'])'),
+    str_contains($kmsSource, 'RedemptionPlan::fromCard((string)$row[\'type\'], (string)$row[\'value\'])'),
     'card redemption does not validate the stored card value'
 );
 

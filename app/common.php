@@ -39,6 +39,16 @@ if (!function_exists('safe_unserialize_array')) {
 
 use PHPMailer\PHPMailer\PHPMailer;
 
+function account_limit_label($limit): string
+{
+    return \app\service\RedemptionPlan::accountLimitLabel($limit);
+}
+
+function membership_label($end): string
+{
+    return \app\service\RedemptionPlan::membershipLabel($end);
+}
+
 if (!function_exists('resultJson')) {
     function resultJson(int $code, string $message = '', $data = null)
     {

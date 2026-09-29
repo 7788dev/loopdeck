@@ -52,7 +52,7 @@
             {"title": "UID", "data": "uid", "className": "fs-sm",},
             {"title": "昵称", "data": "nickname", "className": "fs-sm", "render": x.renderText},
             {"title": "用户名", "data": "username", "className": "fs-sm", "sortable": false, "render": x.renderText},
-            {"title": "配额", "data": "quota", "className": "fs-sm", "sortable": false},
+            {"title": "账号总数", "data": "quota", "className": "fs-sm", "sortable": false, "render": function (data) { return Number(data) === -1 ? "不限" : x.escapeHtml(data); }},
             {
                 "title": "登录时间",
                 "data": "login_time",
@@ -136,7 +136,7 @@ function ajax_edit_user(id)
         closeBtn: 0,
         shadeClose: true,
         zIndex: 10000,
-        content: '<form id="info-form"><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="uid" name="uid"  placeholder="." disabled><label class="form-label" for="uid">UID</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="username" name="username" placeholder="." disabled><label class="form-label" for="username">用户名称</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><input type="password" class="form-control" id="password" name="password" placeholder="." autocomplete="new-password"><label class="form-label" for="password">用户密码(不修改则留空)</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="qq" name="qq" placeholder="." /><label class="form-label" for="qq">绑定QQ</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="mail" name="mail" placeholder="." /><label class="form-label" for="mail">绑定邮箱</label></div></div></div><div class="row"><div class="col-md-6"></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="quota" name="quota" placeholder="." /><label class="form-label" for="quota">账号配额</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_start" name="vip_start" placeholder="." readonly="readonly"><label class="form-label" for="vip_start">会员开始</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_end" name="vip_end" placeholder="." readonly="readonly"><label class="form-label" for="vip_end">会员结束</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><select class="form-select" id="state" name="state" aria-label="状态"><option value="0">封禁</option><option value="1">激活</option></select><label class="form-label" for="state">账号状态</label></div></div></div></form>',
+        content: '<form id="info-form"><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="uid" name="uid"  placeholder="." disabled><label class="form-label" for="uid">UID</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="username" name="username" placeholder="." disabled><label class="form-label" for="username">用户名称</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><input type="password" class="form-control" id="password" name="password" placeholder="." autocomplete="new-password"><label class="form-label" for="password">用户密码(不修改则留空)</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="qq" name="qq" placeholder="." /><label class="form-label" for="qq">绑定QQ</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="mail" name="mail" placeholder="." /><label class="form-label" for="mail">绑定邮箱</label></div></div></div><div class="row"><div class="col-md-6"></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="quota" name="quota" placeholder="." /><label class="form-label" for="quota">账号总数（所有平台共用）</label></div><label class="form-check-label mb-3"><input type="checkbox" id="quota-unlimited" name="quota_unlimited" value="1" class="form-check-input" onchange="document.getElementById(&quot;quota&quot;).disabled = this.checked;"> 账号数量不限</label></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_start" name="vip_start" placeholder="." readonly="readonly"><label class="form-label" for="vip_start">会员开始</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_end" name="vip_end" placeholder="." readonly="readonly"><label class="form-label" for="vip_end">会员结束</label></div><label class="form-check-label mb-3"><input type="checkbox" id="vip-permanent" name="vip_permanent" value="1" class="form-check-input" onchange="document.getElementById(&quot;vip_end&quot;).disabled = this.checked;"> 永久会员</label></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><select class="form-select" id="state" name="state" aria-label="状态"><option value="0">封禁</option><option value="1">激活</option></select><label class="form-label" for="state">账号状态</label></div></div></div></form>',
         success: function (res, index) {
             x.ajax('/admin/ajax/data/info/user', {id: id}, function (data) {
                 var data = JSON.parse(data);
@@ -145,18 +145,20 @@ function ajax_edit_user(id)
                 $("#password").val("");
                 $("#qq").val(data.qq);
                 $("#mail").val(data.mail);
-                $("#quota").val(data.quota);
+                $("#quota-unlimited").prop("checked", Number(data.quota) === -1);
+                $("#quota").val(Number(data.quota) === -1 ? 0 : data.quota).prop("disabled", Number(data.quota) === -1);
                 $("#vip_start").val(data.vip_start);
-                $("#vip_end").val(data.vip_end);
+                $("#vip-permanent").prop("checked", data.vip_end === "9999-12-31");
+                $("#vip_end").val(data.vip_end === "9999-12-31" ? "" : data.vip_end).prop("disabled", data.vip_end === "9999-12-31");
                 $("#state").val(data.state);
                 Codebase.helpersOnLoad(['js-flatpickr']);
             })
         },
         yes: function (index, dom) {
+            const params = $(dom).find("form").serialize();
             layer.close(index);
             var loading = layer.load(2);
-            const params = JSON.stringify($(dom).find("form").parseForm());
-            x.ajax('/admin/ajax/data/set/user', 'id=' + id + '&' + $('#info-form').serialize(), function (data) {
+            x.ajax('/admin/ajax/data/set/user', 'id=' + id + '&' + params, function (data) {
                 if (data.code == 1) {
                     x.close(loading);
                     var table = $("#usersList").DataTable();

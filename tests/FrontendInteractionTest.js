@@ -17,10 +17,17 @@ function scripts(file) {
 function environment() {
     const state = {closed: false, sent: [], values: {'#timing': '18:35', '#km': 'fixture-code'}};
     const chain = {pjax() {return this;}, on() {return this;}, each() {return this;}, ready() {return this;},
+        DataTable() {return {ajax: {reload() {}}};},
         find() {return this;}, prop(name, value) {state[name] = value; return this;},
         parseForm() {return state.closed ? {} : {selected: 'saved-value'};}};
-    const $ = () => chain;
+    const $ = selector => Object.assign(Object.create(chain), {
+        text(value) {state.values[selector] = value; return this;},
+        val(value) {state.values[selector] = value; return this;},
+        serialize() {return state.closed ? '' : 'quota_unlimited=1&vip_permanent=1&state=1';}
+    });
     $.fn = {};
+    $.extend = () => {};
+    $.fn.dataTable = {ext: {classes: {}}, defaults: {}};
     const context = vm.createContext({$, jQuery: $, document: {},
         ClipboardJS: function () {this.on = () => {};},
         window: {innerWidth: 375, location: {href: ''}}, setTimeout() {},
@@ -34,13 +41,36 @@ function environment() {
 
 {
     const {state, context} = environment();
+    let success, failure;
+    context.x.ajax = (url, data, onSuccess, onFailure) => {
+        state.sent.push({url, data}); success = onSuccess; failure = onFailure;
+    };
     vm.runInContext(scripts('app/index/view/console/shop/card.html'), context);
     context.ajax_km_activate();
     assert.equal(state.sent[0].url, '/index/ajax/shop/activate');
     assert.equal(state.sent[0].data.km, 'fixture-code', 'Redemption must submit the entered code');
+    context.ajax_km_activate();
+    assert.equal(state.sent.length, 1, 'Pending redemption was submitted twice');
+    failure();
+    assert.equal(state.disabled, false, 'Network failure disabled further redemptions');
+    context.ajax_km_activate();
+    success({code: 0, message: 'invalid'});
+    assert.equal(state.disabled, false, 'Rejected redemption disabled further attempts');
+    context.ajax_km_activate();
+    success({code: 1, message: 'ok', data: {account_limit_label: '不限', membership_label: '永久会员'}});
+    assert.equal(state.values['#redeemed-account-limit'], '账号总数：不限（所有平台共用）');
+    assert.equal(state.values['#redeemed-vip-end'], '永久会员');
     state.values['#km'] = '';
     context.ajax_km_activate();
-    assert.equal(state.sent.length, 1, 'Empty codes must not be submitted');
+    assert.equal(state.sent.length, 3, 'Empty codes must not be submitted');
+}
+{
+    const {state, context} = environment();
+    vm.runInContext(read('public/static/js/admin_usersList_datatables.js'), context);
+    context.ajax_edit_user(2);
+    state.dialog.yes(1, {});
+    assert.equal(state.sent[0].data, 'id=2&quota_unlimited=1&vip_permanent=1&state=1',
+        'Closing the administrator dialog discarded permanent entitlement settings');
 }
 for (const platform of ['netease', 'bilibili', 'heybox']) {
     const {state, context} = environment();

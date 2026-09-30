@@ -170,21 +170,20 @@ function ajax_add_km()
             form = dom.find('form')[0];
             var preset = form.querySelector('#km-preset');
             preset.value = '1';
-            preset.addEventListener('change', function () {
+            function applyPreset() {
                 var option = preset.options[preset.selectedIndex];
+                form.querySelector('#km-custom-fields').classList.toggle('d-none', preset.value !== '');
                 if (preset.value !== '') {
                     form.elements.vip_days.value = option.dataset.days;
                     form.elements.account_limit.value = option.dataset.accounts;
                 }
                 updateSummary();
-            });
+            }
+            preset.addEventListener('change', applyPreset);
             ['vip_days', 'account_limit'].forEach(function (name) {
-                form.elements[name].addEventListener('input', function () {
-                    preset.value = '';
-                    updateSummary();
-                });
+                form.elements[name].addEventListener('input', updateSummary);
             });
-            updateSummary();
+            applyPreset();
         },
         cancel: function () { return !submitting; },
         btn2: function () { return !submitting; },

@@ -67,9 +67,9 @@
                 <option value="{$key}" data-days="{$preset.vip_days}" data-accounts="{$preset.account_limit}">{$preset.name} · {if $preset.vip_days == 0}永久会员{else /}{$preset.vip_days} 天{/if} / {if $preset.account_limit == 0}账号不限{else /}{$preset.account_limit} 个账号{/if}</option>
                 {/volist}
             </select>
-            <div class="form-text">选择后自动填写，仍可修改为所需天数和总数。</div>
+            <div class="form-text">选择套餐使用对应权益；选择“自定义”可填写会员天数和账号总数。</div>
         </div>
-        <div class="row g-3 mb-3">
+        <div class="row g-3 mb-3 d-none" id="km-custom-fields">
             <div class="col-sm-6">
                 <label class="form-label" for="km-vip-days">会员时长（天）</label>
                 <input class="form-control" type="number" id="km-vip-days" name="vip_days" min="0" max="{$redemption_max_days}" step="1" value="30" required>

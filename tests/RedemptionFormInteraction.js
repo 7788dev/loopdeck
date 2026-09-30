@@ -21,7 +21,13 @@ module.exports = function (html) {
     const preset = {value: '', options, addEventListener(event, handler) {this[event] = handler;},
         get selectedIndex() {return options.findIndex(option => option.value === this.value);}};
     const summary = {textContent: ''};
-    const form = {elements: fields, querySelector: selector => selector === '#km-preset' ? preset : summary,
+    const customTag = template.match(/<div\b[^>]*id="km-custom-fields"[^>]*>/)[0];
+    const customClasses = new Set(attributes(customTag).class.split(/\s+/));
+    const customFields = {classList: {toggle(name, enabled) {
+        if (enabled) customClasses.add(name); else customClasses.delete(name);
+    }}};
+    const formNodes = {'#km-preset': preset, '#km-summary': summary, '#km-custom-fields': customFields};
+    const form = {elements: fields, querySelector: selector => formNodes[selector],
         reportValidity: () => Object.values(fields).every(field => field.value !== '' && /^\d+$/.test(field.value)
             && Number(field.value) >= field.min && Number(field.value) <= field.max)};
     let opened, requests = [], reloads = 0, closed = 0;
@@ -40,13 +46,38 @@ module.exports = function (html) {
     const dialog = opened;
     assert.equal(dialog.area[0], '343px', 'Generation dialog must fit a phone viewport');
     dialog.success(dom);
+    assert.equal(preset.value, '1');
+    assert.equal(customClasses.has('d-none'), true, 'Default monthly plan must hide custom fields');
     assert.match(summary.textContent, /会员 30 天.*账号总数 7 个/);
+    dialog.yes(1, dom);
+    assert.deepEqual(JSON.parse(JSON.stringify(requests[0].data)), {vip_days: '30', account_limit: '7', num: '1'},
+        'Hidden monthly values must still be submitted');
+    requests[0].failure(); requests = [];
+    for (const option of options.filter(option => option.value !== '')) {
+        preset.value = option.value; preset.change();
+        assert.equal(customClasses.has('d-none'), true, 'Every preset must hide custom fields');
+        assert.equal(fields.vip_days.value, option.dataset.days);
+        assert.equal(fields.account_limit.value, option.dataset.accounts);
+    }
+    assert.match(summary.textContent, /永久会员.*账号数量不限/);
+    dialog.yes(1, dom);
+    assert.deepEqual(JSON.parse(JSON.stringify(requests[0].data)), {vip_days: '0', account_limit: '0', num: '1'},
+        'Hidden permanent plan values must still be submitted');
+    requests[0].failure(); requests = [];
     preset.value = '2'; preset.change();
-    assert.equal(fields.vip_days.value, '90');
+    preset.value = ''; preset.change();
+    assert.equal(customClasses.has('d-none'), false, 'Custom mode must show both editable fields');
+    assert.equal(fields.vip_days.value, '90', 'Switching to custom must retain the selected benefits');
     assert.equal(fields.account_limit.value, '10');
     fields.account_limit.value = '7'; fields.account_limit.input();
-    assert.equal(preset.value, '', 'Editing a preset must switch to custom');
+    assert.equal(preset.value, '');
     assert.match(summary.textContent, /账号总数 7 个/);
+    preset.value = '0'; preset.change();
+    assert.equal(customClasses.has('d-none'), true, 'Returning to a preset must hide custom fields again');
+    assert.equal(fields.vip_days.value, '7');
+    assert.equal(fields.account_limit.value, '3', 'Preset selection must replace custom values');
+    preset.value = ''; preset.change();
+    assert.equal(customClasses.has('d-none'), false, 'Repeated switches must restore custom fields');
     for (const value of ['', '-1', '1.5', '100001']) {
         fields.account_limit.value = value; dialog.yes(1, dom);
         assert.equal(requests.length, 0, 'Invalid total reached the endpoint');

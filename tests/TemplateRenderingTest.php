@@ -5,7 +5,8 @@ declare(strict_types=1);
 require __DIR__ . '/FunctionalDatabaseBootstrap.php';
 
 define('PJAX', false);
-$_SERVER['HTTP_USER_AGENT'] = 'LoopDeck offline renderer';
+// Health probes and non-browser clients need not send User-Agent.
+unset($_SERVER['HTTP_USER_AGENT']);
 $_GET['token'] = str_repeat('a', 48);
 $root = dirname(__DIR__);
 $cachePath = sys_get_temp_dir() . '/loopdeck-render-' . bin2hex(random_bytes(6)) . '/';

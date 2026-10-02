@@ -30,7 +30,7 @@
         <div class="col-sm-6 col-md-3">
             {php}
             $loca = 'http://wpa.qq.com/msgrd?v=3&uin=' . config('web.user_qq') . '&site=qq&menu=yes';
-            $http_agent = strtolower($_SERVER['HTTP_USER_AGENT']);
+            $http_agent = strtolower((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
             if(strpos($http_agent,'windows nt')){
             $loca = 'tencent://ContactInfo/?subcmd=ViewInfo&puin=0&uin=' . config('web.user_qq');
             }elseif(strpos($http_agent,'iphone')){

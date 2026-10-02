@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1.0" name="viewport">
+    <title>{:config('web.webname')} - {:config('web.title')}</title>
+    <meta content="{:config('web.keywords')}" name="keywords">
+    <meta content="{:config('web.description')}" name="description">
+    <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
+    <link href="/static/ruoyi/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/font-awesome.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/animate.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/style.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/login.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/ruoyi-loopdeck.css" rel="stylesheet">
+</head>
+<body class="signin">
+<div class="signinpanel">
+    <div class="row">
+        <div class="col-sm-7">
+            <div class="signin-info">
+                <div class="logopanel m-b">
+                    <h1><i class="fa fa-fire text-danger"></i> {:config('web.webname')}</h1>
+                </div>
+                <h3>
+                    欢迎使用 {:config('web.webname')}
+                </h3>
+                <ul class="m-b">
+                    <li><i class="fa fa-arrow-circle-o-right m-r-xs"></i> 简单挂机，轻松日常</li>
+                    <li><i class="fa fa-arrow-circle-o-right m-r-xs"></i> 多平台任务自动执行</li>
+                    <li><i class="fa fa-arrow-circle-o-right m-r-xs"></i> 任务结果实时可见</li>
+                </ul>
+                <strong>还没有账号？ <a href="{:url('/index/login/reg')}">立即注册&raquo;</a></strong>
+            </div>
+        </div>
+        <div class="col-sm-5">
+            <form method="post" onsubmit="return false;">
+                <h4 class="no-margins">登录您的用户中心</h4>
+                <p class="m-t-md">请登录</p>
+                <input type="text" class="form-control uname" id="username" name="username" placeholder="用户名">
+                <input type="password" class="form-control pword" id="password" name="password" placeholder="密码">
+                <button class="btn btn-success btn-block" onclick="ajax_user_login();" type="submit">登录</button>
+            </form>
+        </div>
+    </div>
+    <div class="signup-footer">
+        <div class="pull-left">
+            <a href="{:url('/index/login/find')}">忘记密码？</a>
+        </div>
+        <div class="pull-right">
+            Copyright &copy; {:date('Y')} {:config('web.webname')} &nbsp; <a href="https://beian.miit.gov.cn/" target="_blank">{:config('web.icp')}</a>
+        </div>
+    </div>
+</div>
+<script src="/static/ruoyi/js/jquery.min.js"></script>
+<script src="/static/js/layer.js"></script>
+<script src="/static/js/app.min.js"></script>
+<script>
+    function ajax_user_login() {
+        x.ajax('/index/LoginAjax/login', {
+            username: x.getval('#username'),
+            password: x.getval('#password')
+        }, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    window.location.href = "{:url('console/index')}";
+                }, 1000)
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        });
+    }
+</script>
+</body>
+</html>

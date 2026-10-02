@@ -11,6 +11,8 @@ $root = dirname(__DIR__);
 $cachePath = sys_get_temp_dir() . '/loopdeck-render-' . bin2hex(random_bytes(6)) . '/';
 mkdir($cachePath);
 $app->config->set(['webname' => 'LoopDeck', 'title' => '测试站点', 'web_id' => 1, 'user_qq' => '10000', 'index_template' => 'default', 'login_template' => 'default'], 'web');
+think\facade\Session::set('user.nickname', '测试用户');
+think\facade\Session::set('user.qq', '10000');
 $variables = [
     'redemption_presets' => app\service\RedemptionPlan::presets(),
     'redemption_max_days' => app\service\RedemptionPlan::MAX_DAYS,
@@ -26,7 +28,8 @@ $variables = [
     'notification_error' => '', 'email_available' => false, 'deliveries' => [], 'email_ready' => false, 'email_enabled' => false, 'email_password_configured' => false,
     'notification_email_available' => false, 'notification_can_epic' => false, 'notification_deliveries' => [],
     'database_auto_configured' => true, 'name' => '测试收款人', 'type' => 'wechat', 'url' => 'wxp://fixture',
-] + app\admin\model\Weblist::templateSettingsData([]);
+] + app\admin\model\Weblist::templateSettingsData([])
+    + (new app\service\SystemUpdater(sys_get_temp_dir() . '/loopdeck-render-no-updater.json'))->status();
 $count = 0;
 $failures = [];
 $renderedPages = [];
@@ -34,13 +37,14 @@ set_error_handler(static function ($severity, $message, $file, $line) {
     if (error_reporting() & $severity) throw new ErrorException($message, 0, $severity, $file, $line);
 });
 try {
-    foreach (['index', 'admin', 'install'] as $module) {
-        $viewPath = $root . '/app/' . $module . '/view/';
+    foreach (['index', 'admin', 'install', 'index/ruoyi', 'admin/ruoyi'] as $module) {
+        $viewPath = $root . '/app/' . str_replace('/ruoyi', '', $module) . '/view/'
+            . (str_ends_with($module, '/ruoyi') ? 'ruoyi/' : '');
         foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($viewPath)) as $file) {
             $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($viewPath)));
-            if ($file->getExtension() !== 'html' || str_starts_with($relative, 'common/')
+            if ($file->getExtension() !== 'html' || str_starts_with($relative, 'common/') || str_starts_with($relative, 'ruoyi/')
                 || str_contains($relative, '/sport/') || str_ends_with($relative, '/head.html')
-                || in_array($relative, ['system/update.html', 'index/index.html'], true)) continue;
+                || ($relative === 'index/index.html' && $module === 'index')) continue;
             $engine = new think\Template(['view_path' => $viewPath, 'cache_path' => $cachePath]);
             ob_start();
             try {
@@ -63,21 +67,23 @@ try {
     $task = ['icon' => 'fa-check', 'name' => '签到', 'describe' => '每日签到', 'more' => true, 'execute_name' => 'sign',
         'config' => '{}', 'config_json' => '{"text":"quoted\'value"}', 'last_execute' => '', 'next_execute' => 0, 'job_state' => 0,
         'user_id' => '42', 'is_global' => false, 'offline' => false, 'offline_reason' => ''];
+    foreach (['', 'ruoyi/'] as $themePath) {
+    $populatedViewPath = $root . '/app/index/view/' . $themePath;
     foreach (['netease', 'bilibili', 'heybox', 'qrcode'] as $platform) {
         foreach ($platform === 'qrcode' ? ['list'] : ['list', 'info'] as $page) {
             $relative = 'console/' . $platform . '/' . $page . '.html';
-            $engine = new think\Template(['view_path' => $root . '/app/index/view/', 'cache_path' => $cachePath]);
+            $engine = new think\Template(['view_path' => $populatedViewPath, 'cache_path' => $cachePath]);
             ob_start();
             try {
-                $engine->fetch($root . '/app/index/view/' . $relative, array_replace($variables, ['list' => [$account], 'task_rows' => [$task]]));
+                $engine->fetch($populatedViewPath . $relative, array_replace($variables, ['list' => [$account], 'task_rows' => [$task]]));
                 $html = ob_get_contents();
-                $renderedPages['populated/' . $relative] = $html;
+                $renderedPages['populated/' . $themePath . $relative] = $html;
                 if ($page === 'list' && $platform !== 'qrcode') {
                     functionalCheck(str_contains($html, '/index/console/' . $platform . '/info/42'), 'Account management link is not usable');
                 }
                 $count++;
             } catch (Throwable $error) {
-                $failures[] = 'populated/' . $relative . ': ' . $error->getMessage();
+                $failures[] = 'populated/' . $themePath . $relative . ': ' . $error->getMessage();
             } finally {
                 ob_end_clean();
             }
@@ -88,20 +94,21 @@ try {
     think\facade\Session::set('user.vip_start', date('Y-m-d'));
     think\facade\Session::set('user.vip_end', app\service\RedemptionPlan::PERMANENT_VIP_END);
     foreach (['console/index.html', 'console/shop/card.html'] as $relative) {
-        $engine = new think\Template(['view_path' => $root . '/app/index/view/', 'cache_path' => $cachePath]);
+        $engine = new think\Template(['view_path' => $populatedViewPath, 'cache_path' => $cachePath]);
         ob_start();
         try {
-            $engine->fetch($root . '/app/index/view/' . $relative, $variables);
+            $engine->fetch($populatedViewPath . $relative, $variables);
             $html = ob_get_contents();
             functionalCheck(str_contains($html, '永久会员') && str_contains($html, '账号总数：不限'), 'Unlimited account display missing');
             functionalCheck(!str_contains($html, '9999-12-31') && !str_contains($html, '-1 个'), 'Storage sentinels leaked into the page');
-            $renderedPages['permanent/' . $relative] = $html;
+            $renderedPages['permanent/' . $themePath . $relative] = $html;
             $count++;
         } finally {
             ob_end_clean();
         }
     }
     think\facade\Session::set('user', $savedUser);
+    }
 } finally {
     restore_error_handler();
     foreach (glob($cachePath . '*') as $file) unlink($file);

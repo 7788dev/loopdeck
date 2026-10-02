@@ -1,0 +1,117 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+<style>
+    #address-wrapper {
+        max-height: 300px; /* 设置最大高度 */
+        overflow-y: auto; /* 启用垂直滚动条 */
+    }
+</style>
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>收款码列表</h5>
+                    <a href="/index/console/qrcode/create" class="btn btn-sm btn-primary pull-right">
+                        <i class="fa fa-plus"></i> 生成
+                    </a>
+                </div>
+                {if condition="count($list) eq 0"}
+                <div class="ibox-content text-center">
+                    <i class="fa fa-inbox fa-2x"></i>
+                    <p class="text-muted">
+                        暂无数据
+                    </p>
+                </div>
+                {else \}
+                <div class="ibox-content">
+                    {foreach $list as $k => $value}
+                    {php}
+                    $v = safe_unserialize_array($value['data']);
+                    $user_id = $value['user_id'];
+                    {/php}
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <h3 class="font-bold">
+                                <i class="fa fa-circle text-success"></i> {$v.name}
+                            </h3>
+                            <p>
+                                <button type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#address" data-address-label="支付宝收款地址：" data-address="{$v.alipay_url}">支付宝收款地址</button>
+                                <button type="button" class="btn btn-sm btn-info" data-toggle="modal" data-target="#address" data-address-label="QQ收款地址：" data-address="{$v.qq_url}">QQ收款地址</button>
+                                <button type="button" class="btn btn-sm btn-success" data-toggle="modal" data-target="#address" data-address-label="微信收款地址：" data-address="{$v.wechat_url}">微信收款地址</button>
+                            </p>
+                            <p class="text-muted">
+                                生成时间：{:date("Y-m-d H:i",strtotime($value.addtime))}
+                            </p>
+                        </div>
+                        <div class="col-sm-6 text-right">
+                            <a class="btn btn-sm btn-default" data-toggle="modal" data-target="#address" data-address-label="三合一收款地址：" data-address="{:get_Domain()}index/index/qrcode.html?uid={$value.uid}&amp;name={:rawurlencode($v.name)}">
+                                <i class="fa fa-tag"></i> 地址
+                            </a>
+                            <a class="btn btn-sm btn-danger" data-user-id="{$user_id}" onclick="ajax_qrcode_delete(this.dataset.userId)">
+                                <i class="fa fa-times"></i> 删除
+                            </a>
+                        </div>
+                    </div>
+                    <div class="hr-line-dashed"></div>
+                    {/foreach}
+                </div>
+                {/if}
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="address" tabindex="-1" role="dialog" aria-labelledby="address" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h5 class="modal-title">收款地址</h5>
+                </div>
+                <div class="modal-body">
+                    <div id="address-wrapper">
+                        <p id="address-content"></p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-primary" data-dismiss="modal">完成</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    const modal = document.getElementById('address');
+    // Bootstrap 3 通过 jQuery 触发 modal 事件，原生 addEventListener 收不到，改用 jQuery 绑定
+    $('#address').on('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const content = modal.querySelector('#address-content');
+        // The addresses are user supplied, so they are inserted as text.
+        content.textContent = '';
+        const label = document.createElement('strong');
+        label.textContent = button.getAttribute('data-address-label') || '';
+        content.appendChild(label);
+        content.appendChild(document.createElement('br'));
+        content.appendChild(document.createTextNode(button.getAttribute('data-address') || ''));
+    });
+
+    function ajax_qrcode_delete(user_id)
+    {
+        x.del('/index/ajax/qrcode/delete', {user_id: user_id}, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    // x.pjax("{:url(\"/index/console/qrcode/list\")}");
+                    window.location.href = '{:url(\"/index/console/qrcode/list\")}';
+                }, 1000);
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        });
+    }
+</script>
+{/block}

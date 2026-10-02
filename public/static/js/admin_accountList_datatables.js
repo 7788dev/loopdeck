@@ -1,7 +1,5 @@
 !function () {
-    $.extend($.fn.dataTable.ext.classes, {
-        sWrapper: "dataTables_wrapper dt-bootstrap5", sFilterInput: "form-control", sLengthSelect: "form-select",
-    }), $.extend(!0, $.fn.dataTable.defaults, {
+    $.extend(!0, $.fn.dataTable.ext.classes, window.LOOPDECK_DT_CLASSES || {sWrapper: "dataTables_wrapper dt-bootstrap5", sFilterInput: "form-control", sLengthSelect: "form-select"}), $.extend(!0, $.fn.dataTable.defaults, {
         language: {
             lengthMenu: "_MENU_",
             search: "_INPUT_",

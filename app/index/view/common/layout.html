@@ -2,7 +2,7 @@
 {block name="main"}{/block}
 {block name="foot"}{/block}
 <script>
-    document.title = '{:config("web.webname")} - {:config("web.title")}';
+    document.title = {:json_encode((string)config("web.webname") . " - " . (string)config("web.title"), 15)};
 </script>
 {else /}
 <!doctype html>

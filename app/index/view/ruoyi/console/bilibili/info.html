@@ -1,0 +1,360 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+<style>
+    .task-table td {
+        white-space: nowrap;
+    }
+    /* 数据库任务图标使用 Codebase 的 si 字体名，若依主题仅加载 Font Awesome 4.7，
+       这里用 :before 把用到的 si-* 图标映射为语义相近的 fa 图标（纯样式，无逻辑改动）。 */
+    .fa.si:before {
+        font-family: FontAwesome;
+        font-weight: normal;
+        font-style: normal;
+        display: inline-block;
+    }
+    .fa.si-badge:before { content: "\f0a3"; }
+    .fa.si-camcorder:before { content: "\f03d"; }
+    .fa.si-compass:before { content: "\f14e"; }
+    .fa.si-diamond:before { content: "\f219"; }
+    .fa.si-drawer:before { content: "\f01c"; }
+    .fa.si-earphones:before { content: "\f025"; }
+    .fa.si-fire:before { content: "\f06d"; }
+    .fa.si-flag:before { content: "\f024"; }
+    .fa.si-game-controller:before { content: "\f11b"; }
+    .fa.si-graduation:before { content: "\f19d"; }
+    .fa.si-heart:before { content: "\f004"; }
+    .fa.si-music-tone-alt:before { content: "\f001"; }
+    .fa.si-paper-plane:before { content: "\f1d8"; }
+    .fa.si-present:before { content: "\f06b"; }
+    .fa.si-rocket:before { content: "\f135"; }
+    .fa.si-screen-desktop:before { content: "\f108"; }
+    .fa.si-trophy:before { content: "\f091"; }
+</style>
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="ibox float-e-margins">
+                <div class="ibox-content">
+                    <a class="btn btn-lg btn-primary btn-block" href="/index/console/bilibili/add">更新账号</a>
+                    <p class="text-center text-muted" style="margin-top: 10px; margin-bottom: 0;"><small><b>若账号失效请及时更新</b></small></p>
+                </div>
+            </div>
+            <div class="ibox float-e-margins text-center">
+                <div class="ibox-title">
+                    <h5>
+                        <i class="fa fa-graduation-cap"></i>
+                        基本信息
+                    </h5>
+                </div>
+                <div class="ibox-content">
+                    <div class="m-b-sm">
+                        <img alt="" class="img-circle" src="{$a_data.avatar|default='/static/ruoyi/img/avatar.svg'}" height="96" width="96">
+                    </div>
+                    <b>{$a_data.nickname} ·
+                        {if condition="$data.state eq 1 && $timing neq ''"}
+                        <span class="text-success">运行中</span>
+                        {elseif condition="$data.state eq 1"}
+                        <span class="text-warning">等待设置挂机时间</span>
+                        {else}
+                        <span class="text-danger">已失效</span>
+                        {/if}
+                    </b>
+                    <hr>
+                    <div style="margin-top: 5px;">
+                        <span class="text-muted"><small>
+                            挂机时间：<span class="text-success">{if condition="$timing neq ''"}{$timing}{else /}未设置{/if}</span>
+                            <a href="javascript:ajax_set_timing('{$a_data[\'mid\']}', '{$timing}');">设置</a>
+                        </small></span>
+                    </div>
+                    <div style="margin-top: 5px;"><small class="text-muted">未设置挂机时间时，系统不会自动执行任务。</small></div>
+                    <button type="button" class="btn btn-sm btn-primary" style="margin-top: 10px;" onclick="ajax_reexecute_task('{$a_data[\'mid\']}')" {if condition="$timing eq ''"}disabled{/if}>
+                        <i class="fa fa-bolt"></i>申请补挂
+                    </button>
+                </div>
+            </div>
+            {if condition="$info_warning neq ''"}
+            <div class="alert alert-warning" role="alert">{$info_warning}</div>
+            {/if}
+            {if condition="$level_info"}
+            <div class="ibox float-e-margins">
+                <div class="ibox-title text-center">
+                    <h5>
+                        <i class="fa fa-info-circle"></i>
+                        等级信息
+                    </h5>
+                </div>
+                <div class="ibox-content">
+                    <table class="table table-striped">
+                        <tbody>
+                        <tr>
+                            <td>
+                                <i class="fa fa-star text-muted"></i>
+                                <span><small>当前等级：LV {$level_info.current_level}</small></span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <i class="fa fa-money text-muted"></i>
+                                <span><small>硬币数：{$level_info.money} 个</small></span>
+                            </td>
+                        </tr>
+                        {if condition="$level_info.current_level == 6"}
+                        <tr>
+                            <td class="text-center">
+                                <span class="text-muted"><small><b>等级已达满级</b></small></span>
+                            </td>
+                        </tr>
+                        {else /}
+                        <tr>
+                            <td class="text-center">
+                                <span class="text-muted"><small><b>—距升级 LV{$level_info.next_level}—</b></small></span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <i class="fa fa-trophy text-muted"></i>
+                                <span><small>还需 {$level_info.remaining_exp} 经验</small></span>
+                            </td>
+                        </tr>
+                        {/if}
+                        <tr>
+                            <td>
+                                <i class="fa fa-check text-muted"></i>
+                                <span><small>当前经验 {$level_info.current_exp}</small></span>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {/if}
+        </div>
+        <div class="col-md-8">
+            <div class="ibox float-e-margins">
+                <div class="ibox-content">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <tbody>
+                            {foreach $task_rows as $v}
+                            {if condition="$v.is_global"}
+                                <tr>
+                                    <td class="text-center">
+                                        <i class="fa fa-2x {$v.icon}"></i>
+                                    </td>
+                                    <td>
+                                        <p style="margin-bottom: 5px;"><b>{$v.name}</b></p>
+                                        <p class="text-muted" style="margin-bottom: 0;">
+                                            <small>{$v.describe}</small>
+                                        </p>
+                                    </td>
+                                    <td class="hidden-xs"><i class="fa fa-clock-o"></i> {$v.last_execute}</td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-sm btn-primary" data-config='{$v.config_json}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)">配置</button>
+                                    </td>
+                                </tr>
+                                {else /}
+                                <tr>
+                                    <td class="text-center">
+                                        <i class="fa fa-2x {$v.icon}"></i>
+                                    </td>
+                                    <td>
+                                        <p style="margin-bottom: 5px;"><b>{$v.name}
+                                            {if condition="$v.offline"}
+                                                <span class="label label-default">已下架</span>
+                                            {/if}
+                                            {if condition="$v.more"}
+                                                <button type="button" class="btn btn-outline btn-primary btn-sm" style="padding: 1px 5px; margin-left: 5px;" data-config='{$v.config_json}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="fa fa-cogs"></i></button>
+                                            {/if}
+                                        </b></p>
+                                        <p class="text-muted" style="margin-bottom: 0;">
+                                            <small>{if condition="$v.offline"}{$v.offline_reason}{else /}{$v.describe}{/if}</small>
+                                        </p>
+                                    </td>
+                                    <td class="hidden-xs"><i class="fa fa-clock-o"></i> {$v.last_execute}</td>
+
+                                    <td class="text-center">
+                                        {if condition="$v.offline"}
+                                        <input type="checkbox" disabled title="{$v.offline_reason}">
+                                        {elseif condition="$v.job_state eq 1" /}
+                                        <input type="checkbox" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}', this);" checked>
+                                        {else /}
+                                        <input type="checkbox" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}', this);">
+                                        {/if}
+                                    </td>
+                                </tr>
+                            {/if}
+                            {/foreach}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>任务运行日志 <small>仅展示最新的50条数据</small></h5>
+                </div>
+                <div class="ibox-content">
+                    <table class="table table-bordered table-striped task-table js-dataTable-responsive" id="task-logs-list" data-type="bilibili" data-user_id="{$data.user_id}">
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/task_logs_datatables.js?v={:app_version()}"></script>
+<script>
+    function updateConfig(execute_name, name, _this) {
+        if (typeof ($(_this).data("config")) == 'object') {
+            var config = JSON.stringify($(_this).data("config"));
+        } else {
+            var config = '{}';
+        }
+
+        switch (execute_name) {
+            case 'globalroom':
+                globalRoom(execute_name, name, config);
+                break;
+            case 'coinadd':
+                coinAdd(execute_name, name, config);
+                break;
+            default:
+                layer.alert("请勿非法操作");
+                return false;
+        }
+    }
+
+    function globalRoom(execute_name, name, config)
+    {
+        layer.open({
+            title: name + "配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            content: '<form><div class="row"><div class="col-lg-12"><div class="form-floating"><input type="text" class="form-control" id="global_room" name="global_room" placeholder="直播间ID"><label class="form-label" for="global_room">全局直播间ID</label><div class="form-text text-muted">全局直播间ID，适用于：弹幕、礼物、心跳</div></div></div></div></form>',
+            success: function (res, index) {
+                config = JSON.parse(config);
+                // console.log(config)
+                if (typeof (config['global_room']) !== 'undefined') {
+                    $("#global_room").val(config['global_room']);
+                }
+            },
+            yes: function (index, dom) {
+                const params = JSON.stringify($(dom).find("form").parseForm());
+                layer.close(index);
+                x.ajax('/index/ajax/bilibili/set', {do: execute_name, user_id: {$a_data['mid']}, config: params}, function (data) {
+                    if (data.code == 1) {
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            // x.pjax('/index/console/bilibili/info/{$a_data["mid"]}');
+                            window.location.href = '/index/console/bilibili/info/{$a_data["mid"]}';
+                        }, 1000)
+                    } else {
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+
+    function coinAdd(execute_name, name, config)
+    {
+        layer.open({
+            title: name + "配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            content: '<form><div class="row"><div class="col-lg-12"><div class="form-floating mb-4"><select class="form-select"id="add_coin_mode" name="add_coin_mode"aria-label="投币渠道"><option value="random">随机热门</option><option value="fixed">关注列表</option></select><label class="form-label" for="add_coin_mode">投币渠道</label></div><div class="form-floating"><select class="form-select"id="add_coin_num" name="add_coin_num"aria-label="投币个数"><option value="1">1 个视频</option><option value="2">2 个视频</option><option value="3">3 个视频</option><option value="4">4 个视频</option><option value="5">5 个视频</option></select><label class="form-label" for="add_coin_num">投币个数</label><div class="form-text text-muted">每日上限5个视频(需5个硬币)</div></div></div></div></form>',
+            success: function (res, index) {
+                config = JSON.parse(config);
+                // console.log(config)
+                if (typeof (config['add_coin_mode']) !== 'undefined') {
+                    $("#add_coin_mode").val(config['add_coin_mode']);
+                }
+                if (typeof (config['add_coin_num']) !== 'undefined') {
+                    $("#add_coin_num").val(config['add_coin_num']);
+                }
+            },
+            yes: function (index, dom) {
+                const params = JSON.stringify($(dom).find("form").parseForm());
+                layer.close(index);
+                x.ajax('/index/ajax/bilibili/set', {do: execute_name, user_id: {$a_data['mid']}, config: params}, function (data) {
+                    if (data.code == 1) {
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            // x.pjax('/index/console/bilibili/info/{$a_data["mid"]}');
+                            window.location.href = '/index/console/bilibili/info/{$a_data["mid"]}';
+                        }, 1000)
+                    } else {
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+
+    function ajax_set_zt(execute_name, user_id, input)
+    {
+        x.taskSwitch('/index/ajax/bilibili/set', execute_name, user_id, input);
+    }
+
+    function ajax_reexecute_task(user_id)
+    {
+        layer.confirm('你确定申请补挂吗？', {
+            btn: ['确定', '取消'],
+            closeBtn: 0,
+        }, function () {
+            x.ajax("/index/ajax/bilibili/reExecute", {user_id: user_id}, function (data) {
+                if (data.code === 1) {
+                    x.btn(data.message);
+                } else {
+                    x.notify(data.message);
+                }
+            });
+        });
+    }
+
+    function ajax_set_timing(user_id, timing)
+    {
+        layer.open({
+            title: "挂机时间配置",
+            btn: ['保存', '取消'],
+            btnAlign: 'c',
+            closeBtn: 0,
+            shadeClose: true,
+            zIndex: '1000',
+            area: [Math.min(420, window.innerWidth - 32) + 'px'],//设置相对于父页面的大小
+            content: '<div class="form-floating col-xl-12 mb-2"><input type="text" class="js-flatpickr form-control" id="timing"placeholder="请选择"data-enable-time="true"data-no-calendar="true"data-date-format="H:i"data-time_24hr="true"data-allow-input="true"><label class="form-label" for="timing">挂机时间</label></div><div><span class="text-danger">未设置时不会自动执行；清空时间并保存可关闭自动挂机。<br></span><span class="fw-semibold">挂机时间说明：系统在您设定的时间为您挂机。<br>特殊说明：若您设置的时间内系统有大量账号需要排队执行，则可能会出现延迟执行的情况，系统仅保证在您设定的时间之后进行执行</span></div>',
+            success: function (res, index) {
+                if (typeof timing !== 'undefined') {
+                    $("#timing").val(timing);
+                }
+                $('.js-flatpickr').flatpickr();
+            },
+            yes: function (index, dom) {
+                const selectedTiming = x.getval('#timing');
+                layer.close(index);
+                x.ajax('/index/ajax/bilibili/set', {act: 'timing', user_id: {$a_data['mid']}, timing: selectedTiming}, function (data) {
+                    if (data.code == 1) {
+                        x.notify(data.message, 'success');
+                        setTimeout(function () {
+                            // x.pjax('/index/console/bilibili/info/{$a_data["mid"]}');
+                            window.location.href = '/index/console/bilibili/info/{$a_data["mid"]}';
+                        }, 1000)
+                    } else {
+                        x.notify(data.message, 'warning');
+                    }
+                })
+            },
+        });
+    }
+</script>
+{/block}

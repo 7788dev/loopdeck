@@ -1,0 +1,50 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<style>
+    th,td {
+        white-space: nowrap;
+    }
+</style>
+
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>{$webTitle}</h5>
+                </div>
+                <div class="ibox-content">
+                    <div class="form-inline" style="margin-bottom: 15px;">
+                        <div class="form-group">
+                            <input type="number" class="form-control input-sm" id="search-uid" placeholder="用户UID">
+                        </div>
+                        <div class="form-group">
+                            <input type="number" class="form-control input-sm" id="search-user_id" placeholder="账号ID">
+                        </div>
+                        <div class="form-group">
+                            <select class="form-control input-sm" id="search-status">
+                                <option selected="" value="">账号状态</option>
+                                <option value="1">正常</option>
+                                <option value="0">失效</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm" onclick="table_search();">
+                            <i class="fa fa-search"></i> 查询
+                        </button>
+                    </div>
+                    <table class="table table-bordered table-striped js-dataTable-responsive" id="accounts-list">
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+
+<script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive-bs3/js/responsive.bootstrap.min.js"></script>
+
+<script src="/static/js/admin_accountList_datatables.js"></script>
+{/block}

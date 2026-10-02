@@ -44,6 +44,12 @@ $settings = Weblist::templateSettingsData([
 adminTemplateCheck($settings['num'] === 9, 'Template page received the wrong total');
 adminTemplateCheck($settings['current_index_template'] === 'shanhe2.0', 'Homepage selection was lost');
 adminTemplateCheck($settings['current_login_template'] === 'onebox', 'Login selection was lost');
+adminTemplateCheck(count($settings['site_data']) === 2, 'Overall template options are missing');
+adminTemplateCheck($settings['current_site_template'] === 'default', 'Overall template did not fall back to default');
+adminTemplateCheck(
+    array_column($settings['site_data'], 'id') === ['default', 'ruoyi'],
+    'Overall template options must be 原版 and 若依'
+);
 
 $fallback = Weblist::templateSettingsData([
     'index_template' => '../invalid',
@@ -94,5 +100,11 @@ try {
 adminTemplateCheck(str_contains($html, 'id="template-form"'), 'Template settings page did not render');
 adminTemplateCheck(substr_count($html, 'data-template-id=') === 9, 'Rendered template cards are incomplete');
 adminTemplateCheck(substr_count($html, 'aria-pressed="true"') === 2, 'Current templates are not marked');
+adminTemplateCheck(substr_count($html, 'data-site-template=') === 2, 'Overall template options did not render');
+adminTemplateCheck(str_contains($html, '整体模板'), 'Overall template section heading is missing');
+adminTemplateCheck(
+    str_contains($html, 'ajax_set_site_template(this)'),
+    'Overall template switch button has no save handler'
+);
 
 echo "Admin template settings tests passed\n";

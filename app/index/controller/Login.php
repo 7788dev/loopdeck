@@ -21,7 +21,7 @@ class Login extends Common
         if (Session::has('user')) {
             return redirect((string)url('/index/console/index'));
         } else {
-            return View::fetch('/login/login');
+            return View::fetch(\app\service\SiteTheme::entry('login', 'login'));
         }
     }
 
@@ -36,7 +36,7 @@ class Login extends Common
         if (Session::has('user')) {
             return redirect((string)url('/index/console/index'));
         } else {
-            return View::fetch('/login/reg');
+            return View::fetch(\app\service\SiteTheme::entry('login', 'reg'));
         }
     }
 
@@ -48,7 +48,7 @@ class Login extends Common
      */
     public function find()
     {
-        return View::fetch('/login/find');
+        return View::fetch(\app\service\SiteTheme::entry('login', 'find'));
     }
 
     public function reset()
@@ -76,7 +76,7 @@ class Login extends Common
                     'webTitle' => '设置新密码',
                     'mail' => $mail
                 ]);
-                return View::fetch('login/reset');
+                return View::fetch(\app\service\SiteTheme::entry('login', 'reset'));
             }
         }
     }

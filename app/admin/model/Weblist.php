@@ -91,6 +91,21 @@ class Weblist extends Model
         return count(self::indexTemplateData()) + count(self::loginTemplateData());
     }
 
+    /** 整体模板（原版/若依）可选项；当前值保存在站点配置表，无需数据库迁移 */
+    public const SITE_TEMPLATE_OPTIONS = [
+        ['id' => 'default', 'name' => '原版', 'description' => '默认整体界面，可继续选择首页模板与登录注册模板', 'author' => 'LoopDeck', 'demoSite' => '-'],
+        ['id' => 'ruoyi', 'name' => '若依', 'description' => '登录、首页、用户控制台与站长后台整套切换为若依风格', 'author' => 'RuoYi', 'demoSite' => '-'],
+    ];
+
+    public static function currentSiteTemplate(): string
+    {
+        // 离线测试可能在应用初始化前调用，此时容器尚未绑定 config
+        $template = \think\Container::getInstance()->bound('config')
+            ? (string)config('sys.site_template', 'default')
+            : 'default';
+        return in_array($template, array_column(self::SITE_TEMPLATE_OPTIONS, 'id'), true) ? $template : 'default';
+    }
+
     public static function templateSettingsData(array $site = []): array
     {
         $indexTemplates = self::indexTemplateData();
@@ -100,6 +115,8 @@ class Weblist extends Model
             'num' => count($indexTemplates) + count($loginTemplates),
             'index_data' => $indexTemplates,
             'login_data' => $loginTemplates,
+            'site_data' => self::SITE_TEMPLATE_OPTIONS,
+            'current_site_template' => self::currentSiteTemplate(),
             'current_index_template' => self::selectedTemplateId(
                 $indexTemplates,
                 (string)($site['index_template'] ?? 'default')

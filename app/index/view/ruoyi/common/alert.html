@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="referrer" content="no-referrer">
+    <meta content="width=device-width,initial-scale=1.0" name="viewport">
+    <title>提示信息</title>
+    <meta content="{:config('web.keywords')}" name="keywords">
+    <meta content="{:config('web.description')}" name="description">
+    <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
+    <link href="/static/media/favicons/favicon-192x192.png?v={:app_version()}" rel="icon" sizes="192x192" type="image/png">
+    <link href="/static/media/favicons/apple-touch-icon-180x180.png?v={:app_version()}" rel="apple-touch-icon" sizes="180x180">
+    <link href="/static/ruoyi/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/font-awesome.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/style.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/ry-ui.css" rel="stylesheet">
+    <style>
+        body {
+            min-height: 100vh;
+            display: -webkit-box;
+            display: -ms-flexbox;
+            display: flex;
+            -webkit-box-align: center;
+            -ms-flex-align: center;
+            align-items: center;
+            -webkit-box-pack: center;
+            -ms-flex-pack: center;
+            justify-content: center;
+        }
+
+        .alert-panel {
+            width: 100%;
+            max-width: 480px;
+            padding: 0 15px;
+        }
+    </style>
+</head>
+<body class="gray-bg">
+<div class="alert-panel">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content text-center">
+            <i class="fa fa-info-circle fa-3x text-navy"></i>
+            <h1 class="font-bold m-t-md m-b-sm">{$msg}</h1>
+            <p class="text-muted m-b-lg">请返回控制台。</p>
+            <a class="btn btn-primary" href="{$url}">返回控制台</a>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,84 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>全部账号列表 - 网易云音乐</h5>
+                </div>
+            </div>
+        </div>
+        {if condition="count($list) eq 0"}
+        <div class="col-md-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-content text-center">
+                    <i class="fa fa-inbox fa-2x"></i>
+                    <p class="text-muted">
+                        <small>暂无数据</small>
+                    </p>
+                </div>
+            </div>
+        </div>
+        {/if}
+        {foreach $list as $key => $value}
+        {php}
+            $v = safe_unserialize_array($value['data']);
+        {/php}
+        <div class="col-sm-6 col-md-3">
+            <div class="ibox float-e-margins text-center">
+                <div class="ibox-content" style="background-color: #f8f8f8;">
+                    <img class="img-circle" src="{$v.avatar|default='/static/ruoyi/img/avatar.svg'}" alt="" height="96" width="96">
+                </div>
+                <div class="ibox-content">
+                    <b>{$v.nickname}</b>
+                    <div style="margin: 5px 0;">
+                        {if condition="$value.state eq 1"}
+                        <span class="label label-primary">正常运行中</span>
+                        {else /}
+                        <span class="label label-danger">状态已失效</span>
+                        {/if}
+                    </div>
+                    <div class="text-muted"><small><i class="fa fa-clock-o"></i> {:date("m-d
+                            H:i",strtotime($value.addtime))}</small></div>
+                </div>
+                <div class="ibox-content">
+                    <div class="row">
+                        <div class="col-xs-8">
+                            <a class="btn btn-sm btn-primary btn-block" href="/index/console/netease/info/{$v.user_id}" data-pjax>
+                                管理账号
+                            </a>
+                        </div>
+                        <div class="col-xs-4">
+                            <a class="btn btn-sm btn-danger btn-block" onclick="ajax_netease_delete('{$v.user_id}')">
+                                <i class="fa fa-times"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {/foreach}
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_netease_delete(user_id)
+    {
+        x.del('/index/ajax/netease/delete', 'user_id=' + user_id, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    // x.pjax("{:url(\"/index/console/netease/list\")}");
+                    window.location.href = '{:url(\"/index/console/netease/list\")}';
+                }, 1000);
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        });
+    }
+
+</script>
+{/block}

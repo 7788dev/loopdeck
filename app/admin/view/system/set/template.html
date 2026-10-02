@@ -12,6 +12,56 @@
     </div>
     <form onsubmit="return false;" id="template-form">
         <div class="row">
+            <h2 class="content-heading">整体模板</h2>
+            <p class="text-muted fs-sm">
+                整体模板决定登录、首页、用户控制台与站长后台使用的界面框架。选择「若依」时整套界面切换为若依风格，下方首页/登录模板仅在「原版」下生效。
+            </p>
+            {foreach $site_data as $v}
+            <div class="col-md-6 col-xl-4">
+                <div class="block block-rounded{if condition='$current_site_template eq $v.id'} border border-primary{/if}">
+                    <div class="block-content">
+                        <h4 class="fs-5 mb-4"><i class="fa fa-th-large me-1"></i> {$v.name}</h4>
+                        <p class="text-muted">
+                            <i class="fa fa-map-pin me-1"></i> {$v.description}
+                        </p>
+                    </div>
+                    <div class="block-content border-bottom">
+                        <div class="row">
+                            <div class="col-6">
+                                <p>
+                                    <i class="si si-user opacity-50 me-1"></i>
+                                    <strong> {$v.author} </strong>
+                                </p>
+                            </div>
+                            <div class="col-6">
+                                <p>
+                                    <i class="si si-badge opacity-50 me-1"></i>
+                                    <strong> {$v.demoSite} </strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="block-content block-content-full">
+                        <div class="row g-sm">
+                            <div class="col-12">
+                                <button type="button" name="site_template" data-site-template="{$v.id}"
+                                        onclick="ajax_set_site_template(this)"
+                                        class="btn btn-sm w-100 {if condition='$current_site_template eq $v.id'}btn-alt-success{else /}btn-primary{/if}"
+                                        aria-current="{if condition='$current_site_template eq $v.id'}true{else /}false{/if}"
+                                        {if condition="$current_site_template eq $v.id"}disabled{/if}>
+                                    {if condition="$current_site_template eq $v.id"}
+                                    <i class="fa fa-check me-1"></i>当前使用
+                                    {else /}
+                                    启用 {$v.name}
+                                    {/if}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {/foreach}
+
             <h2 class="content-heading">首页模板</h2>
             {foreach $index_data as $key => $v}
             <div class="col-md-6 col-xl-4">
@@ -124,6 +174,22 @@
         payload[name] = value;
         $(_this).prop('disabled', true);
         x.ajax('/admin/ajax/set/info', payload, function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+                setTimeout(function () {
+                    location.reload();
+                }, 500);
+            } else {
+                $(_this).prop('disabled', false);
+                x.notify(data.message, 'warning');
+            }
+        });
+    }
+
+    function ajax_set_site_template(_this) {
+        var value = $(_this).data('site-template');
+        $(_this).prop('disabled', true);
+        x.ajax('/admin/ajax/set/config', {site_template: value}, function (data) {
             if (data.code == 1) {
                 x.notify(data.message, 'success');
                 setTimeout(function () {

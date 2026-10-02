@@ -5,7 +5,15 @@ const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
-const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+if (process.env.LOOPDECK_TEST_THEME !== 'ruoyi') {
+    require('node:child_process').execFileSync(process.execPath, [__filename], {
+        env: {...process.env, LOOPDECK_TEST_THEME: 'ruoyi'}, stdio: 'inherit'
+    });
+}
+const read = file => fs.readFileSync(path.join(root,
+    process.env.LOOPDECK_TEST_THEME === 'ruoyi'
+        ? file.replace('app/index/view/console/', 'app/index/view/ruoyi/console/')
+        : file), 'utf8');
 
 function scripts(file) {
     return [...read(file).matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]

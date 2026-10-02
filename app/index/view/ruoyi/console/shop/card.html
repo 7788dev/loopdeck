@@ -1,0 +1,90 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="console/head" /}{/block}
+{block name="main"}
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-content text-center">
+                    <h2 class="font-bold">
+                        兑换码兑换
+                    </h2>
+                    <p class="text-muted">一张兑换码可同时开通或延长会员，并设置账号总数。所有平台共用一个账号上限，无需分别分配。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="ibox float-e-margins text-center">
+                <div class="ibox-title navy-bg">
+                    <h5 class="text-white">账户明细</h5>
+                </div>
+                <div class="ibox-content">
+                    <div class="font-bold m-b-sm" id="redeemed-account-limit">账号总数：{:account_limit_label(session('user.quota'))}（所有平台共用）</div>
+                    {if session('user.vip_start')}
+                    <div class="font-bold m-b-sm" id="redeemed-vip-end">{:membership_label(session('user.vip_end'))}</div>
+                    {else /}
+                    <div class="font-bold m-b-sm" id="redeemed-vip-end">普通用户</div>
+                    {/if}
+                    <p class="text-muted"><small>例如总数 7 个，可绑定 2 个哔哩哔哩 + 5 个网易云，也可全部绑定网易云。兑换码会员时长为 0 表示永久会员，账号总数为 0 表示数量不限。续期不叠加账号总数，已有更高上限和永久权益会保留。旧版配额码仍按原规则增加名额。</small></p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="ibox float-e-margins text-center">
+                <div class="ibox-title lazur-bg">
+                    <h5 class="text-white">输入兑换码</h5>
+                </div>
+                <div class="ibox-content">
+                    <div class="tab-content">
+                        <div class="tab-pane active" id="crypto-buy" role="tabpanel" aria-labelledby="crypto-buy-tab">
+                            <form onsubmit="return false;">
+                                <div class="form-group">
+                                    <div class="input-group input-group-lg">
+                                        <input type="text" class="form-control" id="km" name="km" placeholder="请输入你的兑换码">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <button type="submit" id="redeem-button" class="btn btn-lg btn-primary btn-block" onclick="ajax_km_activate();">确定兑换</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    var redemptionPending = false;
+    function ajax_km_activate()
+    {
+        if (redemptionPending) return;
+        var km = x.getval('#km', '请先输入兑换码');
+        if (!km) return;
+        redemptionPending = true;
+        $('#redeem-button').prop('disabled', true);
+        function reset() {
+            redemptionPending = false;
+            $('#redeem-button').prop('disabled', false);
+        }
+        x.ajax('/index/ajax/shop/activate', {km: km}, function (data) {
+            reset();
+            if (data.code == 1) {
+                $('#redeemed-account-limit').text('账号总数：' + data.data.account_limit_label + '（所有平台共用）');
+                $('#redeemed-vip-end').text(data.data.membership_label);
+                $('#km').val('');
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        }, function () {
+            reset();
+            x.notify('请求未完成，请刷新查看权益；已兑换的码不会重复生效', 'warning');
+        });
+    }
+</script>
+{/block}

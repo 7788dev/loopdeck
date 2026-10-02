@@ -1,0 +1,70 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>系统任务配置</h5>
+                </div>
+                <div class="ibox-content">
+                    <form class="form-horizontal" onsubmit="return false;" id="task-form">
+                        <div class="form-group">
+                            <label class="col-sm-3 control-label" for="local_cron">本地监控回路</label>
+                            <div class="col-sm-8">
+                                <select class="form-control" id="local_cron" name="local_cron">
+                                    <option value="0"{if condition="config('sys.local_cron') eq 0"}selected{/if}>关闭</option>
+                                    <option value="1"{if condition="config('sys.local_cron') eq 1"}selected{/if}>开启</option>
+                                </select>
+                                <p class="help-block text-muted">开启本地回路能使监控运行更迅速。本地回路主要用于解决开启CDN之后访问IP和源站IP不一样而导致无法监控或监控慢的问题。</p>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="col-sm-3 control-label" for="cronkey">监控文件运行密钥</label>
+                            <div class="col-sm-8">
+                                <input type="text" class="form-control" id="cronkey" name="cronkey" placeholder="..." value="{:config('sys.cronkey')}">
+                                <p class="help-block text-muted">默认为空。设置密钥后，你需要在所有监控文件后面加上 <u>?cronkey=你的密钥</u> 可防止监控文件被恶意执行</p>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="col-sm-3 control-label" for="interval">每次执行任务数量</label>
+                            <div class="col-sm-8">
+                                <input type="text" class="form-control" id="interval" name="interval" placeholder="..." value="{:config('sys.interval')}">
+                                <p class="help-block text-muted">每次运行任务数是指在单个系统内，每运行一次监控文件所能够执行的任务数，建议50</p>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="col-sm-3 control-label" for="reExecute_time">任务补挂间隔时间（秒）</label>
+                            <div class="col-sm-8">
+                                <input type="text" class="form-control" id="reExecute_time" name="reExecute_time" placeholder="..." value="{:config('sys.reExecute_time')}">
+                                <p class="help-block text-muted">用户申请补挂间隔的冷却时间，建议300</p>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="col-sm-offset-3 col-sm-8">
+                                <button type="submit" class="btn btn-primary" onclick="ajax_edit_config();">
+                                    <i class="fa fa-save"></i> 保存
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_edit_config() {
+        x.ajax('/admin/ajax/set/config', $('#task-form').serialize(), function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+</script>
+{/block}

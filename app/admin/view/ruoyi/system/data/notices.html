@@ -1,0 +1,75 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<link href="/static/css/wangEditor.min.css" rel="stylesheet">
+
+<style>
+    th,td {
+        white-space: nowrap;
+    }
+</style>
+
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>{$webTitle}</h5>
+                    <div class="ibox-tools">
+                        {if condition="config('web.web_id') eq 1"}
+                        <button type="button" class="btn btn-sm btn-success" onclick="ajax_add_notice2();">
+                            <i class="fa fa-plus"></i>添加后台公告
+                        </button>
+                        {/if}
+                        <button type="button" class="btn btn-sm btn-success" onclick="ajax_add_notice();">
+                            <i class="fa fa-plus"></i>添加公告
+                        </button>
+                    </div>
+                </div>
+                <div class="ibox-content">
+                    <table class="table table-bordered table-striped js-dataTable-responsive" id="noticesList">
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+
+<script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive-bs3/js/responsive.bootstrap.min.js"></script>
+
+<script src="/static/js/wangEditor.min.js"></script>
+
+<script src="/static/js/admin_noticesList_datatables.js"></script>
+{if condition="config('web.web_id') eq 1"}
+<script>
+    function ajax_add_notice2() {
+        layer.open({
+            title: "添加后台公告",
+            btn: ['添加', '取消'],
+            closeBtn: 0,
+            shadeClose: true,
+            area: ['50%', '50%'],//设置相对于父页面的大小
+            content: '<form id="add-form"><input type="hidden"id="id"name="id"><div class="form-floating mb-4"><input type="text"class="form-control"id="title"name="title"placeholder="."><label class="form-label"for="title">公告标题</label></div><div class="mb-4"><div id="toolbar-container"></div><div id="editor-container"></div></div></form>',
+            success:function (index, dom) {
+                loadwangEditor();
+            },
+            yes: function (index, dom) {
+                x.ajax('/admin/ajax/data/add/notice', {type: 2, title: $('#title').val(), content: content}, function (data) {
+                    if (data.code == 1) {
+                        var table = $("#noticesList").DataTable();
+                        table.ajax.reload();
+                        layer.closeAll();
+                        layer.msg(data.message);
+                    } else {
+                        layer.msg(data.message);
+                    }
+                })
+            },
+        });
+    }
+</script>
+{/if}
+{/block}

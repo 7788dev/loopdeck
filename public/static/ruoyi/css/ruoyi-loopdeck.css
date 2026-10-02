@@ -1,0 +1,138 @@
+/* LoopDeck × RuoYi 整体模板的自定义补充样式（在若依 style.min.css / ry-ui.css 之上） */
+
+body.signin {
+    background-image: linear-gradient(rgba(24, 41, 61, .48), rgba(24, 41, 61, .58)), url(../img/login-background.jpg);
+}
+.signinpanel form { background: rgba(255, 255, 255, .97); color: #334155; border: 0; border-radius: 6px; }
+.signinpanel a { color: #9be8d6; }
+.signinpanel form a { color: #337ab7; }
+
+/* 侧栏 VIP 分组标题：与原版一致使用薄荷绿，避免部分平台显示豆腐块 */
+.nav-heading {
+    padding: 10px 20px 5px;
+    color: #70DB93;
+    font-size: 12px;
+    letter-spacing: .04em;
+}
+
+/* 数据表格：DataTables + Bootstrap3 组合的细节对齐 */
+.dataTables_wrapper .dataTables_filter input {
+    margin-left: 8px;
+    min-width: 180px;
+}
+
+.dataTables_wrapper .dataTables_info {
+    padding-top: 8px !important;
+    font-size: 12px;
+    color: #676a6c;
+}
+
+.dataTables_wrapper .dataTables_paginate {
+    padding-top: 4px !important;
+}
+
+.dataTables_wrapper table.dataTable thead th {
+    border-bottom: 1px solid #e7eaec;
+}
+
+.table > thead > tr > th,
+.table > tbody > tr > td {
+    vertical-align: middle;
+}
+
+/* 页签栏滚动区域 */
+.content-tabs .page-tabs-content a.menuTab {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* 内容区最小高度，保证页面不至于过短 */
+#content-main .content {
+    min-height: 320px;
+}
+
+/* layer 弹层按钮配色与若依保持一致 */
+.layui-layer-btn .layui-layer-btn0 {
+    border-color: #1ab394;
+    background-color: #1ab394;
+}
+
+/* 业务表单的通用间距和响应式布局，限定在若依资源中。 */
+.ruoyi-title { display: inline-block; margin: 0; font-size: 14px; font-weight: 600; }
+.wrapper.animated { animation: none; }
+.mb-0 { margin-bottom: 0 !important; }
+.mb-1 { margin-bottom: 5px; }
+.mb-2 { margin-bottom: 10px; }
+.mb-3 { margin-bottom: 15px; }
+.mb-4 { margin-bottom: 20px; }
+.mt-4 { margin-top: 20px; }
+.me-1 { margin-right: 5px; }
+.me-2 { margin-right: 10px; }
+.p-0 { padding: 0; }
+.d-flex { display: flex; }
+.align-items-center { align-items: center; }
+.justify-content-between { justify-content: space-between; }
+.flex-wrap { flex-wrap: wrap; }
+.gap-2 { gap: 10px; }
+.fs-sm, .fs-xs { font-size: 12px; }
+.opacity-50 { opacity: .5; }
+.opacity-75 { opacity: .75; }
+.img-avatar { width: 64px; height: 64px; object-fit: cover; border-radius: 50%; }
+.img-avatar-thumb { border: 3px solid #fff; }
+.bg-pulse-lighter { background: #eef6f5; }
+.ruoyi-loading { opacity: .5; pointer-events: none; }
+.form-check { position: relative; padding-left: 22px; }
+.form-check-input { position: absolute; margin-left: -22px !important; }
+.form-floating label { display: block; margin-top: 5px; }
+.form-select { display: block; width: 100%; height: 34px; padding: 6px 12px; border: 1px solid #e5e6e7; background: #fff; color: #676a6c; }
+.btn-alt-primary { color: #fff; background: #1ab394; border-color: #1ab394; }
+.btn-alt-danger { color: #fff; background: #ed5565; border-color: #ed5565; }
+.btn-alt-secondary { color: #676a6c; background: #fff; border-color: #e7eaec; }
+.fa-trash-alt::before { content: "\f014"; }
+.task-table { width: 100% !important; }
+#content-main { overflow: auto; height: calc(100vh - 102px); padding-bottom: 40px; }
+.ibox-content { overflow-wrap: anywhere; }
+.ibox-content .table-responsive { border: 0; }
+@media (max-width: 767px) {
+    .wrapper-content { padding: 15px 10px; }
+    .ibox-tools { float: none; display: block; margin-top: 8px; }
+    .dataTables_wrapper .dataTables_filter input { min-width: 0; max-width: 150px; }
+}
+
+/* 若依侧栏 + PJAX 内容区共用一个页面，不嵌套 iframe。 */
+#wrapper { height: 100vh; overflow: hidden; }
+#page-wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 0; padding: 0; }
+#page-wrapper > .row { margin: 0; flex-shrink: 0; }
+#page-wrapper > #content-main { flex: 1 1 auto; min-height: 0; height: auto; overflow: auto; padding-bottom: 0; }
+.navbar-static-side { height: 100vh; overflow-y: auto; }
+.navbar-static-top { min-height: 50px; height: 50px; }
+.navbar-static-top .navbar-header { float: left; }
+.navbar-static-top .navbar-top-links { float: right; margin: 0; }
+.navbar-static-top .navbar-top-links > li > a { padding: 10px 18px; min-height: 50px; color: #fff; }
+.navbar-static-top .user-image { width: 28px; height: 28px; border-radius: 50%; margin-right: 8px; }
+.navbar-minimalize { display: block; padding: 16px 22px; color: #fff; }
+.content-tabs { display: flex; height: 40px; background: #fff; border-bottom: 1px solid #e7eaec; }
+.content-tabs .roll-nav { position: static; flex: 0 0 auto; height: 39px; border: 0; }
+.content-tabs nav.page-tabs { flex: 1 1 auto; min-width: 0; width: auto; height: 39px; margin: 0; overflow: hidden; }
+.content-tabs .page-tabs-content { width: max-content; white-space: nowrap; }
+.content-tabs .tab-reload { width: 60px; }
+.content-tabs .btn-group { width: auto; }
+.content-tabs .btn-group > button { height: 39px; }
+.footer { position: static; padding: 12px 20px; }
+.widget.style1 { min-height: 76px; }
+.widget.style1 .vertical-align { display: flex; align-items: center; }
+.widget.style1 .col-4 { width: 33.333%; }
+.widget.style1 .col-8 { width: 66.667%; }
+.widget.style1 .col-4, .widget.style1 .col-8 { padding: 0 15px; }
+@media (max-width: 767px) {
+    body:not(.mini-navbar) .navbar-static-side { display: block; visibility: hidden; transform: translateX(-200px); }
+    body.fixed-sidebar.mini-navbar .navbar-static-side { display: block; visibility: visible; width: 200px; transform: none; z-index: 2001; top: 50px; height: calc(100vh - 50px); }
+    body.fixed-sidebar.mini-navbar .nav-label, body.fixed-sidebar.mini-navbar .nav-header .profile-element { display: inline !important; }
+    body.fixed-sidebar.mini-navbar .logo-element { display: none; }
+    body.fixed-sidebar.mini-navbar .navbar-static-side .nav > li > a { padding: 14px 20px; font-size: 13px; }
+    body.fixed-sidebar.mini-navbar .nav-second-level { position: static; width: auto; margin-left: 0; }
+    body.fixed-sidebar.mini-navbar #page-wrapper, #page-wrapper { margin-left: 0; }
+    .content-tabs .btn-group { display: none; }
+}
+
+@media (max-width: 767px) { .widget.style1 { margin-bottom: 12px !important; } }

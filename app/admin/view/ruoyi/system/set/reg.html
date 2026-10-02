@@ -1,0 +1,88 @@
+{extend name="common/layout"/}
+{block name="head"} {include file="system/head" /}{/block}
+{block name="main"}
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>{$webTitle} <small>你可以在这里配置注册账号</small></h5>
+                </div>
+                <div class="ibox-content">
+                    <form class="form-horizontal" onsubmit="return false;" id="reg-form">
+                        <div class="form-group">
+                            <label class="col-sm-3 control-label">关闭注册</label>
+                            <div class="col-sm-8">
+                                <select class="form-control" id="reg_close" name="reg_close" default="{:config('sys.reg_close')}">
+                                    <option value="0">开启注册</option>
+                                    <option value="1" {if condition="config('sys.reg_close') eq 1" }selected {/if}>关闭注册</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="col-sm-3 control-label">IP限制</label>
+                            <div class="col-sm-8">
+                                <select class="form-control" id="reg_iplimit" name="reg_iplimit" default="{:config('sys.reg_iplimit')}">
+                                    <option value="0">关闭限制</option>
+                                    <option value="1" {if condition="config('sys.reg_iplimit') eq 1" }selected {/if}>开启限制</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="col-sm-3 control-label">赠送VIP</label>
+                            <div class="col-sm-8">
+                                <select class="form-control" id="reg_give_type" name="reg_free_vip" default="{:config('sys.reg_free_vip')}">
+                                    <option value="0">关闭</option>
+                                    <option value="1" {if condition="config('sys.reg_free_vip') eq 1" }selected {/if}>开启</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="col-sm-3 control-label" for="reg_free_vip_day">赠送会员天数</label>
+                            <div class="col-sm-8">
+                                <input type="text" class="form-control" id="reg_free_vip_day" name="reg_free_vip_day" value="{:config('sys.reg_free_vip_day')}" placeholder="输入赠送的天数">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="col-sm-3 control-label">赠送配额</label>
+                            <div class="col-sm-8">
+                                <select class="form-control" id="reg_free_quota" name="reg_free_quota" default="{:config('sys.reg_free_quota')}">
+                                    <option value="0">关闭</option>
+                                    <option value="1" {if condition="config('sys.reg_free_quota') eq 1" }selected {/if}>开启</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="col-sm-3 control-label" for="reg_free_quota_num">赠送配额个数</label>
+                            <div class="col-sm-8">
+                                <input type="text" class="form-control" id="reg_free_quota_num" name="reg_free_quota_num" value="{:config('sys.reg_free_quota_num')}" placeholder="输入赠送的个数">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="col-sm-offset-3 col-sm-8">
+                                <button type="submit" class="btn btn-primary" onclick="ajax_edit_config();">
+                                    <i class="fa fa-save"></i> 保存
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    <p class="text-muted">关闭赠送或赠送数量为 0 时，新用户初始配额为 0。管理员可在用户管理中设置配额，或生成兑换码交给用户兑换。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+{block name="foot"}
+<script>
+    function ajax_edit_config() {
+        x.ajax('/admin/ajax/set/config', $('#reg-form').serialize(), function (data) {
+            if (data.code == 1) {
+                x.notify(data.message, 'success');
+            } else {
+                x.notify(data.message, 'warning');
+            }
+        })
+    }
+</script>
+{/block}

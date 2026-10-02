@@ -23,8 +23,8 @@ function scripts(file) {
 }
 
 function environment() {
-    const state = {closed: false, sent: [], values: {'#timing': '18:35', '#km': 'fixture-code'}};
-    const chain = {pjax() {return this;}, on() {return this;}, each() {return this;}, ready() {return this;},
+    const state = {closed: false, sent: [], events: {}, values: {'#timing': '18:35', '#km': 'fixture-code'}};
+    const chain = {pjax() {return this;}, on(event, handler) {state.events[event] = handler; return this;}, each() {return this;}, ready() {return this;},
         DataTable() {return {ajax: {reload() {}}};},
         find() {return this;}, prop(name, value) {state[name] = value; return this;},
         parseForm() {return state.closed ? {} : {selected: 'saved-value'};}};
@@ -137,6 +137,36 @@ for (const [platform, functions] of Object.entries({netease: ['musicianTask', 'e
     assert.equal(typeof context.x.ajax, 'function', 'Login pages must work without optional clipboard and PJAX plugins');
 }
 console.log('Frontend interaction tests passed');
+
+// Execute the actual navigation-completion handler for both shells and breakpoint edges.
+for (const [theme, widths] of [['default', [390, 991, 992, 1440]], ['ruoyi', [390, 767, 768, 1440]]]) {
+    for (const width of widths) {
+        for (const initiallyOpen of [true, false]) {
+            const {state, context} = environment();
+            let open = initiallyOpen, completed = 0, refreshed = 0;
+            context.window.innerWidth = width;
+            context.$.fn.pjax = () => {};
+            context.NProgress = {done() {completed++;}};
+            const originalSelector = context.$;
+            const selector = value => Object.assign(originalSelector(value), {
+                removeClass(name) { if (value === 'body' && name === 'mini-navbar') open = false; return this; }
+            });
+            selector.fn = context.$.fn;
+            context.$ = context.jQuery = selector;
+            if (theme === 'default') context.Codebase.layout = action => {if (action === 'sidebar_close') open = false;};
+            else delete context.Codebase;
+            vm.runInContext(read('public/static/js/app.min.js'), context);
+            context.x.reload = () => {refreshed++;};
+            state.events['pjax:complete']();
+            state.events['pjax:complete']();
+            const mobile = width < (theme === 'default' ? 992 : 768);
+            assert.equal(open, mobile ? false : initiallyOpen, `${theme} at ${width}px changed the desktop sidebar preference`);
+            assert.equal(completed, 2, 'Navigation must finish the progress indicator');
+            assert.equal(refreshed, 2, 'Navigation must still refresh active menu and tabs');
+        }
+    }
+}
+console.log('Sidebar navigation state and responsive boundaries passed');
 
 
 // Run the real updater controller against a small DOM and controlled network.

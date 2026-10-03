@@ -1,50 +1,48 @@
 {extend name="common/layout"/}
 {block name="head"} {include file="console/head" /}{/block}
 {block name="main"}
-<div class="content">
+<div class="wrapper wrapper-content animated fadeInUp">
     <div class="row">
         <div class="col-md-12">
             <form method="POST">
-                <div class="block block-themed block-rounded">
-                    <div class="block-header bg-flat-light">
-                        <h3 class="block-title">收款码三合一</h3>
+                <div class="ibox float-e-margins">
+                    <div class="ibox-title">
+                        <h5>收款码三合一</h5>
                     </div>
-                    <div class="block-content">
-                        <div class="row justify-content-center py-sm-3 py-md-5">
-                            <div class="col-sm-10 col-md-8">
-                                <div class="mb-4">
-                                    <label class="form-label" for="alipay">支付宝</label>
+                    <div class="ibox-content">
+                        <div class="row">
+                            <div class="col-sm-10 col-md-8 col-md-offset-2">
+                                <div class="form-group">
+                                    <label class="control-label" for="alipay">支付宝</label>
                                     <input class="form-control" type="file" id="alipay" name="alipay_file" accept="image/*">
                                     <input type="hidden" name="alipay_url" id="alipay_url" value="">
                                 </div>
-                                <div class="mb-4">
-                                    <label class="form-label" for="qq">QQ</label>
+                                <div class="form-group">
+                                    <label class="control-label" for="qq">QQ</label>
                                     <input class="form-control" type="file" id="qq" name="qq_file" accept="image/*">
                                     <input type="hidden" name="qq_url" id="qq_url" value="">
                                 </div>
-                                <div class="mb-4">
-                                    <label class="form-label" for="wechat">微信</label>
+                                <div class="form-group">
+                                    <label class="control-label" for="wechat">微信</label>
                                     <input class="form-control" type="file" id="wechat" name="wechat_file" accept="image/*">
                                     <input type="hidden" name="wechat_url" id="wechat_url" value="">
                                 </div>
-                                <div class="mb-4">
-                                    <label class="form-label" for="name">收款识别码</label>
+                                <div class="form-group">
+                                    <label class="control-label" for="name">收款识别码</label>
                                     <input class="form-control" type="text" id="name" name="name" placeholder="用于本站管理和展示收款码的识别码">
                                 </div>
-                                <div id="qrcode" class="mb-4 text-center">
+                                <div id="qrcode" class="text-center">
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="text-center">
-                        <div class="block-content block-content-full block-content-sm bg-body-light">
-                            <button type="button" class="btn btn-alt-info" onclick="ajax_create_qrcode();">
-                                <i class="fa fa-check opacity-50 me-1"></i> 生成
-                            </button>
-                            <button type="reset" class="btn btn-alt-secondary">
-                                <i class="fa fa-sync-alt opacity-50 me-1"></i> 重置
-                            </button>
-                        </div>
+                    <div class="ibox-content text-center">
+                        <button type="button" class="btn btn-info" onclick="ajax_create_qrcode();">
+                            <i class="fa fa-check"></i> 生成
+                        </button>
+                        <button type="reset" class="btn btn-default">
+                            <i class="fa fa-refresh"></i> 重置
+                        </button>
                     </div>
                 </div>
             </form>
@@ -108,7 +106,7 @@
         }, function (res) {
             if (res.code == 1) {
                 x.notify(res.message, 'success');
-                $('#qrcode').html('<img id="qrcode-img" src="data:image/png;base64,'+ res.data +'" height="200" alt="收款二维码"><br><br><button type="button" onclick="ajax_downloadImg()" class="btn btn-alt-primary"><i class="si si-cloud-download"></i> 下载 </button>');
+                $('#qrcode').html('<img id="qrcode-img" src="data:image/png;base64,'+ res.data +'" height="200" alt="收款二维码"><br><br><button type="button" onclick="ajax_downloadImg()" class="btn btn-primary"><i class="fa fa-cloud-download"></i> 下载 </button>');
             } else {
                 x.notify(res.message, 'warning');
             }

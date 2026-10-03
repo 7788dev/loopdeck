@@ -5,18 +5,23 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const pages = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const version = fs.readFileSync(path.join(__dirname, '../VERSION'), 'utf8').trim();
-const shellPages = ['index/console/index.html', 'admin/system/index.html',
-    'index/ruoyi/console/index.html', 'admin/ruoyi/system/index.html'];
+const shellPages = ['index/console/index.html', 'admin/system/index.html'];
 for (const name of shellPages) assert.ok(pages[name], `Missing rendered navigation shell: ${name}`);
 let count = 0;
-for (const page of ['admin/system/data/kms.html', 'admin/ruoyi/system/data/kms.html']) {
+for (const page of ['admin/system/data/kms.html']) {
     if (pages[page]) require('./RedemptionFormInteraction.js')(pages[page]);
 }
 for (const [file, html] of Object.entries(pages)) {
+    for (const match of html.matchAll(/<(?:script|link|img)\b[^>]*\b(?:src|href)=["'](\/static\/[^"']+)["']/gi)) {
+        const url = new URL(match[1].replace(/&amp;/g, '&'), 'http://fixture.local');
+        assert.ok(fs.existsSync(path.join(__dirname, '../public', decodeURIComponent(url.pathname))),
+            `${file}: missing local asset ${url.pathname}`);
+    }
+
     const themeStyles = [...html.matchAll(/<link\b[^>]*\bhref=["']([^"']+)["']/gi)]
         .map(match => new URL(match[1].replace(/&amp;/g, '&'), 'http://fixture.local'))
         .filter(url => url.pathname === '/static/ruoyi/css/ruoyi-loopdeck.css');
-    if (shellPages.includes(file) && file.includes('/ruoyi/')) {
+    if (shellPages.includes(file)) {
         assert.equal(themeStyles.length, 1, `${file}: shared visual styles missing or duplicated`);
     }
     for (const url of themeStyles) assert.equal(url.searchParams.get('v'), version, `${file}: stale theme styles can survive an upgrade`);

@@ -49,6 +49,12 @@ foreach (['app/index/controller/Epay.php', 'app/index/controller/Alipay.php',
 foreach (['extend/epay', 'extend/alipay', 'app/admin/view/system/pay'] as $directory) {
     removalCheck(glob($root . '/' . $directory . '/*') === [], 'Payment SDK or settings remain');
 }
+removalCheck((new System())->set('template')->getCode() === 404, 'Template chooser remains reachable');
+foreach (['app/index/view/index/default', 'app/index/view/login/default', 'public/static/template',
+    'public/static/css/themes', 'public/static/js/codebase.app.min-5.0.js',
+    'app/admin/view/system/set/template.html'] as $path) {
+    removalCheck(!file_exists($root . '/' . $path), 'Original template remains: ' . $path);
+}
 $schema = file_get_contents($root . '/app/install/install.sql');
 removalCheck(!preg_match('/cloud_(?:pays|order)|vip_price_|quota_price_|OrderPlacementMethod|`money`/', $schema),
     'Fresh installation recreates payment schema or settings');
@@ -121,6 +127,7 @@ foreach ([
             ob_end_clean();
         }
         removalCheck($html !== '', 'Remaining page failed to render: ' . $view);
+        removalCheck(!str_contains($html, '/admin/system/set/template'), 'Template chooser navigation remains');
         removalCheck(!preg_match('/分站|代理|抖音|\/console\/douyin|\/shop\/(?:agent|site)/u', $html),
             'Retired navigation reappeared with legacy settings: ' . $view);
         removalCheck(!preg_match('/购买|充值|支付配置|价格设置|余额|\/shop\/(?:vip|quota|money)|\/system\/pay/u', $html),

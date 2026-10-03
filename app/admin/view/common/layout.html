@@ -7,6 +7,7 @@
 {else /}
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="utf-8">
     <meta name="referrer" content="no-referrer">
@@ -15,46 +16,56 @@
     <meta content="{:config('web.keywords')}" name="keywords">
     <meta content="{:config('web.description')}" name="description">
     <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
-    <link href="/static/js/plugins/datatables-bs5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/js/plugins/datatables-responsive-bs5/css/responsive.bootstrap5.min.css">
+    <link href="/static/ruoyi/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/font-awesome.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/animate.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/style.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/skins.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/ry-ui.css" rel="stylesheet">
+    <link href="/static/js/plugins/datatables-bs3/css/dataTables.bootstrap.min.css" rel="stylesheet">
+    <link href="/static/js/plugins/datatables-responsive-bs3/css/responsive.bootstrap.min.css" rel="stylesheet">
     <link href="/static/css/nprogress.min.css" rel="stylesheet">
-    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
-    <link id="css-theme" rel="stylesheet" href="/static/css/themes/elegance.min-5.0.css">
-    <link href="/static/tubiao/fontawesome-free-5.15.4-web/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/js/plugins/flatpickr/flatpickr.min.css">
+    <link href="/static/ruoyi/css/ruoyi-loopdeck.css?v={:app_version()}" rel="stylesheet">
 </head>
-<body>
-<div id="page-container" class="sidebar-o side-scroll page-header-fixed main-content-boxed remember-theme">
+<body class="fixed-sidebar full-height-layout gray-bg skin-blue theme-dark" style="overflow: hidden">
+<div id="wrapper">
     {block name='head'}{/block}
-    <main id="main-container">
-        <div id="page-overlay"></div>
-        <div class="content" id="pjax-container">
-            {block name="main"}{/block}
+    <div class="content" id="pjax-container">
+        {block name="main"}{/block}
+    </div>
+    </div><!-- #content-main -->
+    <div class="footer">
+        <div class="pull-right">
+            <a href="https://beian.miit.gov.cn/" target="_blank">{:config('web.icp')}</a>
         </div>
-    </main>
-    <footer id="page-footer">
-        <div class="content py-3">
-            <div class="row fs-sm">
-                <div class="col-sm-6 order-sm-2 py-1 text-center text-sm-end">
-                    <a href="https://beian.miit.gov.cn/" target="_blank" class="text-muted fw-semibold">{:config('web.icp')}</a>
-                </div>
-                <div class="col-sm-6 order-sm-1 py-1 text-center text-sm-start">
-                    &copy; <span data-toggle="year-copy"></span>   <span class="fw-semibold">{:config('web.webname')}</span>
-                </div>
-            </div>
-        </div>
-    </footer>
+        <div>&copy; {:date('Y')} {:config('web.webname')}</div>
+    </div>
+    </div>
 </div>
-<script src="/static/js/codebase.app.min-5.0.js"></script>
-<script src="/static/js/lib/jquery.min.js"></script>
+<script>
+    // DataTables 皮肤由整体模板决定：若依使用 Bootstrap3 组合
+    window.LOOPDECK_DT_CLASSES = {
+        sWrapper: "dataTables_wrapper form-inline dt-bootstrap",
+        sFilterInput: "form-control input-sm",
+        sLengthSelect: "form-control input-sm"
+    };
+</script>
+<script src="/static/ruoyi/js/jquery.min.js"></script>
+<script src="/static/ruoyi/js/bootstrap.min.js"></script>
 <script src="/static/js/jquery.pjax.js"></script>
+<script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="/static/js/plugins/datatables-bs3/js/dataTables.bootstrap.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive-bs3/js/responsive.bootstrap.min.js"></script>
 <script src="/static/js/plugins/bootstrap-notify/bootstrap-notify.min.js"></script>
+<script src="/static/js/plugins/flatpickr/flatpickr.min.js"></script>
 <script src="/static/js/nprogress.min.js"></script>
 <script src="/static/js/jquery.slimscroll.min.js"></script>
 <script src="/static/js/clipboard.min.js"></script>
-<script src="/static/js/app.min.js?v={:app_version()}"></script>
+
 <script src="/static/js/layer.js"></script>
-</body>
-</html>
+<script src="/static/js/app.min.js?v={:app_version()}"></script>
 <script>
     function clearLogs()
     {
@@ -66,7 +77,7 @@
             shadeClose: true,
             zIndex: '1000',
             area: '320px',
-            content: '<div class="form-floating"><input type="number" class="form-control" id="limit" name="limit" placeholder="清理数量" value="50"><label class="form-label" for="limit">清理数量</label></div>',
+            content: '<div class="form-group"><input type="number" class="form-control" id="limit" name="limit" placeholder="清理数量" value="50"><label class="control-label" for="limit">清理数量</label></div>',
             yes: function (index, dom) {
                 const limit = x.getval('#limit');
                 layer.close(index);
@@ -81,5 +92,19 @@
         });
     }
 </script>
+<!-- 通用模态窗口（x.mode 弹窗载体） -->
+<div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="关闭"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="modal-title">标题文本</h4>
+            </div>
+            <div class="modal-body" id="modal-content"></div>
+        </div>
+    </div>
+</div>
 {block name="foot"}{/block}
+</body>
+</html>
 {/if}

@@ -1,91 +1,98 @@
 {extend name="common/layout"/}
 {block name="head"} {include file="console/head" /}{/block}
 {block name="main"}
-<style>
-    #notice p {
-        display:inline;
-    }
-</style>
-<div class="block block-rounded bg-gd-dusk mb-2">
-    <div class="block-content bg-white-5">
-        <div class="py-4 text-center">
-            <h1 class="h2 fw-bold text-white mb-2">{:config('web.webname')}</h1>
-            <h2 class="h5 fw-medium text-white-75">{:config('web.title')}</h2>
+<div class="wrapper wrapper-content ld-dashboard">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-content ld-dashboard-heading">
+                    <h1 class="font-bold">{:config('web.webname')}</h1>
+                    <p class="text-muted">{:config('web.title')}</p>
+                </div>
+            </div>
         </div>
     </div>
-</div>
-<div class="row g-sm mb-1">
-    <div class="col-4 col-md-4 col-xl-2">
-        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/shop/card')}">
-            <div class="block-content">
-                <p class="my-3">
-                    <i class="fa fa-layer-group fa-2x"></i>
-                </p>
-                <p class="fw-semibold fs-sm">兑换码兑换</p>
-            </div>
-        </a>
-    </div>
-    <div class="col-4 col-md-4 col-xl-2">
-        {php}
-        $loca = 'http://wpa.qq.com/msgrd?v=3&uin=' . config('web.user_qq') . '&site=qq&menu=yes';
-        $http_agent = strtolower((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
-        if(strpos($http_agent,'windows nt')){
-            $loca = 'tencent://ContactInfo/?subcmd=ViewInfo&puin=0&uin=' . config('web.user_qq');
-        }elseif(strpos($http_agent,'iphone')){
-            $loca = 'mqq://im/chat?chat_type=wpa&uin=' . config('web.user_qq') . '&version=1&src_type=web';
-        } elseif(strpos($http_agent,'android')){
-            $loca = 'mqq://card/show_pslcard?src_type=internal&version=1&uin=' . config('web.user_qq') . '&card_type=person&source=sharecard';
-        }
-        {/php}
-        <a class="block block-rounded block-link-shadow text-center" href="{$loca}">
-            <div class="block-content">
-                <p class="my-3">
-                    <i class="fa fa-headset fa-2x"></i>
-                </p>
-                <p class="fw-semibold fs-sm">联系客服</p>
-            </div>
-        </a>
-    </div>
-    <div class="col-4 col-md-4 col-xl-2">
-        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/user/faq')}">
-            <div class="block-content">
-                <p class="my-3">
-                    <i class="fa fa-hands-helping fa-2x"></i>
-                </p>
-                <p class="fw-semibold fs-sm">帮助中心</p>
-            </div>
-        </a>
-    </div>
-    <div class="col-4 col-md-4 col-xl-2">
-        <a class="block block-rounded block-link-shadow text-center" href="{:url('/index/console/user/profile')}">
-            <div class="block-content">
-                <p class="my-3">
-                    <i class="fa fa-id-card fa-2x"></i>
-                </p>
-                <p class="fw-semibold fs-sm">个人资料</p>
-            </div>
-        </a>
-    </div>
-</div>
-<div class="row">
-    <div class="col-lg-8 mb-2">
-        <div class="block block-rounded mb-0">
-            <div class="block-header block-header-default">
-                <h3 class="block-title">公告通知</h3>
-            </div>
-            <div class="block-content block-content-full" data-toggle="slimscroll" data-height="259px">
-                <div class="fw-medium fs-sm">
-                    {php}
-                    $empty = '<div class="col-12">
-                    <div class="block block-rounded">
-                        <div class="block-content text-center">
-                            <i class="si si-disc fa-2x"></i><br>
-                            <p class="text-muted fs-sm">
-                                暂无公告
-                            </p>
+    <div class="row">
+        <div class="col-sm-6 col-md-3">
+            <a class="menuItem" data-pjax href="{:url('/index/console/shop/card')}">
+                <div class="ld-shortcut">
+                    <div class="row vertical-align">
+                        <div class="col-xs-4 text-center">
+                            <i class="fa fa-ticket"></i>
+                        </div>
+                        <div class="col-xs-8 text-right">
+                            <span> 兑换码兑换 </span>
                         </div>
                     </div>
-                </div>';
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-3">
+            {php}
+            $loca = 'http://wpa.qq.com/msgrd?v=3&uin=' . config('web.user_qq') . '&site=qq&menu=yes';
+            $http_agent = strtolower((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
+            if(strpos($http_agent,'windows nt')){
+            $loca = 'tencent://ContactInfo/?subcmd=ViewInfo&puin=0&uin=' . config('web.user_qq');
+            }elseif(strpos($http_agent,'iphone')){
+            $loca = 'mqq://im/chat?chat_type=wpa&uin=' . config('web.user_qq') . '&version=1&src_type=web';
+            } elseif(strpos($http_agent,'android')){
+            $loca = 'mqq://card/show_pslcard?src_type=internal&version=1&uin=' . config('web.user_qq') . '&card_type=person&source=sharecard';
+            }
+            {/php}
+            <a href="{$loca}">
+                <div class="ld-shortcut">
+                    <div class="row vertical-align">
+                        <div class="col-xs-4 text-center">
+                            <i class="fa fa-headphones"></i>
+                        </div>
+                        <div class="col-xs-8 text-right">
+                            <span> 联系客服 </span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-3">
+            <a class="menuItem" data-pjax href="{:url('/index/console/user/faq')}">
+                <div class="ld-shortcut">
+                    <div class="row vertical-align">
+                        <div class="col-xs-4 text-center">
+                            <i class="fa fa-question-circle"></i>
+                        </div>
+                        <div class="col-xs-8 text-right">
+                            <span> 帮助中心 </span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-3">
+            <a class="menuItem" data-pjax href="{:url('/index/console/user/profile')}">
+                <div class="ld-shortcut">
+                    <div class="row vertical-align">
+                        <div class="col-xs-4 text-center">
+                            <i class="fa fa-id-card"></i>
+                        </div>
+                        <div class="col-xs-8 text-right">
+                            <span> 个人资料 </span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+    <div class="row" style="margin-top: 15px;">
+        <div class="col-lg-8">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>公告通知</h5>
+                </div>
+                <div class="ibox-content" data-toggle="slimscroll" data-height="259px">
+                    {php}
+                    $empty = '<div class="text-center text-muted" style="padding: 30px 0;">
+                        <i class="fa fa-bullhorn fa-2x"></i>
+                        <p>暂无公告</p>
+                    </div>';
                     {/php}
                     {volist name="$notice" id="arr" empty="$empty"}
                     {php}
@@ -93,101 +100,98 @@
                     $alert = $arr['content'];
                     }
                     {/php}
-                    <div class="border-start border-4 rounded-2 border-primary mb-2">
-                        <div class="rounded p-2 text-pulse-light" id="notice">
-                            <p class="m-1">{:safe_html($arr.content)}</p>
-                            <br/>
-                            <p class="m-2 text-muted">{:date("Y-m-d H:i", $arr.addtime)}</p>
+                    <div class="feed-activity-list" id="notice">
+                        <div class="feed-element">
+                            <div>
+                                <small class="text-muted">{:date("Y-m-d H:i", $arr.addtime)}</small>
+                                <div class="m-t-xs">{:safe_html($arr.content)}</div>
+                            </div>
                         </div>
                     </div>
                     {/volist}
                 </div>
             </div>
         </div>
-    </div>
-    <div class="col-lg-4">
-        <a class="block block-rounded block-link-shadow text-center h-100 mb-0" href="#">
-            <div class="block-content bg-gd-dusk">
-                <div class="push">
-                    <img class="img-avatar img-avatar-thumb" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100" alt="用户头像">
-                </div>
-                <div class="pull-x pull-b py-2 bg-black-25">
-                    <div class="fw-semibold mb-1 text-white">
-                        <i class="fa fa-star text-white-75 ms-1"></i> {:session('user.nickname')}
-                        <span class="fs-xs">UID: {:session('user.uid')}</span>
-                    </div>
+        <div class="col-lg-4">
+            <div class="ibox float-e-margins">
+                <div class="ibox-content text-center ld-account-summary">
+                    <img alt="用户头像" class="img-circle" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100">
+                    <h3 class="font-bold m-xs">
+                        {:session('user.nickname')}
+                    </h3>
+                    <div class="text-muted m-xs">UID: {:session('user.uid')}</div>
                     {if session('user.vip_start')}
-                    <div class="fs-sm text-white-75">{:membership_label(session('user.vip_end'))}</div>
+                    <div class="text-muted m-xs">{:membership_label(session('user.vip_end'))}</div>
                     {else /}
-                    <div class="fs-sm text-white-75">普通用户</div>
+                    <div class="text-muted m-xs">普通用户</div>
                     {/if}
-                    <div class="fs-sm text-white-75">账号总数 {:account_limit_label(session('user.quota'))}，已使用 {$quota_used} 个，所有平台共用</div>
+                    <div class="text-muted m-xs">账号总数 {:account_limit_label(session('user.quota'))}，已使用 {$quota_used} 个，所有平台共用</div>
                 </div>
-            </div>
-            <div class="block-content">
-                <div class="row items-push text-center">
-                    <div class="col-6">
-                        <div class="mb-1"><i class="si si-user fa-2x"></i></div>
-                        <div class="fs-sm fw-medium text-muted">{:session('user.power') == 6 ? '管理员' : '普通用户'}</div>
+                <div class="ibox-content">
+                    <div class="row text-center">
+                        <div class="col-xs-6">
+                            <i class="fa fa-user fa-2x text-navy"></i>
+                            <div class="text-muted">{:session('user.power') == 6 ? '管理员' : '普通用户'}</div>
+                        </div>
+                        <div class="col-xs-6">
+                            <i class="fa fa-ticket fa-2x text-info"></i>
+                            <div class="text-muted">账号总数：{:account_limit_label(session('user.quota'))}</div>
+                        </div>
                     </div>
-                    <div class="col-6">
-                        <div class="mb-1"><i class="fa fa-layer-group fa-2x"></i></div>
-                        <div class="fs-sm fw-medium text-muted">账号总数：{:account_limit_label(session('user.quota'))}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-sm-6 col-md-3">
+            <div class="ld-stat-card">
+                <div class="row">
+                    <div class="col-xs-4">
+                        <i class="fa fa-users fa-2x"></i>
+                    </div>
+                    <div class="col-xs-8 text-right">
+                        <span class="font-bold">{$user_count}</span>
+                        <small>用户数量</small>
                     </div>
                 </div>
             </div>
-        </a>
-    </div>
-</div>
-<div class="row g-sm mt-2">
-    <div class="col-6 col-xl-3">
-        <div class="block block-rounded text-end">
-            <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
-                <div class="d-none d-sm-block">
-                    <i class="si si-bar-chart fa-2x text-primary-light"></i>
-                </div>
-                <div class="text-end">
-                    <div class="fs-3 fw-semibold text-primary">{$user_count}</div>
-                    <div class="fs-sm fw-semibold text-uppercase text-muted">用户数量</div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+            <div class="ld-stat-card">
+                <div class="row">
+                    <div class="col-xs-4">
+                        <i class="fa fa-cloud fa-2x"></i>
+                    </div>
+                    <div class="col-xs-8 text-right">
+                        <span class="font-bold">{$account_count}</span>
+                        <small>托管账号</small>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-    <div class="col-6 col-xl-3">
-        <div class="block block-rounded text-end">
-            <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
-                <div class="d-none d-sm-block">
-                    <i class="si si-trophy fa-2x text-earth-light"></i>
-                </div>
-                <div class="text-end">
-                    <div class="fs-3 fw-semibold text-earth">{$account_count}</div>
-                    <div class="fs-sm fw-semibold text-uppercase text-muted">托管账号</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-xl-3">
-        <div class="block block-rounded text-end">
-            <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
-                <div class="d-none d-sm-block">
-                    <i class="si si-bar-chart fa-2x text-elegance-light"></i>
-                </div>
-                <div class="text-end">
-                    <div class="fs-3 fw-semibold text-elegance">{$job_count}</div>
-                    <div class="fs-sm fw-semibold text-uppercase text-muted">添加任务</div>
+        <div class="col-sm-6 col-md-3">
+            <div class="ld-stat-card">
+                <div class="row">
+                    <div class="col-xs-4">
+                        <i class="fa fa-bar-chart-o fa-2x"></i>
+                    </div>
+                    <div class="col-xs-8 text-right">
+                        <span class="font-bold">{$job_count}</span>
+                        <small>添加任务</small>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-    <div class="col-6 col-xl-3">
-        <div class="block block-rounded text-end">
-            <div class="block-content block-content-full d-sm-flex justify-content-between align-items-center border-black-op-b border-3">
-                <div class="d-none d-sm-block">
-                    <i class="si si-fire fa-2x text-corporate-light"></i>
-                </div>
-                <div class="text-end">
-                    <div class="fs-3 fw-semibold text-pulse">{$execute_count}</div>
-                    <div class="fs-sm fw-semibold text-uppercase text-muted">运行次数</div>
+        <div class="col-sm-6 col-md-3">
+            <div class="ld-stat-card">
+                <div class="row">
+                    <div class="col-xs-4">
+                        <i class="fa fa-fire fa-2x"></i>
+                    </div>
+                    <div class="col-xs-8 text-right">
+                        <span class="font-bold">{$execute_count}</span>
+                        <small>运行次数</small>
+                    </div>
                 </div>
             </div>
         </div>
@@ -197,7 +201,11 @@
 {block name="foot"}
 <script>
     $(function () {
-        jQuery(function(){Codebase.helpers('jq-slimscroll');});
+        if (jQuery.fn.slimScroll) {
+            $('[data-toggle="slimscroll"]').each(function () {
+                $(this).slimScroll({height: $(this).data('height') || '259px'});
+            });
+        }
     })
     {if condition="isset($alert)"}
     if (getCookie('alert_msg') !== '0') {

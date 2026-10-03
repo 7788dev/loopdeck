@@ -5,208 +5,231 @@
     .task-table td {
         white-space: nowrap;
     }
+    /* 数据库任务图标使用 Codebase 的 si 字体名，若依主题仅加载 Font Awesome 4.7，
+       这里用 :before 把用到的 si-* 图标映射为语义相近的 fa 图标（纯样式，无逻辑改动）。 */
+    .fa.si:before {
+        font-family: FontAwesome;
+        font-weight: normal;
+        font-style: normal;
+        display: inline-block;
+    }
+    .fa.si-badge:before { content: "\f0a3"; }
+    .fa.si-camcorder:before { content: "\f03d"; }
+    .fa.si-compass:before { content: "\f14e"; }
+    .fa.si-diamond:before { content: "\f219"; }
+    .fa.si-drawer:before { content: "\f01c"; }
+    .fa.si-earphones:before { content: "\f025"; }
+    .fa.si-fire:before { content: "\f06d"; }
+    .fa.si-flag:before { content: "\f024"; }
+    .fa.si-game-controller:before { content: "\f11b"; }
+    .fa.si-graduation:before { content: "\f19d"; }
+    .fa.si-heart:before { content: "\f004"; }
+    .fa.si-music-tone-alt:before { content: "\f001"; }
+    .fa.si-paper-plane:before { content: "\f1d8"; }
+    .fa.si-present:before { content: "\f06b"; }
+    .fa.si-rocket:before { content: "\f135"; }
+    .fa.si-screen-desktop:before { content: "\f108"; }
+    .fa.si-trophy:before { content: "\f091"; }
 </style>
-<div class="row">
-    <div class="col-xl-4">
-        <div class="block block-rounded">
-            <div class="block-content">
-                <a class="btn btn-lg btn-alt-primary w-100 mb-1" href="/index/console/netease/add">更新账号</a>
-                <p class="text-center fw-semibold fs-xs text-muted">若账号失效请及时更新</p>
-            </div>
-        </div>
-        <div class="block block-rounded block-link-shadow text-center" href="javascript:void(0)">
-            <div class="block-header block-header-default">
-                <h3 class="block-title">
-                    <i class="fa fa-fw fa-graduation-cap opacity-50"></i>
-                    基本信息
-                </h3>
-            </div>
-            <div class="block-content block-content-full">
-                <div class="push">
-                    <img alt="" class="img-avatar" src="{$a_data.avatar}">
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="ibox float-e-margins">
+                <div class="ibox-content">
+                    <a class="btn btn-lg btn-primary btn-block" href="/index/console/netease/add">更新账号</a>
+                    <p class="text-center text-muted" style="margin-top: 10px; margin-bottom: 0;"><small><b>若账号失效请及时更新</b></small></p>
                 </div>
-                <div class="fw-semibold mb-1">{$a_data.nickname} ·
-                    {if condition="$data.state eq 1 && $timing neq ''"}
-                    <span class="text-success">运行中</span>
-                    {elseif condition="$data.state eq 1"}
-                    <span class="text-warning">等待设置挂机时间</span>
-                    {else}
-                    <span class="text-danger">已失效</span>
-                    {/if}
-                </div>
-                <div class="fs-sm text-muted">{$signature}</div>
-                <hr>
-                <div class="mt-1">
-                    <span class="text-muted fs-sm">
-                        挂机时间：<span class="text-success">{if condition="$timing neq ''"}{$timing}{else /}未设置{/if}</span>
-                        <a href="javascript:ajax_set_timing('{$a_data[\'user_id\']}', '{$timing}');">设置</a>
-                    </span>
-                </div>
-                <div class="mt-1 text-muted fs-xs">
-                    未设置挂机时间时，系统不会自动执行任务；设置后每天随机延迟 3–15 分钟执行。
-                    同一日期的计划保持不变，第二天重新计算偏移；实际执行可能因排队顺延。
-                </div>
-                <button type="button" class="btn btn-sm btn-alt-primary me-1 mt-2" onclick="ajax_reexecute_task('{$a_data[\'user_id\']}')" {if condition="$timing eq ''"}disabled{/if}>
-                    <i class="si si-energy"></i>申请补挂
-                </button>
             </div>
-        </div>
-        {if condition="$data.state eq 1"}
-        <div class="block block-rounded">
-            <div class="block-header block-header-default text-center">
-                <h3 class="block-title">
-                    <i class="fa fa-fw fa-info opacity-50"></i>
-                    等级信息
-                </h3>
+            <div class="ibox float-e-margins text-center">
+                <div class="ibox-title">
+                    <h5>
+                        <i class="fa fa-graduation-cap"></i>
+                        基本信息
+                    </h5>
+                </div>
+                <div class="ibox-content">
+                    <div class="m-b-sm">
+                        <img alt="" class="img-circle" src="{$a_data.avatar|default='/static/ruoyi/img/avatar.svg'}" height="96" width="96">
+                    </div>
+                    <b>{$a_data.nickname} ·
+                        {if condition="$data.state eq 1 && $timing neq ''"}
+                        <span class="text-success">运行中</span>
+                        {elseif condition="$data.state eq 1"}
+                        <span class="text-warning">等待设置挂机时间</span>
+                        {else}
+                        <span class="text-danger">已失效</span>
+                        {/if}
+                    </b>
+                    <div><small class="text-muted">{$signature}</small></div>
+                    <hr>
+                    <div style="margin-top: 5px;">
+                        <span class="text-muted"><small>
+                            挂机时间：<span class="text-success">{if condition="$timing neq ''"}{$timing}{else /}未设置{/if}</span>
+                            <a href="javascript:ajax_set_timing('{$a_data[\'user_id\']}', '{$timing}');">设置</a>
+                        </small></span>
+                    </div>
+                    <div style="margin-top: 5px;"><small class="text-muted">
+                        未设置挂机时间时，系统不会自动执行任务；设置后每天随机延迟 3–15 分钟执行。
+                        同一日期的计划保持不变，第二天重新计算偏移；实际执行可能因排队顺延。
+                    </small></div>
+                    <button type="button" class="btn btn-sm btn-primary" style="margin-top: 10px;" onclick="ajax_reexecute_task('{$a_data[\'user_id\']}')" {if condition="$timing eq ''"}disabled{/if}>
+                        <i class="fa fa-bolt"></i>申请补挂
+                    </button>
+                </div>
             </div>
-            <div class="block-content">
-                {if condition="!$info_available"}
-                <p class="alert alert-warning">暂时无法获取网易云等级信息，请稍后刷新；任务配置仍可修改。</p>
-                {else /}
-                <table class="table table-borderless table-striped">
-                    <tbody>
-                    <tr>
-                        <td>
-                            <i class="fa fa-fw si si-star opacity-50 me-2"></i>
-                            <span class="fs-sm">当前等级：LV {$details['level_now']}</span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <i class="fa fa-fw si si-music-tone-alt opacity-50 me-2"></i>
-                            <span class="fs-sm">累计听歌：{$details['listenSongs']}首</span>
-                        </td>
-                    </tr>
-                    {if condition="$details['level_now'] == 10"}
-                    <tr>
-                        <td class="text-center">
-                            <span class="fs-sm fw-semibold text-muted">等级已达满级</span>
-                        </td>
-                    </tr>
+            {if condition="$data.state eq 1"}
+            <div class="ibox float-e-margins">
+                <div class="ibox-title text-center">
+                    <h5>
+                        <i class="fa fa-info-circle"></i>
+                        等级信息
+                    </h5>
+                </div>
+                <div class="ibox-content">
+                    {if condition="!$info_available"}
+                    <p class="alert alert-warning">暂时无法获取网易云等级信息，请稍后刷新；任务配置仍可修改。</p>
                     {else /}
-                    <tr>
-                        <td class="text-center">
-                            <span class="fs-sm fw-semibold text-muted">—距升级 LV{$details['level_next']}—</span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <i class="fa fa-fw si si-music-tone-alt opacity-50 me-2"></i>
-                            <span class="fs-sm">还需听歌：{$details['listennum']} 首</span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <i class="fa fa-fw si si-check opacity-50 me-2"></i>
-                            <span class="fs-sm">还需登录：{$details['loginnum']} 天</span>
-                        </td>
-                    </tr>
-                    {/if}
-                    </tbody>
-                </table>
-                {/if}
-            </div>
-        </div>
-        {/if}
-    </div>
-    <div class="col-xl-8">
-        <div class="block block-rounded">
-            <div class="block-content">
-                <div class="table-responsive">
-                    <table class="table table-striped table-vcenter">
+                    <table class="table table-striped">
                         <tbody>
-                        {foreach $task_rows as $v}
                         <tr>
-                            <td class="text-center">
-                                <i class="fw-semibold fa fa-2x {$v.icon}"></i>
-                            </td>
-                            <td class="fw-semibold">
-                                <p class="fw-semibold mb-1">{$v.name}
-                                    {if condition="$v.more"}
-                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 mx-1" data-config='{$v.config}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="si si-settings"></i></button>
-                                    {/if}
-                                </p>
-                                <p class="fs-xs text-muted mb-0">
-                                    {$v.describe}
-                                </p>
-                                {if condition="$v.next_execute neq ''"}
-                                <p class="fs-xs text-muted mb-0">下次计划：{$v.next_execute}（含当日偏移）</p>
-                                {/if}
-                            </td>
-                            <td class="d-none d-sm-table-cell"><i class="far fa-clock opacity-75"></i>
-                                {if condition="$v.last_execute neq ''"}
-                                {:date("m-d H:i", strtotime($v.last_execute))}
-                                {else /}
-                                <span class="text-muted">尚未执行</span>
-                                {/if}
-                            </td>
-                            <td class="text-center">
-                                <div class="btn-group">
-                                    <div class="form-check form-switch">
-                                        {if condition="$v.job_state eq 1"}
-                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}', this);" checked>
-                                        {else /}
-                                        <input type="checkbox" class="form-check-input" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}', this);">
-                                        {/if}
-                                    </div>
-                                </div>
+                            <td>
+                                <i class="fa fa-star text-muted"></i>
+                                <span><small>当前等级：LV {$details['level_now']}</small></span>
                             </td>
                         </tr>
-                        {/foreach}
+                        <tr>
+                            <td>
+                                <i class="fa fa-music text-muted"></i>
+                                <span><small>累计听歌：{$details['listenSongs']}首</small></span>
+                            </td>
+                        </tr>
+                        {if condition="$details['level_now'] == 10"}
+                        <tr>
+                            <td class="text-center">
+                                <span class="text-muted"><small><b>等级已达满级</b></small></span>
+                            </td>
+                        </tr>
+                        {else /}
+                        <tr>
+                            <td class="text-center">
+                                <span class="text-muted"><small><b>—距升级 LV{$details['level_next']}—</b></small></span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <i class="fa fa-music text-muted"></i>
+                                <span><small>还需听歌：{$details['listennum']} 首</small></span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <i class="fa fa-check text-muted"></i>
+                                <span><small>还需登录：{$details['loginnum']} 天</small></span>
+                            </td>
+                        </tr>
+                        {/if}
                         </tbody>
                     </table>
+                    {/if}
                 </div>
             </div>
+            {/if}
         </div>
-        {if condition="config('sys.is_netease_tool') eq 1"}
-        <div class="block block-rounded">
-            <div class="block-header">
-                <i class="fa fa-music me-1"></i>
-                <h3 class="block-title">音乐小工具</h3>
-            </div>
-            <div class="block-content">
-                <h6 class="fs-sm fw-semibold content-heading">单曲播放量</h6>
-                <div class="row mb-4">
-                    <div class="col-lg-5 mb-4">
-                        <label class="form-label" for="tool_listen_songid">歌曲ID</label>
-                        <input type="number" min="1" step="1" class="form-control" id="tool_listen_songid" name="tool_listen_songid" placeholder="输入歌曲ID">
-                    </div>
-                    <div class="col-lg-5">
-                        <label class="form-label" for="tool_listen_times">播放次数</label>
-                        <input type="number" min="1" max="300" step="1" class="form-control" id="tool_listen_times" name="tool_listen_times" placeholder="输入歌曲播放次数">
-                        <div class="text-muted fs-xs">单次最多 300 次，播放计数可能延迟，请以网易云音乐官方数据为准</div>
-                    </div>
-                    <div class="col-lg-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary btn-sm" onclick="ajax_tool_listen('{$data.user_id}');">
-                            <i class="fa fa-paper-plane opacity-50 me-1"></i> 提交
-                        </button>
+        <div class="col-md-8">
+            <div class="ibox float-e-margins">
+                <div class="ibox-content">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <tbody>
+                            {foreach $task_rows as $v}
+                            <tr>
+                                <td class="text-center">
+                                    <i class="fa fa-2x {$v.icon}"></i>
+                                </td>
+                                <td>
+                                    <p style="margin-bottom: 5px;"><b>{$v.name}
+                                        {if condition="$v.more"}
+                                        <button type="button" class="btn btn-outline btn-primary btn-sm" style="padding: 1px 5px; margin-left: 5px;" data-config='{$v.config}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="fa fa-cogs"></i></button>
+                                        {/if}
+                                    </b></p>
+                                    <p class="text-muted" style="margin-bottom: 0;">
+                                        <small>{$v.describe}</small>
+                                    </p>
+                                    {if condition="$v.next_execute neq ''"}
+                                    <p class="text-muted" style="margin-bottom: 0;"><small>下次计划：{$v.next_execute}（含当日偏移）</small></p>
+                                    {/if}
+                                </td>
+                                <td class="hidden-xs"><i class="fa fa-clock-o"></i>
+                                    {if condition="$v.last_execute neq ''"}
+                                    {:date("m-d H:i", strtotime($v.last_execute))}
+                                    {else /}
+                                    <span class="text-muted">尚未执行</span>
+                                    {/if}
+                                </td>
+                                <td class="text-center">
+                                    {if condition="$v.job_state eq 1"}
+                                    <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}', this);" checked>
+                                    {else /}
+                                    <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}', this);">
+                                    {/if}
+                                </td>
+                            </tr>
+                            {/foreach}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
+            {if condition="config('sys.is_netease_tool') eq 1"}
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5><i class="fa fa-music"></i> 音乐小工具</h5>
+                </div>
+                <div class="ibox-content">
+                    <h5 style="margin-top: 0;"><b>单曲播放量</b></h5>
+                    <div class="row">
+                        <div class="col-md-5">
+                            <div class="form-group">
+                                <label class="control-label" for="tool_listen_songid">歌曲ID</label>
+                                <input type="number" min="1" step="1" class="form-control" id="tool_listen_songid" name="tool_listen_songid" placeholder="输入歌曲ID">
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <div class="form-group">
+                                <label class="control-label" for="tool_listen_times">播放次数</label>
+                                <input type="number" min="1" max="300" step="1" class="form-control" id="tool_listen_times" name="tool_listen_times" placeholder="输入歌曲播放次数">
+                                <div class="help-block">单次最多 300 次，播放计数可能延迟，请以网易云音乐官方数据为准</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary btn-sm" onclick="ajax_tool_listen('{$data.user_id}');">
+                                    <i class="fa fa-paper-plane"></i> 提交
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {/if}
         </div>
-        {/if}
     </div>
-</div>
-<div class="row">
-    <div class="col-xl-12">
-        <div class="block block-rounded">
-            <div class="block-header">
-                <h3 class="block-title">任务运行日志 <small>仅展示最新的50条数据</small></h3>
-            </div>
-            <div class="block-content block-content-full">
-                <table class="table table-bordered table-striped table-vcenter js-dataTable-responsive task-table" id="task-logs-list" data-type="netease" data-user_id="{$data.user_id}">
-                </table>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>任务运行日志 <small>仅展示最新的50条数据</small></h5>
+                </div>
+                <div class="ibox-content">
+                    <table class="table table-bordered table-striped task-table js-dataTable-responsive" id="task-logs-list" data-type="netease" data-user_id="{$data.user_id}">
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 </div>
 {/block}
 {block name="foot"}
-<script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="/static/js/plugins/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
-
-<script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
-<script src="/static/js/plugins/datatables-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
 <script src="/static/js/task_logs_datatables.js?v={:app_version()}"></script>
 <script>
     function updateConfig(execute_name, name, _this) {
@@ -215,7 +238,7 @@
         } else {
             var config = '{}';
         }
-        // 
+        //
         switch (execute_name) {
             case 'musician_task':
                 musicianTask(execute_name, name, config);
@@ -415,7 +438,7 @@
                 if (typeof timing !== 'undefined') {
                     $("#timing").val(timing);
                 }
-                Codebase.helpersOnLoad(['js-flatpickr']);
+                $('.js-flatpickr').flatpickr();
             },
             yes: function (index, dom) {
                 const selectedTiming = x.getval('#timing');
@@ -436,4 +459,3 @@
     }
 </script>
 {/block}
-

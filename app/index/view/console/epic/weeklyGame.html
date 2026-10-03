@@ -1,31 +1,37 @@
 {extend name="common/layout"/}
 {block name="head"}{include file="console/head" /}{/block}
 {block name="main"}
-<div class="block block-rounded">
-    <div class="block-content block-content-full text-center py-4">
-        <h2 class="h3 fw-bold mb-2">Epic 每周免费游戏</h2>
-        <p class="text-muted">提醒渠道和时间统一在个人中心设置，支持 Bark、PushPlus、WxPusher，以及本站开放的邮件推送。</p>
-        <p>{if condition="$epic_enabled"}<span class="badge bg-success">提醒已开启</span> <span class="text-muted fs-sm">下次：{$epic_next}</span>{else /}<span class="badge bg-secondary">提醒未开启</span>{/if}</p>
-        <a class="btn btn-alt-primary" data-pjax href="/index/console/user/profile#notifications"><i class="fa fa-bell me-1"></i>管理提醒设置</a>
-        <p class="form-text mt-2 mb-0">本功能发送游戏活动提醒，领取游戏需在 Epic 商店自行完成。</p>
-    </div>
-</div>
-<div class="row items-push">
-    {if condition="count($list) eq 0"}
-    <div class="col-12"><div class="alert alert-info">暂未获取到周免活动信息，请稍后再试。</div></div>
-    {/if}
-    {foreach $list as $game}
-    <div class="col-md-6">
-        <a class="block block-rounded block-link-shadow h-100 mb-0 overflow-hidden" href="{$game.productUrl}" target="_blank" rel="noopener noreferrer">
-            {if condition="$game.image neq ''"}<img class="w-100" style="aspect-ratio:16/9;object-fit:cover" src="{$game.image}" alt="{$game.title}" loading="lazy">{/if}
-            <div class="block-content block-content-full">
-                <span class="badge {if condition='$game.available'}bg-success{else /}bg-info{/if} mb-2">{if condition="$game.available"}限时免费{else /}即将免费{/if}</span>
-                <h3 class="h4 mb-2">{$game.title}</h3>
-                <p class="text-muted fs-sm">{$game.description}</p>
-                <p class="fs-sm mb-0">{:date('m-d H:i', (int)$game['start_at'])} 至 {:date('m-d H:i', (int)$game['end_at'])}</p>
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-content text-center">
+                    <h2 class="font-bold">Epic 每周免费游戏</h2>
+                    <p class="text-muted">提醒渠道和时间统一在个人中心设置，支持 Bark、PushPlus、WxPusher，以及本站开放的邮件推送。</p>
+                    <p>{if condition="$epic_enabled"}<span class="label label-success">提醒已开启</span> <span class="text-muted"><small>下次：{$epic_next}</small></span>{else /}<span class="label label-default">提醒未开启</span>{/if}</p>
+                    <a class="btn btn-primary" data-pjax href="/index/console/user/profile#notifications"><i class="fa fa-bell"></i> 管理提醒设置</a>
+                    <p class="help-block">本功能发送游戏活动提醒，领取游戏需在 Epic 商店自行完成。</p>
+                </div>
             </div>
-        </a>
+        </div>
     </div>
-    {/foreach}
+    <div class="row">
+        {if condition="count($list) eq 0"}
+        <div class="col-md-12"><div class="alert alert-info">暂未获取到周免活动信息，请稍后再试。</div></div>
+        {/if}
+        {foreach $list as $game}
+        <div class="col-md-6">
+            <a class="ibox float-e-margins no-margins" style="display: block; overflow: hidden;" href="{$game.productUrl}" target="_blank" rel="noopener noreferrer">
+                {if condition="$game.image neq ''"}<img class="img-responsive" style="aspect-ratio:16/9;object-fit:cover" src="{$game.image}" alt="{$game.title}" loading="lazy">{/if}
+                <div class="ibox-content">
+                    <span class="label {if condition='$game.available'}label-success{else /}label-info{/if}">{if condition="$game.available"}限时免费{else /}即将免费{/if}</span>
+                    <h3>{$game.title}</h3>
+                    <p class="text-muted">{$game.description}</p>
+                    <p><small>{:date('m-d H:i', (int)$game['start_at'])} 至 {:date('m-d H:i', (int)$game['end_at'])}</small></p>
+                </div>
+            </a>
+        </div>
+        {/foreach}
+    </div>
 </div>
 {/block}

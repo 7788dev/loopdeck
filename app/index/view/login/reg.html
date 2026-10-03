@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width,initial-scale=1.0" name="viewport">
@@ -7,105 +7,60 @@
     <meta content="{:config('web.keywords')}" name="keywords">
     <meta content="{:config('web.description')}" name="description">
     <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
-<!--    <link href="/static/media/favicons/favicon-192x192.png" rel="icon" sizes="192x192" type="image/png">-->
-<!--    <link href="/static/media/favicons/apple-touch-icon-180x180.png" rel="apple-touch-icon" sizes="180x180">-->
-    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800&display=swap" rel="stylesheet">
-    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
-    <link href="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-0-M/nprogress/0.2.0/nprogress.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/font-awesome.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/animate.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/style.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/login.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/ruoyi-loopdeck.css?v={:app_version()}" rel="stylesheet">
 </head>
-<body>
-<div class="main-content-boxed" id="page-container">
-    <main id="main-container">
-        <div class="bg-image" style="background-image: url('/static/media/photos/photo34@2x.jpg');">
-            <div class="row mx-0 bg-earth-op">
-                <div class="hero-static col-md-6 col-xl-8 d-none d-md-flex align-items-md-end">
-                    <div class="p-4">
-                        <p class="fs-3 fw-semibold text-white mb-1">
-                            很高兴你选择加入我们！
-                        </p>
-                        <p class="fs-5 text-white fw-medium">
-                            <i class="fa fa-angle-right opacity-50"></i> 现在就创建你的账号。
-                        </p>
-                        <p class="text-white-75 fw-medium">
-                            Copyright &copy; <span data-toggle="year-copy"></span>
-                        </p>
-                    </div>
+<body class="signin">
+<div class="signinpanel">
+    <div class="row">
+        <div class="col-sm-7">
+            <div class="signin-info">
+                <div class="logopanel m-b">
+                    <h1>{:config('web.webname')}</h1>
                 </div>
-                <div class="hero-static col-md-6 col-xl-4 d-flex align-items-center bg-body-extra-light">
-                    <div class="content content-full">
-                        <div class="px-4 py-2 mb-4">
-                            <a class="link-fx fw-bold" href="index.html">
-                                <i class="fa fa-fire"></i>
-                                <span class="fs-4 text-body-color">{:config('web.webname')}</span>
-                            </a>
-                            <h1 class="h3 fw-bold mt-4 mb-2">创建新账户</h1>
-                            <h2 class="h5 fw-medium text-muted mb-0">请填写您的详细资料</h2>
-                        </div>
-                        <form class="js-validation-signup px-4" onsubmit="return false;">
-                            <div class="form-floating mb-4">
-                                <input class="form-control" id="username" name="username" placeholder="输入你的用户名"
-                                       type="text">
-                                <label class="form-label" for="username">用户名</label>
-                            </div>
-                            <div class="form-floating mb-4">
-                                <input class="form-control" id="password" name="password" placeholder="输入你的密码"
-                                       type="password">
-                                <label class="form-label" for="password">密码</label>
-                            </div>
-                            <div class="form-floating mb-4">
-                                <input class="form-control" id="qq" name="qq" placeholder="输入你的QQ"
-                                       type="number">
-                                <label class="form-label" for="qq">QQ</label>
-                            </div>
-                            <div class="row mb-4">
-                                <div class="col-6">
-                                    <div class="form-floating">
-                                        <input type="text" class="form-control" id="captcha" name="captcha" placeholder="请输入验证码">
-                                        <label class="form-label" for="captcha">验证码</label>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="form-floating">
-                                        <div><img class="border" id="captcha_img" src="{:captcha_src()}" onclick='this.src="{:captcha_src()}?"+Math.random();' alt="captcha" height="58px;" width="100%" /></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mb-4">
-                                <div class="form-check">
-                                    <input checked class="form-check-input" id="signup-terms"
-                                           name="signup-terms" type="checkbox">
-                                    <label class="form-check-label" for="signup-terms">我同意条款</label>
-                                </div>
-                            </div>
-                            <div class="mb-4">
-                                <button class="btn btn-lg btn-alt-primary fw-semibold" type="submit" onclick="ajax_user_reg();">
-                                    创建账户
-                                </button>
-                                <div class="mt-4">
-                                    <a class="fs-sm fw-medium link-fx text-muted me-2 mb-1 d-inline-block"
-                                       href="{:url('/index/login/login')}">
-                                        返回登录
-                                    </a>
-                                    <a class="fs-sm fw-medium link-fx text-muted me-2 mb-1 d-inline-block"
-                                       href="{:url('/index/login/find')}">
-                                        找回密码
-                                    </a>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                <h3>
+                    很高兴你选择加入我们！
+                </h3>
+                <ul class="m-b">
+                    <li><i class="fa fa-arrow-circle-o-right m-r-xs"></i> 现在就创建你的账号</li>
+                    <li><i class="fa fa-arrow-circle-o-right m-r-xs"></i> 注册即可获得注册赠送权益</li>
+                </ul>
+                <strong>已有账号？ <a href="{:url('/index/login/login')}">直接登录&raquo;</a></strong>
             </div>
         </div>
-    </main>
+        <div class="col-sm-5">
+            <form method="post" onsubmit="return false;">
+                <h4 class="no-margins">创建新账户</h4>
+                <p class="m-t-md">请填写您的详细资料</p>
+                <input type="text" class="form-control uname" id="username" name="username" placeholder="用户名">
+                <input type="password" class="form-control pword" id="password" name="password" placeholder="密码">
+                <input type="number" class="form-control code" id="qq" name="qq" placeholder="QQ">
+                <input type="text" class="form-control code" id="captcha" name="captcha" placeholder="请输入验证码">
+                <div><img alt="captcha" class="img-responsive" height="58" id="captcha_img" onclick='this.src="{:captcha_src()}?"+Math.random();' src="{:captcha_src()}" width="100%"></div>
+                <div class="checkbox-custom checkbox-primary">
+                    <input checked id="signup-terms" name="signup-terms" type="checkbox">
+                    <label for="signup-terms">我同意条款</label>
+                </div>
+                <button class="btn btn-primary btn-block" onclick="ajax_user_reg();" type="submit">创建账户</button>
+            </form>
+        </div>
+    </div>
+    <div class="signup-footer">
+        <div class="pull-left">
+            <a href="{:url('/index/login/find')}">找回密码</a>
+        </div>
+        <div class="pull-right">
+            Copyright &copy; {:date('Y')} {:config('web.webname')} &nbsp; <a href="https://beian.miit.gov.cn/" target="_blank">{:config('web.icp')}</a>
+        </div>
+    </div>
 </div>
-<script src="/static/js/codebase.app.min-5.0.js"></script>
-<script src="/static/js/lib/jquery.min.js"></script>
-<script src="/static/js/plugins/jquery-validation/jquery.validate.min.js"></script>
-<script src="/static/js/plugins/bootstrap-notify/bootstrap-notify.min.js"></script>
-<script src="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-0-M/nprogress/0.2.0/nprogress.min.js"></script>
-<script src="/static/js/app.min.js?v={:app_version()}"></script>
+<script src="/static/ruoyi/js/jquery.min.js"></script>
 <script src="/static/js/layer.js"></script>
+<script src="/static/js/app.min.js?v={:app_version()}"></script>
 <script>
     function ajax_user_reg() {
         x.ajax('/index/LoginAjax/reg', {

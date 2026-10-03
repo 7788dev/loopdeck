@@ -1,85 +1,61 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width,initial-scale=1.0" name="viewport">
     <title>{:config('web.webname')} - {:config('web.title')}</title>
+    <meta content="{:config('web.keywords')}" name="keywords">
     <meta content="{:config('web.description')}" name="description">
     <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
-<!--    <link href="/static/media/favicons/favicon-192x192.png" rel="icon" sizes="192x192" type="image/png">-->
-<!--    <link href="/static/media/favicons/apple-touch-icon-180x180.png" rel="apple-touch-icon" sizes="180x180">-->
-    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800&display=swap" rel="stylesheet">
-    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
-    <link href="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-0-M/nprogress/0.2.0/nprogress.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/font-awesome.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/animate.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/style.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/login.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/ruoyi-loopdeck.css?v={:app_version()}" rel="stylesheet">
 </head>
-<body>
-<div id="page-container" class="main-content-boxed">
-    <main id="main-container">
-        <div class="bg-image" style="background-image: url('/static/media/photos/photo34@2x.jpg');">
-            <div class="row mx-0 bg-default-op">
-                <div class="hero-static col-md-6 col-xl-8 d-none d-md-flex align-items-md-end">
-                    <div class="p-4">
-                        <p class="fs-3 fw-semibold text-white">
-                            输入邮箱即可找回你的密码。
-                        </p>
-                        <p class="text-white-75 fw-medium">
-                            Copyright &copy; <span data-toggle="year-copy"></span>
-                        </p>
-                    </div>
+<body class="signin">
+<div class="signinpanel">
+    <div class="row">
+        <div class="col-sm-7">
+            <div class="signin-info">
+                <div class="logopanel m-b">
+                    <h1>{:config('web.webname')}</h1>
                 </div>
-                <div class="hero-static col-md-6 col-xl-4 d-flex align-items-center bg-body-extra-light">
-                    <div class="content content-full">
-                        <div class="px-4 py-2 mb-4">
-                            <a class="link-fx fw-bold" href="{:url('index/index')}">
-                                <i class="fa fa-fire"></i>
-                                <span class="fs-4 text-body-color">{:config('web.webname')}</span>
-                            </a>
-                            <h1 class="h3 fw-bold mt-4 mb-2">找回账户密码</h1>
-                            <h2 class="h5 fw-medium text-muted mb-0">请输入你的邮箱</h2>
-                        </div>
-                        <form class="js-validation-reminder px-4" onsubmit="return false;">
-                            <div class="form-floating mb-4">
-                                <input type="text" class="form-control" id="mail" name="mail" placeholder="输入你的邮箱">
-                                <label class="form-label">邮箱</label>
-                                <div class="text-muted fs-xs">邮箱默认为您的QQ账号邮箱</div>
-                            </div>
-                            <div class="row mb-4">
-                                <div class="col-6">
-                                    <div class="form-floating">
-                                        <input type="text" class="form-control" id="captcha" name="captcha" placeholder="请输入验证码">
-                                        <label class="form-label" for="captcha">验证码</label>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="form-floating">
-                                        <div><img class="border" id="captcha_img" src="{:captcha_src()}" onclick='this.src="{:captcha_src()}?"+Math.random();' alt="captcha" height="58px;" width="100%" /></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mb-4">
-                                <button type="submit" class="btn btn-lg btn-alt-primary fw-semibold" onclick="ajax_user_find();">
-                                    找回密码
-                                </button>
-                                <div class="mt-4">
-                                    <a class="fs-sm fw-medium link-fx text-muted me-2 mb-1 d-inline-block" href="{:url('login')}">
-                                        <i class="fa fa-arrow-left opacity-50 me-1"></i> 返回登录
-                                    </a>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                <h3>
+                    找回密码
+                </h3>
+                <ul class="m-b">
+                    <li><i class="fa fa-arrow-circle-o-right m-r-xs"></i> 填写注册邮箱接收重置链接</li>
+                    <li><i class="fa fa-arrow-circle-o-right m-r-xs"></i> 邮箱默认为您的QQ账号邮箱</li>
+                </ul>
+                <strong>想起密码了？ <a href="{:url('/index/login/login')}">返回登录&raquo;</a></strong>
             </div>
         </div>
-    </main>
+        <div class="col-sm-5">
+            <form method="post" onsubmit="return false;">
+                <h4 class="no-margins">找回密码</h4>
+                <p class="m-t-md">输入你的邮箱</p>
+                <input type="text" class="form-control uname" id="mail" name="mail" placeholder="邮箱">
+                <small class="help-block">邮箱默认为您的QQ账号邮箱</small>
+                <input type="text" class="form-control code" id="captcha" name="captcha" placeholder="请输入验证码">
+                <div><img alt="captcha" class="img-responsive" height="58" id="captcha_img" onclick='this.src="{:captcha_src()}?"+Math.random();' src="{:captcha_src()}" width="100%"></div>
+                <button class="btn btn-primary btn-block" onclick="ajax_user_find();" type="submit">找回密码</button>
+            </form>
+        </div>
+    </div>
+    <div class="signup-footer">
+        <div class="pull-left">
+            <a href="{:url('login')}"><i class="fa fa-arrow-left"></i> 返回登录</a>
+        </div>
+        <div class="pull-right">
+            Copyright &copy; {:date('Y')} {:config('web.webname')} &nbsp; <a href="https://beian.miit.gov.cn/" target="_blank">{:config('web.icp')}</a>
+        </div>
+    </div>
 </div>
-<script src="/static/js/codebase.app.min-5.0.js"></script>
-<script src="/static/js/lib/jquery.min.js"></script>
-<script src="/static/js/plugins/jquery-validation/jquery.validate.min.js"></script>
-<script src="/static/js/plugins/bootstrap-notify/bootstrap-notify.min.js"></script>
-<script src="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-0-M/nprogress/0.2.0/nprogress.min.js"></script>
-<script src="/static/js/app.min.js?v={:app_version()}"></script>
+<script src="/static/ruoyi/js/jquery.min.js"></script>
 <script src="/static/js/layer.js"></script>
+<script src="/static/js/app.min.js?v={:app_version()}"></script>
 <script>
     function ajax_user_find() {
         x.ajax('/index/LoginAjax/find', {

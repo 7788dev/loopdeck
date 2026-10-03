@@ -6,29 +6,33 @@
         white-space: nowrap;
     }
 </style>
-<div class="block block-rounded">
-    <div class="block-header block-header-default">
-        <h3 class="block-title">系统任务列表 <small>如果您还不了解，请勿随意修改参数</small></h3>
-        <div class="block-options">
-<!--            <button type="submit" class="btn btn-sm btn-alt-success" onclick="ajax_refresh_task();">-->
-<!--                <i class="fa fa-circle-notch opacity-50 me-1"></i> 刷新所有任务-->
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>系统任务列表 <small>如果您还不了解，请勿随意修改参数</small></h5>
+                    <div class="ibox-tools">
+<!--            <button type="submit" class="btn btn-sm btn-success" onclick="ajax_refresh_task();">-->
+<!--                <i class="fa fa-refresh"></i> 刷新所有任务-->
 <!--            </button>-->
-            <button type="submit" class="btn btn-sm btn-alt-primary" onclick="ajax_add_task();">
-                <i class="fa fa-plus-circle opacity-50 me-1"></i> 新增
-            </button>
+                        <button type="submit" class="btn btn-sm btn-primary" onclick="ajax_add_task();">
+                            <i class="fa fa-plus-circle"></i> 新增
+                        </button>
+                    </div>
+                </div>
+                <div class="ibox-content">
+                    <table class="table table-bordered table-striped js-dataTable-responsive" id="admin-taskList">
+                    </table>
+                </div>
+            </div>
         </div>
-    </div>
-    <div class="block-content block-content-full">
-        <table class="table table-bordered table-striped table-vcenter js-dataTable-responsive" id="admin-taskList">
-        </table>
     </div>
 </div>
 {/block}
 {block name="foot"}
-<script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="/static/js/plugins/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
 
 <script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
-<script src="/static/js/plugins/datatables-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive-bs3/js/responsive.bootstrap.min.js"></script>
 <script src="/static/js/admin_tasklist_datatables.js"></script>
 {/block}

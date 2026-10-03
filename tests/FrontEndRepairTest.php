@@ -54,8 +54,6 @@ frontEndCheck(
 $passwordViews = [
     '/app/index/view/console/user/profile.html',
     '/app/index/view/login/reset.html',
-    '/app/index/view/login/default/reset.html',
-    '/app/index/view/login/Brevity/reset.html',
 ];
 foreach ($passwordViews as $view) {
     $source = file_get_contents($root . $view);
@@ -100,7 +98,7 @@ frontEndCheck(
 $adminLayout = file_get_contents($root . '/app/admin/view/common/layout.html');
 frontEndCheck(is_string($adminLayout), 'Unable to inspect the admin layout');
 frontEndCheck(
-    str_contains($adminLayout, 'fontawesome'),
+    str_contains($adminLayout, 'font-awesome'),
     'the admin layout still loads no FontAwesome stylesheet for its fa icons'
 );
 frontEndCheck(

@@ -1,13 +1,28 @@
 <!Doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width,initial-scale=1.0" name="viewport">
     <title>LoopDeck - 程序安装</title>
     <meta content="{:config('web.description')}" name="description">
     <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
-    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800&display=swap" rel="stylesheet">
-    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
+    <link href="/static/ruoyi/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/font-awesome.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/style.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/ruoyi-loopdeck.css?v={:app_version()}" rel="stylesheet">
+    <style>
+        body { background: #f3f5f7; color: #303133; }
+        #main-container { max-width: 920px; margin: 40px auto; padding: 0 20px; }
+        .hero-static { width: 100%; float: none; }
+        .content { background: white; border: 1px solid #e4e7ed; padding: 28px; }
+        .text-center { margin-bottom: 28px; }
+        h1 { font-size: 24px; } h2 { font-size: 16px; }
+        .block-content { margin-bottom: 24px; }
+        .row > .col-md-10 { width: 100%; }
+        .mb-4 { margin-bottom: 18px; }
+        .list-group-item { display: flex; justify-content: space-between; }
+        @media(max-width:767px) { #main-container { margin: 20px auto; } .content { padding: 18px; } }
+    </style>
 </head>
 <body>
 <div id="page-container" class="main-content-boxed">
@@ -27,7 +42,7 @@
                         <div class="row g-0 d-flex justify-content-center">
                             <div class="col-md-10 col-xl-7">
                                 <div class="d-flex justify-content-start">
-                                    <a class="btn btn-alt-primary" href="javascript:window.location.href='about:blank';window.close();">
+                                    <a class="btn btn-primary" href="javascript:window.location.href='about:blank';window.close();">
                                         <i class="fa fa-fw fa-arrow-left opacity-50 me-1"></i> 我不装了
                                     </a>
                                 </div>
@@ -82,7 +97,7 @@
         </div>
     </main>
 </div>
-<script src="/static/js/codebase.app.min-5.0.js"></script>
+
 <script src="/static/js/lib/jquery.min.js"></script>
 <script src="/static/js/plugins/bootstrap-notify/bootstrap-notify.min.js"></script>
 <script src="/static/js/app.min.js?v={:app_version()}"></script>

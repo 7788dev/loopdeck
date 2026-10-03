@@ -5,15 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
-if (process.env.LOOPDECK_TEST_THEME !== 'ruoyi') {
-    require('node:child_process').execFileSync(process.execPath, [__filename], {
-        env: {...process.env, LOOPDECK_TEST_THEME: 'ruoyi'}, stdio: 'inherit'
-    });
-}
-const read = file => fs.readFileSync(path.join(root,
-    process.env.LOOPDECK_TEST_THEME === 'ruoyi'
-        ? file.replace('app/index/view/console/', 'app/index/view/ruoyi/console/')
-        : file), 'utf8');
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
 function scripts(file) {
     return [...read(file).matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
@@ -138,8 +130,8 @@ for (const [platform, functions] of Object.entries({netease: ['musicianTask', 'e
 }
 console.log('Frontend interaction tests passed');
 
-// Execute the actual navigation-completion handler for both shells and breakpoint edges.
-for (const [theme, widths] of [['default', [390, 991, 992, 1440]], ['ruoyi', [390, 767, 768, 1440]]]) {
+// Execute the active navigation handler at the responsive breakpoint edges.
+for (const [theme, widths] of [['ruoyi', [390, 767, 768, 1440]]]) {
     for (const width of widths) {
         for (const initiallyOpen of [true, false]) {
             const {state, context} = environment();
@@ -153,13 +145,12 @@ for (const [theme, widths] of [['default', [390, 991, 992, 1440]], ['ruoyi', [39
             });
             selector.fn = context.$.fn;
             context.$ = context.jQuery = selector;
-            if (theme === 'default') context.Codebase.layout = action => {if (action === 'sidebar_close') open = false;};
-            else delete context.Codebase;
+            delete context.Codebase;
             vm.runInContext(read('public/static/js/app.min.js'), context);
             context.x.reload = () => {refreshed++;};
             state.events['pjax:complete']();
             state.events['pjax:complete']();
-            const mobile = width < (theme === 'default' ? 992 : 768);
+            const mobile = width < 768;
             assert.equal(open, mobile ? false : initiallyOpen, `${theme} at ${width}px changed the desktop sidebar preference`);
             assert.equal(completed, 2, 'Navigation must finish the progress indicator');
             assert.equal(refreshed, 2, 'Navigation must still refresh active menu and tabs');

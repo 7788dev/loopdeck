@@ -1,66 +1,65 @@
 {extend name="common/layout"/}
 {block name="head"} {include file="console/head" /}{/block}
 {block name="main"}
-<div class="row">
-    <div class="col-md-6">
-        <div class="block block-rounded h-100 mb-0">
-            <div class="block-header block-header-default">
-                <h3 class="block-title">账号密码添加（请使用网易云音乐账号登录）</h3>
-                <div class="block-options">
-                    <span class="badge bg-warning">维护中</span>
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-md-6">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>账号密码添加（请使用网易云音乐账号登录） <span class="label label-warning">维护中</span></h5>
                 </div>
-            </div>
-            <div class="block-content">
-                <div class="alert alert-warning d-flex align-items-center" role="alert">
-                    <i class="si si-wrench me-2"></i>
-                    <p class="mb-0">账号密码登录功能维护中，暂时无法使用，请先通过右侧扫码添加账号。</p>
-                </div>
-                <form onsubmit="return false;" id="login-form">
-                    <div class="mb-4">
-                        <label class="form-label" for="login-username">手机号</label>
-                        <div class="input-group">
-                            <span class="input-group-text">
-                              <i class="far fa-user"></i>
-                            </span>
-                            <input type="text" class="form-control" id="login-username" name="login-username" placeholder="请输入手机号" disabled>
-                        </div>
+                <div class="ibox-content">
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fa fa-wrench"></i>
+                        <p style="margin: 0;">账号密码登录功能维护中，暂时无法使用，请先通过右侧扫码添加账号。</p>
                     </div>
-                    <div class="mb-4">
-                        <label class="form-label" for="login-password">密码</label>
-                        <div class="input-group">
-                            <span class="input-group-text">
-                              <i class="far fa-surprise"></i>
-                            </span>
-                            <input type="password" class="form-control" id="login-password" name="login-password" placeholder="请输入密码" disabled>
+                    <form onsubmit="return false;" id="login-form">
+                        <div class="form-group">
+                            <label class="control-label" for="login-username">手机号</label>
+                            <div class="input-group">
+                                <span class="input-group-addon">
+                                  <i class="fa fa-user"></i>
+                                </span>
+                                <input type="text" class="form-control" id="login-username" name="login-username" placeholder="请输入手机号" disabled>
+                            </div>
                         </div>
-                    </div>
+                        <div class="form-group">
+                            <label class="control-label" for="login-password">密码</label>
+                            <div class="input-group">
+                                <span class="input-group-addon">
+                                  <i class="fa fa-key"></i>
+                                </span>
+                                <input type="password" class="form-control" id="login-password" name="login-password" placeholder="请输入密码" disabled>
+                            </div>
+                        </div>
 
-                    <div class="mb-4">
-                        <button type="submit" class="btn btn-alt-primary" onclick="ajax_netease_login();" disabled>
-                            <i class="fa fa-arrow-right opacity-50 me-1"></i> 登录
-                        </button>
-                    </div>
-                </form>
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary" onclick="ajax_netease_login();" disabled>
+                                <i class="fa fa-arrow-right"></i> 登录
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="col-md-6">
-        <div class="block block-rounded h-100 mb-0">
-            <div class="block-header block-header-default">
-                <h3 class="block-title">扫码添加</h3>
-                <div class="block-options">
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="ajax_netease_qrlogin();">扫码完成，点击验证</button>
+        <div class="col-md-6">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>扫码添加</h5>
+                    <div class="ibox-tools">
+                        <button type="button" class="btn btn-outline btn-primary btn-xs" onclick="ajax_netease_qrlogin();">扫码完成，点击验证</button>
+                    </div>
                 </div>
-            </div>
-            <div class="block-content text-center">
-                <div class="alert alert-primary d-flex align-items-center" role="alert">
-                    <i class="si si-magic-wand me-2"></i>
-                    <p class="mb-0" id="qr-alert">点击图片即可获取二维码</p>
-                </div>
-                <div class="block" id="qr-img" key="">
-                    <p class="mt-4">
-                        <i class="si si-camera fa-4x text-muted"></i>
-                    </p>
+                <div class="ibox-content text-center">
+                    <div class="alert alert-info" role="alert">
+                        <i class="fa fa-magic"></i>
+                        <p style="margin: 0;" id="qr-alert">点击图片即可获取二维码</p>
+                    </div>
+                    <div id="qr-img" key="">
+                        <p style="margin-top: 15px;">
+                            <i class="fa fa-camera fa-4x text-muted"></i>
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -82,7 +81,7 @@
                 $('#qr-img').html('<img src="data:image/png;base64,'+ data.data.qrimg +'" height="145px;">');
             }
         })
-        Codebase.block('state_normal', '#qr-img');
+        $('#qr-img').attr('role', 'button').attr('tabindex', '0');
     });
 
     function ajax_netease_qrlogin() {
@@ -150,9 +149,8 @@
     }
 
     $(function(){
-        Codebase.block('state_loading', '#qr-img');
+        $('#qr-img').attr('role', 'button').attr('tabindex', '0');
     });
 
 </script>
 {/block}
-

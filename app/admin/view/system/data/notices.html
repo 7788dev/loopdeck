@@ -9,30 +9,36 @@
     }
 </style>
 
-<div class="block block-rounded">
-    <div class="block-header block-header-default">
-        <h3 class="block-title">{$webTitle}</h3>
-        {if condition="config('web.web_id') eq 1"}
-        <button type="button" class="btn btn-sm btn-alt-success me-1 mb-1 fa-xs" onclick="ajax_add_notice2();">
-            <i class="fa fa-plus opacity-50 me-1"></i>添加后台公告
-        </button>
-        {/if}
-        <button type="button" class="btn btn-sm btn-alt-success me-1 mb-1 fs-xs" onclick="ajax_add_notice();">
-            <i class="fa fa-plus opacity-50 me-1"></i>添加公告
-        </button>
-    </div>
-    <div class="block-content block-content-full">
-        <table class="table table-bordered table-striped table-vcenter js-dataTable-responsive" id="noticesList">
-        </table>
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>{$webTitle}</h5>
+                    <div class="ibox-tools">
+                        {if condition="config('web.web_id') eq 1"}
+                        <button type="button" class="btn btn-sm btn-success" onclick="ajax_add_notice2();">
+                            <i class="fa fa-plus"></i>添加后台公告
+                        </button>
+                        {/if}
+                        <button type="button" class="btn btn-sm btn-success" onclick="ajax_add_notice();">
+                            <i class="fa fa-plus"></i>添加公告
+                        </button>
+                    </div>
+                </div>
+                <div class="ibox-content">
+                    <table class="table table-bordered table-striped js-dataTable-responsive" id="noticesList">
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {/block}
 {block name="foot"}
-<script src="/static/js/plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="/static/js/plugins/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
 
 <script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
-<script src="/static/js/plugins/datatables-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
+<script src="/static/js/plugins/datatables-responsive-bs3/js/responsive.bootstrap.min.js"></script>
 
 <script src="/static/js/wangEditor.min.js"></script>
 

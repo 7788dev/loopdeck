@@ -6,23 +6,37 @@
     <title>LoopDeck - 程序安装</title>
     <meta content="{:config('web.description')}" name="description">
     <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
-    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700,800&display=swap" rel="stylesheet">
-    <link href="/static/css/codebase.min-5.0.css" id="css-main" rel="stylesheet">
+    <link href="/static/ruoyi/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/font-awesome.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/style.min.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/ruoyi-loopdeck.css?v={:app_version()}" rel="stylesheet">
+    <style>
+        body { background: #f3f5f7; color: #303133; }
+        #main-container { max-width: 920px; margin: 40px auto; padding: 0 20px; }
+        .hero-static { width: 100%; float: none; }
+        .content { background: white; border: 1px solid #e4e7ed; padding: 28px; }
+        .text-center { margin-bottom: 28px; }
+        h1 { font-size: 24px; } h2 { font-size: 16px; }
+        .block-content { margin-bottom: 24px; }
+        .row > .col-md-10 { width: 100%; }
+        .mb-4 { margin-bottom: 18px; }
+        .list-group-item { display: flex; justify-content: space-between; }
+        @media(max-width:767px) { #main-container { margin: 20px auto; } .content { padding: 18px; } }
+    </style>
 </head>
 <body>
 <div id="page-container" class="main-content-boxed">
     <main id="main-container">
         <div class="bg-body-light hero-bubbles">
-            <span class="hero-bubble hero-bubble-lg bg-primary" style="top: 20%; left: 10%;"></span>
-            <span class="hero-bubble bg-success" style="top: 20%; left: 80%;"></span>
-            <span class="hero-bubble hero-bubble-sm bg-corporate" style="top: 40%; left: 25%;"></span>
-            <span class="hero-bubble hero-bubble-lg bg-pulse" style="top: 30%; left: 90%;"></span>
-            <span class="hero-bubble bg-danger" style="top: 40%; left: 20%;"></span>
-            <span class="hero-bubble bg-warning" style="top: 60%; left: 25%;"></span>
-            <span class="hero-bubble bg-info" style="top: 60%; left: 80%;"></span>
-            <span class="hero-bubble hero-bubble-lg bg-flat" style="top: 75%; left: 70%;"></span>
-            <span class="hero-bubble hero-bubble-lg bg-earth" style="top: 75%; left: 10%;"></span>
-            <span class="hero-bubble bg-elegance" style="top: 90%; left: 90%;"></span>
+
+
+
+
+
+
+
+
+
             <div class="row g-0 justify-content-center position-relative">
                 <div class="hero-static col-lg-7">
                     <div class="content content-full overflow-hidden">
@@ -115,7 +129,7 @@
         </div>
     </main>
 </div>
-<script src="/static/js/codebase.app.min-5.0.js"></script>
+
 <script src="/static/js/lib/jquery.min.js"></script>
 <script src="/static/js/plugins/bootstrap-notify/bootstrap-notify.min.js"></script>
 <script src="/static/js/app.min.js?v={:app_version()}"></script>

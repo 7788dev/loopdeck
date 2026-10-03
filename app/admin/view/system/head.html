@@ -1,281 +1,133 @@
-<nav id="sidebar">
-    <div class="sidebar-content">
-        <div class="content-header justify-content-lg-center">
-            <div>
-            <span class="smini-visible fw-bold tracking-wide fs-lg">
-              o<span class="text-primary">t</span>
-            </span>
-                <a class="link-fx fw-bold tracking-wide mx-auto" href="#">
-          <span class="smini-hidden">
-            <i class="fa fa-fire text-primary"></i>
-            <span class="fs-5 text-dual">{:config('web.webname')}</span>
-          </span>
-                </a>
-            </div>
-            <div>
-                <button class="btn btn-sm btn-alt-danger d-lg-none" data-action="sidebar_close" data-toggle="layout"  type="button">
-                    <i class="fa fa-fw fa-times"></i>
-                </button>
-            </div>
-        </div>
+<!-- 左侧导航开始 -->
+<nav class="navbar-default navbar-static-side" role="navigation">
+    <div class="nav-close">
+        <i class="fa fa-times-circle"></i>
     </div>
-    <div class="js-sidebar-scroll">
-        <div class="content-side content-side-user px-0 py-0">
-            <div class="smini-visible-block animated fadeIn px-2">
-                <img alt="" class="img-avatar img-avatar32" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100">
-            </div>
-            <div class="smini-hidden text-center mx-auto">
-                <a class="img-link" href="{:url('/index/console/user/profile')}">
-                    <img alt="" class="img-avatar" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100">
+    <a href="{:url('/admin/system/index')}">
+        <li class="logo hidden-xs">
+            <span class="logo-mini" aria-hidden="true"><i class="fa fa-cube"></i></span><span class="logo-lg">{:config('web.webname')}</span>
+        </li>
+    </a>
+    <div class="sidebar-collapse">
+        <ul class="nav" id="side-menu">
+            <li>
+                <a href="{:url('/index/console/index')}">
+                    <i class="fa fa-home"></i> <span class="nav-label">用户中心</span>
                 </a>
-                <ul class="list-inline mt-3 mb-0">
-                    <li class="list-inline-item">
-                        <a class="link-fx text-dual fs-sm fw-semibold text-uppercase"
-                           data-pjax href="{:url('/index/console/user/profile')}">{:session('user.nickname')}</a>
-                    </li>
-                    <li class="list-inline-item">
-                        <a class="link-fx text-dual" data-action="dark_mode_toggle" data-toggle="layout"
-                           href="javascript:void(0)">
-                            <i class="fa fa-burn"></i>
-                        </a>
-                    </li>
-                    <li class="list-inline-item">
-                        <a class="link-fx text-dual" href="javascript:" onclick="logout();">
-                            <i class="fa fa-sign-out-alt"></i>
-                        </a>
-                    </li>
+            </li>
+            <li>
+                <a class="menuItem" data-pjax href="{:url('/admin/system/index')}">
+                    <i class="fa fa-dashboard"></i> <span class="nav-label">站长后台</span>
+                </a>
+            </li>
+            <li>
+                <a href="#">
+                    <i class="fa fa-cogs"></i> <span class="nav-label">系统设置</span> <span class="fa arrow"></span>
+                </a>
+                <ul class="nav nav-second-level collapse">
+                    <li><a class="menuItem" data-pjax href="{:url('/admin/system/set/info')}">网站信息设置</a></li>
+                    <li><a class="menuItem" data-pjax href="{:url('/admin/system/set/plugin')}">功能插件设置</a></li>
+                    <li><a class="menuItem" data-pjax href="{:url('/admin/system/set/reg')}">注册账号设置</a></li>
+                    <li><a class="menuItem" data-pjax href="{:url('/admin/system/set/mail')}">信息推送设置</a></li>
+                    {if condition="WEB_ID eq 1"}
+                    <li><a class="menuItem" data-pjax href="{:url('/admin/system/set/cron')}">任务监控列表</a></li>
+                    {/if}
                 </ul>
-            </div>
-        </div>
-
-
-        <div class="content-side content-side-full" id="nav-main">
-            <ul class="nav-main">
-                <li class="nav-main-item">
-                    <a class="nav-main-link" href="{:url('/index/console/index')}">
-                        <i class="nav-main-link-icon fa fa-house-user"></i>
-                        <span class="nav-main-link-name">用户中心</span>
-                    </a>
-                </li>
-                <li class="nav-main-heading">控制台</li>
-                <li class="nav-main-item">
-                    <a class="nav-main-link" data-pjax href="{:url('/admin/system/index')}">
-                        <i class="nav-main-link-icon si si-speedometer"></i>
-                        <span class="nav-main-link-name">站长后台</span>
-                    </a>
-                </li>
-                <li class="nav-main-heading">设置</li>
-                <li class="nav-main-item">
-                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
-                       data-toggle="submenu" href="#">
-                        <i class="nav-main-link-icon si si-settings"></i>
-                        <span class="nav-main-link-name">系统设置</span>
-                    </a>
-                    <ul class="nav-main-submenu">
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/set/info')}">
-                                <span class="nav-main-link-name">网站信息设置</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/set/plugin')}">
-                                <span class="nav-main-link-name">功能插件设置</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/set/reg')}">
-                                <span class="nav-main-link-name">注册账号设置</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/set/mail')}">
-                                <span class="nav-main-link-name">信息推送设置</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/set/template')}">
-                                <span class="nav-main-link-name">前台模板设置</span>
-                            </a>
-                        </li>
-                        {if condition="WEB_ID eq 1"}
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/set/cron')}">
-                                <span class="nav-main-link-name">任务监控列表</span>
-                            </a>
-                        </li>
-                        {/if}
-                    </ul>
-                </li>
-                {if condition="WEB_ID eq 1"}
-                <li class="nav-main-item">
-                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
-                       data-toggle="submenu" href="#">
-                        <i class="nav-main-link-icon fa fa-dog"></i>
-                        <span class="nav-main-link-name">任务配置</span>
-                    </a>
-                    <ul class="nav-main-submenu">
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/task/set')}">
-                                <span class="nav-main-link-name">系统任务配置</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/task/list')}">
-                                <span class="nav-main-link-name">系统任务列表</span>
-                            </a>
-                        </li>
-                    </ul>
-                </li>
-                {/if}
-
-                <li class="nav-main-heading">管理</li>
-                <li class="nav-main-item">
-                    <a aria-expanded="false" aria-haspopup="true" class="nav-main-link nav-main-link-submenu"
-                       data-toggle="submenu" href="#">
-                        <i class="nav-main-link-icon si si-bar-chart"></i>
-                        <span class="nav-main-link-name">数据管理</span>
-                    </a>
-                    <ul class="nav-main-submenu">
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/data/users')}">
-                                <span class="nav-main-link-name">用户数据管理</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/data/tasks')}">
-                                <span class="nav-main-link-name">账号数据管理</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/data/kms')}">
-                                <span class="nav-main-link-name">兑换码数据管理</span>
-                            </a>
-                        </li>
-                        <li class="nav-main-item">
-                            <a class="nav-main-link" data-pjax href="{:url('/admin/system/data/notices')}">
-                                <span class="nav-main-link-name">公告数据管理</span>
-                            </a>
-                        </li>
-                    </ul>
-                </li>
-                {if condition="function_exists('opcache_reset')"}
-                <li class="nav-main-item mt-1">
-                    <a class="nav-main-link" href="javascript:clearCache();">
-                        <i class="nav-main-link-icon si si-refresh"></i>
-                        <span class="nav-main-link-name">清理缓存</span>
-                    </a>
-                </li>
-                {/if}
-                <li class="nav-main-item mt-1">
-                    <a class="nav-main-link" href="javascript:clearLogs();">
-                        <i class="nav-main-link-icon si si-docs"></i>
-                        <span class="nav-main-link-name">清理运行日志</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
-
+            </li>
+            {if condition="WEB_ID eq 1"}
+            <li>
+                <a href="#">
+                    <i class="fa fa-tasks"></i> <span class="nav-label">任务配置</span> <span class="fa arrow"></span>
+                </a>
+                <ul class="nav nav-second-level collapse">
+                    <li><a class="menuItem" data-pjax href="{:url('/admin/system/task/set')}">系统任务配置</a></li>
+                    <li><a class="menuItem" data-pjax href="{:url('/admin/system/task/list')}">系统任务列表</a></li>
+                </ul>
+            </li>
+            {/if}
+            <li class="nav-heading">管理</li>
+            <li>
+                <a href="#">
+                    <i class="fa fa-database"></i> <span class="nav-label">数据管理</span> <span class="fa arrow"></span>
+                </a>
+                <ul class="nav nav-second-level collapse">
+                    <li><a class="menuItem" data-pjax href="{:url('/admin/system/data/users')}">用户数据管理</a></li>
+                    <li><a class="menuItem" data-pjax href="{:url('/admin/system/data/tasks')}">账号数据管理</a></li>
+                    <li><a class="menuItem" data-pjax href="{:url('/admin/system/data/kms')}">兑换码数据管理</a></li>
+                    <li><a class="menuItem" data-pjax href="{:url('/admin/system/data/notices')}">公告数据管理</a></li>
+                </ul>
+            </li>
+            {if condition="function_exists('opcache_reset')"}
+            <li>
+                <a href="javascript:clearCache();">
+                    <i class="fa fa-refresh"></i> <span class="nav-label">清理缓存</span>
+                </a>
+            </li>
+            {/if}
+            <li>
+                <a href="javascript:clearLogs();">
+                    <i class="fa fa-file-text-o"></i> <span class="nav-label">清理运行日志</span>
+                </a>
+            </li>
+        </ul>
     </div>
 </nav>
+<!-- 左侧导航结束 -->
 
-<header id="page-header">
-    <div class="content-header">
-        <div class="space-x-1">
-            <button class="btn btn-sm btn-alt-secondary" data-action="sidebar_toggle" data-toggle="layout" type="button">
-                <i class="fa fa-fw fa-bars"></i>
-            </button>
-            <div class="dropdown d-inline-block">
-                <button aria-expanded="false" aria-haspopup="true" class="btn btn-sm btn-alt-secondary"
-                        data-bs-auto-close="outside" data-bs-toggle="dropdown" id="page-header-themes-dropdown"
-                        type="button">
-                    <i class="fa fa-paint-brush"></i>
-                </button>
-                <div aria-labelledby="page-header-themes-dropdown" class="dropdown-menu dropdown-menu-lg p-0">
-                    <div class="p-3 bg-body-light rounded-top">
-                        <h5 class="h6 text-center mb-0">
-                            界面颜色
-                        </h5>
-                    </div>
-                    <div class="p-3">
-                        <div class="row g-0 text-center">
-                            <div class="col-2">
-                                <a class="text-default" data-theme="default" data-toggle="theme"
-                                   href="javascript:void(0)">
-                                    <i class="fa fa-2x fa-circle"></i>
-                                </a>
-                            </div>
-                            <div class="col-2">
-                                <a class="text-elegance" data-theme="/static/css/themes/elegance.min-5.0.css"
-                                   data-toggle="theme" href="javascript:void(0)">
-                                    <i class="fa fa-2x fa-circle"></i>
-                                </a>
-                            </div>
-                            <div class="col-2">
-                                <a class="text-pulse" data-theme="/static/css/themes/pulse.min-5.0.css"
-                                   data-toggle="theme" href="javascript:void(0)">
-                                    <i class="fa fa-2x fa-circle"></i>
-                                </a>
-                            </div>
-                            <div class="col-2">
-                                <a class="text-flat" data-theme="/static/css/themes/flat.min-5.0.css"
-                                   data-toggle="theme" href="javascript:void(0)">
-                                    <i class="fa fa-2x fa-circle"></i>
-                                </a>
-                            </div>
-                            <div class="col-2">
-                                <a class="text-corporate" data-theme="/static/css/themes/corporate.min-5.0.css"
-                                   data-toggle="theme" href="javascript:void(0)">
-                                    <i class="fa fa-2x fa-circle"></i>
-                                </a>
-                            </div>
-                            <div class="col-2">
-                                <a class="text-earth" data-theme="/static/css/themes/earth.min-5.0.css"
-                                   data-toggle="theme" href="javascript:void(0)">
-                                    <i class="fa fa-2x fa-circle"></i>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<!-- 右侧部分开始 -->
+<div id="page-wrapper" class="gray-bg dashbard-1">
+    <div class="row border-bottom">
+        <nav class="navbar navbar-static-top" role="navigation" style="margin-bottom: 0">
+            <div class="navbar-header">
+                <a class="navbar-minimalize minimalize-styl-2" href="javascript:;" title="切换菜单" aria-label="切换菜单">
+                    <i class="fa fa-bars"></i>
+                </a>
+                <span class="ld-shell-title">站长后台</span>
             </div>
-        </div>
-        <div class="space-x-1">
-            <div class="dropdown d-inline-block">
-                <button aria-expanded="false" aria-haspopup="true" class="btn btn-sm btn-alt-secondary"
-                        data-bs-toggle="dropdown" id="page-header-user-dropdown" type="button">
-                    <i class="fa fa-user d-sm-none"></i>
-                    <span class="d-none d-sm-inline-block fw-semibold">{:session('user.nickname')}</span>
-                    <i class="fa fa-angle-down opacity-50 ms-1"></i>
-                </button>
-                <div aria-labelledby="page-header-user-dropdown"
-                     class="dropdown-menu dropdown-menu-md dropdown-menu-end p-0">
-                    <div class="px-2 py-3 bg-body-light rounded-top">
-                        <h5 class="h6 text-center mb-0">
-                            {:session('user.nickname')}
-                        </h5>
-                    </div>
-                    <div class="p-2">
-                        <a class="dropdown-item d-flex align-items-center justify-content-between space-x-1" data-pjax
-                           href="{:url('/index/console/user/profile')}">
-                            <span>个人资料</span>
-                            <i class="fa fa-fw fa-user opacity-25"></i>
-                        </a>
-                        <div class="dropdown-divider"></div>
-                        <a class="dropdown-item d-flex align-items-center justify-content-between space-x-1" href="javascript:"
-                           onclick="logout();">
-                            <span>注销登录</span>
-                            <i class="fa fa-fw fa-sign-out-alt opacity-25"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+            <ul class="nav navbar-top-links navbar-right">
+                <li class="dropdown">
+                    <a href="javascript:void(0)" class="dropdown-toggle" data-toggle="dropdown">
+                        <img alt="image" class="user-image" src="//q2.qlogo.cn/g?b=qq&nk={:html_escape(session('user.qq'))}&s=100">
+                        <span class="hidden-xs">{:html_escape(session('user.nickname'))}</span>
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li class="mt5">
+                            <a data-pjax href="{:url('/index/console/user/profile')}">
+                                <i class="fa fa-user"></i> 个人资料
+                            </a>
+                        </li>
+                        <li class="divider"></li>
+                        <li>
+                            <a onclick="logout();">
+                                <i class="fa fa-sign-out"></i> 注销登录
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
     </div>
-    <div class="overlay-header bg-primary" id="page-header-loader">
-        <div class="content-header">
-            <div class="w-100 text-center">
-                <i class="far fa-sun fa-spin text-white"></i>
+    <div class="row content-tabs">
+        <button class="roll-nav roll-left tab-left">
+            <i class="fa fa-backward"></i>
+        </button>
+        <nav class="page-tabs menuTabs">
+            <div class="page-tabs-content" id="page-tabs-content">
+                <a href="javascript:;" class="menuTab active" data-id="{:url('/admin/system/index')}">首页</a>
             </div>
+        </nav>
+        <button class="roll-nav roll-right tab-right">
+            <i class="fa fa-forward"></i>
+        </button>
+        <div class="btn-group roll-nav roll-right">
+            <button class="btn btn-white dropdown-toggle" data-toggle="dropdown">关闭操作 <span class="caret"></span></button>
+            <ul class="dropdown-menu dropdown-menu-right" role="menu">
+                <li class="tab-close-current"><a href="javascript:;">关闭当前选项卡</a></li>
+                <li class="tab-close-other"><a href="javascript:;">关闭其他选项卡</a></li>
+                <li class="divider"></li>
+                <li class="tab-close-all"><a href="javascript:;">关闭全部选项卡</a></li>
+            </ul>
         </div>
+        <a class="roll-nav roll-right tab-reload" href="javascript:;"><i class="fa fa-refresh"></i> 刷新</a>
     </div>
-</header>
+    <div class="row mainContent" id="content-main">

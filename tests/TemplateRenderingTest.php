@@ -29,8 +29,7 @@ $variables = [
     'notification_error' => '', 'email_available' => false, 'deliveries' => [], 'email_ready' => false, 'email_enabled' => false, 'email_password_configured' => false,
     'notification_email_available' => false, 'notification_can_epic' => false, 'notification_deliveries' => [],
     'database_auto_configured' => true, 'name' => '测试收款人', 'type' => 'wechat', 'url' => 'wxp://fixture',
-] + app\admin\model\Weblist::templateSettingsData([])
-    + (new app\service\SystemUpdater(sys_get_temp_dir() . '/loopdeck-render-no-updater.json'))->status();
+] + (new app\service\SystemUpdater(sys_get_temp_dir() . '/loopdeck-render-no-updater.json'))->status();
 $count = 0;
 $failures = [];
 $renderedPages = [];
@@ -38,14 +37,12 @@ set_error_handler(static function ($severity, $message, $file, $line) {
     if (error_reporting() & $severity) throw new ErrorException($message, 0, $severity, $file, $line);
 });
 try {
-    foreach (['index', 'admin', 'install', 'index/ruoyi', 'admin/ruoyi'] as $module) {
-        $viewPath = $root . '/app/' . str_replace('/ruoyi', '', $module) . '/view/'
-            . (str_ends_with($module, '/ruoyi') ? 'ruoyi/' : '');
+    foreach (['index', 'admin', 'install'] as $module) {
+        $viewPath = $root . '/app/' . $module . '/view/';
         foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($viewPath)) as $file) {
             $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($viewPath)));
-            if ($file->getExtension() !== 'html' || str_starts_with($relative, 'common/') || str_starts_with($relative, 'ruoyi/')
-                || str_contains($relative, '/sport/') || str_ends_with($relative, '/head.html')
-                || ($relative === 'index/index.html' && $module === 'index')) continue;
+            if ($file->getExtension() !== 'html' || str_starts_with($relative, 'common/')
+                || str_ends_with($relative, '/head.html')) continue;
             $engine = new think\Template(['view_path' => $viewPath, 'cache_path' => $cachePath]);
             ob_start();
             try {
@@ -68,7 +65,7 @@ try {
     $task = ['icon' => 'fa-check', 'name' => '签到', 'describe' => '每日签到', 'more' => true, 'execute_name' => 'sign',
         'config' => '{}', 'config_json' => '{"text":"quoted\'value"}', 'last_execute' => '', 'next_execute' => 0, 'job_state' => 0,
         'user_id' => '42', 'is_global' => false, 'offline' => false, 'offline_reason' => ''];
-    foreach (['', 'ruoyi/'] as $themePath) {
+    foreach ([''] as $themePath) {
     $populatedViewPath = $root . '/app/index/view/' . $themePath;
     foreach (['netease', 'bilibili', 'heybox', 'qrcode'] as $platform) {
         foreach ($platform === 'qrcode' ? ['list'] : ['list', 'info'] as $page) {

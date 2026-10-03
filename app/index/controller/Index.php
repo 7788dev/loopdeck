@@ -85,11 +85,7 @@ class Index extends Common
             return redirect($target);
         }
         $type = str_contains($agent, 'micromessenger') ? 'wechat' : 'qq';
-        // 收款码展示页跟随整体模板：若依模式使用 view/ruoyi/index/qrcode，原版沿用 default 皮肤
-        $qrcodeTemplate = \app\admin\model\Weblist::currentSiteTemplate() === 'ruoyi'
-            ? 'index/qrcode'
-            : 'index/default/qrcode';
-        return View::fetch($qrcodeTemplate, [
+        return View::fetch('index/qrcode', [
             'type' => $type,
             'url' => payment_qrcode_url($type, (string)($data[$type . '_url'] ?? '')),
             'name' => (string)($data['name'] ?? ''),

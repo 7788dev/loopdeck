@@ -19,20 +19,12 @@ foreach (['index', 'admin'] as $module) {
         $app->config->set(['site_template' => $theme], 'sys');
         $result = $middleware->handle($request, static fn($nextRequest) => $nextRequest);
         functionalCheck($result === $request, 'Theme middleware interrupted the request');
-        $expected = $root . '/app/' . $module . '/view/' . ($theme === 'ruoyi' ? 'ruoyi/' : '');
+        $expected = $root . '/app/' . $module . '/view/' . '';
         $actual = preg_replace('~/+~', '/', str_replace('\\', '/', View::engine()->getConfig('view_path')));
         functionalCheck($actual === $expected, 'Theme view path mismatch: ' . $actual . ' != ' . $expected);
     }
     $viewRoot = $root . '/app/' . $module . '/view/';
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($viewRoot)) as $file) {
-        $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($viewRoot)));
-        if ($file->getExtension() !== 'html' || str_starts_with($relative, 'ruoyi/')
-            || $relative === 'common/jump.html' // Historical orphan; no controller renders it.
-            || $relative === 'system/data/tasks.html' // The tasks route renders data/accounts.
-            || str_contains($relative, '/sport/') || preg_match('~^(login|index)/[^/]+/~', $relative)) continue;
-        functionalCheck(is_file($viewRoot . 'ruoyi/' . $relative), 'Missing RuoYi page: ' . $module . '/' . $relative);
-    }
-    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($viewRoot . 'ruoyi/')) as $file) {
         if ($file->getExtension() !== 'html') continue;
         $source = file_get_contents($file->getPathname());
         functionalCheck(!str_contains($source, 'datatables-bs5') && !str_contains($source, 'responsive-bs5'), 'Bootstrap 5 plugin in RuoYi page');
@@ -46,20 +38,22 @@ foreach (['../../admin', 'unknown', ['ruoyi']] as $invalid) {
     functionalCheck((new app\admin\controller\Ajax())->set('config')->getData()['code'] === 0, 'Invalid site template accepted');
 }
 foreach (['index', 'login'] as $section) {
-    $templates = $section === 'index' ? app\admin\model\Weblist::indexTemplateData() : app\admin\model\Weblist::loginTemplateData();
-    foreach ($templates as $template) {
-        $app->config->set([$section . '_template' => $template['id']], 'web');
-        foreach (['default', 'ruoyi', 'default'] as $theme) {
-            $app->config->set(['site_template' => $theme], 'sys');
-            foreach ($section === 'index' ? ['index'] : ['login', 'reg', 'find', 'reset'] as $page) {
-                $expected = $section . '/' . ($theme === 'default' ? $template['id'] . '/' : '') . $page;
-                functionalCheck(app\service\SiteTheme::entry($section, $page) === $expected, 'Saved entry template was ignored or lost');
-            }
+    foreach (['default', 'onebox', '../../admin'] as $legacy) {
+        $app->config->set([$section . '_template' => $legacy], 'web');
+        foreach ($section === 'index' ? ['index'] : ['login', 'reg', 'find', 'reset'] as $page) {
+            functionalCheck(app\service\SiteTheme::entry($section, $page) === $section . '/' . $page,
+                'Legacy template selection changed the sole view path');
         }
     }
-    $app->config->set([$section . '_template' => '../../admin'], 'web');
-    functionalCheck(app\service\SiteTheme::entry($section, $section) === $section . '/default/' . $section, 'Unsafe subtemplate path accepted');
 }
+foreach (['1.png', '2.png'] as $name) {
+    $app->config->set(['index_bg' => '/static/template/bg/' . $name], 'web');
+    $path = app\service\SiteTheme::homeBackground();
+    functionalCheck($path === '/static/ruoyi/img/home/' . $name && is_file($root . '/public' . $path),
+        'Legacy shared homepage background lost during removal');
+}
+$app->config->set(['index_bg' => 'https://example.com/custom.png'], 'web');
+functionalCheck(app\service\SiteTheme::homeBackground() === 'https://example.com/custom.png', 'Custom background changed');
 fixtureTable('accounts', 'id INTEGER PRIMARY KEY, uid INTEGER, zid INTEGER, type TEXT, user_id TEXT, data TEXT');
 think\facade\Db::name('accounts')->insert([
     'id' => 1, 'uid' => 1, 'zid' => 1, 'type' => 'qrcode', 'user_id' => 'fixture',
@@ -72,7 +66,7 @@ foreach (['ruoyi', 'default'] as $theme) {
     $middleware->handle($app->request, static fn($nextRequest) => $nextRequest);
     $html = (new app\index\controller\Index())->qrcode();
     functionalCheck(is_string($html) && str_contains($html, '测试收款码'), 'Public QR route did not render');
-    functionalCheck(str_contains($html, '/static/ruoyi/') === ($theme === 'ruoyi'), 'Public QR route used the wrong theme');
+    functionalCheck(str_contains($html, '/static/ruoyi/'), 'Public QR route used the wrong theme');
 }
 define('PJAX', true);
 $title = "O'Reilly </script> \"标题\"";
@@ -88,4 +82,4 @@ foreach (['index', 'admin'] as $module) {
         functionalCheck(json_decode($match[1] ?? '', true) === $title . ' - 测试', 'PJAX title was not serialized safely');
     }
 }
-echo "Site template switching, page coverage and dependency boundaries passed\n";
+echo "RuoYi-only legacy configuration and dependency boundaries passed\n";

@@ -98,10 +98,8 @@ class Ajax extends Common
                     ) {
                         return resultJson(0, '网易云工具每日次数必须在 1 到 1000 之间');
                     }
-                    if ($key === 'site_template'
-                        && !in_array($value, array_column(Weblist::SITE_TEMPLATE_OPTIONS, 'id'), true)
-                    ) {
-                        return resultJson(0, '整体模板选项无效');
+                    if (in_array($key, ['site_template', 'index_template', 'login_template'], true)) {
+                        return resultJson(0, '模板选择已移除');
                     }
                     $records[] = [$key, $value];
                 }

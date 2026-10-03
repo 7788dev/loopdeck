@@ -1,50 +1,50 @@
 {extend name="common/layout"/}
 {block name="head"} {include file="console/head" /}{/block}
 {block name="main"}
-<div class="row">
-    <div class="col-12">
-        <div class="content">
-            <div class="block block-rounded">
-                <div class="block-header block-header-default">
-                    <h3 class="block-title">
-                        <i class="fa fa-user-circle me-1 text-muted"></i> 个人资料
-                    </h3>
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>
+                        <i class="fa fa-user-circle text-muted"></i> 个人资料
+                    </h5>
                 </div>
-                <div class="block-content">
+                <div class="ibox-content">
                     <form id="edit-profile" onsubmit="return false;">
-                        <div class="row items-push">
+                        <div class="row">
                             <div class="col-lg-3">
                                 <p class="text-muted">
                                     你可以在这里修改你的用户信息
                                 </p>
                             </div>
-                            <div class="col-lg-7 offset-lg-1">
-                                <div class="mb-4">
-                                    <label class="form-label" for="username">用户名</label>
-                                    <input class="form-control form-control-lg" id="username" name="username"
+                            <div class="col-lg-7 col-lg-offset-1">
+                                <div class="form-group">
+                                    <label class="control-label" for="username">用户名</label>
+                                    <input class="form-control input-lg" id="username" name="username"
                                            placeholder="用户名（不可修改）" readonly=""
                                            type="text" value="{:html_escape(session('user.username'))}">
                                 </div>
-                                <div class="mb-4">
-                                    <label class="form-label" for="nickname">昵称</label>
-                                    <input class="form-control form-control-lg" id="nickname" name="nickname"
+                                <div class="form-group">
+                                    <label class="control-label" for="nickname">昵称</label>
+                                    <input class="form-control input-lg" id="nickname" name="nickname"
                                            placeholder="输入你的昵称" type="text"
                                            value="{:html_escape(session('user.nickname'))}">
                                 </div>
-                                <div class="mb-4">
-                                    <label class="form-label" for="qq">QQ</label>
-                                    <input class="form-control form-control-lg" id="qq" name="qq"
+                                <div class="form-group">
+                                    <label class="control-label" for="qq">QQ</label>
+                                    <input class="form-control input-lg" id="qq" name="qq"
                                            placeholder="输入你的 QQ 号" type="number"
                                            value="{:html_escape(session('user.qq'))}">
                                 </div>
-                                <div class="mb-4">
-                                    <label class="form-label" for="mail">邮箱</label>
-                                    <input class="form-control form-control-lg" id="mail" name="mail"
+                                <div class="form-group">
+                                    <label class="control-label" for="mail">邮箱</label>
+                                    <input class="form-control input-lg" id="mail" name="mail"
                                            placeholder="输入你的邮箱" type="email"
                                            value="{:html_escape(session('user.mail'))}">
                                 </div>
-                                <div class="mb-4">
-                                    <button class="btn btn-alt-primary" onclick="ajax_edit_profile();" type="submit">
+                                <div class="form-group">
+                                    <button class="btn btn-primary" onclick="ajax_edit_profile();" type="submit">
                                         更新
                                     </button>
                                 </div>
@@ -56,38 +56,38 @@
 
             {include file="console/user/notification" /}
 
-            <div class="block block-rounded">
-                <div class="block-header block-header-default">
-                    <h3 class="block-title">
-                        <i class="fa fa-asterisk me-1 text-muted"></i> 修改密码
-                    </h3>
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5>
+                        <i class="fa fa-asterisk text-muted"></i> 修改密码
+                    </h5>
                 </div>
-                <div class="block-content">
+                <div class="ibox-content">
                     <form id="change_PassWord" onsubmit="return false;">
-                        <div class="row items-push">
+                        <div class="row">
                             <div class="col-lg-3">
                                 <p class="text-muted">
                                     你可以在这里修改登录密码
                                 </p>
                             </div>
-                            <div class="col-lg-7 offset-lg-1">
-                                <div class="mb-4">
-                                    <label class="form-label" for="outpass">当前密码</label>
-                                    <input class="form-control form-control-lg" id="outpass" name="outpass"
+                            <div class="col-lg-7 col-lg-offset-1">
+                                <div class="form-group">
+                                    <label class="control-label" for="outpass">当前密码</label>
+                                    <input class="form-control input-lg" id="outpass" name="outpass"
                                            type="password" autocomplete="current-password">
                                 </div>
-                                <div class="mb-4">
-                                    <label class="form-label" for="password">新密码</label>
-                                    <input class="form-control form-control-lg" id="password" name="password"
+                                <div class="form-group">
+                                    <label class="control-label" for="password">新密码</label>
+                                    <input class="form-control input-lg" id="password" name="password"
                                            type="password" autocomplete="new-password">
                                 </div>
-                                <div class="mb-4">
-                                    <label class="form-label" for="repass">确认新密码</label>
-                                    <input class="form-control form-control-lg" id="repass" name="repass"
+                                <div class="form-group">
+                                    <label class="control-label" for="repass">确认新密码</label>
+                                    <input class="form-control input-lg" id="repass" name="repass"
                                            type="password" autocomplete="new-password">
                                 </div>
-                                <div class="mb-4">
-                                    <button class="btn btn-alt-primary" onclick="ajax_change_PassWord();" type="submit">
+                                <div class="form-group">
+                                    <button class="btn btn-primary" onclick="ajax_change_PassWord();" type="submit">
                                         修改
                                     </button>
                                 </div>

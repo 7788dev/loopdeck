@@ -164,7 +164,8 @@ console.log('Sidebar navigation state and responsive boundaries passed');
     vm.runInContext(read('public/static/js/app.min.js'), context);
     const rows = new Set();
     const links = ['accounts', 'settings'].map(name => ({href: 'http://fixture/' + name, group: name, active: false}));
-    const noOp = {addClass() {return this;}, css() {return this;}};
+    const ancestorClasses = new Set(['collapse']);
+    const noOp = {removeClass(name) {ancestorClasses.delete(name); return this;}, addClass(name) {ancestorClasses.add(name); return this;}, css() {return this;}};
     context.$ = selector => {
         if (selector === '#nav-main a') return {each() {}};
         if (selector === '#side-menu li') return {removeClass() {rows.clear();}};
@@ -178,6 +179,7 @@ console.log('Sidebar navigation state and responsive boundaries passed');
     context.x.tabSync = () => {};
     context.window.location.href = links[0].href;
     context.x.reload();
+    assert.deepEqual([...ancestorClasses], ['in'], 'Route activation left contradictory collapse and expanded states');
     context.window.location.href = links[1].href + '?filter=all';
     context.x.reload();
     assert.deepEqual([...rows], ['settings'], 'Previous RuoYi menu group retained its active highlight');

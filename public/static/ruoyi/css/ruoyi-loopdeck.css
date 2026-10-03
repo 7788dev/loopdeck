@@ -141,8 +141,8 @@ body.signin {
     }
     body.fixed-sidebar.mini-navbar #side-menu .nav-second-level.in,
     body.fixed-sidebar.mini-navbar #side-menu .nav-third-level.in { display: block; }
-    body.fixed-sidebar.mini-navbar #side-menu .nav-second-level.collapse:not(.in),
-    body.fixed-sidebar.mini-navbar #side-menu .nav-third-level.collapse:not(.in) { display: none; }
+    body.fixed-sidebar.mini-navbar #side-menu .nav-second-level:not(.in),
+    body.fixed-sidebar.mini-navbar #side-menu .nav-third-level:not(.in) { display: none; }
     body.fixed-sidebar.mini-navbar #side-menu .arrow { display: inline-block; }
     body.fixed-sidebar.mini-navbar #page-wrapper, #page-wrapper { margin-left: 0; }
     .content-tabs .btn-group { display: none; }

@@ -21,6 +21,7 @@ class Index extends Common
     public function index()
     {
         View::assign([
+            'homeBackground' => \app\service\SiteTheme::homeBackground(),
             'timeCount' => Weblist::start_Time(),
             'userCount' => Users::userCount(),
             // The old home page expected a QQ-avatar showcase collection that

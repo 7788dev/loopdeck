@@ -15,6 +15,7 @@ $app->config->set(['webname' => 'LoopDeck', 'title' => '测试站点', 'web_id' 
 think\facade\Session::set('user.nickname', '测试用户');
 think\facade\Session::set('user.qq', '10000');
 $variables = [
+    'homeBackground' => app\service\SiteTheme::homeBackground(),
     'redemption_presets' => app\service\RedemptionPlan::presets(),
     'redemption_max_days' => app\service\RedemptionPlan::MAX_DAYS,
     'redemption_max_accounts' => app\service\RedemptionPlan::MAX_ACCOUNTS,

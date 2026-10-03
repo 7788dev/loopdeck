@@ -15,10 +15,10 @@
         </div>
     </div>
     <div class="row">
-        <div class="col-md-4">
+        <div class="col-md-6">
             <div class="ibox float-e-margins text-center">
-                <div class="ibox-title navy-bg">
-                    <h5 class="text-white">账户明细</h5>
+                <div class="ibox-title">
+                    <h5>账户明细</h5>
                 </div>
                 <div class="ibox-content">
                     <div class="font-bold m-b-sm" id="redeemed-account-limit">账号总数：{:account_limit_label(session('user.quota'))}（所有平台共用）</div>
@@ -31,22 +31,20 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-6">
             <div class="ibox float-e-margins text-center">
-                <div class="ibox-title lazur-bg">
-                    <h5 class="text-white">输入兑换码</h5>
+                <div class="ibox-title">
+                    <h5>输入兑换码</h5>
                 </div>
                 <div class="ibox-content">
                     <div class="tab-content">
                         <div class="tab-pane active" id="crypto-buy" role="tabpanel" aria-labelledby="crypto-buy-tab">
                             <form onsubmit="return false;">
                                 <div class="form-group">
-                                    <div class="input-group input-group-lg">
-                                        <input type="text" class="form-control" id="km" name="km" placeholder="请输入你的兑换码">
-                                    </div>
+                                    <input type="text" class="form-control" id="km" name="km" placeholder="请输入你的兑换码">
                                 </div>
                                 <div class="form-group">
-                                    <button type="submit" id="redeem-button" class="btn btn-lg btn-primary btn-block" onclick="ajax_km_activate();">确定兑换</button>
+                                    <button type="submit" id="redeem-button" class="btn btn-primary btn-block" onclick="ajax_km_activate();">确定兑换</button>
                                 </div>
                             </form>
                         </div>

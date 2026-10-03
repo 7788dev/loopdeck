@@ -225,6 +225,18 @@ a:hover .ld-shortcut { border-color: #9ebfd9; background: #f7fafc; }
 .ld-account-summary > img { width: 56px; height: 56px; }
 .ld-account-summary h3 { font-size: 16px; margin: 12px 0 8px; }
 .ld-account-summary .text-muted { line-height: 1.8; }
+.ld-account-avatar { background: #f6f8fb; }
+.label { display: inline-block; padding: 3px 8px; font-size: 12px; font-weight: 400; line-height: 1.4; border-radius: 3px; }
+.label-primary, .label-info { background: #eaf3fb; color: #286ca8; }
+.label-success { background: #eaf4ee; color: #26734b; }
+.label-warning { background: #fff6e6; color: #8b5f18; }
+.label-danger { background: #fbeeee; color: #b63a3a; }
+.badge { padding: 3px 8px; font-size: 12px; font-weight: 400; line-height: 1.4; border-radius: 3px; }
+.badge.bg-success { background: #eaf4ee; color: #26734b; }
+.badge.bg-warning { background: #fff6e6; color: #8b5f18; }
+.badge.bg-danger { background: #fbeeee; color: #b63a3a; }
+.badge.bg-info { background: #eaf3fb; color: #286ca8; }
+.badge.bg-secondary { background: #edf0f4; color: #606b78; }
 .ld-admin-stats { margin-bottom: 16px; }
 .ld-management-links a { display: inline-block; padding: 4px 0 10px; font-size: 14px; font-weight: 500; color: #337ab7; }
 .ld-management-links a .fa { margin-right: 8px; }

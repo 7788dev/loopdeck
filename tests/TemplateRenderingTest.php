@@ -50,6 +50,10 @@ try {
                 $engine->fetch($file->getPathname(), $variables);
                 $html = ob_get_contents();
                 functionalCheck(strlen($html) > 100, 'Empty page');
+                if ($module === 'index' && $relative === 'console/shop/card.html') {
+                    functionalCheck(str_contains($html, '例如总数 7 个，可绑定 2 个哔哩哔哩 + 5 个网易云，也可全部绑定网易云。'), 'Account total usage example missing');
+                    functionalCheck(!preg_match('/时长为 0|总数为 0|续期不叠加|旧版配额码/u', $html), 'Internal entitlement rules leaked into user copy');
+                }
                 $renderedPages[$module . '/' . $relative] = $html;
                 $count++;
             } catch (Throwable $error) {

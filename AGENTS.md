@@ -22,6 +22,7 @@ Do not edit generated or local-state directories such as `vendor/` and `runtime/
 - Never report a run that accomplished nothing as success: when zero of N actions land (e.g. `已投币 0/3`), return failure with the upstream reason, and treat per-item refusals such as Bilibili 34005 (video already coined) as skip-and-continue, not end-of-run ([decision](.agents/notes/implemented/architecture/2026-09-28-bilibili-coin-skip-capped-videos.md)).
 
 - Do not reintroduce payment gateways, online purchases, balances or pricing. Entitlements come from registration gifts, administrator settings and administrator-issued redemption codes ([decision](.agents/notes/implemented/architecture/2026-09-28-admin-managed-entitlements.md)).
+- Keep user-facing entitlement copy about usage and actual benefits; omit backend sentinel values, renewal merge rules and legacy-code mechanics ([decision](.agents/notes/implemented/architecture/2026-09-29-combined-redemption-account-limit.md)).
 - New redemption codes combine VIP days with one cross-platform account total; zero means permanent VIP / unlimited accounts. Preserve higher and unlimited benefits on renewal; user-table quota=0 still means no slots. Only legacy quota codes add slots. Serialize redemption and account creation by the same user row lock ([decision](.agents/notes/implemented/architecture/2026-09-29-combined-redemption-account-limit.md)).
 
 ## Build, Test, and Development Commands

@@ -26,4 +26,6 @@ Status: implemented
 
 ## Consequences
 
+若依模板的官方版本对照、视觉取舍和 PJAX 样式边界见[视觉迁移记录](2026-10-03-ruoyi-visual-reference.md)。
+
 两套业务视图需要同步维护；`SiteTemplateTest` 检查活动页面覆盖、路径白名单、往返切换及公开收款码渲染。`TemplateRenderingTest` 和 `FrontendInteractionTest.js` 同时覆盖两套模板及兑换码、任务配置等共用交互。运行截图使用隔离数据库，带上游账号详情的补充截图使用明确标记的离线数据，不把它们当作真实上游任务执行证明。

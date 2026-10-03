@@ -39,7 +39,7 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <input type="checkbox" name="is_netease_proxy"
+                                    <input type="checkbox" class="ld-switch" role="switch" aria-label="启用网易云代理" name="is_netease_proxy"
                                            onclick="ajax_edit_config(this)"
                                            {if condition="config('sys.is_netease_proxy') eq 1"}checked{/if}>
                                 </td>
@@ -74,7 +74,7 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <input type="checkbox" name="is_netease_tool"
+                                    <input type="checkbox" class="ld-switch" role="switch" aria-label="启用听歌任务工具" name="is_netease_tool"
                                            onclick="ajax_edit_config(this)"
                                            {if condition="config('sys.is_netease_tool') eq 1"}checked{/if}>
                                 </td>

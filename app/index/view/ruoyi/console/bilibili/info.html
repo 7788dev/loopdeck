@@ -177,9 +177,9 @@
                                         {if condition="$v.offline"}
                                         <input type="checkbox" disabled title="{$v.offline_reason}">
                                         {elseif condition="$v.job_state eq 1" /}
-                                        <input type="checkbox" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}', this);" checked>
+                                        <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}', this);" checked>
                                         {else /}
-                                        <input type="checkbox" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}', this);">
+                                        <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}', this);">
                                         {/if}
                                     </td>
                                 </tr>

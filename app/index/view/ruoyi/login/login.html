@@ -12,7 +12,7 @@
     <link href="/static/ruoyi/css/animate.min.css" rel="stylesheet">
     <link href="/static/ruoyi/css/style.min.css" rel="stylesheet">
     <link href="/static/ruoyi/css/login.min.css" rel="stylesheet">
-    <link href="/static/ruoyi/css/ruoyi-loopdeck.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/ruoyi-loopdeck.css?v={:app_version()}" rel="stylesheet">
 </head>
 <body class="signin">
 <div class="signinpanel">
@@ -20,7 +20,7 @@
         <div class="col-sm-7">
             <div class="signin-info">
                 <div class="logopanel m-b">
-                    <h1><i class="fa fa-fire text-danger"></i> {:config('web.webname')}</h1>
+                    <h1>{:config('web.webname')}</h1>
                 </div>
                 <h3>
                     欢迎使用 {:config('web.webname')}
@@ -39,7 +39,7 @@
                 <p class="m-t-md">请登录</p>
                 <input type="text" class="form-control uname" id="username" name="username" placeholder="用户名">
                 <input type="password" class="form-control pword" id="password" name="password" placeholder="密码">
-                <button class="btn btn-success btn-block" onclick="ajax_user_login();" type="submit">登录</button>
+                <button class="btn btn-primary btn-block" onclick="ajax_user_login();" type="submit">登录</button>
             </form>
         </div>
     </div>

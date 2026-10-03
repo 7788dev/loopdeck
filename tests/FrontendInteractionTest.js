@@ -24,7 +24,7 @@ function scripts(file) {
 
 function environment() {
     const state = {closed: false, sent: [], events: {}, values: {'#timing': '18:35', '#km': 'fixture-code'}};
-    const chain = {pjax() {return this;}, on(event, handler) {state.events[event] = handler; return this;}, each() {return this;}, ready() {return this;},
+    const chain = {pjax() {return this;}, on(event, handler) {state.events[event] = handler; return this;}, each() {return this;}, ready() {return this;}, removeClass() {return this;},
         DataTable() {return {ajax: {reload() {}}};},
         find() {return this;}, prop(name, value) {state[name] = value; return this;},
         parseForm() {return state.closed ? {} : {selected: 'saved-value'};}};
@@ -167,6 +167,31 @@ for (const [theme, widths] of [['default', [390, 991, 992, 1440]], ['ruoyi', [39
     }
 }
 console.log('Sidebar navigation state and responsive boundaries passed');
+
+{
+    const {context} = environment();
+    vm.runInContext(read('public/static/js/app.min.js'), context);
+    const rows = new Set();
+    const links = ['accounts', 'settings'].map(name => ({href: 'http://fixture/' + name, group: name, active: false}));
+    const noOp = {addClass() {return this;}, css() {return this;}};
+    context.$ = selector => {
+        if (selector === '#nav-main a') return {each() {}};
+        if (selector === '#side-menu li') return {removeClass() {rows.clear();}};
+        if (selector === '#side-menu a') return {each(callback) {links.forEach(link => callback.call(link));}};
+        return {
+            addClass() {selector.active = true; return this;},
+            removeClass() {selector.active = false; return this;},
+            parents(kind) {return kind === 'li' ? {addClass() {rows.add(selector.group);}} : noOp;}
+        };
+    };
+    context.x.tabSync = () => {};
+    context.window.location.href = links[0].href;
+    context.x.reload();
+    context.window.location.href = links[1].href + '?filter=all';
+    context.x.reload();
+    assert.deepEqual([...rows], ['settings'], 'Previous RuoYi menu group retained its active highlight');
+    assert.deepEqual(links.map(link => link.active), [false, true], 'More than one leaf remained active');
+}
 
 
 // Run the real updater controller against a small DOM and controlled network.

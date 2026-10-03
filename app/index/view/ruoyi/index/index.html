@@ -47,13 +47,14 @@
         .ld-stat .num { font-size: 28px; font-weight: bold; }
         .ld-footer { padding: 18px 0; color: #888; font-size: 12px; }
     </style>
+    <link href="/static/ruoyi/css/ruoyi-loopdeck.css?v={:app_version()}" rel="stylesheet">
 </head>
-<body>
+<body class="ld-home">
 <nav class="navbar navbar-static-top navbar-default" role="navigation" style="margin-bottom: 0; border-radius: 0;">
     <div class="container">
         <div class="navbar-header">
             <a class="navbar-brand" href="{:url('index/index')}">
-                <i class="fa fa-fire text-danger"></i> <strong>{:config('web.webname')}</strong>
+                <strong>{:config('web.webname')}</strong>
             </a>
         </div>
         <ul class="nav navbar-top-links navbar-right">
@@ -70,7 +71,7 @@
 <div class="ld-hero text-center" id="home">
     <div class="mask"></div>
     <div class="container">
-        <h1 class="text-white" style="font-size: 44px; font-weight: bold;">
+        <h1 class="text-white" >
             {:config('web.webname')}
         </h1>
         <h3 class="text-white" style="opacity: .8; margin-top: 20px;">
@@ -97,7 +98,7 @@
     <div class="row">
         <div class="col-md-4">
             <div class="ld-box">
-                <span class="ld-feature-icon" style="background-color: #1ab394;"><i class="fa fa-cubes"></i></span>
+                <span class="ld-feature-icon"><i class="fa fa-cubes"></i></span>
                 <h3 style="font-size: 18px; font-weight: bold;">高效云端</h3>
                 <p class="text-muted">
                     网易云音乐、哔哩哔哩等平台<br>
@@ -109,7 +110,7 @@
         </div>
         <div class="col-md-4">
             <div class="ld-box">
-                <span class="ld-feature-icon" style="background-color: #23c6c8;"><i class="fa fa-code"></i></span>
+                <span class="ld-feature-icon"><i class="fa fa-code"></i></span>
                 <h3 style="font-size: 18px; font-weight: bold;">清晰易用</h3>
                 <p class="text-muted">
                     任务开关与配置一目了然<br>
@@ -121,7 +122,7 @@
         </div>
         <div class="col-md-4">
             <div class="ld-box">
-                <span class="ld-feature-icon" style="background-color: #f8ac59;"><i class="fa fa-rocket"></i></span>
+                <span class="ld-feature-icon"><i class="fa fa-rocket"></i></span>
                 <h3 style="font-size: 18px; font-weight: bold;">定时托管</h3>
                 <p class="text-muted">
                     按设置时间安排任务<br>
@@ -159,6 +160,7 @@
     </div>
 </div>
 
+{if condition="count($users) gt 0"}
 <div class="container text-center" id="users" style="padding: 30px 15px;">
     <h2 class="ld-section-title">TA们都在使用 <span class="text-navy">{:config('web.webname')}</span></h2>
     <p class="ld-section-sub">极致的享受</p>
@@ -176,16 +178,17 @@
     </div>
 </div>
 
+{/if}
 <div class="container" id="about" style="padding: 30px 15px 60px;">
     <div class="row">
         <div class="col-md-6">
-            <div class="ld-stat text-center" style="background-color: #1ab394;">
+            <div class="ld-stat text-center">
                 <div class="num">运营 {$timeCount} 天</div>
                 <div style="opacity: .8;">我们一直在路上</div>
             </div>
         </div>
         <div class="col-md-6">
-            <div class="ld-stat text-center" style="background-color: #23c6c8;">
+            <div class="ld-stat text-center">
                 <div class="num">我们正在为 {$userCount} 位 用户提供服务</div>
                 <div style="opacity: .8;">感谢一路相伴</div>
             </div>
@@ -194,8 +197,8 @@
 </div>
 
 <div class="text-center" style="background-color: #2f4050; padding: 50px 15px;">
-    <h3 class="text-white" style="margin-top: 0;">坚持你的梦想</h3>
-    <h4 style="opacity: .75; color: #fff;">永远相信美好的事情即将发生</h4>
+    <h3 class="text-white" style="margin-top: 0;">让日常任务更省心</h3>
+    <h4 style="opacity: .75; color: #fff;">登录控制台，统一管理账号与任务</h4>
     <a class="btn btn-success btn-lg" href="{:url('login/login')}">加入我们</a>
 </div>
 

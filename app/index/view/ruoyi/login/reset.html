@@ -12,7 +12,7 @@
     <link href="/static/ruoyi/css/animate.min.css" rel="stylesheet">
     <link href="/static/ruoyi/css/style.min.css" rel="stylesheet">
     <link href="/static/ruoyi/css/login.min.css" rel="stylesheet">
-    <link href="/static/ruoyi/css/ruoyi-loopdeck.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/ruoyi-loopdeck.css?v={:app_version()}" rel="stylesheet">
 </head>
 <body class="signin">
 <div class="signinpanel">
@@ -20,7 +20,7 @@
         <div class="col-sm-7">
             <div class="signin-info">
                 <div class="logopanel m-b">
-                    <h1><i class="fa fa-fire text-danger"></i> {:config('web.webname')}</h1>
+                    <h1>{:config('web.webname')}</h1>
                 </div>
                 <h3>
                     重置密码
@@ -38,7 +38,7 @@
                 <p class="m-t-md">请设置新密码</p>
                 <input type="password" autocomplete="new-password" class="form-control pword" id="password" name="password" placeholder="输入你的新密码">
                 <input type="password" autocomplete="new-password" class="form-control pword" id="repass" name="repass" placeholder="请确认你的密码">
-                <button class="btn btn-success btn-block" onclick="ajax_user_reset();" type="submit">确认重置密码</button>
+                <button class="btn btn-primary btn-block" onclick="ajax_user_reset();" type="submit">确认重置密码</button>
             </form>
         </div>
     </div>

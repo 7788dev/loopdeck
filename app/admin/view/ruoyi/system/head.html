@@ -5,26 +5,11 @@
     </div>
     <a href="{:url('/admin/system/index')}">
         <li class="logo hidden-xs">
-            <span class="logo-lg"><i class="fa fa-fire text-danger"></i> {:config('web.webname')}</span>
+            <span class="logo-mini" aria-hidden="true"><i class="fa fa-cube"></i></span><span class="logo-lg">{:config('web.webname')}</span>
         </li>
     </a>
     <div class="sidebar-collapse">
         <ul class="nav" id="side-menu">
-            <li class="nav-header">
-                <div class="dropdown profile-element">
-                    <a class="dropdown-toggle" href="{:url('/index/console/user/profile')}">
-                        <span class="clear">
-                            <span class="block m-t-xs">
-                                <img alt="image" class="img-circle" src="//q2.qlogo.cn/g?b=qq&nk={:html_escape(session('user.qq'))}&s=100" height="48" width="48">
-                                <strong class="font-bold">{:html_escape(session('user.nickname'))}</strong>
-                            </span>
-                        </span>
-                    </a>
-                </div>
-                <div class="logo-element">
-                    {:html_escape(mb_substr((string)(session('user.nickname') ?: session('user.username') ?: '用户'), 0, 1))}
-                </div>
-            </li>
             <li>
                 <a href="{:url('/index/console/index')}">
                     <i class="fa fa-home"></i> <span class="nav-label">用户中心</span>
@@ -95,9 +80,10 @@
     <div class="row border-bottom">
         <nav class="navbar navbar-static-top" role="navigation" style="margin-bottom: 0">
             <div class="navbar-header">
-                <a class="navbar-minimalize minimalize-styl-2" href="javascript:;" title="收起菜单">
+                <a class="navbar-minimalize minimalize-styl-2" href="javascript:;" title="切换菜单" aria-label="切换菜单">
                     <i class="fa fa-bars"></i>
                 </a>
+                <span class="ld-shell-title">站长后台</span>
             </div>
             <ul class="nav navbar-top-links navbar-right">
                 <li class="dropdown">

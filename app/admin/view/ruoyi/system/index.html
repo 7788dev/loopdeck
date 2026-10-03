@@ -3,86 +3,36 @@
 {block name="main"}
 <link rel="stylesheet" href="/static/js/plugins/slick-carousel/slick.css">
 <link rel="stylesheet" href="/static/js/plugins/slick-carousel/slick-theme.css">
-<div class="wrapper wrapper-content animated fadeInUp">
-    <div class="row">
-        <div class="col-md-6">
-            <a href="javascript:void(0)">
-                <div class="ibox float-e-margins" style="margin-bottom: 15px;">
-                    <div class="ibox-content text-center">
-                        <i class="fa fa-bar-chart-o fa-2x text-muted"></i>
-                        <div class="row" style="padding-top: 8px; padding-bottom: 16px;">
-                            <div class="col-xs-6" style="border-right: 1px solid #eee;">
-                                <h3 class="font-bold" style="margin-bottom: 2px;">{$job_count}</h3>
-                                <small class="text-muted">累计任务</small>
-                            </div>
-                            <div class="col-xs-6">
-                                <h3 class="font-bold" style="margin-bottom: 2px;">{$execute_count}</h3>
-                                <small class="text-muted">运行次数</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-6">
-            <a href="javascript:void(0)">
-                <div class="ibox float-e-margins" style="margin-bottom: 15px;">
-                    <div class="ibox-content text-center">
-                        <i class="fa fa-users fa-2x text-muted"></i>
-                        <div class="row" style="padding-top: 8px; padding-bottom: 16px;">
-                            <div class="col-xs-12">
-                                <h3 class="font-bold" style="margin-bottom: 2px;">{$user_count}</h3>
-                                <small class="text-muted">用户数量</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </a>
-        </div>
+<div class="wrapper wrapper-content ld-dashboard">
+    <div class="row ld-admin-stats">
+        <div class="col-sm-4"><div class="ld-stat-card"><div class="row">
+            <div class="col-xs-4"><i class="fa fa-tasks"></i></div>
+            <div class="col-xs-8 text-right"><span class="font-bold">{$job_count}</span><small>累计任务</small></div>
+        </div></div></div>
+        <div class="col-sm-4"><div class="ld-stat-card"><div class="row">
+            <div class="col-xs-4"><i class="fa fa-check-circle-o"></i></div>
+            <div class="col-xs-8 text-right"><span class="font-bold">{$execute_count}</span><small>运行次数</small></div>
+        </div></div></div>
+        <div class="col-sm-4"><div class="ld-stat-card"><div class="row">
+            <div class="col-xs-4"><i class="fa fa-users"></i></div>
+            <div class="col-xs-8 text-right"><span class="font-bold">{$user_count}</span><small>用户数量</small></div>
+        </div></div></div>
     </div>
-    <div class="row">
-        <div class="col-md-4">
-            <div class="ibox float-e-margins">
-                <div class="ibox-content text-center">
-                    <div style="margin-bottom: 12px;">
-                        <i class="fa fa-cogs fa-4x text-primary"></i>
-                    </div>
-                    <h4 class="font-bold">现在去设置我的网站</h4>
-                    <div style="padding-top: 12px;">
-                        <a class="btn btn-primary" data-pjax href="{:url('/admin/system/set/info')}">
-                            <i class="fa fa-cog"></i> 系统设置
-                        </a>
-                    </div>
+    <div class="ibox">
+        <div class="ibox-title"><h5>常用管理</h5></div>
+        <div class="ibox-content">
+            <div class="row ld-management-links">
+                <div class="col-sm-4">
+                    <a data-pjax href="{:url('/admin/system/set/info')}"><i class="fa fa-cog"></i> 系统设置</a>
+                    <p class="text-muted">站点信息、注册与功能选项</p>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="ibox float-e-margins">
-                <div class="ibox-content text-center">
-                    <div style="margin-bottom: 12px;">
-                        <i class="fa fa-user fa-4x text-info"></i>
-                    </div>
-                    <h4 class="font-bold">现在去管理我的用户</h4>
-                    <div style="padding-top: 12px;">
-                        <a class="btn btn-info" data-pjax href="{:url('/admin/system/data/users')}">
-                            <i class="fa fa-users"></i> 用户管理
-                        </a>
-                    </div>
+                <div class="col-sm-4">
+                    <a data-pjax href="{:url('/admin/system/data/users')}"><i class="fa fa-users"></i> 用户管理</a>
+                    <p class="text-muted">账号状态、会员与账号额度</p>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="ibox float-e-margins">
-                <div class="ibox-content text-center">
-                    <div style="margin-bottom: 12px;">
-                        <i class="fa fa-check fa-4x text-success"></i>
-                    </div>
-                    <h4 class="font-bold">查看自动更新状态</h4>
-                    <div style="padding-top: 12px;">
-                        <a class="btn btn-success" href="{:url('/admin/system/update')}">
-                            <i class="fa fa-refresh"></i> 自动更新状态
-                        </a>
-                    </div>
+                <div class="col-sm-4">
+                    <a data-pjax href="{:url('/admin/system/update')}"><i class="fa fa-refresh"></i> 自动更新状态</a>
+                    <p class="text-muted">查看版本与更新检查结果</p>
                 </div>
             </div>
         </div>

@@ -26,20 +26,20 @@
     <link href="/static/js/plugins/datatables-responsive-bs3/css/responsive.bootstrap.min.css" rel="stylesheet">
     <link href="/static/css/nprogress.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/js/plugins/flatpickr/flatpickr.min.css">
-    <link href="/static/ruoyi/css/ruoyi-loopdeck.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/ruoyi-loopdeck.css?v={:app_version()}" rel="stylesheet">
 </head>
-<body class="fixed-sidebar full-height-layout gray-bg" style="overflow: hidden">
+<body class="fixed-sidebar full-height-layout gray-bg skin-blue theme-dark" style="overflow: hidden">
 <div id="wrapper">
     {block name='head'}{/block}
     <div class="content" id="pjax-container">
         {block name="main"}{/block}
     </div>
+    </div><!-- #content-main -->
     <div class="footer">
         <div class="pull-right">
             <a href="https://beian.miit.gov.cn/" target="_blank">{:config('web.icp')}</a>
         </div>
         <div>&copy; {:date('Y')} {:config('web.webname')}</div>
-    </div>
     </div>
     </div>
 </div>

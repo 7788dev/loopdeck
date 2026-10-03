@@ -13,6 +13,13 @@ for (const page of ['admin/system/data/kms.html', 'admin/ruoyi/system/data/kms.h
     if (pages[page]) require('./RedemptionFormInteraction.js')(pages[page]);
 }
 for (const [file, html] of Object.entries(pages)) {
+    const themeStyles = [...html.matchAll(/<link\b[^>]*\bhref=["']([^"']+)["']/gi)]
+        .map(match => new URL(match[1].replace(/&amp;/g, '&'), 'http://fixture.local'))
+        .filter(url => url.pathname === '/static/ruoyi/css/ruoyi-loopdeck.css');
+    if (shellPages.includes(file) && file.includes('/ruoyi/')) {
+        assert.equal(themeStyles.length, 1, `${file}: shared visual styles missing or duplicated`);
+    }
+    for (const url of themeStyles) assert.equal(url.searchParams.get('v'), version, `${file}: stale theme styles can survive an upgrade`);
     const urls = [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["']/gi)]
         .map(match => new URL(match[1].replace(/&amp;/g, '&'), 'http://fixture.local'))
         .filter(url => url.pathname === '/static/js/app.min.js');

@@ -12,7 +12,7 @@
     <link href="/static/ruoyi/css/animate.min.css" rel="stylesheet">
     <link href="/static/ruoyi/css/style.min.css" rel="stylesheet">
     <link href="/static/ruoyi/css/login.min.css" rel="stylesheet">
-    <link href="/static/ruoyi/css/ruoyi-loopdeck.css" rel="stylesheet">
+    <link href="/static/ruoyi/css/ruoyi-loopdeck.css?v={:app_version()}" rel="stylesheet">
 </head>
 <body class="signin">
 <div class="signinpanel">
@@ -20,7 +20,7 @@
         <div class="col-sm-7">
             <div class="signin-info">
                 <div class="logopanel m-b">
-                    <h1><i class="fa fa-fire text-danger"></i> {:config('web.webname')}</h1>
+                    <h1>{:config('web.webname')}</h1>
                 </div>
                 <h3>
                     很高兴你选择加入我们！
@@ -45,7 +45,7 @@
                     <input checked id="signup-terms" name="signup-terms" type="checkbox">
                     <label for="signup-terms">我同意条款</label>
                 </div>
-                <button class="btn btn-success btn-block" onclick="ajax_user_reg();" type="submit">创建账户</button>
+                <button class="btn btn-primary btn-block" onclick="ajax_user_reg();" type="submit">创建账户</button>
             </form>
         </div>
     </div>

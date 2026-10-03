@@ -1,0 +1,6 @@
+interface:
+  display_name: "GOD 风格"
+  short_description: "为网站前台、控制台与后台应用克制清晰的 GOD 视觉基座，并按业务需求二次设计"
+  default_prompt: "使用 $god-style 为当前网站设计统一的首页、认证页和管理界面，并按实际业务调整。"
+policy:
+  allow_implicit_invocation: true

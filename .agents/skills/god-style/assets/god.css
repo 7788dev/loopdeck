@@ -1,0 +1,84 @@
+/* GOD visual foundation. Configure the variables; scope primitives with god-* classes. */
+:root {
+  --god-bg: #f3f5f7; --god-surface: #fff; --god-text: #303133;
+  --god-muted: #606b78; --god-border: #e4e7ed;
+  --god-primary: #337ab7; --god-primary-hover: #286090;
+  --god-sidebar: #1a1f2e; --god-selected: #263445; --god-selected-text: #b7d7fa;
+  --god-info-bg: #eaf3fb; --god-info-text: #286ca8;
+  --god-success-bg: #eaf4ee; --god-success-text: #26734b;
+  --god-warning-bg: #fff6e6; --god-warning-text: #8b5f18;
+  --god-danger-bg: #fbeeee; --god-danger-text: #b63a3a;
+  --god-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  --god-radius: 4px; --god-space: 4px; --god-sidebar-width: 200px;
+  --god-header-height: 50px; --god-input-height: 34px;
+}
+* { box-sizing: border-box; }
+body.god { margin: 0; background: var(--god-bg); color: var(--god-text); font: 14px/1.6 var(--god-font); }
+.god a { color: var(--god-primary); text-decoration: none; }
+.god a:hover { text-decoration: underline; }
+.god :focus-visible { outline: 2px solid #4092c3; outline-offset: 3px; }
+.god h1, .god h2, .god h3 { line-height: 1.4; font-weight: 600; }
+.god h1 { font-size: 22px; margin: 0 0 16px; }
+.god h2 { font-size: 16px; margin: 0 0 12px; }
+.god p { margin: 0 0 12px; }
+.god-muted { color: var(--god-muted); }
+.god-shell { display: grid; grid-template-columns: var(--god-sidebar-width) minmax(0,1fr); min-height: 100dvh; }
+.god-sidebar { background: var(--god-sidebar); color: #c3ccdc; overflow-y: auto; }
+.god-brand { display: flex; align-items: center; min-height: var(--god-header-height); padding: 0 20px; font-size: 18px; color: #fff; }
+.god-sidebar nav { padding: 12px 0; }
+.god-sidebar a { display: block; padding: 11px 20px; color: #c3ccdc; border-left: 3px solid transparent; }
+.god-sidebar a[aria-current="page"] { background: var(--god-selected); color: var(--god-selected-text); border-color: var(--god-primary); }
+.god-workspace { min-width: 0; }
+.god-topbar { height: var(--god-header-height); background: var(--god-surface); border-bottom: 1px solid var(--god-border); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 20px; }
+.god-main { padding: 20px; max-width: 1600px; margin: auto; }
+.god-stack { display: grid; gap: 16px; }
+.god-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,240px),1fr)); gap: 16px; }
+.god-card { background: var(--god-surface); border: 1px solid var(--god-border); border-radius: var(--god-radius); padding: 20px; min-width: 0; }
+.god-card-title { padding-bottom: 12px; border-bottom: 1px solid var(--god-border); }
+.god-stat { display: block; font-size: 24px; font-weight: 600; }
+.god-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.god-button { display: inline-flex; justify-content: center; align-items: center; min-height: 34px; padding: 6px 12px; border-radius: 3px; border: 1px solid var(--god-primary); background: var(--god-primary); color: #fff; font: 13px/20px var(--god-font); cursor: pointer; }
+.god a.god-button { color: #fff; }
+.god-button:hover { background: var(--god-primary-hover); text-decoration: none; }
+.god-button-secondary { border-color: #d5dae1; color: var(--god-text); background: #fff; }
+.god-button-secondary:hover { background: var(--god-bg); }
+.god-button:disabled { opacity: .55; cursor: not-allowed; }
+.god-field { display: grid; gap: 6px; margin-bottom: 16px; }
+.god-field label { font-weight: 500; }
+.god-input { width: 100%; min-width: 0; height: var(--god-input-height); padding: 6px 10px; border: 1px solid #dcdfe6; border-radius: 3px; background: #fff; color: var(--god-text); font: inherit; }
+textarea.god-input { height: auto; min-height: 100px; }
+.god-input:focus { border-color: #4092c3; box-shadow: 0 0 0 2px rgb(60 141 188 / 12%); }
+.god-table-scroll { max-width: 100%; overflow-x: auto; }
+.god-table { width: 100%; border-collapse: collapse; text-align: left; }
+.god-table th { background: #f7f8fa; color: #4b5563; font-weight: 600; }
+.god-table th, .god-table td { padding: 10px 12px; border-bottom: 1px solid var(--god-border); }
+.god-label { display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 12px; background: var(--god-info-bg); color: var(--god-info-text); }
+.god-label-success { background: var(--god-success-bg); color: var(--god-success-text); }
+.god-label-warning { background: var(--god-warning-bg); color: var(--god-warning-text); }
+.god-label-danger { background: var(--god-danger-bg); color: var(--god-danger-text); }
+.god-empty { padding: 40px 20px; text-align: center; color: var(--god-muted); }
+.god-footer { padding: 12px 20px; font-size: 12px; color: var(--god-muted); }
+.god-mobile-toggle { display: none; }
+.god-public { max-width: 1120px; padding: 40px 20px; margin: auto; }
+.god-hero { padding: 80px 20px; background: #233247; color: #fff; text-align: center; }
+.god-hero h1 { font-size: 36px; }
+.god-hero p { color: #dce4ef; font-size: 17px; margin: 0 auto 24px; max-width: 660px; }
+.god-section-title { text-align: center; margin-bottom: 28px; }
+.god-auth { min-height: 100dvh; display: grid; align-content: center; justify-items: center; padding: 28px 20px; background: linear-gradient(135deg,#1a2636,#526174); }
+.god-auth-brand { color: #fff; font-size: 26px; margin-bottom: 20px; }
+.god-auth-panel { width: min(100%,400px); padding: 28px; }
+.god-auth-panel .god-input, .god-auth-panel .god-button { min-height: 40px; }
+.god-auth-panel .god-button { width: 100%; }
+@media (max-width:767px) {
+  .god-shell { display: block; }
+  .god-sidebar { display: none; position: fixed; top: var(--god-header-height); bottom: 0; left: 0; width: var(--god-sidebar-width); z-index: 20; box-shadow: 8px 0 24px rgb(0 0 0 / 15%); }
+  .god-shell[data-menu-open="true"] .god-sidebar { display: block; }
+  .god-mobile-toggle { display: inline-flex; }
+  .god-main { padding: 16px; }
+  .god-topbar { padding: 0 16px; }
+  .god-card { padding: 16px; }
+  .god-hero { padding: 56px 20px; }
+  .god-hero h1 { font-size: 28px; }
+  .god-auth-panel { padding: 24px; }
+}
+@media (prefers-reduced-motion:reduce) { .god *, .god *::before, .god *::after { animation: none !important; transition: none !important; } }

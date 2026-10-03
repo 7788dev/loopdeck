@@ -61,3 +61,5 @@ Never commit `.env`, `config/Db.php`, credentials, tokens, logs, or generated up
 ## Agent Notes
 
 Durable decision records ("why" and "what was rejected") live in `.agents/notes/` — one home per fact, landed in the same commit as the code they explain. Rules above link to the note that justifies them. Format and lifecycle: [.agents/notes/README.md](.agents/notes/README.md).
+
+For requests to build websites in GOD 风格, use the project-local [god-style skill](.agents/skills/god-style/SKILL.md). It is a portable visual base; keep framework/source names out of product UI copy.

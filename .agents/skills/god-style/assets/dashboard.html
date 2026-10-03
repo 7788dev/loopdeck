@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>工作台</title><link rel="stylesheet" href="god.css"></head>
+<body class="god"><div class="god-shell" data-menu-open="false">
+<aside class="god-sidebar" id="main-navigation"><div class="god-brand">应用名称</div><nav aria-label="主导航"><a href="#overview" aria-current="page">工作台</a><a href="#records">记录管理</a><a href="home.html">返回首页</a></nav></aside>
+<div class="god-workspace"><header class="god-topbar"><div class="god-toolbar"><button class="god-button god-button-secondary god-mobile-toggle" aria-controls="main-navigation" aria-expanded="false" aria-label="展开菜单">☰</button><span>工作台</span></div><span class="god-muted">个人中心</span></header>
+<main class="god-main god-stack" id="overview"><div><h1>工作台</h1><p class="god-muted">查看记录与处理进度。</p></div>
+<div class="god-grid"><section class="god-card"><span class="god-muted">全部记录</span><span class="god-stat">—</span></section><section class="god-card"><span class="god-muted">待处理</span><span class="god-stat">—</span></section><section class="god-card"><span class="god-muted">已完成</span><span class="god-stat">—</span></section></div>
+<section class="god-card" id="records"><h2 class="god-card-title">记录列表</h2><div class="god-table-scroll"><table class="god-table"><thead><tr><th>名称</th><th>状态</th><th>更新时间</th></tr></thead><tbody><tr><td colspan="3"><div class="god-empty">暂无记录</div></td></tr></tbody></table></div></section>
+</main><footer class="god-footer">应用名称</footer></div></div>
+<script>
+const shell=document.querySelector('.god-shell'), toggle=document.querySelector('.god-mobile-toggle');
+function setMenu(open){shell.dataset.menuOpen=String(open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'收起菜单':'展开菜单');}
+toggle.addEventListener('click',()=>setMenu(shell.dataset.menuOpen!=='true'));
+document.querySelectorAll('.god-sidebar a').forEach(link=>link.addEventListener('click',()=>{document.querySelectorAll('.god-sidebar a').forEach(a=>a.removeAttribute('aria-current'));link.setAttribute('aria-current','page');if(matchMedia('(max-width:767px)').matches)setMenu(false);}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){setMenu(false);toggle.focus();}});
+</script></body></html>

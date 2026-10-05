@@ -25,10 +25,16 @@ $web = new SystemUpdater($stateFile);
 try {
     $call('writeCheckingState', gmdate('c'), 'manual', ['requested_at' => gmdate('c')]);
     $call('progress', 'versions', '正在检查版本');
+    $readStarted = time();
     $state = $web->status();
+    $readFinished = time();
     functionalCheck($state['phase'] === 'versions' && $state['status'] === 'checking', 'Stage missing from web status');
     functionalCheck($state['cooldown_seconds'] > 0 && $state['cooldown_seconds'] <= 60, 'Cooldown is not bounded');
-    functionalCheck($state['heartbeat_age_seconds'] === 0, 'Fresh heartbeat was not exposed');
+    $heartbeatAt = strtotime((string)$state['updated_at']);
+    functionalCheck($heartbeatAt !== false && is_int($state['heartbeat_age_seconds'])
+        && $state['heartbeat_age_seconds'] >= max(0, $readStarted - $heartbeatAt)
+        && $state['heartbeat_age_seconds'] <= max(0, $readFinished - $heartbeatAt),
+        'Fresh heartbeat was not exposed within the status read interval');
 
     // Real cURL handles must remain distinct on PHP 8; no upstream services are contacted.
     $urls = [];

@@ -120,10 +120,9 @@ class Bilibili extends Command
 
                 Info::where('sysid', '100')->inc('times', 1)->update();
                 Info::where('sysid', '100')->update(['last' => date('Y-m-d H:i:s')]);
-                Jobs::where('id', $job['id'])->update([
-                    'lastExecute' => date('Y-m-d H:i:s'),
-                    'nextExecute' => $this->nextExecuteAt($account, $userId),
-                ]);
+                Jobs::where('id', $job['id'])->update(BilibiliTaskExecutor::jobUpdates(
+                    $result, $jobConfig, $userId, (string)$account['timing']
+                ));
                 $executed++;
             } catch (Throwable $exception) {
                 $this->writeLog($userId, $taskName,
@@ -143,15 +142,6 @@ class Bilibili extends Command
             ->where('do', 'globalroom')
             ->value('data');
         return BilibiliTaskExecutor::decodeSerializedArray(is_string($payload) ? $payload : '') ?? [];
-    }
-
-    private function nextExecuteAt($account, string $userId): int
-    {
-        return AutomaticSchedule::nextExecution(
-            'bilibili',
-            $userId,
-            (string)($account['timing'] ?? '')
-        ) ?? 0;
     }
 
     private function disableOfflineJobs(): void

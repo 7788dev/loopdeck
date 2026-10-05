@@ -42,7 +42,7 @@ class Tasks extends Model
             [
                 'type' => 'bilibili',
                 'name' => '每日经验任务',
-                'describe' => '登录、观看、投币经验状态与经验日志核验（分享功能已下架）',
+                'describe' => '核验登录、观看与投币基础经验，等待到账时自动复查',
                 'icon' => 'si si-graduation',
                 'execute_name' => 'dailyexperience',
                 'execute_url' => null,
@@ -111,6 +111,7 @@ class Tasks extends Model
                 // deliberately replaces.
                 $description = (string)($exists['describe'] ?? '');
                 $legacyDailyExperience = [
+                    '登录、观看、投币经验状态与经验日志核验（分享功能已下架）',
                     '登录、观看、分享、投币经验状态与经验日志核验',
                     '登录、观看、分享、投币经验状态与经验日志核验（分享功能已下架）',
                 ];

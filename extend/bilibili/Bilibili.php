@@ -182,8 +182,14 @@ class Bilibili
             return $this->invalidAccount();
         }
         $reward = $this->client->dailyReward();
-        if (($reward['code'] ?? -1) === 0 && !empty($reward['data']['watch'])) {
+        if (($reward['code'] ?? -1) !== 0 || !is_bool($reward['data']['watch'] ?? null)) {
+            return $this->failure($reward, '观看任务状态读取失败');
+        }
+        if ($reward['data']['watch']) {
             return ['code' => 1, 'status' => 'already', 'message' => '今日观看已完成'];
+        }
+        if (!empty($this->config['verification_only'])) {
+            return $this->pendingWatch();
         }
 
         $video = $this->selectVideos(1, 'random')[0] ?? null;
@@ -196,11 +202,20 @@ class Bilibili
         }
         $played = max(1, min((int)($video['duration'] ?? 60), 60));
         $heartbeat = $this->client->videoHeartbeat($video, $played);
-        $history = $this->client->historyReport($video, $played);
-        if (($heartbeat['code'] ?? -1) !== 0 && ($history['code'] ?? -1) !== 0) {
+        $this->client->historyReport($video, $played);
+        if (($heartbeat['code'] ?? -1) !== 0) {
             return $this->failure($heartbeat, '观看进度上报失败');
         }
-        return ['code' => 1, 'status' => 'done', 'message' => '观看任务已完成'];
+        $after = $this->client->dailyReward();
+        if (($after['code'] ?? -1) === 0 && ($after['data']['watch'] ?? null) === true) {
+            return ['code' => 1, 'status' => 'done', 'message' => '观看任务已完成'];
+        }
+        return $this->pendingWatch();
+    }
+
+    private function pendingWatch(): array
+    {
+        return ['code' => 0, 'pending_verification' => true, 'message' => '观看已上报，经验尚未确认'];
     }
 
     public function shareAid(): array
@@ -222,7 +237,10 @@ class Bilibili
             return ['code' => 0, 'message' => '投币数量未配置'];
         }
         $coinExp = $this->client->todayCoinExp();
-        $used = ($coinExp['code'] ?? -1) === 0 ? intdiv(max(0, (int)($coinExp['data'] ?? 0)), 10) : 0;
+        if (($coinExp['code'] ?? -1) !== 0 || !is_numeric($coinExp['data'] ?? null)) {
+            return $this->failure($coinExp, '今日投币经验读取失败，未继续投币');
+        }
+        $used = intdiv(max(0, (int)$coinExp['data']), 10);
         $stock = max(0, (int)floor((float)($nav['money'] ?? 0)));
         if ($used >= $estimate) {
             return ['code' => 1, 'message' => '今日投币已完成'];
@@ -300,51 +318,56 @@ class Bilibili
         }
 
         $items = [];
-        $success = true;
         $beforeData = is_array($before['data'] ?? null) ? $before['data'] : [];
-        if (empty($beforeData['watch'])) {
+        if (!is_bool($beforeData['watch'] ?? null) || !is_bool($beforeData['login'] ?? null)) {
+            return ['code' => 0, 'message' => '每日经验状态缺少登录或观看结果'];
+        }
+        $watch = null;
+        if (!$beforeData['watch'] && empty($this->config['verification_only'])) {
             $watch = $this->watchAid();
-            $success = $success && (int)($watch['code'] ?? 0) === 1;
         }
         // Bilibili removed the main-site daily share task. Do not call
         // shareAid() here: dailyexperience must remain useful for login,
         // watching and coin experience without issuing a share request.
 
         $after = $this->client->dailyReward();
-        $afterData = ($after['code'] ?? -1) === 0 && is_array($after['data'] ?? null)
-            ? $after['data']
-            : $beforeData;
+        if (($after['code'] ?? -1) !== 0 || !is_bool($after['data']['login'] ?? null)
+            || !is_bool($after['data']['watch'] ?? null)) {
+            return ['code' => 0, 'pending_verification' => true, 'message' => '每日经验完成状态暂未确认'];
+        }
+        $afterData = $after['data'];
         $items[] = [
             'label' => '登录',
-            'status' => !empty($afterData['login']) ? TaskMessage::DONE : TaskMessage::FAILED,
+            'status' => $afterData['login'] ? TaskMessage::DONE : TaskMessage::NONE,
+            'text' => $afterData['login'] ? null : '登录经验尚未确认',
         ];
         $items[] = [
             'label' => '观看',
-            'status' => !empty($afterData['watch']) ? TaskMessage::DONE : TaskMessage::FAILED,
+            'status' => $afterData['watch'] ? TaskMessage::DONE : TaskMessage::NONE,
+            'text' => $afterData['watch'] ? null : ($watch['message'] ?? '观看经验尚未确认'),
         ];
 
         $coin = $this->client->todayCoinExp();
+        $coinConfirmed = ($coin['code'] ?? -1) === 0 && is_numeric($coin['data'] ?? null);
+        $coinExperience = $coinConfirmed ? max(0, min(50, (int)$coin['data'])) : 0;
         $items[] = [
             'status' => TaskMessage::NONE,
-            'text' => ($coin['code'] ?? -1) === 0
-                ? '投币经验 ' . max(0, (int)($coin['data'] ?? 0)) . '/50'
+            'text' => $coinConfirmed
+                ? '投币经验 ' . $coinExperience . '/50'
                 : '投币经验读取失败',
         ];
-
-        $log = $this->client->experienceLog();
-        if (($log['code'] ?? -1) === 0) {
-            $today = date('Y-m-d');
-            $todayExperience = 0;
-            foreach ($log['data']['list'] ?? [] as $entry) {
-                if (is_array($entry) && str_starts_with((string)($entry['time'] ?? ''), $today)) {
-                    $todayExperience += (int)($entry['delta'] ?? 0);
-                }
-            }
-            $items[] = ['status' => TaskMessage::NONE, 'text' => '今日经验+' . max(0, $todayExperience)];
+        // The experience ledger can lag behind both rewards and coin balance.
+        // Scope this total to these three tasks; VIP has a separate claim job.
+        if ($coinConfirmed) {
+            $confirmed = ($afterData['login'] ? 5 : 0) + ($afterData['watch'] ? 5 : 0) + $coinExperience;
+            $items[] = ['status' => TaskMessage::NONE, 'text' => '已确认基础经验+' . $confirmed . '（不含大会员）'];
         }
-
+        $success = $afterData['login'] && $afterData['watch'] && $coinConfirmed;
+        $watchFailed = !$afterData['watch'] && $watch !== null
+            && (int)($watch['code'] ?? 0) !== 1 && empty($watch['pending_verification']);
         return [
             'code' => $success ? 1 : 0,
+            'pending_verification' => !$success && !$watchFailed && $coinConfirmed,
             'message' => TaskMessage::compose($items),
         ];
     }
@@ -381,13 +404,17 @@ class Bilibili
         if ((int)($dailyBenefit['state'] ?? 0) === 2) {
             $watch = $this->watchAid();
             if ((int)($watch['code'] ?? 0) !== 1) {
-                return ['code' => 0, 'message' => '前置观看任务失败'];
+                return ['code' => 0, 'pending_verification' => !empty($watch['pending_verification']),
+                    'message' => '大会员前置观看：' . (string)($watch['message'] ?? '任务失败')];
             }
         }
 
         $claim = $this->client->claimVipExperience();
         $code = (int)($claim['code'] ?? -1);
         if ($code === 0) {
+            if (($claim['data']['is_grant'] ?? null) !== true) {
+                return ['code' => 0, 'pending_verification' => true, 'message' => '大会员经验未确认发放'];
+            }
             return ['code' => 1, 'message' => '大会员经验已领取'];
         }
         if ($code === 69198) {
@@ -431,12 +458,30 @@ class Bilibili
 
     public function dailyBagPC(): array
     {
-        return $this->liveCompatibility('PC 礼包', fn(): array => $this->client->liveDailyBagPc());
+        if ($this->authenticatedNav() === null) {
+            return $this->invalidAccount();
+        }
+        $response = $this->client->liveDailyBagPc();
+        if (($response['code'] ?? -1) !== 0) {
+            return $this->failure($response, 'PC 礼包领取失败');
+        }
+        if (empty($response['data']['bag_list'])) {
+            return ['code' => 0, 'message' => '暂无 PC 礼包可领取'];
+        }
+        return ['code' => 1, 'status' => 'done', 'message' => 'PC 礼包已领取'];
     }
 
     public function dailyBagAPP(): array
     {
-        return $this->liveCompatibility('APP 礼包', fn(): array => $this->client->liveDailyBagApp());
+        if ($this->authenticatedNav() === null) {
+            return $this->invalidAccount();
+        }
+        $response = $this->client->liveDailyBagApp();
+        if (($response['code'] ?? -1) !== 0) {
+            return $this->failure($response, 'APP 礼包领取失败');
+        }
+        // This legacy endpoint only acknowledges the request, without a receipt.
+        return ['code' => 1, 'status' => 'none', 'message' => 'APP 礼包请求已提交'];
     }
 
     public function webHeart(): array
@@ -492,8 +537,8 @@ class Bilibili
         if (($response['code'] ?? -1) !== 0) {
             return $this->failure($response, '礼物领取失败');
         }
-        if ((int)($response['data']['heart_status'] ?? 0) === 0) {
-            return ['code' => 1, 'message' => '暂无可领取的礼物'];
+        if (empty($response['data']['gift_list'])) {
+            return ['code' => 0, 'message' => '暂无可领取的礼物'];
         }
         return ['code' => 1, 'message' => '礼物已领取'];
     }

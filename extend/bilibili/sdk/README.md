@@ -59,6 +59,15 @@ The client exposes the protocols required by the configured project tasks:
   detail, watch start, heartbeat, history report, share, and coin. Coin requests
   establish the documented web device session (`buvid3`, `b_nut`, `buvid4`, and
   `bili_ticket`) before submitting the action.
+- Watch start and heartbeat also establish the web device session and sign the
+  player's mirrored `w_*` query fields with WBI. A successful report only confirms
+  acceptance: workflows check the daily reward before reporting completion.
+- Daily summaries use confirmed login/watch rewards and the real-time coin
+  experience endpoint. Their total covers basic experience only; the delayed
+  experience ledger and the separate VIP claim are not added to that total.
+- Watch and daily/VIP experience jobs persist at most three five-minute checks
+  in their existing job payload. Checks do not submit another video or coin;
+  exhausted checks finish as failures and the normal daily schedule resumes.
 - Manga tasks: clock-in and share using the Android platform parameter
 - Legacy live task compatibility: daily bag, online heart, support-group sign-in,
   heart gift, live sign state, and silver-to-coin

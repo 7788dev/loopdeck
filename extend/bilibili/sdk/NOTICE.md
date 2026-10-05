@@ -28,6 +28,13 @@ Those additional projects and the hosted MiniLogin bundle were used to verify
 publicly observable endpoint names, request fields, response shapes, and
 version metadata. Their source code is not redistributed in this SDK.
 
+Playback reporting was checked again on 2026-10-06 against the installed
+Bilibili desktop client 1.17.9.4828, bundled player 4.9.85 (revision `96806e61`).
+Its web player signs mirrored `w_*` parameters for both click and heartbeat
+reports. The PHP implementation uses the existing WBI signer; no client source
+or native binaries are redistributed. BiliBiliToolPro's current main branch was
+also checked for comparison: https://github.com/RayWangQvQ/BiliBiliToolPro
+
 This project transforms the referenced API documentation into a native PHP SDK
 and project-specific workflows. The implementation, naming, validation, cookie
 handling, and tests have been modified for this codebase.

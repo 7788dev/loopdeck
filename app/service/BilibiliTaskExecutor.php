@@ -30,9 +30,11 @@ final class BilibiliTaskExecutor
     ];
 
     private Closure $helperFactory;
+    private Closure $clock;
 
-    public function __construct(?Closure $helperFactory = null)
+    public function __construct(?Closure $helperFactory = null, ?Closure $clock = null)
     {
+        $this->clock = $clock ?? static fn(): int => time();
         $this->helperFactory = $helperFactory ?? static function (array $account, array $config): BiliHelper {
             return new BiliHelper(
                 $account['mid'],
@@ -89,7 +91,7 @@ final class BilibiliTaskExecutor
     }
 
     /**
-     * @return array{code:int,message:string,account_invalid:bool}
+     * @return array<string,mixed>
      */
     public function execute(string $task, array $account, array $config = []): array
     {
@@ -106,7 +108,16 @@ final class BilibiliTaskExecutor
             return $this->failure('账号凭据不完整');
         }
 
+        $now = ($this->clock)();
+        $startedDate = date('Y-m-d', $now);
+        $verification = $config['_bilibili_verification'] ?? [];
+        $attempt = is_array($verification) && ($verification['date'] ?? '') === date('Y-m-d', $now)
+            ? max(0, min(3, (int)($verification['attempt'] ?? 0))) : 0;
+        $canVerify = in_array($task, ['watchaid', 'dailyexperience', 'vipexperience'], true);
         $config = $this->normalizeConfig($config);
+        if ($canVerify && $attempt > 0) {
+            $config['verification_only'] = true;
+        }
         $config['sid'] = $account['sid'];
 
         try {
@@ -119,14 +130,44 @@ final class BilibiliTaskExecutor
                 return $this->failure('任务返回数据格式错误');
             }
 
-            return [
+            $response = [
                 'code' => (int)($result['code'] ?? 0),
                 'message' => trim((string)($result['message'] ?? '')) ?: '任务执行完成',
                 'account_invalid' => !empty($helper->cookiezt),
             ];
+            if ($canVerify && !empty($result['pending_verification']) && !$response['account_invalid']) {
+                $response['code'] = 0;
+                $now = ($this->clock)();
+                if ($attempt < 3 && date('Y-m-d', $now + 300) === $startedDate) {
+                    $response['retry_after_seconds'] = 300;
+                    $response['verification_state'] = ['date' => date('Y-m-d', $now), 'attempt' => $attempt + 1];
+                    $response['message'] = TaskMessage::join([$response['message'], '5 分钟后复查到账状态']);
+                } else {
+                    $response['message'] = TaskMessage::join([$response['message'], '本轮核验结束，未确认到账']);
+                }
+            }
+            return $response;
         } catch (Throwable $exception) {
             return $this->failure('任务执行异常：' . $exception->getMessage());
         }
+    }
+
+    /** Persist verification progress in the existing job payload, never in account credentials. */
+    public static function jobUpdates(array $result, array $jobConfig, string $userId, string $timing, ?int $now = null): array
+    {
+        $now ??= time();
+        unset($jobConfig['_bilibili_verification']);
+        $retry = (int)($result['retry_after_seconds'] ?? 0) === 300
+            && is_array($result['verification_state'] ?? null);
+        if ($retry) {
+            $jobConfig['_bilibili_verification'] = $result['verification_state'];
+        }
+        return [
+            'data' => serialize($jobConfig),
+            'lastExecute' => date('Y-m-d H:i:s', $now),
+            'nextExecute' => $retry ? $now + 300
+                : (AutomaticSchedule::nextExecution('bilibili', $userId, $timing, $now) ?? 0),
+        ];
     }
 
     public static function normalizeAccountData(array $account): ?array

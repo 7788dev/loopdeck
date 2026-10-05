@@ -308,6 +308,29 @@ foreach ($expectations as $path => $method) {
 
 $detailRequest = biliRequestByPath($protocolTransport->requests, '/x/web-interface/wbi/view/detail');
 biliCheck(isset($detailRequest['options']['query']['w_rid'], $detailRequest['options']['query']['wts']), 'WBI detail request is unsigned');
+foreach ([
+    '/x/click-interface/click/web/h5' => ['aid', 'part', 'ftime', 'stime', 'type'],
+    '/x/click-interface/web/heartbeat' => ['start_ts', 'mid', 'aid', 'dt', 'realtime', 'played_time',
+        'real_played_time', 'video_duration', 'last_play_progress_time'],
+] as $path => $fields) {
+    $request = biliRequestByPath($protocolTransport->requests, $path);
+    $query = $request['options']['query'] ?? [];
+    $body = $request['options']['form_params'];
+    foreach ($fields as $field) {
+        biliCheck(($query['w_' . $field] ?? null) === (string)$body[$field], $path . ' has mismatched signed playback fields');
+    }
+    $expected = $signer->sign($query, '7cd084941338484aae1ad9425b84077c',
+        '4932caff0ff746eab6f01bf08b70ac45', (int)($query['wts'] ?? 0));
+    biliCheck(($query['w_rid'] ?? '') === $expected['w_rid'], $path . ' has an invalid WBI signature');
+    biliCheck(!isset($query['csrf']) && !isset($query['SESSDATA']), 'Playback credentials escaped into a query string');
+    biliCheck($body['mobi_app'] === 'web' && $body['platform'] === 'web', 'Playback has inconsistent client metadata');
+}
+$unsignedTransport = new BilibiliRecordingTransport();
+$unsignedClient = new Client($protocolClient->cookies(), [], $unsignedTransport);
+biliCheck($unsignedClient->startVideo($video)['code'] !== 0, 'Playback without WBI keys was accepted');
+foreach ($unsignedTransport->requests as $request) {
+    biliCheck(!str_contains($request['url'], '/x/click-interface/'), 'Missing WBI keys triggered an unsigned playback request');
+}
 $historyRequest = biliRequestByPath($protocolTransport->requests, '/x/v2/history/report');
 biliCheck(($historyRequest['options']['form_params']['csrf'] ?? '') === 'csrf', 'History report is missing CSRF');
 $vipExperienceRequest = biliRequestByPath($protocolTransport->requests, '/x/vip/experience/add');

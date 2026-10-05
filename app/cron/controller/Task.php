@@ -348,6 +348,7 @@ class Task extends Common
                 return;
             }
 
+            $storedJobConfig = $jobConfig;
             if ($type === 'bilibili') {
                 $globalConfig = $this->bilibiliGlobalConfig($uid, $userId);
                 if ($globalConfig === null) {
@@ -391,10 +392,16 @@ class Task extends Common
             if ($retryAfter > 0) {
                 $nextExecute = time() + max(60, min(3600, $retryAfter));
             }
-            Jobs::where('id', $jobId)->update([
+            $updates = [
                 'lastExecute' => date('Y-m-d H:i:s'),
                 'nextExecute' => $nextExecute,
-            ]);
+            ];
+            if ($type === 'bilibili') {
+                $updates = BilibiliTaskExecutor::jobUpdates(
+                    $result, $storedJobConfig, $userId, (string)$account['timing']
+                );
+            }
+            Jobs::where('id', $jobId)->update($updates);
             $summary[$result['success'] ? 'succeeded' : 'failed']++;
         } catch (Throwable $exception) {
             if ($jobId > 0) {
@@ -464,13 +471,17 @@ class Task extends Common
 
     private function executeBilibili(string $task, array $account, array $config): array
     {
-        $result = (new BilibiliTaskExecutor())->execute($task, $account, $config);
+        $result = $this->bilibiliExecutor()->execute($task, $account, $config);
         return [
             'success' => (int)$result['code'] === 1,
             'message' => trim((string)$result['message']) ?: '哔哩哔哩任务执行完成',
             'account_invalid' => (bool)$result['account_invalid'],
-            'retry_after_seconds' => 0,
-        ];
+        ] + $result;
+    }
+
+    protected function bilibiliExecutor(): BilibiliTaskExecutor
+    {
+        return new BilibiliTaskExecutor();
     }
 
     private function user(int $uid)

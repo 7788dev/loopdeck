@@ -58,7 +58,7 @@ class BiliHelper extends Bilibili
         }
         $groups = is_array($list['groups'] ?? null) ? $list['groups'] : [];
         if ($groups === []) {
-            return ['code' => 1, 'message' => '应援团今日均已签到'];
+            return ['code' => 1, 'status' => 'none', 'message' => '暂无可签到的应援团'];
         }
         $signed = 0;
         $intimacy = 0;
@@ -142,7 +142,7 @@ class BiliHelper extends Bilibili
             $items[] = [
                 'label' => $label,
                 'status' => $status,
-                'text' => $status === TaskMessage::FAILED
+                'text' => in_array($status, [TaskMessage::FAILED, TaskMessage::NONE, TaskMessage::SKIPPED], true)
                     ? trim((string)($result['message'] ?? ''))
                     : null,
             ];

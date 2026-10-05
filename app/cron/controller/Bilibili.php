@@ -116,10 +116,9 @@ class Bilibili extends Common
             }
 
             Info::recordRun(100);
-            Jobs::where('id', $job['id'])->update([
-                'lastExecute' => date('Y-m-d H:i:s'),
-                'nextExecute' => $this->nextExecuteAt($account, $userId),
-            ]);
+            Jobs::where('id', $job['id'])->update(BilibiliTaskExecutor::jobUpdates(
+                $result, $jobConfig, $userId, (string)$account['timing']
+            ));
         } catch (Throwable $exception) {
             // 租约未推进，任务稍后自动重试；日志标签按仓库规范走 [重试中]
             TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[重试中] 执行异常，稍后自动重试');
@@ -142,15 +141,6 @@ class Bilibili extends Common
             ->where('do', 'globalroom')
             ->value('data');
         return BilibiliTaskExecutor::decodeSerializedArray(is_string($payload) ? $payload : '');
-    }
-
-    private function nextExecuteAt($account, string $userId): int
-    {
-        return AutomaticSchedule::nextExecution(
-            'bilibili',
-            $userId,
-            (string)($account['timing'] ?? '')
-        ) ?? 0;
     }
 
     private function disableOfflineJobs(): void

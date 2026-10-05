@@ -131,7 +131,7 @@ biliWorkflowCheck($mangaTransport->called('/twirp/activity.v1.Activity/ShareComi
 [$dailyBag, $dailyBagTransport] = biliWorkflow([
     '/x/web-interface/nav' => [biliNav(), biliNav()],
     '/AppBag/sendDaily' => [['code' => 0, 'message' => '0']],
-    '/gift/v2/live/receive_daily_bag' => [['code' => 0, 'message' => '0']],
+    '/gift/v2/live/receive_daily_bag' => [['code' => 0, 'data' => ['bag_list' => [['gift_id' => 1, 'gift_num' => 1]]]]],
 ]);
 biliWorkflowCheck($dailyBag->dailybag()['code'] === 1, 'dailybag workflow failed');
 biliWorkflowCheck($dailyBagTransport->called('/AppBag/sendDaily'), 'dailybag APP request did not use SDK');
@@ -162,7 +162,7 @@ biliWorkflowCheck($groupTransport->called('/link_setting/v1/link_setting/sign_in
 
 [$giftHeart, $giftHeartTransport] = biliWorkflow([
     '/x/web-interface/nav' => [biliNav()],
-    '/gift/v2/live/heart_gift_receive' => [['code' => 0, 'data' => ['heart_status' => 1]]],
+    '/gift/v2/live/heart_gift_receive' => [['code' => 0, 'data' => ['heart_status' => 1, 'gift_list' => [['gift_id' => 1, 'gift_num' => 1]]]]],
 ], ['global_room' => 123]);
 biliWorkflowCheck($giftHeart->giftheart()['code'] === 1, 'giftheart workflow failed');
 biliWorkflowCheck($giftHeartTransport->called('/gift/v2/live/heart_gift_receive'), 'giftheart did not use SDK');
@@ -184,7 +184,10 @@ biliWorkflowCheck($silverTransport->called('/AppExchange/silver2coin'), 'APP sil
 
 [$watch, $watchTransport] = biliWorkflow([
     '/x/web-interface/nav' => [biliNav()],
-    '/x/member/web/exp/reward' => [['code' => 0, 'data' => ['watch' => false]]],
+    '/x/member/web/exp/reward' => [
+        ['code' => 0, 'data' => ['watch' => false]],
+        ['code' => 0, 'data' => ['watch' => true]],
+    ],
     '/x/web-interface/popular' => [['code' => 0, 'data' => ['list' => [['aid' => 170001, 'bvid' => 'BV17x411w7KC']]]]],
     '/x/web-interface/wbi/view/detail' => [biliVideo(170001, 'BV17x411w7KC', 279786)],
     '/x/click-interface/click/web/h5' => [['code' => 0, 'message' => '0']],
@@ -348,7 +351,8 @@ biliWorkflowCheck($dailyExperienceResult['code'] === 1, 'daily experience workfl
 biliWorkflowCheck(str_contains($dailyExperienceResult['message'], '投币经验 20/50'), 'daily experience did not report coin experience');
 biliWorkflowCheck(!str_contains($dailyExperienceResult['message'], '分享已下架'), 'daily experience still reports the permanently retired share task');
 biliWorkflowCheck(!$dailyExperienceTransport->called('/x/web-interface/share/add'), 'daily experience attempted the retired share request');
-biliWorkflowCheck($dailyExperienceTransport->called('/x/member/web/exp/log'), 'daily experience did not verify the experience log');
+biliWorkflowCheck(!$dailyExperienceTransport->called('/x/member/web/exp/log'), 'daily experience read the delayed ledger as a current total');
+biliWorkflowCheck(str_contains($dailyExperienceResult['message'], '已确认基础经验+30（不含大会员）'), 'confirmed daily experience total is incorrect');
 
 [$nonVipExperience, $nonVipExperienceTransport] = biliWorkflow([
     '/x/web-interface/nav' => [biliNav()],
@@ -388,5 +392,93 @@ $temporaryResult = $temporaryFailure->watchAid();
 biliWorkflowCheck($temporaryResult['code'] === 0, 'temporary nav failure unexpectedly succeeded');
 biliWorkflowCheck(!$temporaryFailure->cookiezt, 'temporary nav failure marked the account invalid');
 biliWorkflowCheck(str_contains($temporaryResult['message'], '状态校验失败'), 'temporary nav failure message is misleading');
+
+// An accepted heartbeat is not proof of a settled watch reward.
+$pendingWatchResponses = [
+    '/x/web-interface/nav' => [biliNav()],
+    '/x/member/web/exp/reward' => [
+        ['code' => 0, 'data' => ['watch' => false]],
+        ['code' => 0, 'data' => ['watch' => false]],
+    ],
+    '/x/web-interface/popular' => [['code' => 0, 'data' => ['list' => [['aid' => 170001, 'bvid' => 'BV17x411w7KC']]]]],
+    '/x/web-interface/wbi/view/detail' => [biliVideo(170001, 'BV17x411w7KC', 279786)],
+];
+[$pendingWatch, $pendingTransport] = biliWorkflow($pendingWatchResponses);
+$pending = $pendingWatch->watchAid();
+biliWorkflowCheck($pending['code'] === 0 && !empty($pending['pending_verification']), 'Unsettled watching was reported as complete');
+[$heartbeatFailure] = biliWorkflow(array_replace($pendingWatchResponses, [
+    '/x/click-interface/web/heartbeat' => [['code' => -403, 'message' => '上报被拒绝']],
+    '/x/v2/history/report' => [['code' => 0]],
+]));
+$heartbeatFailureResult = $heartbeatFailure->watchAid();
+biliWorkflowCheck($heartbeatFailureResult['code'] === 0 && str_contains($heartbeatFailureResult['message'], '上报被拒绝'),
+    'A successful history update masked a failed heartbeat');
+[$verifyWatch, $verifyTransport] = biliWorkflow($pendingWatchResponses, ['verification_only' => true]);
+biliWorkflowCheck(!empty($verifyWatch->watchAid()['pending_verification']), 'Read-only watching verification lost its pending state');
+biliWorkflowCheck(!$verifyTransport->called('/x/web-interface/popular') && !$verifyTransport->called('/x/click-interface/web/heartbeat'),
+    'Watching verification submitted another video');
+
+foreach ([['login' => false, 'watch' => false], ['login' => false, 'watch' => true]] as $state) {
+    [$unsettled, $unsettledTransport] = biliWorkflow([
+        '/x/web-interface/nav' => [biliNav()],
+        '/x/member/web/exp/reward' => array_fill(0, 2, ['code' => 0, 'data' => $state]),
+        '/x/web-interface/coin/today/exp' => [['code' => 0, 'data' => 30]],
+    ], ['verification_only' => true]);
+    $result = $unsettled->dailyexperience();
+    biliWorkflowCheck($result['code'] === 0 && !empty($result['pending_verification']), 'Incomplete daily rewards were reported as success');
+    biliWorkflowCheck(!str_contains($result['message'], '今日经验+0'), 'A delayed ledger was reported as zero total experience');
+    biliWorkflowCheck(!$unsettledTransport->called('/x/click-interface/web/heartbeat'), 'Daily verification repeated watching');
+}
+[$stateReadFailure] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav()],
+    '/x/member/web/exp/reward' => [
+        ['code' => 0, 'data' => ['login' => true, 'watch' => true]],
+        ['code' => -1, 'message' => 'timeout'],
+    ],
+]);
+biliWorkflowCheck($stateReadFailure->dailyexperience()['code'] === 0, 'Failed verification fell back to an old successful state');
+[$coinReadFailure, $coinReadTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav()],
+    '/x/web-interface/coin/today/exp' => [['code' => -1, 'message' => 'timeout']],
+], ['add_coin_num' => 3]);
+biliWorkflowCheck($coinReadFailure->coinAdd()['code'] === 0, 'Unknown coin experience was treated as zero');
+biliWorkflowCheck(!$coinReadTransport->called('/x/web-interface/coin/add'), 'Unknown coin experience caused extra spending');
+[$summaryCoinFailure] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav()],
+    '/x/member/web/exp/reward' => array_fill(0, 2, ['code' => 0, 'data' => ['login' => true, 'watch' => true]]),
+    '/x/web-interface/coin/today/exp' => [['code' => -1, 'message' => 'timeout']],
+]);
+$failedSummary = $summaryCoinFailure->dailyexperience();
+biliWorkflowCheck($failedSummary['code'] === 0 && !str_contains($failedSummary['message'], '基础经验+'), 'Failed coin query produced a partial total as success');
+
+[$emptyBag] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(), biliNav()],
+    '/AppBag/sendDaily' => [['code' => 0, 'data' => ['result' => 0]]],
+    '/gift/v2/live/receive_daily_bag' => [['code' => 0, 'data' => ['bag_status' => 0, 'bag_list' => []]]],
+]);
+$emptyBagResult = $emptyBag->dailybag();
+biliWorkflowCheck($emptyBagResult['code'] === 0 && !str_contains($emptyBagResult['message'], '已领取'), 'Empty bags were reported as received');
+[$emptyGift] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav()],
+    '/gift/v2/live/heart_gift_receive' => [['code' => 0, 'data' => ['heart_status' => 1, 'gift_list' => []]]],
+]);
+biliWorkflowCheck($emptyGift->giftheart()['code'] === 0, 'A waiting gift heartbeat was reported as a received gift');
+[$emptyGroups] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav()],
+    '/link_group/v1/member/my_groups' => [['code' => 0, 'data' => []]],
+]);
+biliWorkflowCheck(!str_contains($emptyGroups->groupsignIn()['message'], '均已签到'), 'No groups were reported as already signed');
+[$emptySilver] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(), biliNav()],
+    '/xlive/revenue/v1/wallet/silver2coin' => [['code' => 403, 'message' => '银瓜子余额不足']],
+    '/AppExchange/silver2coin' => [['code' => 403, 'message' => '银瓜子余额不足']],
+]);
+biliWorkflowCheck(str_contains($emptySilver->silver2coin()['message'], '银瓜子余额不足'), 'No-balance explanation was lost while composing results');
+[$notGrantedVip] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav()],
+    '/x/vip/privilege/my' => [['code' => 0, 'data' => ['is_vip' => true, 'list' => [['type' => 9, 'state' => 0]]]]],
+    '/x/vip/experience/add' => [['code' => 0, 'data' => ['is_grant' => false]]],
+]);
+biliWorkflowCheck($notGrantedVip->vipexperience()['code'] === 0, 'Ungrantable VIP experience was reported as received');
 
 echo "Bilibili workflow tests passed\n";

@@ -20,6 +20,8 @@ final class Client
     private ?array $wbiKeys = null;
     /** @var array<string,mixed> */
     private array $smsLoginContext = [];
+    /** @var array<string,int> */
+    private array $videoStartedAt = [];
 
     /** @param array<string,mixed>|string $cookies */
     public function __construct(
@@ -336,22 +338,19 @@ final class Client
     {
         $now = time();
         $aid = (string)($video['aid'] ?? '');
+        $this->videoStartedAt[$aid . ':' . (string)($video['cid'] ?? '')] = $now;
         $referer = 'https://www.bilibili.com/video/av' . $aid;
-        return $this->requestJson('POST', $this->api('/x/click-interface/click/web/h5'), [
-            'form_params' => [
-                'mid' => $this->session->get('DedeUserID'),
-                'aid' => $aid,
-                'cid' => (string)($video['cid'] ?? ''),
-                'part' => 1,
-                'ftime' => $now,
-                'stime' => $now,
-                'type' => 3,
-                'referer_url' => $referer,
-                'csrf' => $this->csrf(),
-            ],
-            'origin' => 'https://www.bilibili.com',
-            'referer' => $referer,
-        ]);
+        return $this->videoReport('/x/click-interface/click/web/h5', [
+            'mid' => $this->session->get('DedeUserID'),
+            'aid' => $aid,
+            'cid' => (string)($video['cid'] ?? ''),
+            'part' => 1,
+            'ftime' => $now,
+            'stime' => $now,
+            'type' => 3,
+            'refer_url' => $referer,
+            'csrf' => $this->csrf(),
+        ], ['aid', 'part', 'ftime', 'stime', 'type'], $referer);
     }
 
     /** @return array<string,mixed> */
@@ -360,22 +359,45 @@ final class Client
         $aid = (string)($video['aid'] ?? '');
         $duration = max(1, (int)($video['duration'] ?? $playedTime));
         $referer = 'https://www.bilibili.com/video/av' . $aid;
-        return $this->requestJson('POST', $this->api('/x/click-interface/web/heartbeat'), [
-            'form_params' => [
-                'aid' => $aid,
-                'bvid' => (string)($video['bvid'] ?? ''),
-                'cid' => (string)($video['cid'] ?? ''),
-                'mid' => $this->session->get('DedeUserID'),
-                'played_time' => max(1, min($playedTime, $duration)),
-                'realtime' => max(1, min($playedTime, $duration)),
-                'real_played_time' => max(1, min($playedTime, $duration)),
-                'video_duration' => $duration,
-                'start_ts' => time(),
-                'type' => 3,
-                'dt' => 2,
-                'play_type' => 0,
-                'csrf' => $this->csrf(),
-            ],
+        $played = max(1, min($playedTime, $duration));
+        return $this->videoReport('/x/click-interface/web/heartbeat', [
+            'aid' => $aid,
+            'bvid' => (string)($video['bvid'] ?? ''),
+            'cid' => (string)($video['cid'] ?? ''),
+            'mid' => $this->session->get('DedeUserID'),
+            'played_time' => $played,
+            'realtime' => $played,
+            'real_played_time' => $played,
+            'video_duration' => $duration,
+            'start_ts' => $this->videoStartedAt[$aid . ':' . (string)($video['cid'] ?? '')] ?? time(),
+            'last_play_progress_time' => $played,
+            'max_play_progress_time' => $played,
+            'type' => 3,
+            'dt' => 2,
+            'play_type' => 0,
+            'csrf' => $this->csrf(),
+        ], ['start_ts', 'mid', 'aid', 'dt', 'realtime', 'played_time',
+            'real_played_time', 'video_duration', 'last_play_progress_time'], $referer);
+    }
+
+    /** Sign the mirrored query fields used by the current web player. */
+    private function videoReport(string $path, array $body, array $fields, string $referer): array
+    {
+        $deviceSession = $this->prepareWebDeviceSession();
+        if (($deviceSession['code'] ?? -1) !== 0) {
+            return $deviceSession;
+        }
+        $keys = $this->wbiKeys();
+        if ($keys === null) {
+            return ['code' => -1, 'message' => 'bilibili sdk: WBI keys unavailable'];
+        }
+        $query = [];
+        foreach ($fields as $field) {
+            $query['w_' . $field] = $body[$field];
+        }
+        return $this->requestJson('POST', $this->api($path), [
+            'query' => $this->wbiSigner->sign($query, $keys['img_key'], $keys['sub_key']),
+            'form_params' => $body + ['mobi_app' => 'web', 'device' => 'web', 'platform' => 'web'],
             'origin' => 'https://www.bilibili.com',
             'referer' => $referer,
         ]);

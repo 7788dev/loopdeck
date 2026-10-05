@@ -10,6 +10,7 @@ use Throwable;
 
 final class BilibiliTaskExecutor
 {
+    private const MAX_VERIFICATION_ATTEMPTS = 24;
     public const TASKS = [
         'manga',
         'dailybag',
@@ -112,7 +113,7 @@ final class BilibiliTaskExecutor
         $startedDate = date('Y-m-d', $now);
         $verification = $config['_bilibili_verification'] ?? [];
         $attempt = is_array($verification) && ($verification['date'] ?? '') === date('Y-m-d', $now)
-            ? max(0, min(3, (int)($verification['attempt'] ?? 0))) : 0;
+            ? max(0, min(self::MAX_VERIFICATION_ATTEMPTS, (int)($verification['attempt'] ?? 0))) : 0;
         $canVerify = in_array($task, ['watchaid', 'dailyexperience', 'vipexperience'], true);
         $config = $this->normalizeConfig($config);
         if ($canVerify && $attempt > 0) {
@@ -138,7 +139,7 @@ final class BilibiliTaskExecutor
             if ($canVerify && !empty($result['pending_verification']) && !$response['account_invalid']) {
                 $response['code'] = 0;
                 $now = ($this->clock)();
-                if ($attempt < 3 && date('Y-m-d', $now + 300) === $startedDate) {
+                if ($attempt < self::MAX_VERIFICATION_ATTEMPTS && date('Y-m-d', $now + 300) === $startedDate) {
                     $response['retry_after_seconds'] = 300;
                     $response['verification_state'] = ['date' => date('Y-m-d', $now), 'attempt' => $attempt + 1];
                     $response['message'] = TaskMessage::join([$response['message'], '5 分钟后复查到账状态']);

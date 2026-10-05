@@ -43,14 +43,14 @@ $executor = new BilibiliTaskExecutor($factory, static function () use (&$clock):
 $account = ['mid' => '42', 'mid_md5' => 'fixture-md5', 'token' => 'fixture-session', 'csrf' => 'fixture-csrf'];
 $config = ['add_coin_num' => 3];
 $common = new Common();
-for ($attempt = 0; $attempt <= 3; $attempt++) {
+for ($attempt = 0; $attempt <= 24; $attempt++) {
     $result = $executor->execute('watchaid', $account, $config);
     functionalCheck($result['code'] === 0, 'Unsettled experience was reported as success');
     functionalCheck(!empty(end($helper->configs)['verification_only']) === ($attempt > 0), 'A verification retry repeated the initial action');
     $updates = BilibiliTaskExecutor::jobUpdates($result, $config, '42', '09:00', $clock);
     $config = unserialize($updates['data'], ['allowed_classes' => false]);
     functionalCheck($config['add_coin_num'] === 3, 'Verification overwrote user configuration');
-    if ($attempt < 3) {
+    if ($attempt < 24) {
         functionalCheck($common->statusTag($result) === '重试中' && $updates['nextExecute'] === $clock + 300, 'Pending work was not scheduled in five minutes');
         functionalCheck($config['_bilibili_verification']['attempt'] === $attempt + 1, 'Verification count was not persisted');
     } else {
@@ -59,8 +59,10 @@ for ($attempt = 0; $attempt <= 3; $attempt++) {
     }
     $clock += 300;
 }
+$state = ['_bilibili_verification' => ['date' => '2026-10-06', 'attempt' => 13]];
+$hourDelayed = $executor->execute('watchaid', $account, $state);
+functionalCheck(($hourDelayed['retry_after_seconds'] ?? 0) === 300, 'An hour-long settlement delay exhausted the verification window');
 $helper->settled = true;
-$state = ['_bilibili_verification' => ['date' => '2026-10-06', 'attempt' => 2]];
 $settled = $executor->execute('watchaid', $account, $state);
 functionalCheck($common->statusTag($settled) === '成功' && !isset($settled['retry_after_seconds']), 'Settled experience kept retrying');
 $helper->settled = false;

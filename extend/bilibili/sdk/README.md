@@ -65,7 +65,7 @@ The client exposes the protocols required by the configured project tasks:
 - Daily summaries use confirmed login/watch rewards and the real-time coin
   experience endpoint. Their total covers basic experience only; the delayed
   experience ledger and the separate VIP claim are not added to that total.
-- Watch and daily/VIP experience jobs persist at most three five-minute checks
+- Watch and daily/VIP experience jobs persist at most 24 five-minute checks
   in their existing job payload. Checks do not submit another video or coin;
   exhausted checks finish as failures and the normal daily schedule resumes.
 - Manga tasks: clock-in and share using the Android platform parameter

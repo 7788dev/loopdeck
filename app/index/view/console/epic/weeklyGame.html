@@ -15,11 +15,14 @@
             </div>
         </div>
     </div>
+    {if condition="count($list) eq 0"}
     <div class="row">
-        {if condition="count($list) eq 0"}
         <div class="col-md-12"><div class="alert alert-info">暂未获取到周免活动信息，请稍后再试。</div></div>
-        {/if}
-        {foreach $list as $game}
+    </div>
+    {/if}
+    {foreach name=":array_chunk($list, 2)" item="games"}
+    <div class="row">
+        {foreach $games as $game}
         <div class="col-md-6">
             <a class="ibox float-e-margins no-margins" style="display: block; overflow: hidden;" href="{$game.productUrl}" target="_blank" rel="noopener noreferrer">
                 {if condition="$game.image neq ''"}<img class="img-responsive" style="aspect-ratio:16/9;object-fit:cover" src="{$game.image}" alt="{$game.title}" loading="lazy">{/if}
@@ -33,5 +36,6 @@
         </div>
         {/foreach}
     </div>
+    {/foreach}
 </div>
 {/block}

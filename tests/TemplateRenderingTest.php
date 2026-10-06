@@ -54,6 +54,9 @@ try {
                     functionalCheck(str_contains($html, '例如总数 7 个，可绑定 2 个哔哩哔哩 + 5 个网易云，也可全部绑定网易云。'), 'Account total usage example missing');
                     functionalCheck(!preg_match('/时长为 0|总数为 0|续期不叠加|旧版配额码/u', $html), 'Internal entitlement rules leaked into user copy');
                 }
+                if ($module === 'index' && $relative === 'console/epic/weeklyGame.html') {
+                    functionalCheck(str_contains($html, '暂未获取到周免活动信息'), 'Empty Epic catalog lost its explanation');
+                }
                 $renderedPages[$module . '/' . $relative] = $html;
                 $count++;
             } catch (Throwable $error) {
@@ -101,6 +104,56 @@ try {
             } finally {
                 ob_end_clean();
             }
+        }
+    }
+    // Unequal card heights must not let Bootstrap floats place the next pair
+    // beside the shorter card. Each desktop pair needs its own clearing row.
+    foreach ([1, 4, 5] as $gameCount) {
+        $games = [];
+        for ($index = 1; $index <= $gameCount; $index++) {
+            $games[] = [
+                'title' => '测试游戏 ' . $index,
+                'description' => str_repeat('长短不同的游戏介绍。', $index % 2 === 1 ? 16 : 1),
+                'productUrl' => 'https://store.epicgames.com/p/layout-fixture-' . $index,
+                'image' => $index === 5 ? '' : 'data:image/svg+xml;base64,' . base64_encode(
+                    '<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"><rect width="1920" height="1080" fill="#23405a"/></svg>'
+                ),
+                'available' => $index <= 2,
+                'start_at' => 1790870400, 'end_at' => 1791475200,
+            ];
+        }
+        $engine = new think\Template(['view_path' => $populatedViewPath, 'cache_path' => $cachePath]);
+        ob_start();
+        try {
+            $engine->fetch('console/epic/weeklyGame', array_replace($variables, ['list' => $games]));
+            $html = (string)ob_get_contents();
+            $document = new DOMDocument();
+            $previousErrors = libxml_use_internal_errors(true);
+            try {
+                $document->loadHTML($html);
+            } finally {
+                libxml_clear_errors();
+                libxml_use_internal_errors($previousErrors);
+            }
+            $xpath = new DOMXPath($document);
+            $cardSelector = 'a[starts-with(@href, "https://store.epicgames.com/p/layout-fixture-")]';
+            $rows = $xpath->query('//div[contains(concat(" ", normalize-space(@class), " "), " row ")][div/' . $cardSelector . ']');
+            functionalCheck($rows->length === (int)ceil($gameCount / 2), 'Epic cards with unequal heights share an uncleared row');
+            $seen = [];
+            foreach ($rows as $rowIndex => $row) {
+                $cards = $xpath->query('./div/' . $cardSelector, $row);
+                functionalCheck($cards->length === min(2, $gameCount - $rowIndex * 2), 'Epic desktop row has the wrong number of cards');
+                foreach ($cards as $card) {
+                    $seen[] = $card->getAttribute('href');
+                    functionalCheck(str_contains(' ' . $card->parentNode->getAttribute('class') . ' ', ' col-md-6 '),
+                        'Epic cards lost the mobile single-column / desktop two-column breakpoint');
+                }
+            }
+            functionalCheck($seen === array_column($games, 'productUrl'), 'Epic rows lost or reordered games');
+            $renderedPages['populated/console/epic/weeklyGame-' . $gameCount . '.html'] = $html;
+            $count++;
+        } finally {
+            ob_end_clean();
         }
     }
     $savedUser = think\facade\Session::get('user');

@@ -137,23 +137,6 @@
                         <table class="table table-striped">
                             <tbody>
                             {foreach $task_rows as $v}
-                            {if condition="$v.is_global && !$v.offline"}
-                                <tr>
-                                    <td class="text-center">
-                                        <i class="fa fa-2x {$v.icon}"></i>
-                                    </td>
-                                    <td>
-                                        <p style="margin-bottom: 5px;"><b>{$v.name}</b></p>
-                                        <p class="text-muted" style="margin-bottom: 0;">
-                                            <small>{$v.describe}</small>
-                                        </p>
-                                    </td>
-                                    <td class="hidden-xs"><i class="fa fa-clock-o"></i> {$v.last_execute}</td>
-                                    <td class="text-center">
-                                        <button type="button" class="btn btn-sm btn-primary" data-config='{$v.config_json}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)">配置</button>
-                                    </td>
-                                </tr>
-                                {else /}
                                 <tr>
                                     <td class="text-center">
                                         <i class="fa fa-2x {$v.icon}"></i>
@@ -183,7 +166,6 @@
                                         {/if}
                                     </td>
                                 </tr>
-                            {/if}
                             {/foreach}
                             </tbody>
                         </table>
@@ -218,9 +200,6 @@
         }
 
         switch (execute_name) {
-            case 'globalroom':
-                globalRoom(execute_name, name, config);
-                break;
             case 'coinadd':
                 coinAdd(execute_name, name, config);
                 break;
@@ -230,39 +209,6 @@
         }
     }
 
-    function globalRoom(execute_name, name, config)
-    {
-        layer.open({
-            title: name + "配置",
-            btn: ['保存', '取消'],
-            btnAlign: 'c',
-            closeBtn: 0,
-            shadeClose: true,
-            content: '<form><div class="row"><div class="col-lg-12"><div class="form-floating"><input type="text" class="form-control" id="global_room" name="global_room" placeholder="直播间ID"><label class="form-label" for="global_room">全局直播间ID</label><div class="form-text text-muted">全局直播间ID，适用于：弹幕、礼物、心跳</div></div></div></div></form>',
-            success: function (res, index) {
-                config = JSON.parse(config);
-                // console.log(config)
-                if (typeof (config['global_room']) !== 'undefined') {
-                    $("#global_room").val(config['global_room']);
-                }
-            },
-            yes: function (index, dom) {
-                const params = JSON.stringify($(dom).find("form").parseForm());
-                layer.close(index);
-                x.ajax('/index/ajax/bilibili/set', {do: execute_name, user_id: {$a_data['mid']}, config: params}, function (data) {
-                    if (data.code == 1) {
-                        x.notify(data.message, 'success');
-                        setTimeout(function () {
-                            // x.pjax('/index/console/bilibili/info/{$a_data["mid"]}');
-                            window.location.href = '/index/console/bilibili/info/{$a_data["mid"]}';
-                        }, 1000)
-                    } else {
-                        x.notify(data.message, 'warning');
-                    }
-                })
-            },
-        });
-    }
 
     function coinAdd(execute_name, name, config)
     {

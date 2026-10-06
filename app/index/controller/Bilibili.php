@@ -321,10 +321,6 @@ class Bilibili
 
     private function normalizeTaskConfig(string $do, array $config): ?array
     {
-        if ($do === 'globalroom') {
-            $roomId = trim((string)($config['global_room'] ?? ''));
-            return ctype_digit($roomId) && (int)$roomId > 0 ? ['global_room' => $roomId] : null;
-        }
         if ($do === 'coinadd') {
             $mode = (string)($config['add_coin_mode'] ?? '');
             $number = (int)($config['add_coin_num'] ?? 0);

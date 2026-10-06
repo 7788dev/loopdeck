@@ -117,12 +117,19 @@ final class BilibiliTaskExecutor
         $now = ($this->clock)();
         $startedDate = date('Y-m-d', $now);
         $verification = $config['_bilibili_verification'] ?? [];
-        $attempt = is_array($verification) && ($verification['date'] ?? '') === date('Y-m-d', $now)
+        $isToday = is_array($verification) && ($verification['date'] ?? '') === date('Y-m-d', $now);
+        $attempt = $isToday
             ? max(0, min(self::MAX_VERIFICATION_ATTEMPTS, (int)($verification['attempt'] ?? 0))) : 0;
         $canVerify = in_array($task, ['watchaid', 'dailyexperience', 'vipexperience'], true);
+        // Yesterday's submitted claim says nothing about today's benefit, and
+        // inheriting it would block today's first claim the same way.
+        $claimSubmitted = $isToday && !empty($verification['claim_submitted']);
         $config = $this->normalizeConfig($config);
         if ($canVerify && $attempt > 0) {
             $config['verification_only'] = true;
+        }
+        if ($canVerify) {
+            $config['claim_submitted'] = $claimSubmitted;
         }
         $config['sid'] = $account['sid'];
 
@@ -146,7 +153,11 @@ final class BilibiliTaskExecutor
                 $now = ($this->clock)();
                 if ($attempt < self::MAX_VERIFICATION_ATTEMPTS && date('Y-m-d', $now + 300) === $startedDate) {
                     $response['retry_after_seconds'] = 300;
-                    $response['verification_state'] = ['date' => date('Y-m-d', $now), 'attempt' => $attempt + 1];
+                    $response['verification_state'] = [
+                        'date' => date('Y-m-d', $now),
+                        'attempt' => $attempt + 1,
+                        'claim_submitted' => $claimSubmitted || !empty($result['claim_submitted']),
+                    ];
                     $response['message'] = TaskMessage::join([$response['message'], '5 分钟后复查到账状态']);
                 } else {
                     $response['message'] = TaskMessage::join([$response['message'], '本轮核验结束，未确认到账']);

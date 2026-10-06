@@ -64,6 +64,63 @@ autoUpdaterCheck($repository->invoke($updater, 'ghcr.io/7788dev/loopdeck:latest'
 autoUpdaterCheck($repository->invoke($updater, 'ghcr.io/7788dev/loopdeck@sha256:' . str_repeat('a', 64)) === 'ghcr.io/7788dev/loopdeck', 'Image digest was not stripped');
 autoUpdaterCheck($repository->invoke($updater, 'bad;command') === null, 'Unsafe image repository was accepted');
 
+$oldImageId = 'sha256:' . str_repeat('a', 64);
+$newImageId = 'sha256:' . str_repeat('b', 64);
+$otherImageId = 'sha256:' . str_repeat('e', 64);
+$runningContainer = str_repeat('d', 40);
+$targetImageId = $newImageId;
+$replacementImageId = $newImageId;
+$containerListed = true;
+$replacementUpdater = new LoopDeckAutoUpdater(static function (array $arguments, int $timeout) use (
+    &$targetImageId, &$replacementImageId, &$containerListed, $runningContainer
+): array {
+    if (array_slice($arguments, 0, 3) === ['docker', 'image', 'inspect']) {
+        return ['ok' => true, 'code' => 0, 'stdout' => $targetImageId, 'stderr' => ''];
+    }
+    if (array_slice($arguments, -3) === ['ps', '-q', 'app']) {
+        return ['ok' => true, 'code' => 0, 'stdout' => $containerListed ? $runningContainer : '', 'stderr' => ''];
+    }
+    if (($arguments[1] ?? '') === 'inspect') {
+        return ['ok' => true, 'code' => 0, 'stdout' => $replacementImageId, 'stderr' => ''];
+    }
+    throw new RuntimeException('Unexpected Docker operation in replacement test');
+});
+$verifyReplacement = (new ReflectionClass($replacementUpdater))->getMethod('verifyReplacement');
+$verifyReplacement->setAccessible(true);
+$target = (string)$targetImageId;
+
+// Compose can leave the previous container running, and it can also leave some
+// third image running; only the verified target image counts as this update.
+$unchanged = $verifyReplacement->invoke($replacementUpdater, $target);
+autoUpdaterCheck($unchanged['ok'] === true && $unchanged['image_id'] === $target,
+    'The verified target image was not accepted as the running image');
+$replacementImageId = $oldImageId;
+$stale = $verifyReplacement->invoke($replacementUpdater, $target);
+autoUpdaterCheck($stale['ok'] === false && str_contains($stale['error'], '目标镜像'),
+    'The previous image was accepted as a completed update');
+$replacementImageId = $otherImageId;
+$foreign = $verifyReplacement->invoke($replacementUpdater, $target);
+autoUpdaterCheck($foreign['ok'] === false && $foreign['image_id'] === $otherImageId,
+    'An unrelated image was accepted because it differed from the old one');
+$containerListed = false;
+$unresolved = $verifyReplacement->invoke($replacementUpdater, $target);
+autoUpdaterCheck($unresolved['ok'] === false && $unresolved['image_id'] === null,
+    'An unreadable app container was treated as proof of replacement');
+
+$imageId = (new ReflectionClass($replacementUpdater))->getMethod('imageId');
+$imageId->setAccessible(true);
+autoUpdaterCheck($imageId->invoke($replacementUpdater, 'ghcr.io/7788dev/loopdeck:latest') === $newImageId,
+    'The target image id could not be read from the tagged image');
+
+$implementationSource = (string)file_get_contents($implementationPath);
+autoUpdaterCheck(substr_count($implementationSource, "['status'] = 'updated'") === 1,
+    'A second writer of the updated status appeared');
+autoUpdaterCheck(
+    strpos($implementationSource, '$this->verifyReplacement(')
+        < strpos($implementationSource, "['status'] = 'updated'"),
+    'The updated status is no longer written behind the replacement proof'
+);
+
 $composePath = $projectRoot . '/compose.yaml';
 $compose = is_file($composePath) ? str_replace("\r\n", "\n", (string)file_get_contents($composePath)) : '';
 $wrapperCandidates = [

@@ -182,7 +182,6 @@ class Console
                     : (string)$task['describe'],
                 'icon' => (string)$task['icon'],
                 'more' => !empty($task['more']),
-                'is_global' => $taskName === 'globalroom',
                 'offline' => $offlineReason !== null,
                 'offline_reason' => $offlineReason ?? '',
                 'last_execute' => $lastExecute === false ? '--' : date('m-d H:i', $lastExecute),
@@ -204,12 +203,6 @@ class Console
 
     private function bilibiliViewConfig(string $task, array $config): array
     {
-        if ($task === 'globalroom') {
-            $roomId = trim((string)($config['global_room'] ?? ''));
-            return $roomId !== '' && ctype_digit($roomId) && (int)$roomId > 0
-                ? ['global_room' => $roomId]
-                : [];
-        }
         if ($task === 'coinadd') {
             $mode = (string)($config['add_coin_mode'] ?? '');
             $count = (int)($config['add_coin_num'] ?? 0);

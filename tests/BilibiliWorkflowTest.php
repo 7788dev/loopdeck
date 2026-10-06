@@ -481,4 +481,75 @@ biliWorkflowCheck(str_contains($emptySilver->silver2coin()['message'], '银瓜�
 ]);
 biliWorkflowCheck($notGrantedVip->vipexperience()['code'] === 0, 'Ungrantable VIP experience was reported as received');
 
+// A zero coin balance is not a completed day: no coin may be spent, so the run
+// must reach the scheduler as a failure instead of a [成功] line.
+[$noBalance, $noBalanceTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(0)],
+    '/x/web-interface/coin/today/exp' => [['code' => 0, 'data' => 0]],
+], ['add_coin_num' => 3, 'add_coin_mode' => 'random']);
+$noBalanceResult = $noBalance->coinAdd();
+biliWorkflowCheck($noBalanceResult['code'] === 0, 'coinadd with an empty coin wallet was reported as successful');
+biliWorkflowCheck(str_contains($noBalanceResult['message'], '硬币余额不足'), 'empty-wallet coinadd did not state the reason');
+biliWorkflowCheck($noBalanceTransport->callCount('/x/web-interface/coin/add') === 0, 'coinadd issued requests without any coins');
+$cronStatus = new app\cron\controller\Common();
+biliWorkflowCheck($cronStatus->statusTag($noBalanceResult) === '失败',
+    'The scheduler still rendered an empty-wallet coinadd as [成功]');
+
+// The daily experience ceiling is settled by the already-completed branch; the
+// wallet and the ceiling must not need a second, unreachable success line.
+[$expFull, $expFullTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(5)],
+    '/x/web-interface/coin/today/exp' => [['code' => 0, 'data' => 50]],
+], ['add_coin_num' => 5, 'add_coin_mode' => 'random']);
+$expFullResult = $expFull->coinAdd();
+biliWorkflowCheck($expFullResult['code'] === 1 && str_contains($expFullResult['message'], '今日投币已完成'),
+    'a full coin-experience day was not settled by the completion branch');
+biliWorkflowCheck(!str_contains($expFullResult['message'], '未投币'), 'coinadd reintroduced a no-op success line');
+
+// A verification pass that already submitted the claim may only read the ledger.
+[$vipWaiting, $vipWaitingTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(), biliNav()],
+    '/x/vip/privilege/my' => [
+        ['code' => 0, 'data' => ['is_vip' => true, 'list' => [['type' => 9, 'state' => 0]]]],
+        ['code' => 0, 'data' => ['is_vip' => true, 'list' => [['type' => 9, 'state' => 1]]]],
+    ],
+], ['verification_only' => true, 'claim_submitted' => true]);
+$vipPending = $vipWaiting->vipexperience();
+biliWorkflowCheck(!$vipWaitingTransport->called('/x/vip/experience/add'),
+    'A VIP verification retry submitted the claim again');
+biliWorkflowCheck($vipPending['code'] === 0 && !empty($vipPending['pending_verification'])
+    && !empty($vipPending['claim_submitted']),
+    'An unsettled VIP claim lost its pending state or its submitted stage');
+$vipConfirmed = $vipWaiting->vipexperience();
+biliWorkflowCheck($vipConfirmed['code'] === 1 && str_contains((string)$vipConfirmed['message'], '今日已领取')
+    && !$vipWaitingTransport->called('/x/vip/experience/add'),
+    'A confirmed VIP benefit was not recognised during verification');
+
+// A prerequisite that only settled later must still get its first claim.
+[$vipDelayed, $vipDelayedTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav()],
+    '/x/vip/privilege/my' => [['code' => 0, 'data' => ['is_vip' => true, 'list' => [['type' => 9, 'state' => 0]]]]],
+    '/x/vip/experience/add' => [['code' => 0, 'data' => ['is_grant' => true]]],
+], ['verification_only' => true]);
+$vipClaim = $vipDelayed->vipexperience();
+biliWorkflowCheck($vipClaim['code'] === 1 && str_contains((string)$vipClaim['message'], '已领取'),
+    'A VIP benefit stayed unclaimed after its prerequisite settled');
+biliWorkflowCheck($vipDelayedTransport->callCount('/x/vip/experience/add') === 1,
+    'The first VIP claim was not submitted exactly once');
+
+// While the prerequisite watch is unsettled nothing may be claimed.
+[$vipPrerequisite, $vipPrerequisiteTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [biliNav(), biliNav()],
+    '/x/vip/privilege/my' => [['code' => 0, 'data' => ['is_vip' => true, 'list' => [['type' => 9, 'state' => 2]]]]],
+    '/x/member/web/exp/reward' => [
+        ['code' => 0, 'data' => ['watch' => false, 'login' => true]],
+        ['code' => 0, 'data' => ['watch' => false, 'login' => true]],
+    ],
+], ['verification_only' => true]);
+$vipBlocked = $vipPrerequisite->vipexperience();
+biliWorkflowCheck(!$vipPrerequisiteTransport->called('/x/vip/experience/add'),
+    'A VIP claim was submitted before its prerequisite watch settled');
+biliWorkflowCheck($vipBlocked['code'] === 0 && str_contains((string)$vipBlocked['message'], '大会员前置观看'),
+    'The VIP prerequisite wait was not explained');
+
 echo "Bilibili workflow tests passed\n";

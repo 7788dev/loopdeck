@@ -27,6 +27,8 @@ final class SystemUpdater
     // Longer than the default worst case: every mirror pull timing out, then a restart.
     private const CHECKING_STALE_SECONDS = 7200;
 
+    private const CLOCK_SKEW_TOLERANCE_SECONDS = 300;
+
     private string $stateFile;
     private bool $enabled;
     private int $checkInterval;
@@ -166,12 +168,22 @@ final class SystemUpdater
         if (isset($decoded['error']) && is_scalar($decoded['error'])) {
             $status['error'] = mb_substr(trim((string)$decoded['error']), 0, 500);
         }
+        $startedAt = strtotime((string)($status['check_started_at'] ?? ''));
+        $heartbeatAt = strtotime((string)($status['updated_at'] ?? ''));
+        // A state timestamp ahead of this clock means the host clock moved
+        // backwards; no elapsed measurement from it can prove the check is alive.
+        $clockSkewed = ($startedAt !== false && $startedAt > time() + self::CLOCK_SKEW_TOLERANCE_SECONDS)
+            || ($heartbeatAt !== false && $heartbeatAt > time() + self::CLOCK_SKEW_TOLERANCE_SECONDS);
         if ($status['status'] === 'checking') {
-            $startedAt = strtotime((string)($status['check_started_at'] ?? ''));
-            if ($startedAt !== false && time() - $startedAt > self::CHECKING_STALE_SECONDS) {
+            $heartbeatAge = $heartbeatAt === false ? null : time() - $heartbeatAt;
+            if ($clockSkewed
+                || ($startedAt !== false && time() - $startedAt > self::CHECKING_STALE_SECONDS)
+                || ($heartbeatAge !== null && $heartbeatAge > self::CHECKING_STALE_SECONDS)) {
                 $status['status'] = 'failed';
                 $status['message'] = '更新器检查长时间未结束';
-                $status['error'] = '检查已超过 2 小时未完成，请查看 updater 容器日志';
+                $status['error'] = $clockSkewed
+                    ? '更新器状态的时间戳超前于系统时钟，请检查宿主机时间同步'
+                    : '检查已超过 2 小时未完成，请查看 updater 容器日志';
             }
         }
         if ($status['status'] === 'failed' && $status['error'] === null) {

@@ -132,6 +132,8 @@ foreach ([
             'Retired navigation reappeared with legacy settings: ' . $view);
         removalCheck(!preg_match('/购买|充值|支付配置|价格设置|余额|\/shop\/(?:vip|quota|money)|\/system\/pay/u', $html),
             'Payment UI reappeared with legacy settings: ' . $view);
+        removalCheck(!preg_match('/直播间|globalroom|global_room/u', $html),
+            'Retired live-room configuration reappeared: ' . $view);
         if ($application === 'index') {
             removalCheck(str_contains($html, '/index/console/shop/card'), 'Legacy settings hid redemption');
         }
@@ -154,5 +156,43 @@ removalCheck($factoryCalls === 0, 'Retired live tasks reached upstream adapters'
 removalCheck(app\service\BilibiliTaskExecutor::executableTasks() ===
     ['manga', 'silver2coin', 'watchaid', 'coinadd', 'dailyexperience', 'vipexperience'],
     'Retiring live tasks changed the retained task set');
+removalCheck(!str_contains((string)$schema, "'globalroom'"),
+    'A fresh installation still seeds the retired global live-room task');
+
+// Render the real Bilibili console page: a retired row must stay visible but
+// disabled, and the page must no longer carry any live-room configuration UI.
+$engine = new think\Template(['view_path' => $root . '/app/index/view/',
+    'cache_path' => $cache . 'templates/bilibili/']);
+ob_start();
+try {
+    $engine->fetch('console/bilibili/info', $data + [
+        'data' => ['user_id' => '42', 'mid' => '42', 'state' => 1],
+        'a_data' => ['mid' => '42', 'nickname' => '测试账号'],
+        'timing' => '09:00',
+        'level_info' => [],
+        'info_warning' => '',
+        'task_rows' => [
+            ['execute_name' => 'coinadd', 'name' => '每日投币', 'describe' => '投币视频（主站任务）',
+                'icon' => 'si si-badge', 'more' => true, 'offline' => false, 'offline_reason' => '',
+                'last_execute' => '--', 'job_state' => 1, 'user_id' => '42', 'config_json' => '{}'],
+            ['execute_name' => 'globalroom', 'name' => '全局配置', 'describe' => '全局配置',
+                'icon' => 'si si-compass', 'more' => false, 'offline' => true,
+                'offline_reason' => app\service\BilibiliTaskExecutor::offlineReason('globalroom'),
+                'last_execute' => '--', 'job_state' => 0, 'user_id' => '42', 'config_json' => '{}'],
+        ],
+    ]);
+    $bilibiliHtml = (string)ob_get_contents();
+} finally {
+    ob_end_clean();
+}
+removalCheck($bilibiliHtml !== '', 'The Bilibili console page failed to render');
+removalCheck(!preg_match('/globalRoom|global_room|is_global/u', $bilibiliHtml),
+    'Live-room configuration markup remains in the Bilibili console page');
+removalCheck(!str_contains($bilibiliHtml, "updateConfig('globalroom'"),
+    'The retired live-room row still offers a configuration dialog');
+removalCheck(str_contains($bilibiliHtml, '旧直播任务已停用') && str_contains($bilibiliHtml, '已下架'),
+    'The retired live-room row is no longer explained as disabled');
+removalCheck(str_contains($bilibiliHtml, "updateConfig('coinadd'"),
+    'Retiring live tasks removed the configuration dialog of a retained task');
 
 echo "Feature removal and retained entitlement view tests passed\n";

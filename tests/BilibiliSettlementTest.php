@@ -140,4 +140,27 @@ functionalCheck(Db::name('jobs')->whereIn('do', ['dailybag','doubleheart','group
 functionalCheck((int)Db::name('jobs')->where('do', 'watchaid')->value('state') === 1, 'Retained viewing was disabled');
 functionalCheck(Db::name('task_logs')->count() === $historyCount, 'Retiring jobs erased history');
 
+// Reachability is decided at the user-facing entry point: the save endpoint the
+// console posts to must reject retired configuration instead of accepting it
+// and relying on the executor to ignore it later.
+fixtureRequest(['user_id' => '42', 'do' => 'globalroom', 'config' => '{"global_room":"999"}']);
+$save = json_decode((new app\index\controller\Ajax())->bilibili('set')->getContent(), true);
+functionalCheck((int)($save['code'] ?? -1) === 0 && str_contains((string)($save['message'] ?? ''), '已停用'),
+    'The save endpoint accepted retired live-room configuration');
+functionalCheck(Db::name('jobs')->where('do', 'globalroom')->value('data') === 'corrupt retired configuration',
+    'The save endpoint rewrote retired job data');
+fixtureRequest(['user_id' => '42', 'do' => 'globalroom', 'act' => 'zt']);
+$enable = json_decode((new app\index\controller\Ajax())->bilibili('set')->getContent(), true);
+functionalCheck((int)($enable['code'] ?? -1) === 0
+    && (int)Db::name('jobs')->where('do', 'globalroom')->value('state') === 0,
+    'A retired task could be switched on through the console endpoint');
+Db::name('tasks')->insert(['id' => 2, 'type' => 'bilibili', 'execute_name' => 'coinadd', 'state' => 1, 'vip' => 1, 'name' => '每日投币']);
+Db::name('jobs')->insert(['id' => 20, 'uid' => 1, 'zid' => 1, 'type' => 'bilibili', 'user_id' => '42',
+    'do' => 'coinadd', 'state' => 1, 'nextExecute' => 0, 'data' => serialize([])]);
+fixtureRequest(['user_id' => '42', 'do' => 'coinadd', 'config' => '{"add_coin_mode":"random","add_coin_num":3}']);
+$retained = json_decode((new app\index\controller\Ajax())->bilibili('set')->getContent(), true);
+functionalCheck((int)($retained['code'] ?? -1) === 1, 'The console endpoint stopped serving retained daily tasks');
+functionalCheck(str_contains((string)Db::name('jobs')->where('id', 20)->value('data'), 'add_coin_num'),
+    'The console endpoint no longer stores retained task configuration');
+
 echo "Bilibili settlement tests passed\n";

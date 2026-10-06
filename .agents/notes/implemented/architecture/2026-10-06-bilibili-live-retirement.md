@@ -34,3 +34,5 @@ Status: implemented
 剩余可执行任务为漫画、银瓜子兑换、每日观看、每日投币、每日经验、大会员每日经验。此处是用户选择的产品停用范围，不声称所有旧上游接口均已关闭。不修改数据库结构、Compose 服务或环境变量。
 
 FeatureRemovalTest 固定不可调度及不触达适配器的断言；BilibiliSettlementTest 用隔离数据库验证停用、开关、定时修改和历史保留；模板渲染验证旧配置入口不可编辑。
+
+停用必须一路做到用户入口：FAQ 的「填写直播间ID」教程、`console/bilibili/info` 的 `is_global` 行与 `globalRoom()` 配置弹窗、`normalizeTaskConfig()`/`bilibiliViewConfig()` 的 globalroom 分支以及 `install.sql` 里那条 `globalroom` 任务行都已删除，新装实例不再种出永久停用的行。不可达性由真实入口证明——`tests/FeatureRemovalTest.php` 渲染真实模板并断言旧弹窗与文案不再出现，`tests/BilibiliSettlementTest.php` 通过 `Ajax::bilibili('set')` 这个用户实际提交的入口断言 globalroom 的保存与开关被拒且不改写旧 job 数据，同时保留任务的配置保存仍然成功。

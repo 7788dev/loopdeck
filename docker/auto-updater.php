@@ -251,6 +251,19 @@ final class LoopDeckAutoUpdater
             return false;
         }
 
+        // The image the app must end up running. Anything else — including a
+        // different image that merely is not the old one — is not this update.
+        $targetImageId = $this->imageId($this->appImage);
+        if ($targetImageId === null) {
+            $metadata['status'] = 'failed';
+            $metadata['message'] = '无法确认目标镜像，已保持原版本运行';
+            $metadata['error'] = '标记后的 APP_IMAGE 未能读出镜像 ID';
+            $metadata['next_check_at'] = gmdate('c', time() + $this->retryInterval);
+            $this->writeState($metadata);
+            $this->log('无法读出 ' . $this->appImage . ' 的镜像 ID，跳过本次更新');
+            return false;
+        }
+
         $this->progress('restart', '镜像已校验，正在重启应用', $metadata);
         if (!$this->restartApplication()) {
             $this->progress('rollback', '新版本未就绪，正在恢复原版本');
@@ -264,6 +277,20 @@ final class LoopDeckAutoUpdater
             return false;
         }
 
+        $replacement = $this->verifyReplacement($targetImageId);
+        if (!$replacement['ok']) {
+            // A healthy container proves nothing on its own: compose can leave
+            // the previous container running, in which case nothing was updated.
+            $metadata['status'] = 'failed';
+            $metadata['message'] = '应用容器未替换为新镜像，已保持原版本运行';
+            $metadata['error'] = $replacement['error'];
+            $metadata['next_check_at'] = gmdate('c', time() + $this->retryInterval);
+            $this->writeState($metadata);
+            $this->log('版本 ' . $latestVersion . ' 未成为运行镜像，保持原版本');
+            return false;
+        }
+        $runningImageId = $replacement['image_id'];
+
         $metadata['status'] = 'updated';
         $metadata['message'] = '已更新到 v' . $latestVersion;
         $metadata['last_update_at'] = $checkedAt;
@@ -271,7 +298,7 @@ final class LoopDeckAutoUpdater
         $this->writeState($metadata);
         $this->log('应用已更新到 ' . $latestVersion . '，来源 ' . $pulled['repository']);
 
-        return $this->syncUpdater($metadata, $this->runningImageId('app'));
+        return $this->syncUpdater($metadata, $runningImageId);
     }
 
     /**
@@ -609,6 +636,23 @@ final class LoopDeckAutoUpdater
         $result = $this->runDocker(['image', 'inspect', '--format', '{{.Id}}', $image], 20);
         $id = trim($result['stdout']);
         return $result['ok'] && $id !== '' ? $id : null;
+    }
+
+    /**
+     * Prove that the running app container executes the verified target image.
+     *
+     * @return array{ok:bool,error:string,image_id:?string}
+     */
+    private function verifyReplacement(string $targetImageId): array
+    {
+        $runningImageId = $this->runningImageId('app');
+        if ($runningImageId === null) {
+            return ['ok' => false, 'error' => '未能确认运行中的 app 镜像', 'image_id' => null];
+        }
+        if ($runningImageId !== $targetImageId) {
+            return ['ok' => false, 'error' => 'app 容器未运行已校验的目标镜像', 'image_id' => $runningImageId];
+        }
+        return ['ok' => true, 'error' => '', 'image_id' => $runningImageId];
     }
 
     private function runningImageId(string $service): ?string

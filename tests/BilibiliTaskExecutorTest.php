@@ -110,6 +110,66 @@ biliExecutorCheck($capturedAccount['refresh_token'] === 'refresh-token', 'accoun
 biliExecutorCheck($capturedConfig['sid'] === 'sid-token', 'sid cookie was not forwarded');
 biliExecutorCheck($capturedConfig['global_room'] === '123', 'global room config was not forwarded');
 biliExecutorCheck(!isset($capturedConfig['ignored']), 'unknown task config was forwarded');
+biliExecutorCheck(($capturedConfig['claim_submitted'] ?? null) === false,
+    'A fresh run was told a claim had already been submitted');
+
+final class BilibiliTaskExecutorVipStageFake
+{
+    public bool $cookiezt = false;
+
+    public function __construct(private array $config, private bool $claimSubmittedNow = false)
+    {
+    }
+
+    public function vipexperience(): array
+    {
+        return ['code' => 0, 'pending_verification' => true,
+            'claim_submitted' => $this->claimSubmittedNow,
+            'message' => '大会员经验未确认发放'];
+    }
+}
+
+// The claim stage has to survive the five-minute verification hop: a delayed
+// prerequisite may still owe its first claim, while a submitted claim may not.
+$stageAccount = $account;
+$stageClock = strtotime(date('Y-m-d') . ' 09:00:00');
+$stageCaptured = [];
+$stageClaimedThisPass = true;
+$stageExecutor = new BilibiliTaskExecutor(static function (array $account, array $config) use (
+    &$stageCaptured, &$stageClaimedThisPass
+): BilibiliTaskExecutorVipStageFake {
+    $stageCaptured = $config;
+    return new BilibiliTaskExecutorVipStageFake($config, $stageClaimedThisPass);
+}, static fn(): int => $stageClock);
+$firstClaim = $stageExecutor->execute('vipexperience', $stageAccount, []);
+biliExecutorCheck(($stageCaptured['claim_submitted'] ?? null) === false, 'the initial VIP pass claimed a prior submission');
+biliExecutorCheck(!isset($stageCaptured['verification_only']), 'the initial VIP pass ran read-only');
+$stageUpdates = BilibiliTaskExecutor::jobUpdates($firstClaim, [], '42', '09:00', $stageClock);
+$stageState = unserialize($stageUpdates['data'], ['allowed_classes' => false]);
+biliExecutorCheck(($stageState['_bilibili_verification']['claim_submitted'] ?? null) === true,
+    'A submitted VIP claim was not persisted for the next verification pass');
+$stageClaimedThisPass = false;
+$retry = $stageExecutor->execute('vipexperience', $stageAccount, $stageState);
+biliExecutorCheck(($stageCaptured['verification_only'] ?? null) === true, 'the VIP verification pass was not read-only flagged');
+biliExecutorCheck(($stageCaptured['claim_submitted'] ?? null) === true,
+    'A verification pass lost the knowledge that the claim was already submitted');
+$retryUpdates = BilibiliTaskExecutor::jobUpdates($retry, $stageState, '42', '09:00', $stageClock + 300);
+$retryState = unserialize($retryUpdates['data'], ['allowed_classes' => false]);
+biliExecutorCheck(($retryState['_bilibili_verification']['claim_submitted'] ?? null) === true,
+    'The VIP claim stage was dropped after a pass that submitted nothing');
+
+$staleState = ['_bilibili_verification' => [
+    'date' => date('Y-m-d', $stageClock - 86400), 'attempt' => 11, 'claim_submitted' => true,
+]];
+$todayAfterYesterday = $stageExecutor->execute('vipexperience', $stageAccount, $staleState);
+biliExecutorCheck(($stageCaptured['claim_submitted'] ?? null) === false
+    && !isset($stageCaptured['verification_only']),
+    "Yesterday's submitted VIP claim suppressed today's first claim");
+$todayUpdates = BilibiliTaskExecutor::jobUpdates($todayAfterYesterday, $staleState, '42', '09:00', $stageClock);
+$todayState = unserialize($todayUpdates['data'], ['allowed_classes' => false]);
+biliExecutorCheck(($todayState['_bilibili_verification']['claim_submitted'] ?? null) === false
+    && (int)($todayState['_bilibili_verification']['attempt'] ?? 0) === 1,
+    'Today did not restart the VIP verification window');
 
 $beforeRejectedTask = $factoryCalls;
 $offline = $executor->execute('dailytask', $account);

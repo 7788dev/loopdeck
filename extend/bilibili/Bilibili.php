@@ -246,10 +246,7 @@ class Bilibili
             return ['code' => 1, 'message' => '今日投币已完成'];
         }
         if ($stock <= 0) {
-            return ['code' => 1, 'message' => '硬币余额不足，今日未投币'];
-        }
-        if ($used >= 5) {
-            return ['code' => 1, 'message' => '今日投币经验已满，未投币'];
+            return ['code' => 0, 'message' => '投币失败：硬币余额不足，今日未投币'];
         }
         $target = min(max(0, $estimate - $used), $stock, max(0, 5 - $used));
 
@@ -377,6 +374,8 @@ class Bilibili
         if ($this->authenticatedNav() === null) {
             return $this->invalidAccount();
         }
+        $verificationOnly = !empty($this->config['verification_only']);
+        $claimSubmitted = !empty($this->config['claim_submitted']);
         $privilege = $this->client->vipPrivilege();
         if (($privilege['code'] ?? -1) !== 0) {
             if ($this->client->isAuthenticationFailure($privilege)) {
@@ -405,15 +404,26 @@ class Bilibili
             $watch = $this->watchAid();
             if ((int)($watch['code'] ?? 0) !== 1) {
                 return ['code' => 0, 'pending_verification' => !empty($watch['pending_verification']),
+                    'claim_submitted' => $claimSubmitted,
                     'message' => '大会员前置观看：' . (string)($watch['message'] ?? '任务失败')];
             }
+        }
+
+        // Two different waits reach this method: the prerequisite watch has not
+        // settled, and a claim we already submitted has not been granted. Only
+        // the second one forbids another POST — blocking it as well would keep a
+        // late-settling watch from ever claiming the daily benefit.
+        if ($verificationOnly && $claimSubmitted) {
+            return ['code' => 0, 'pending_verification' => true, 'claim_submitted' => true,
+                'message' => '大会员经验未确认发放'];
         }
 
         $claim = $this->client->claimVipExperience();
         $code = (int)($claim['code'] ?? -1);
         if ($code === 0) {
             if (($claim['data']['is_grant'] ?? null) !== true) {
-                return ['code' => 0, 'pending_verification' => true, 'message' => '大会员经验未确认发放'];
+                return ['code' => 0, 'pending_verification' => true, 'claim_submitted' => true,
+                    'message' => '大会员经验未确认发放'];
             }
             return ['code' => 1, 'message' => '大会员经验已领取'];
         }

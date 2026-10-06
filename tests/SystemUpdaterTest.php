@@ -66,6 +66,40 @@ $disabledStatus = $disabled->status();
 updaterCheck($disabledStatus['status'] === 'disabled', 'Disabled updater was not reported');
 updaterCheck($disabledStatus['updater_available'] === false, 'Disabled updater was reported available');
 
+function updaterState(string $file, array $state): array
+{
+    file_put_contents($file, json_encode($state, JSON_UNESCAPED_SLASHES));
+    return (new SystemUpdater(null, ['state_file' => $file, 'enabled' => true]))->status();
+}
+
+// A check that stopped writing its state file is hung even when the run start
+// time is missing, and a timestamp ahead of this clock is never evidence of life.
+$clock = time();
+$futureHeartbeat = updaterState($stateFile, [
+    'schema' => 1, 'enabled' => true, 'status' => 'checking',
+    'checked_at' => gmdate('c', $clock - 60), 'check_started_at' => gmdate('c', $clock - 60),
+    'updated_at' => gmdate('c', $clock + 3600),
+]);
+updaterCheck($futureHeartbeat['status'] === 'failed' && str_contains((string)$futureHeartbeat['error'], '时间同步'),
+    'A future-dated heartbeat was reported as a live check');
+$silentWithoutStart = updaterState($stateFile, [
+    'schema' => 1, 'enabled' => true, 'status' => 'checking',
+    'checked_at' => gmdate('c', $clock - 10800), 'updated_at' => gmdate('c', $clock - 10800),
+]);
+updaterCheck($silentWithoutStart['status'] === 'failed' && str_contains((string)$silentWithoutStart['error'], '2 小时'),
+    'A check with no run start time escaped the staleness guard');
+$liveHeartbeat = updaterState($stateFile, [
+    'schema' => 1, 'enabled' => true, 'status' => 'checking',
+    'checked_at' => gmdate('c', $clock - 60), 'check_started_at' => gmdate('c', $clock - 60),
+    'updated_at' => gmdate('c', $clock - 2),
+]);
+updaterCheck($liveHeartbeat['status'] === 'checking', 'A live check was reported as hung');
+$liveWithoutStart = updaterState($stateFile, [
+    'schema' => 1, 'enabled' => true, 'status' => 'checking',
+    'checked_at' => gmdate('c', $clock - 60), 'updated_at' => gmdate('c', $clock - 5),
+]);
+updaterCheck($liveWithoutStart['status'] === 'checking', 'A live check without a run start time was reported as hung');
+
 $adminRoute = file_get_contents(dirname(__DIR__) . '/app/admin/route/app.php');
 $adminAjax = file_get_contents(dirname(__DIR__) . '/app/admin/controller/Ajax.php');
 $updateView = file_get_contents(dirname(__DIR__) . '/app/admin/view/system/update.html');

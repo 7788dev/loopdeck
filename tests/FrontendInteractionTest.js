@@ -81,7 +81,7 @@ for (const platform of ['netease', 'bilibili', 'heybox']) {
     assert.equal(state.sent[0].data.timing, '18:35', `${platform}: closing the dialog discarded the selected time`);
     assert.match(read(`app/index/view/console/${platform}/info.html`), /ajax_set_zt\([^\n]+this\)/);
 }
-for (const [platform, functions] of Object.entries({netease: ['musicianTask', 'evaluateTask', 'dakaTask'], bilibili: ['globalRoom', 'coinAdd']})) {
+for (const [platform, functions] of Object.entries({netease: ['musicianTask', 'evaluateTask', 'dakaTask'], bilibili: ['coinAdd']})) {
     for (const fn of functions) {
         const {state, context} = environment();
         vm.runInContext(scripts(`app/index/view/console/${platform}/info.html`), context);
@@ -89,6 +89,13 @@ for (const [platform, functions] of Object.entries({netease: ['musicianTask', 'e
         state.dialog.yes(1, {});
         assert.equal(JSON.parse(state.sent[0].data.config).selected, 'saved-value', `${fn}: closing the dialog discarded configuration`);
     }
+}
+{
+    const {context} = environment();
+    vm.runInContext(scripts('app/index/view/console/bilibili/info.html'), context);
+    assert.equal(typeof context.globalRoom, 'undefined', 'The retired live-room dialog is still callable');
+    assert.doesNotMatch(read('app/index/view/console/bilibili/info.html'), /globalRoom|global_room|直播间/,
+        'Retired live-room configuration markup returned to the Bilibili console page');
 }
 {
     const {context} = environment();

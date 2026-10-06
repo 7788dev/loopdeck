@@ -83,7 +83,7 @@ Db::name('accounts')->insert(['id' => 1, 'uid' => 1, 'type' => 'bilibili', 'user
 Db::name('tasks')->insert(['id' => 1, 'type' => 'bilibili', 'execute_name' => 'watchaid', 'state' => 1, 'vip' => 0, 'name' => '每日观看']);
 Db::name('jobs')->insertAll([
     ['id' => 1, 'uid' => 1, 'zid' => 1, 'type' => 'bilibili', 'user_id' => '42', 'do' => 'watchaid', 'state' => 1, 'nextExecute' => time() - 1, 'data' => serialize(['add_coin_num' => 3])],
-    ['id' => 2, 'uid' => 1, 'zid' => 1, 'type' => 'bilibili', 'user_id' => '42', 'do' => 'globalroom', 'state' => 1, 'nextExecute' => 0, 'data' => serialize(['global_room' => '123'])],
+    ['id' => 2, 'uid' => 1, 'zid' => 1, 'type' => 'bilibili', 'user_id' => '42', 'do' => 'globalroom', 'state' => 1, 'nextExecute' => 0, 'data' => 'corrupt retired configuration'],
 ]);
 $task = new SettlementTask();
 $task->executor = new BilibiliTaskExecutor($factory, static fn(): int => strtotime(date('Y-m-d') . ' 09:00:00'));
@@ -117,5 +117,27 @@ $run->invokeArgs($task, [$job, &$summary]);
 $savedConfig = unserialize(Db::name('jobs')->where('id', 1)->value('data'), ['allowed_classes' => false]);
 functionalCheck($summary['succeeded'] === 1 && !isset($savedConfig['_bilibili_verification']), 'Main scheduler did not clear settled verification');
 functionalCheck(str_starts_with(Db::name('task_logs')->order('id', 'desc')->value('response'), '[成功]'), 'Settled experience did not produce a final success');
+
+foreach (['dailybag', 'doubleheart', 'groupsignIn', 'giftheart'] as $oldTask) {
+    Db::name('jobs')->insert(['uid' => 1, 'zid' => 1, 'type' => 'bilibili', 'user_id' => '42',
+        'do' => $oldTask, 'state' => 1, 'nextExecute' => time(), 'data' => serialize([])]);
+}
+$historyCount = Db::name('task_logs')->count();
+$disable = new ReflectionMethod(Task::class, 'disableOfflineBilibiliJobs');
+$disable->setAccessible(true);
+$disable->invoke($task);
+foreach (['dailybag', 'doubleheart', 'groupsignIn', 'giftheart', 'globalroom'] as $oldTask) {
+    $oldJob = Db::name('jobs')->where('do', $oldTask)->find();
+    functionalCheck((int)$oldJob['state'] === 0 && (int)$oldJob['nextExecute'] === 0, 'Old job remained scheduled');
+    app\index\model\Jobs::switchState('bilibili', '42', $oldTask);
+    functionalCheck((int)Db::name('jobs')->where('do', $oldTask)->value('state') === 0, 'Old job could be re-enabled');
+}
+$setTiming = new ReflectionMethod(app\index\controller\Bilibili::class, 'setTiming');
+$setTiming->setAccessible(true);
+$setTiming->invoke(new app\index\controller\Bilibili(), '42', '10:00');
+functionalCheck(Db::name('jobs')->whereIn('do', ['dailybag','doubleheart','groupsignIn','giftheart','globalroom'])
+    ->where('nextExecute', '>', 0)->count() === 0, 'Changing account timing rescheduled retired jobs');
+functionalCheck((int)Db::name('jobs')->where('do', 'watchaid')->value('state') === 1, 'Retained viewing was disabled');
+functionalCheck(Db::name('task_logs')->count() === $historyCount, 'Retiring jobs erased history');
 
 echo "Bilibili settlement tests passed\n";

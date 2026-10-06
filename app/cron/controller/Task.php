@@ -37,7 +37,6 @@ class Task extends Common
     private array $userCache = [];
     private array $taskCache = [];
     private array $accountCache = [];
-    private array $globalConfigCache = [];
     private array $suppressedAccounts = [];
     private ?NotificationService $notificationService = null;
 
@@ -349,16 +348,6 @@ class Task extends Common
             }
 
             $storedJobConfig = $jobConfig;
-            if ($type === 'bilibili') {
-                $globalConfig = $this->bilibiliGlobalConfig($uid, $userId);
-                if ($globalConfig === null) {
-                    $this->disableJob($jobId, $type, $userId, $taskName, '全局任务配置损坏，请重新配置');
-                    $summary['disabled']++;
-                    return;
-                }
-                $jobConfig = array_replace($globalConfig, $jobConfig);
-            }
-
             $summary['attempted']++;
             try {
                 $result = match ($type) {
@@ -517,21 +506,6 @@ class Task extends Common
         }
 
         return $this->accountCache[$key];
-    }
-
-    private function bilibiliGlobalConfig(int $uid, string $userId): ?array
-    {
-        $key = $this->accountKey('bilibili', $uid, $userId);
-        if (!array_key_exists($key, $this->globalConfigCache)) {
-            $payload = Jobs::where('type', 'bilibili')
-                ->where('uid', $uid)
-                ->where('user_id', $userId)
-                ->where('do', 'globalroom')
-                ->value('data');
-            $this->globalConfigCache[$key] = $this->decodeArray(is_string($payload) ? $payload : '');
-        }
-
-        return $this->globalConfigCache[$key];
     }
 
     private function accountKey(string $type, int $uid, string $userId): string

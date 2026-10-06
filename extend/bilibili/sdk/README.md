@@ -77,6 +77,11 @@ produce an accurate upstream result. They are not treated as successful when
 Bilibili reports that the activity or endpoint is unavailable. In particular,
 the upstream documentation marks live `DoSign` as offline.
 
+The project disables legacy daily bags, dual-end live hearts, support-group
+sign-in, heart gifts and their room configuration. Low-level SDK compatibility
+methods do not make these tasks executable. Main-site tasks, manga and
+silver-to-coin remain enabled; historical task records are retained.
+
 ## Tests
 
 Run the protocol and project-workflow suites from the repository root:

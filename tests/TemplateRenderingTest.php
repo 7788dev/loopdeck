@@ -78,8 +78,19 @@ try {
             $engine = new think\Template(['view_path' => $populatedViewPath, 'cache_path' => $cachePath]);
             ob_start();
             try {
-                $engine->fetch($populatedViewPath . $relative, array_replace($variables, ['list' => [$account], 'task_rows' => [$task]]));
+                $taskRows = [$task];
+                if ($platform === 'bilibili') {
+                    $taskRows[] = array_replace($task, ['execute_name' => 'globalroom', 'name' => '旧直播间配置',
+                        'is_global' => true, 'offline' => true, 'offline_reason' => '旧直播任务已停用']);
+                }
+                $engine->fetch($populatedViewPath . $relative, array_replace($variables, ['list' => [$account], 'task_rows' => $taskRows]));
                 $html = ob_get_contents();
+                if ($platform === 'bilibili' && $page === 'info') {
+                    if (str_contains($html, 'onclick="updateConfig(\'globalroom\'')
+                        || !str_contains($html, 'disabled title="旧直播任务已停用"')) {
+                        throw new RuntimeException('Retired global room configuration remained editable');
+                    }
+                }
                 $renderedPages['populated/' . $themePath . $relative] = $html;
                 if ($page === 'list' && $platform !== 'qrcode') {
                     functionalCheck(str_contains($html, '/index/console/' . $platform . '/info/42'), 'Account management link is not usable');

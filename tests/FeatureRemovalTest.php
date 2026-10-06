@@ -138,4 +138,21 @@ foreach ([
     }
 }
 
+$retiredLiveTasks = ['dailybag', 'doubleheart', 'groupsignIn', 'giftheart', 'globalroom'];
+$factoryCalls = 0;
+$executor = new app\service\BilibiliTaskExecutor(static function () use (&$factoryCalls) {
+    $factoryCalls++;
+    throw new RuntimeException('Retired task reached an adapter');
+});
+foreach ($retiredLiveTasks as $task) {
+    removalCheck(!app\service\BilibiliTaskExecutor::supports($task), 'Retired live task is supported: ' . $task);
+    removalCheck(!in_array($task, app\service\BilibiliTaskExecutor::executableTasks(), true), 'Retired live task is schedulable');
+    $result = $executor->execute($task, []);
+    removalCheck($result['code'] === 0 && str_contains($result['message'], '已停用'), 'Retired task is not rejected clearly');
+}
+removalCheck($factoryCalls === 0, 'Retired live tasks reached upstream adapters');
+removalCheck(app\service\BilibiliTaskExecutor::executableTasks() ===
+    ['manga', 'silver2coin', 'watchaid', 'coinadd', 'dailyexperience', 'vipexperience'],
+    'Retiring live tasks changed the retained task set');
+
 echo "Feature removal and retained entitlement view tests passed\n";

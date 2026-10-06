@@ -137,7 +137,7 @@
                         <table class="table table-striped">
                             <tbody>
                             {foreach $task_rows as $v}
-                            {if condition="$v.is_global"}
+                            {if condition="$v.is_global && !$v.offline"}
                                 <tr>
                                     <td class="text-center">
                                         <i class="fa fa-2x {$v.icon}"></i>
@@ -163,7 +163,7 @@
                                             {if condition="$v.offline"}
                                                 <span class="label label-default">已下架</span>
                                             {/if}
-                                            {if condition="$v.more"}
+                                            {if condition="$v.more && !$v.offline"}
                                                 <button type="button" class="btn btn-outline btn-primary btn-sm" style="padding: 1px 5px; margin-left: 5px;" data-config='{$v.config_json}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="fa fa-cogs"></i></button>
                                             {/if}
                                         </b></p>

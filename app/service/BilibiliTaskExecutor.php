@@ -26,6 +26,11 @@ final class BilibiliTaskExecutor
     ];
 
     public const OFFLINE_TASKS = [
+        'dailybag' => '旧直播每日礼包已停用',
+        'doubleheart' => '旧直播双端心跳已停用',
+        'groupsignIn' => '旧友爱社签到已停用',
+        'giftheart' => '旧心跳礼物已停用，小心心已改为粉丝团任务',
+        'globalroom' => '旧直播任务已停用，无需配置直播间',
         'dailytask' => '直播签到功能已下线',
         'shareaid' => '每日分享功能已下架',
     ];

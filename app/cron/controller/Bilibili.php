@@ -89,8 +89,7 @@ class Bilibili extends Common
         try {
             $accountData = BilibiliTaskExecutor::decodeSerializedArray((string)$account['data']);
             $jobConfig = BilibiliTaskExecutor::decodeSerializedArray((string)($job['data'] ?? ''));
-            $globalConfig = $this->globalConfig((int)$job['uid'], $userId);
-            if ($accountData === null || $jobConfig === null || $globalConfig === null) {
+            if ($accountData === null || $jobConfig === null) {
                 Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
                 TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[失败] 账号或任务配置异常');
                 return;
@@ -99,7 +98,7 @@ class Bilibili extends Common
             $result = (new BilibiliTaskExecutor())->execute(
                 $taskName,
                 $accountData,
-                array_replace($globalConfig, $jobConfig)
+                $jobConfig
             );
             (new \app\service\NotificationService())->recordTask($user, 'bilibili', $userId,
                 $taskName, (string)$task['name'], $result);
@@ -132,16 +131,6 @@ class Bilibili extends Common
         return resultJson(-1001, 'RunKey Access Denied!');
     }
 
-
-    private function globalConfig(int $uid, string $userId): ?array
-    {
-        $payload = Jobs::where('type', 'bilibili')
-            ->where('uid', $uid)
-            ->where('user_id', $userId)
-            ->where('do', 'globalroom')
-            ->value('data');
-        return BilibiliTaskExecutor::decodeSerializedArray(is_string($payload) ? $payload : '');
-    }
 
     private function disableOfflineJobs(): void
     {

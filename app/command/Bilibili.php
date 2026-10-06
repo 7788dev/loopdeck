@@ -107,8 +107,7 @@ class Bilibili extends Command
                     continue;
                 }
 
-                $globalConfig = $this->globalConfig((int)$job['uid'], $userId);
-                $result = $executor->execute($taskName, $accountData, array_replace($globalConfig, $jobConfig));
+                $result = $executor->execute($taskName, $accountData, $jobConfig);
                 $this->writeLog($userId, $taskName, '[' . (new \app\cron\controller\Common())->statusTag($result) . '] ' . $result['message']);
                 (new \app\service\NotificationService())->recordTask($user, 'bilibili', $userId,
                     $taskName, (string)$task['name'], $result);
@@ -132,16 +131,6 @@ class Bilibili extends Command
 
         $output->writeln("成功执行 {$executed} 条任务：" . date('Y-m-d H:i:s'));
         return 0;
-    }
-
-    private function globalConfig(int $uid, string $userId): array
-    {
-        $payload = Jobs::where('type', 'bilibili')
-            ->where('uid', $uid)
-            ->where('user_id', $userId)
-            ->where('do', 'globalroom')
-            ->value('data');
-        return BilibiliTaskExecutor::decodeSerializedArray(is_string($payload) ? $payload : '') ?? [];
     }
 
     private function disableOfflineJobs(): void

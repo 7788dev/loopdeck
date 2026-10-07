@@ -11,18 +11,28 @@ final class CheckCronAccess
 {
     public function handle($request, \Closure $next)
     {
-        $key = $request->header('x-cron-key', '');
+        $headerKey = $request->header('x-cron-key', '');
+        $key = is_string($headerKey) ? $headerKey : '';
         if ($key === '') {
-            $key = $request->get('cronkey', '');
+            $queryKey = $request->get('cronkey', '');
+            $key = is_string($queryKey) ? $queryKey : '';
         }
-        $expected = getenv('CRON_KEY');
-        if (!is_string($expected) || $expected === '') {
-            // Only primary installation settings can authorize scheduled work.
-            $expected = defined('WEB_ID') && (int)WEB_ID !== 1 ? '' : (string)Config::get('sys.cronkey', '');
-        }
-        if (!is_string($key) || $key === '' || $expected === '' || !hash_equals($expected, $key)) {
+        if ($key === '') {
             return Response::create(['code' => -1000, 'message' => 'CronKey Access Denied!'], 'json', 403);
         }
-        return $next($request);
+        // The env credential and the primary installation's stored key are
+        // both valid. Accepting either lets operators rotate through one
+        // channel without locking out the other; every cron endpoint behind
+        // app/cron/middleware.php authenticates here and nowhere else.
+        $candidates = array_values(array_filter([
+            (string)(getenv('CRON_KEY') ?: ''),
+            defined('WEB_ID') && (int)WEB_ID !== 1 ? '' : (string)Config::get('sys.cronkey', ''),
+        ]));
+        foreach ($candidates as $expected) {
+            if ($expected !== '' && hash_equals($expected, $key)) {
+                return $next($request);
+            }
+        }
+        return Response::create(['code' => -1000, 'message' => 'CronKey Access Denied!'], 'json', 403);
     }
 }

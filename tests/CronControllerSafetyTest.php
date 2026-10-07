@@ -124,4 +124,29 @@ cronSafetyCheck(
     'bilibili still leaks raw exception text into task logs'
 );
 
+// --- Cron authentication is single-point -----------------------------------
+
+// Every cron endpoint sits behind app\middleware\CheckCronAccess; controllers
+// must not grow their own credential checks that drift from the middleware's
+// accepted credential sources.
+foreach (['Netease', 'Bilibili', 'Heybox', 'Epic', 'Notifications', 'Task'] as $controller) {
+    $source = file_get_contents($root . '/app/cron/controller/' . $controller . '.php');
+    cronSafetyCheck(is_string($source), 'Unable to inspect cron controller ' . $controller);
+    cronSafetyCheck(
+        !str_contains($source, 'CronKey Access Denied!'),
+        $controller . ' still performs its own cron credential check'
+    );
+}
+
+// The monitor URL copy must not carry the credential in the query string,
+// which lands in web server access logs; the header is the documented channel.
+foreach (['system/set/cron', 'system/task/set'] as $view) {
+    $viewSource = file_get_contents($root . '/app/admin/view/' . $view . '.html');
+    cronSafetyCheck(is_string($viewSource), 'Unable to inspect admin view ' . $view);
+    cronSafetyCheck(
+        !str_contains($viewSource, '?cronkey='),
+        'The cron key is still advertised inside a URL: ' . $view
+    );
+}
+
 echo "Cron controller safety tests passed\n";

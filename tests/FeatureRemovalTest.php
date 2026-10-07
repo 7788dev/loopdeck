@@ -36,6 +36,8 @@ foreach (['agent', 'site', 'vip', 'quota', 'money', 'unknown'] as $shop) {
     removalCheck((new Console())->shop($shop)->getCode() === 404, 'Retired shop page remains reachable');
 }
 removalCheck((new Ajax())->shop('buy')->getCode() === 404, 'Purchase action remains reachable');
+removalCheck((new Ajax())->sport('add')->getCode() === 404, 'Retired sport AJAX action remains reachable');
+removalCheck((new Console())->sport('add', '1')->getCode() === 404, 'Retired sport console remains reachable');
 removalCheck(!method_exists(System::class, 'pay') && !method_exists(AdminAjax::class, 'pay'),
     'Payment settings or order actions remain auto-routable');
 removalCheck(!method_exists(app\index\model\Users::class, 'spendBalance'), 'Balance spending logic remains');
@@ -100,11 +102,59 @@ foreach ([
     removalCheck(!is_file($root . '/' . $path), 'Retired feature file remains: ' . $path);
 }
 
+// The retired per-platform shells (sport/iqiyi/tieba/mihoyo) must stay gone,
+// and their URL surface must keep its explicit 404 mapping in both shells.
+foreach (['app/command/Sport.php', 'app/cron/controller/Sport.php', 'extend/sport/Step.php',
+    'app/index/validate/Sport.php', 'app/index/model/Order.php'] as $path) {
+    removalCheck(!is_file($root . '/' . $path), 'Retired platform file remains: ' . $path);
+}
+removalCheck(glob($root . '/extend/sport/*') === [], 'Retired sport SDK remains');
+removalCheck(!method_exists(app\index\model\Jobs::class, 'addSportJob'), 'Retired sport job factory remains');
+foreach (['app/cron/route/app.php', 'app/index/route/app.php'] as $routeFile) {
+    $routeSource = file_get_contents($root . '/' . $routeFile);
+    removalCheck(is_string($routeSource), 'Unable to inspect route file: ' . $routeFile);
+    removalCheck(preg_match("/\[\s*'iqiyi'\s*,\s*'tieba'\s*,\s*'mihoyo'\s*,\s*'sport'\s*\]/", $routeSource) === 1,
+        'Retired platform URLs lost their 404 mapping: ' . $routeFile);
+}
+$consoleCommands = file_get_contents($root . '/config/console.php');
+removalCheck(!preg_match('/[\'"]sport[\'"]/i', $consoleCommands), 'Retired sport command remains registered');
+
 define('PJAX', false);
 define('WEB_ID', 1);
 $_SERVER['HTTP_USER_AGENT'] = 'LoopDeck offline test';
 Config::set(['webname' => 'LoopDeck', 'title' => '测试面板', 'user_qq' => '10000'], 'web');
 Config::set(['OrderPlacementMethod' => 1, 'is_alipay' => 1, 'is_wxpay' => 1, 'epay_url' => 'https://pay.example/', 'is_site' => 1, 'reg_free_agent' => 1], 'sys');
+
+// Cron endpoints authenticate exclusively through the middleware: the env
+// credential and the installed key are both accepted, nothing else is.
+$previousCronKey = getenv('CRON_KEY');
+try {
+    putenv('CRON_KEY');
+    Config::set(['cronkey' => 'installed-cron-key'], 'sys');
+    $guard = new app\middleware\CheckCronAccess();
+    $credential = new class {
+        public string $headerValue = '';
+        public string $queryValue = '';
+        public function header(string $name, string $default = '') { return $this->headerValue; }
+        public function get(string $name, $default = '') { return $this->queryValue; }
+    };
+    $pass = static fn() => 'allowed';
+    $credential->queryValue = 'installed-cron-key';
+    removalCheck($guard->handle($credential, $pass) === 'allowed', 'The installed cron key was rejected without env');
+    $credential->queryValue = '';
+    $credential->headerValue = 'installed-cron-key';
+    removalCheck($guard->handle($credential, $pass) === 'allowed', 'The installed cron key was rejected via header');
+    $credential->headerValue = 'wrong-key';
+    removalCheck($guard->handle($credential, $pass)->getCode() === 403, 'A wrong cron credential was accepted');
+    putenv('CRON_KEY=rotated-env-key');
+    $credential->headerValue = 'rotated-env-key';
+    removalCheck($guard->handle($credential, $pass) === 'allowed', 'The rotated env cron key was rejected');
+    $credential->headerValue = 'installed-cron-key';
+    removalCheck($guard->handle($credential, $pass) === 'allowed', 'Rotating the env key locked out the installed key');
+} finally {
+    putenv($previousCronKey === false ? 'CRON_KEY' : 'CRON_KEY=' . $previousCronKey);
+}
+
 Session::set('user', ['uid' => 1, 'web_id' => 1, 'power' => 6, 'agent' => 3, 'nickname' => '测试用户',
     'qq' => '10000', 'mail' => 'qa@example.invalid', 'money' => 10, 'quota' => 5, 'vip_start' => null, 'vip_end' => null]);
 $data = ['redemption_presets' => app\service\RedemptionPlan::presets(), 'webTitle' => '测试页面', 'notice' => [], 'notices' => [], 'user_count' => 1,

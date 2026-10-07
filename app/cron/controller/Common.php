@@ -73,7 +73,6 @@ class Common
             'netease' => '网易云音乐',
             'bilibili' => '哔哩哔哩',
             'qq' => 'QQ',
-            'sport' => '小米运动',
             'heybox' => '小黑盒',
         };
         $stateChanged = Accounts::where('user_id', '=', $user_id)

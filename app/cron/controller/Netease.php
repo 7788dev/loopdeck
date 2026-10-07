@@ -10,7 +10,6 @@ use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
 use netease\Netease as NeteaseAPI;
-use think\facade\Request;
 use Throwable;
 
 /**
@@ -36,13 +35,6 @@ class Netease extends Common
 
     public function index()
     {
-        $cronkey = (string)Request::get('cronkey', '');
-        $expected = (string)config('sys.cronkey');
-        if ($cronkey === '' || $expected === '' || !hash_equals($expected, $cronkey)) {
-            $res = ['code' => -1000, 'message' => 'CronKey Access Denied!'];
-            exit(json_encode($res, JSON_UNESCAPED_UNICODE));
-        }
-
         $vip_expired_userIds = [];
         $jobs = Jobs::getUnexecutedList('netease'); // 获取未执行任务列表
         if (!$jobs || count($jobs) === 0) {

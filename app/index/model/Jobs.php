@@ -176,36 +176,6 @@ class Jobs extends Model
     }
 
     /**
-     * addSportJob
-     * @param $data
-     * @return bool
-     * @throws DataNotFoundException
-     * @throws DbException
-     * @throws ModelNotFoundException
-     * @author BadCen
-     */
-    public static function addSportJob($data)
-    {
-        $self = new static();
-        $tasks = Tasks::getTaskList('sport');
-        $nextExecute = self::nextExecutionForAccount('sport', (string)$data['user_id']);
-        foreach ($tasks as $key => $value) {
-            $result = $self->insert([
-                'uid' => Session::get('user.uid'),
-                'type' => 'sport',
-                'user_id' => $data['user_id'],
-                'do' => $value['execute_name'],
-                'nextExecute' => $nextExecute,
-            ]);
-        }
-        if ($result) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    /**
      * updateJob 更新账号后更新任务信息
      * @param $type
      * @return bool

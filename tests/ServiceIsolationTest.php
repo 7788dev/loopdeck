@@ -15,9 +15,8 @@ $jobs = file_get_contents($root . '/app/index/model/Jobs.php');
 $logs = file_get_contents($root . '/app/index/model/TaskLogs.php');
 $neteaseController = file_get_contents($root . '/app/index/controller/Netease.php');
 $bilibiliController = file_get_contents($root . '/app/index/controller/Bilibili.php');
-$sportCommand = file_get_contents($root . '/app/command/Sport.php');
 
-foreach ([$accounts, $jobs, $logs, $neteaseController, $bilibiliController, $sportCommand] as $source) {
+foreach ([$accounts, $jobs, $logs, $neteaseController, $bilibiliController] as $source) {
     serviceIsolationCheck(is_string($source), 'Unable to read an isolation-sensitive source file');
 }
 
@@ -51,18 +50,6 @@ serviceIsolationCheck(
     str_contains($neteaseController, "Jobs::switchState('netease',")
         && str_contains($bilibiliController, "Jobs::switchState('bilibili',"),
     'A service controller can still toggle another service job'
-);
-serviceIsolationCheck(
-    str_contains($sportCommand, "Jobs::delJob('sport',")
-        && !str_contains($sportCommand, "Jobs::delJob('netease',"),
-    'Sport cleanup can still delete NetEase jobs'
-);
-
-serviceIsolationCheck(
-    str_contains($sportCommand, 'Accounts::delById(\'sport\', $job[\'user_id\'], (int)$job[\'uid\'])')
-        && str_contains($sportCommand, 'Jobs::updateJobInfo(\'sport\', $job[\'do\'], $job[\'user_id\']')
-        && str_contains($sportCommand, '], (int)$job[\'uid\'])'),
-    'Legacy sport command does not carry the job tenant through cleanup/update'
 );
 
 serviceIsolationCheck(

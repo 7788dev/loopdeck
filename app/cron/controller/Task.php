@@ -42,15 +42,6 @@ class Task extends Common
 
     public function index()
     {
-        $cronKey = trim((string)Request::header('x-cron-key', ''));
-        if ($cronKey === '') {
-            $cronKey = trim((string)Request::get('cronkey', ''));
-        }
-        $expectedKey = (string)(getenv('CRON_KEY') ?: config('sys.cronkey'));
-        if ($cronKey === '' || $expectedKey === '' || !hash_equals($expectedKey, $cronKey)) {
-            return resultJson(-1000, 'CronKey Access Denied!');
-        }
-
         $workerCount = max(1, min(16, (int)Request::get('workers', 1)));
         $workerIndex = (int)Request::get('worker', 0);
         if ($workerIndex < 0 || $workerIndex >= $workerCount) {

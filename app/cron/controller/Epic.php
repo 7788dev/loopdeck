@@ -6,18 +6,12 @@ namespace app\cron\controller;
 
 use app\index\model\Jobs;
 use app\service\EpicJobRunner;
-use think\facade\Request;
 
 /** Compatibility entry point; the container normally uses the unified task scheduler. */
 class Epic extends Common
 {
     public function index()
     {
-        $key = (string)Request::header('x-cron-key', Request::get('cronkey', ''));
-        $expected = (string)(getenv('CRON_KEY') ?: config('sys.cronkey'));
-        if ($key === '' || $expected === '' || !hash_equals($expected, $key)) {
-            return resultJson(-1000, 'CronKey Access Denied!');
-        }
         $jobs = Jobs::where('type', 'epic')->where('zid', 1)->where('do', 'weeklyGameNotify')->where('state', 1)
             ->where('nextExecute', '>', 0)->where('nextExecute', '<=', time())
             ->order('nextExecute')->limit(50)->select();

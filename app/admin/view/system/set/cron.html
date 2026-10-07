@@ -9,6 +9,11 @@
                     <h5>{$webTitle}</h5>
                 </div>
                 <div class="ibox-content">
+                    <p class="help-block text-muted">
+                        容器内的调度器会自动执行以上任务，通常无需额外监控。如需接入外部监控，
+                        请为请求附加 <code>X-Cron-Key</code> 请求头并填写运行密钥；
+                        请勿把密钥拼进 URL，避免密钥落入访问日志。
+                    </p>
                     <table class="table">
                         <thead>
                         <tr>
@@ -23,13 +28,13 @@
                         <tr>
                             <th class="text-center" scope="row">1</th>
                             <td>网易云音乐</td>
-                            <td class="hidden-xs">{:get_Domain()}cron/netease?cronkey={:config('sys.cronkey')}</td>
+                            <td class="hidden-xs">{:get_Domain()}cron/netease</td>
                             <td class="hidden-xs">
                                 <span class="label label-warning">1分钟</span>
                             </td>
                             <td class="text-center">
                                 <div class="btn-group">
-                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/netease?cronkey={:config('sys.cronkey')}">
+                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/netease">
                                         <i class="fa fa-copy"></i>
                                     </button>
                                 </div>
@@ -38,13 +43,13 @@
                         <tr>
                             <th class="text-center" scope="row">2</th>
                             <td>哔哩哔哩</td>
-                            <td class="hidden-xs">{:get_Domain()}cron/bilibili?cronkey={:config('sys.cronkey')}</td>
+                            <td class="hidden-xs">{:get_Domain()}cron/bilibili</td>
                             <td class="hidden-xs">
                                 <span class="label label-warning">1分钟</span>
                             </td>
                             <td class="text-center">
                                 <div class="btn-group">
-                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/bilibili?cronkey={:config('sys.cronkey')}">
+                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/bilibili">
                                         <i class="fa fa-copy"></i>
                                     </button>
                                 </div>
@@ -53,13 +58,13 @@
                         <tr>
                             <th class="text-center" scope="row">3</th>
                             <td>Epic周免通知</td>
-                            <td class="hidden-xs">{:get_Domain()}cron/epic?cronkey={:config('sys.cronkey')}</td>
+                            <td class="hidden-xs">{:get_Domain()}cron/epic</td>
                             <td class="hidden-xs">
                                 <span class="label label-warning">1分钟</span>
                             </td>
                             <td class="text-center">
                                 <div class="btn-group">
-                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/epic?cronkey={:config('sys.cronkey')}">
+                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/epic">
                                         <i class="fa fa-copy"></i>
                                     </button>
                                 </div>
@@ -92,13 +97,13 @@
                         <tr>
                             <th class="text-center" scope="row">1</th>
                             <td>统一调度</td>
-                            <td class="hidden-xs">{:get_Domain()}cron/task?cronkey={:config('sys.cronkey')}</td>
+                            <td class="hidden-xs">{:get_Domain()}cron/task</td>
                             <td class="hidden-xs">
                                 <span class="label label-warning">1分钟</span>
                             </td>
                             <td class="text-center">
                                 <div class="btn-group">
-                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/task?cronkey={:config('sys.cronkey')}">
+                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/task">
                                         <i class="fa fa-copy"></i>
                                     </button>
                                 </div>

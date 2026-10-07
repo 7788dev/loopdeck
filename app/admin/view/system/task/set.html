@@ -24,7 +24,7 @@
                             <label class="col-sm-3 control-label" for="cronkey">监控文件运行密钥</label>
                             <div class="col-sm-8">
                                 <input type="text" class="form-control" id="cronkey" name="cronkey" placeholder="..." value="{:config('sys.cronkey')}">
-                                <p class="help-block text-muted">默认为空。设置密钥后，你需要在所有监控文件后面加上 <u>?cronkey=你的密钥</u> 可防止监控文件被恶意执行</p>
+                                <p class="help-block text-muted">监控请求的鉴权密钥。容器部署时由环境变量 CRON_KEY 自动生成并写入，修改后两个密钥均可通过验证（便于轮换）。请求请通过 <code>X-Cron-Key</code> 请求头携带密钥，请勿将密钥拼入 URL</p>
                             </div>
                         </div>
                         <div class="form-group">

@@ -12,7 +12,6 @@ use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
-use think\facade\Request;
 use Throwable;
 
 class Bilibili extends Common
@@ -22,11 +21,6 @@ class Bilibili extends Common
 
     public function index()
     {
-        $cronKey = (string)Request::get('cronkey', '');
-        if ($cronKey === '' || !hash_equals((string)config('sys.cronkey'), $cronKey)) {
-            return resultJson(-1000, 'CronKey Access Denied!');
-        }
-
         $this->disableOfflineJobs();
 
         $limit = max(1, (int)config('sys.interval'));

@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-LoopDeck is a PHP 8.1+ ThinkPHP 8 cloud-task panel (NetEase Cloud Music, Bilibili, Epic, etc. daily/level tasks). Code lives in `app/`: `index/` serves users, `admin/` provides administration, `cron/` runs scheduled work, `install/` handles first-run setup, and `service/`, `middleware/`, and `command/` hold shared behavior. Platform adapters are under `extend/`. Configuration belongs in `config/`; templates sit in each app's `view/`; browser assets and the front controller are in `public/`. Container scripts live in `docker/`, and regression checks in `tests/`.
+LoopDeck is a PHP 8.2 ThinkPHP 8 cloud-task panel (NetEase Cloud Music, Bilibili, Epic, etc. daily/level tasks). Dependency resolution and CI run PHP 8.2 (composer `config.platform.php` pin); the shipped image runs PHP 8.2. Code lives in `app/`: `index/` serves users, `admin/` provides administration, `cron/` runs scheduled work, `install/` handles first-run setup, and `service/`, `middleware/`, and `command/` hold shared behavior. Platform adapters are under `extend/`. Configuration belongs in `config/`; templates sit in each app's `view/`; browser assets and the front controller are in `public/`. Container scripts live in `docker/`, and regression checks in `tests/`.
 
 Do not edit generated or local-state directories such as `vendor/` and `runtime/`. Treat `public/static/uploads/` as runtime data.
 
@@ -10,6 +10,7 @@ Do not edit generated or local-state directories such as `vendor/` and `runtime/
 
 - `extend/` is loaded via composer **classmap** (not the `app\` PSR-4 root) and adapters use their own namespaces (e.g. `namespace netease;`, `bilibili\sdk`). After adding or renaming classes there, run `composer dump-autoload`.
 - Scheduling is in-process: `cron/` plus `app\service\AutomaticSchedule` execute task classes directly behind a task-name whitelist. Never reintroduce URL self-invocation that puts cookies, `RUN_KEY`, or other secrets into query strings — that pattern was deliberately removed for security ([decision](.agents/notes/implemented/architecture/2026-09-03-in-process-scheduling.md)).
+- Cron endpoints authenticate exclusively through `app\middleware\CheckCronAccess` (X-Cron-Key header preferred, `?cronkey=` query accepted): env `CRON_KEY` and the installed `sys.cronkey` are both valid so rotation through either channel never locks the other out. Never add per-controller credential checks — they drift from the middleware and can lock endpoints when one source rotates ([decision](.agents/notes/implemented/architecture/2026-10-07-cron-auth-single-middleware.md)). Admin monitor-URL copy must never embed the key in a URL.
 - `runtime/netease-daka/` holds per-account task state files; deleting an account must remove its state file, and the scheduler prunes orphans after `DAKA_STATE_RETENTION_DAYS` (default 30).
 - User-facing templates, copy, and README are Simplified Chinese; keep new UI text consistent.
 - Use only RuoYi views in the index/admin view roots and Bootstrap 3 adapters. Never restore original template selection or consult legacy theme settings ([decision](.agents/notes/implemented/architecture/2026-10-03-ruoyi-only.md)).
@@ -35,7 +36,7 @@ Do not edit generated or local-state directories such as `vendor/` and `runtime/
 - `php think run` starts the ThinkPHP development server (after configuring the database).
 - `php tests/AutomaticScheduleTest.php` runs one offline regression test.
 - `for test_file in tests/*Test.php; do php "$test_file"; done` runs the same offline suite used by the Docker build.
-- `docker build -t loopdeck:local .` validates dependencies, runs tests, and builds the image. GitHub Actions only builds/publishes the image — the offline tests run here, not in a separate CI job (multi-platform build: [decision](.agents/notes/implemented/process/2026-09-24-ci-native-runner-build.md)).
+- `docker build -t loopdeck:local .` validates dependencies, runs tests, and builds the image. Pull requests additionally run the same offline suite in a lightweight test job, and the image build only starts once that job passes, so the signal does not wait for platform image builds; release builds still execute the suite inside the Dockerfile before anything ships (multi-platform build: [decision](.agents/notes/implemented/process/2026-09-24-ci-native-runner-build.md), PR test job: [decision](.agents/notes/implemented/process/2026-10-07-pr-lightweight-test-job.md)).
 - `sh docker/deploy.sh` prepares configuration and starts the app, scheduler, updater, and MySQL services; the default app port is `8001`. After initial setup, `docker compose up --wait` reuses the saved configuration.
 
 For containers, run `sh docker/deploy.sh` to generate and persist database credentials automatically; copy `.env.example` to `.env` first only when customizing options such as an external MySQL host. Docker Compose 2.20.0+ is required. Use `config/Db.example.php` for local database configuration.

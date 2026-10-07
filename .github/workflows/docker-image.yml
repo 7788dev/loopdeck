@@ -157,7 +157,9 @@ jobs:
           retention-days: 1
 
   publish:
-    if: github.event_name != 'pull_request'
+    # The PR-only test is skipped on releases. Override the implicit success()
+    # check across that dependency chain, while still requiring both builds.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' }}
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10

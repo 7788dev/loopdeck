@@ -128,51 +128,6 @@ biliWorkflowCheck($mangaResult['code'] === 1, 'manga workflow failed');
 biliWorkflowCheck($mangaTransport->called('/twirp/activity.v1.Activity/ClockIn'), 'manga clock-in did not use SDK');
 biliWorkflowCheck($mangaTransport->called('/twirp/activity.v1.Activity/ShareComic'), 'manga share did not use SDK');
 
-[$dailyBag, $dailyBagTransport] = biliWorkflow([
-    '/x/web-interface/nav' => [biliNav(), biliNav()],
-    '/AppBag/sendDaily' => [['code' => 0, 'message' => '0']],
-    '/gift/v2/live/receive_daily_bag' => [['code' => 0, 'data' => ['bag_list' => [['gift_id' => 1, 'gift_num' => 1]]]]],
-]);
-biliWorkflowCheck($dailyBag->dailybag()['code'] === 1, 'dailybag workflow failed');
-biliWorkflowCheck($dailyBagTransport->called('/AppBag/sendDaily'), 'dailybag APP request did not use SDK');
-biliWorkflowCheck($dailyBagTransport->called('/gift/v2/live/receive_daily_bag'), 'dailybag PC request did not use SDK');
-
-[$doubleHeart, $doubleHeartTransport] = biliWorkflow([
-    '/x/web-interface/nav' => [biliNav(), biliNav()],
-    '/User/userOnlineHeart' => [['code' => 0, 'message' => '0']],
-    '/mobile/userOnlineHeart' => [['code' => 0, 'message' => '0']],
-], ['global_room' => 123]);
-biliWorkflowCheck($doubleHeart->doubleheart()['code'] === 1, 'doubleheart workflow failed');
-biliWorkflowCheck($doubleHeartTransport->called('/User/userOnlineHeart'), 'web heart did not use SDK');
-biliWorkflowCheck($doubleHeartTransport->called('/mobile/userOnlineHeart'), 'APP heart did not use SDK');
-
-[$groupSign, $groupTransport] = biliWorkflow([
-    '/x/web-interface/nav' => [biliNav()],
-    '/link_group/v1/member/my_groups' => [[
-        'code' => 0,
-        'data' => ['list' => [['group_id' => 10, 'owner_uid' => 20, 'group_name' => '测试应援团']]],
-    ]],
-    '/link_setting/v1/link_setting/sign_in' => [[
-        'code' => 0,
-        'data' => ['status' => 0, 'add_num' => 5],
-    ]],
-]);
-biliWorkflowCheck($groupSign->groupsignIn()['code'] === 1, 'groupsignIn workflow failed');
-biliWorkflowCheck($groupTransport->called('/link_setting/v1/link_setting/sign_in'), 'group sign-in did not use SDK');
-
-[$giftHeart, $giftHeartTransport] = biliWorkflow([
-    '/x/web-interface/nav' => [biliNav()],
-    '/gift/v2/live/heart_gift_receive' => [['code' => 0, 'data' => ['heart_status' => 1, 'gift_list' => [['gift_id' => 1, 'gift_num' => 1]]]]],
-], ['global_room' => 123]);
-biliWorkflowCheck($giftHeart->giftheart()['code'] === 1, 'giftheart workflow failed');
-biliWorkflowCheck($giftHeartTransport->called('/gift/v2/live/heart_gift_receive'), 'giftheart did not use SDK');
-
-[$dailyTask, $dailyTaskTransport] = biliWorkflow([]);
-$dailyTaskResult = $dailyTask->dailytask();
-biliWorkflowCheck($dailyTaskResult['code'] === 0, 'offline dailytask was reported as successful');
-biliWorkflowCheck(str_contains($dailyTaskResult['message'], '已下线'), 'offline dailytask message is missing');
-biliWorkflowCheck($dailyTaskTransport->requests === [], 'offline dailytask performed a network request');
-
 [$silver, $silverTransport] = biliWorkflow([
     '/x/web-interface/nav' => [biliNav(), biliNav()],
     '/xlive/revenue/v1/wallet/silver2coin' => [['code' => 0, 'message' => '0']],
@@ -197,12 +152,6 @@ biliWorkflowCheck($silverTransport->called('/AppExchange/silver2coin'), 'APP sil
 biliWorkflowCheck($watch->watchAid()['code'] === 1, 'watchaid workflow failed');
 biliWorkflowCheck($watchTransport->called('/x/click-interface/web/heartbeat'), 'watchaid heartbeat did not use SDK');
 biliWorkflowCheck($watchTransport->called('/x/v2/history/report'), 'watchaid history did not use SDK');
-
-[$share, $shareTransport] = biliWorkflow([]);
-$shareResult = $share->shareAid();
-biliWorkflowCheck($shareResult['code'] === 0, 'retired share workflow was reported as successful');
-biliWorkflowCheck(str_contains($shareResult['message'], '已下架'), 'retired share message is unclear');
-biliWorkflowCheck(!$shareTransport->called('/x/web-interface/share/add'), 'retired share workflow performed a network request');
 
 [$coin, $coinTransport] = biliWorkflow([
     '/x/web-interface/nav' => [biliNav(5)],
@@ -375,10 +324,6 @@ $vipExperienceResult = $vipExperience->vipexperience();
 biliWorkflowCheck($vipExperienceResult['code'] === 1, 'VIP experience claim workflow failed');
 biliWorkflowCheck($vipExperienceTransport->called('/x/vip/experience/add'), 'VIP experience claim endpoint was not used');
 
-[$globalRoom, $globalRoomTransport] = biliWorkflow([]);
-biliWorkflowCheck($globalRoom->globalroom()['code'] === 1, 'globalroom workflow failed');
-biliWorkflowCheck($globalRoomTransport->requests === [], 'globalroom unexpectedly performed a network request');
-
 [$invalidAccount] = biliWorkflow([
     '/x/web-interface/nav' => [['code' => -101, 'message' => '账号未登录']],
 ]);
@@ -451,23 +396,6 @@ biliWorkflowCheck(!$coinReadTransport->called('/x/web-interface/coin/add'), 'Unk
 $failedSummary = $summaryCoinFailure->dailyexperience();
 biliWorkflowCheck($failedSummary['code'] === 0 && !str_contains($failedSummary['message'], '基础经验+'), 'Failed coin query produced a partial total as success');
 
-[$emptyBag] = biliWorkflow([
-    '/x/web-interface/nav' => [biliNav(), biliNav()],
-    '/AppBag/sendDaily' => [['code' => 0, 'data' => ['result' => 0]]],
-    '/gift/v2/live/receive_daily_bag' => [['code' => 0, 'data' => ['bag_status' => 0, 'bag_list' => []]]],
-]);
-$emptyBagResult = $emptyBag->dailybag();
-biliWorkflowCheck($emptyBagResult['code'] === 0 && !str_contains($emptyBagResult['message'], '已领取'), 'Empty bags were reported as received');
-[$emptyGift] = biliWorkflow([
-    '/x/web-interface/nav' => [biliNav()],
-    '/gift/v2/live/heart_gift_receive' => [['code' => 0, 'data' => ['heart_status' => 1, 'gift_list' => []]]],
-]);
-biliWorkflowCheck($emptyGift->giftheart()['code'] === 0, 'A waiting gift heartbeat was reported as a received gift');
-[$emptyGroups] = biliWorkflow([
-    '/x/web-interface/nav' => [biliNav()],
-    '/link_group/v1/member/my_groups' => [['code' => 0, 'data' => []]],
-]);
-biliWorkflowCheck(!str_contains($emptyGroups->groupsignIn()['message'], '均已签到'), 'No groups were reported as already signed');
 [$emptySilver] = biliWorkflow([
     '/x/web-interface/nav' => [biliNav(), biliNav()],
     '/xlive/revenue/v1/wallet/silver2coin' => [['code' => 403, 'message' => '银瓜子余额不足']],

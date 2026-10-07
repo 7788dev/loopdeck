@@ -38,33 +38,37 @@ class Bilibili extends Common
             if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) {
                 continue;
             }
-            $this->scheduled++;
-            $userId = (string)$job['user_id'];
-            $user = Users::where('uid', $job['uid'])->where('web_id', 1)->where('state', 1)->find();
-            $account = Accounts::where('type', 'bilibili')
-                ->where('user_id', $userId)
-                ->where('uid', $job['uid'])
-                ->where('state', 1)
-                ->find();
-            $task = Tasks::where('type', 'bilibili')
-                ->where('execute_name', $job['do'])
-                ->where('state', 1)
-                ->find();
+            try {
+                $this->scheduled++;
+                $userId = (string)$job['user_id'];
+                $user = Users::where('uid', $job['uid'])->where('web_id', 1)->where('state', 1)->find();
+                $account = Accounts::where('type', 'bilibili')
+                    ->where('user_id', $userId)
+                    ->where('uid', $job['uid'])
+                    ->where('state', 1)
+                    ->find();
+                $task = Tasks::where('type', 'bilibili')
+                    ->where('execute_name', $job['do'])
+                    ->where('state', 1)
+                    ->find();
 
-            if (!$user || !$account || !$task) {
-                Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
-                continue;
+                if (!$user || !$account || !$task) {
+                    Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
+                    continue;
+                }
+                if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
+                    Jobs::where('id', $job['id'])->update(['nextExecute' => 0]);
+                    continue;
+                }
+                if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()) {
+                    $this->vipExpired('bilibili', $user['uid'], $userId);
+                    continue;
+                }
+                // 凭据/配置都在库内，任务在本进程执行，RUN_KEY 不再进 URL
+                $this->runJob((string)$job['do'], $job, $user, $account, $task);
+            } finally {
+                Jobs::releaseDueJob((int)$job['id']);
             }
-            if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
-                Jobs::where('id', $job['id'])->update(['nextExecute' => 0]);
-                continue;
-            }
-            if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()) {
-                $this->vipExpired('bilibili', $user['uid'], $userId);
-                continue;
-            }
-            // 凭据/配置都在库内，任务在本进程执行，RUN_KEY 不再进 URL
-            $this->runJob((string)$job['do'], $job, $user, $account, $task);
         }
 
         if ($this->scheduled === 0) {
@@ -109,7 +113,7 @@ class Bilibili extends Common
             }
 
             Info::recordRun(100);
-            Jobs::where('id', $job['id'])->update(BilibiliTaskExecutor::jobUpdates(
+            Jobs::updateClaimedJob((int)$job['id'], BilibiliTaskExecutor::jobUpdates(
                 $result, $jobConfig, $userId, (string)$account['timing']
             ));
         } catch (Throwable $exception) {
@@ -128,14 +132,7 @@ class Bilibili extends Common
 
     private function disableOfflineJobs(): void
     {
-        $offlineTasks = array_keys(BilibiliTaskExecutor::OFFLINE_TASKS);
-        if ($offlineTasks === []) {
-            return;
-        }
-
-        Jobs::where('type', 'bilibili')
-            ->whereIn('do', $offlineTasks)
-            ->update(['state' => 0, 'nextExecute' => 0]);
+        Jobs::retireOfflineJobs();
     }
 
 }

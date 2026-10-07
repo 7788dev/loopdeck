@@ -13,13 +13,8 @@ final class BilibiliTaskExecutor
     private const MAX_VERIFICATION_ATTEMPTS = 24;
     public const TASKS = [
         'manga',
-        'dailybag',
-        'doubleheart',
-        'groupsignIn',
-        'giftheart',
         'silver2coin',
         'watchaid',
-        'shareaid',
         'coinadd',
         'dailyexperience',
         'vipexperience',
@@ -62,7 +57,7 @@ final class BilibiliTaskExecutor
     /**
      * Return task names which are still allowed to reach an adapter.
      *
-     * TASKS intentionally keeps retired names so existing database rows and
+     * OFFLINE_TASKS keeps retired names so existing database rows and
      * the console can show an explicit "已下架" state. All execution queries
      * must use this filtered list instead of the historical allow-list.
      *
@@ -207,11 +202,6 @@ final class BilibiliTaskExecutor
     private function normalizeConfig(array $config): array
     {
         $normalized = [];
-        $roomId = trim((string)($config['global_room'] ?? ''));
-        if ($roomId !== '' && ctype_digit($roomId) && (int)$roomId > 0) {
-            $normalized['global_room'] = $roomId;
-        }
-
         $mode = (string)($config['add_coin_mode'] ?? '');
         if (in_array($mode, ['random', 'fixed'], true)) {
             $normalized['add_coin_mode'] = $mode;

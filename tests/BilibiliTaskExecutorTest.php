@@ -47,13 +47,8 @@ function biliExecutorCheck(bool $condition, string $message): void
 
 $expectedTasks = [
     'manga',
-    'dailybag',
-    'doubleheart',
-    'groupsignIn',
-    'giftheart',
     'silver2coin',
     'watchaid',
-    'shareaid',
     'coinadd',
     'dailyexperience',
     'vipexperience',
@@ -108,7 +103,7 @@ biliExecutorCheck($watch['code'] === 1, 'allowed task did not execute');
 biliExecutorCheck($factoryCalls === 1, 'helper factory was not called exactly once');
 biliExecutorCheck($capturedAccount['refresh_token'] === 'refresh-token', 'account fields were not normalized');
 biliExecutorCheck($capturedConfig['sid'] === 'sid-token', 'sid cookie was not forwarded');
-biliExecutorCheck($capturedConfig['global_room'] === '123', 'global room config was not forwarded');
+biliExecutorCheck(!isset($capturedConfig['global_room']), 'retired room config was forwarded');
 biliExecutorCheck(!isset($capturedConfig['ignored']), 'unknown task config was forwarded');
 biliExecutorCheck(($capturedConfig['claim_submitted'] ?? null) === false,
     'A fresh run was told a claim had already been submitted');
@@ -217,7 +212,6 @@ biliExecutorCheck(str_contains((string)$cronSource, 'executableTasks()'), 'legac
 biliExecutorCheck(str_contains((string)$taskSource, 'executableTasks()'), 'unified scheduler still selects retired tasks');
 biliExecutorCheck(str_contains((string)$adminAjaxSource, 'BilibiliTaskExecutor::offlineReason'), 'admin task edits do not recognize retired tasks');
 biliExecutorCheck(str_contains((string)$adminAjaxSource, "'nextExecute' => 0"), 'admin task edits can leave retired jobs scheduled');
-biliExecutorCheck(str_contains((string)$bilibiliSource, '分享功能已下架'), 'daily experience does not report retired share task');
 biliExecutorCheck(!str_contains((string)$bilibiliSource, '$this->shareAid()'), 'daily experience still calls the retired share task');
 biliExecutorCheck(
     substr_count((string)$jobsSource, 'BilibiliTaskExecutor::offlineReason') >= 3,

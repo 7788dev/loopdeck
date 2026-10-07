@@ -496,8 +496,8 @@ class Netease
             ->where('type', 'netease')
             ->where('uid', Session::get('user.uid'))
             ->update(['cooling' => time() + $cooldown]);
-        $query->update(['nextExecute' => time()]);
-        return resultJson(1, '申请补挂成功，请稍后查看任务运行情况');
+        $queued = Jobs::requestImmediate($query->column('id'));
+        return resultJson(1, $queued > 0 ? '申请补挂成功，请稍后查看任务运行情况' : '任务正在执行，无需重复补挂');
     }
 
     private function listen()

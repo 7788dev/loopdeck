@@ -16,7 +16,6 @@ Route::get('version', 'index/version');
 Route::group('console', function () {
     Route::rule('netease/[:act]/[:user_id]', 'console/netease');
     Route::rule('bilibili/[:act]/[:mid]', 'console/bilibili');
-    Route::rule('heybox/[:act]/[:uid]', 'console/heybox');
     Route::rule('user/[:act]', 'console/user');
     Route::rule('shop/[:act]', 'console/shop');
     Route::rule('qrcode/[:act]/[:uid]', 'console/qrcode');
@@ -25,7 +24,7 @@ Route::group('console', function () {
 $retiredFeatureNotFound = static function () {
     return response('Not Found', 404);
 };
-foreach (['iqiyi', 'tieba', 'mihoyo', 'sport'] as $feature) {
+foreach (['iqiyi', 'tieba', 'mihoyo', 'sport', 'heybox'] as $feature) {
     Route::any("console/{$feature}/[:act]/[:uid]", $retiredFeatureNotFound);
     Route::any("ajax/{$feature}/[:act]", $retiredFeatureNotFound);
 }
@@ -38,7 +37,6 @@ Route::group('ajax', function () {
     // NetEase has its own clean controller; keep the legacy public URL.
     Route::rule('netease/[:act]', 'netease/handle');
     Route::rule('bilibili/[:act]', 'bilibili/handle');
-    Route::rule('heybox/[:act]', 'ajax/heybox');
     Route::rule('epic/act/[:act]', 'ajax/epic');
     Route::rule('qrcode/[:act]', 'ajax/qrcode');
 

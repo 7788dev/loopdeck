@@ -151,7 +151,7 @@ securityHardeningCheck(
 
 // --- Scheduler keys ----------------------------------------------------------
 
-foreach (['Netease', 'Heybox', 'Epic', 'Task', 'Bilibili'] as $cronController) {
+foreach (['Netease', 'Epic', 'Task', 'Bilibili'] as $cronController) {
     $source = file_get_contents($root . '/app/cron/controller/' . $cronController . '.php');
     securityHardeningCheck(is_string($source), 'Unable to inspect cron controller ' . $cronController);
     securityHardeningCheck(

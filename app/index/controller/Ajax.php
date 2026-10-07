@@ -37,34 +37,10 @@ class Ajax extends Common
 		// Compatibility guard for deployments that still allow controller auto-routing.
 		return response('Not Found', 404);
 	}
-	public function heybox($act = null)
-	{
-		if ($act === "add") {
-			$heyboxId = trim((string)Request::post("heybox_id", ""));
-			$pkey = trim((string)Request::post("pkey", ""));
-			if ($heyboxId === "" || !ctype_digit($heyboxId) || $pkey === "" || strlen($heyboxId) > 32 || strlen($pkey) > 1024) {
-				return resultJson(0, "heybox_id 或 pkey 格式错误");
-			}
-			// 与 netease/bilibili 一致：账号全局唯一，否则两个用户绑定同一
-			// 账号后，任一方删除账号会把另一方的任务日志一并清掉。
-			$conflict = Accounts::where("type", "=", "heybox")
-				->where("user_id", "=", $heyboxId)
-				->where("uid", "<>", Session::get("user.uid"))
-				->find();
-			if ($conflict) {
-				return resultJson(0, "该小黑盒账号已被其他用户绑定");
-			}
-			$account = [
-				"heybox_id" => $heyboxId,
-				"pkey" => $pkey,
-				"imei" => bin2hex(random_bytes(8)),
-				"displayname" => "小黑盒用户 " . $heyboxId,
-				"avatar" => "",
-			];
-			return Accounts::add("heybox", $heyboxId, $account);
-		}
-		return $this->accountAction("heybox", $act);
-	}
+    public function heybox($act = null)
+    {
+        return response('Not Found', 404);
+    }
 
     public function epic($act = null)
     {
@@ -135,124 +111,6 @@ class Ajax extends Common
 			return Accounts::delQrcodeByUserId($userId)
 				? resultJson(1, "删除成功")
 				: resultJson(0, "删除失败");
-		}
-		return resultJson(0, "未知操作");
-	}
-
-	private function accountAction(string $type, $act)
-	{
-		$userId = trim((string)Request::post("user_id", ""));
-		if ($userId === "") {
-			return resultJson(0, "缺少账号标识");
-		}
-		$account = Accounts::where("type", "=", $type)
-			->where("user_id", "=", $userId)
-			->where("uid", "=", Session::get("user.uid"))
-			->find();
-		if (!$account) {
-			return resultJson(0, "账号不存在或无权操作");
-        }
-
-        if ($act === "delete") {
-            $neteaseStateUserId = '';
-            if ($type === 'netease') {
-                $accountData = safe_unserialize_array((string)($account['data'] ?? ''));
-                $neteaseStateUserId = trim((string)($accountData['user_id'] ?? $account['user_id']));
-            }
-            $deleted = Accounts::delByUserId($type, $userId);
-            Jobs::where("type", "=", $type)->where("user_id", "=", $userId)->where("uid", "=", Session::get("user.uid"))->delete();
-            TaskLogs::deleteLogs($type, $userId);
-            if ($deleted && $type === 'netease' && $neteaseStateUserId !== '') {
-                try {
-                    // The lifetime history and daily state are local runtime
-                    // data, not database rows; remove them with the account.
-                    (new \netease\Netease($neteaseStateUserId, '', '', [
-                        'auto_anonymous_token' => false,
-                        'cache_dir' => '',
-                    ]))->forgetDakaState();
-                } catch (\Throwable $exception) {
-                    // Account deletion itself succeeded; pruning can retry the
-                    // orphaned state file later without exposing an error.
-                }
-            }
-            return $deleted ? resultJson(1, "删除成功") : resultJson(0, "删除失败");
-        }
-		if ($act === "logs") {
-			return TaskLogs::searchLogs($type, $userId);
-		}
-		if ($act === "reExecute") {
-			if (!AutomaticSchedule::isConfigured((string)($account["timing"] ?? ""))) {
-				return resultJson(0, "请先设置挂机时间");
-			}
-			$query = Jobs::where("type", "=", $type)
-				->where("user_id", "=", $userId)
-				->where("uid", "=", Session::get("user.uid"))
-				->where("state", "=", 1);
-			if ($type === 'bilibili') {
-				$query->whereIn('do', BilibiliTaskExecutor::executableTasks());
-			}
-			if (count($query->select()) === 0) {
-				return resultJson(1, "没有需要补挂的任务");
-			}
-			$query->update(["nextExecute" => time()]);
-			return resultJson(1, "申请补挂成功，请稍后查看任务运行情况");
-		}
-		if ($act === "set") {
-			$mode = (string)Request::post("act", "");
-			if ($mode === "timing") {
-				$timing = trim((string)Request::post("timing", ""));
-				$next = AutomaticSchedule::nextExecution($type, $userId, $timing);
-				if ($timing !== "" && $next === null) {
-					return resultJson(0, "时间格式应为 HH:MM");
-				}
-				Accounts::where("id", "=", $account["id"])->update(["timing" => $timing ?: null]);
-				$timingJobs = Jobs::where("type", "=", $type)
-					->where("user_id", "=", $userId)
-					->where("uid", "=", Session::get("user.uid"));
-				if ($type === 'bilibili') {
-					$timingJobs->whereNotIn('do', array_keys(BilibiliTaskExecutor::OFFLINE_TASKS));
-				}
-				$timingJobs->update(["nextExecute" => $next ?? 0]);
-				if ($type === 'bilibili') {
-					Jobs::where("type", "=", $type)
-						->where("user_id", "=", $userId)
-						->where("uid", "=", Session::get("user.uid"))
-						->whereIn('do', array_keys(BilibiliTaskExecutor::OFFLINE_TASKS))
-						->update(['state' => 0, 'nextExecute' => 0]);
-				}
-				return resultJson(1, $next === null ? "已关闭自动挂机" : "保存成功");
-			}
-			$do = trim((string)Request::post("do", ""));
-			$job = Jobs::where("type", "=", $type)
-				->where("user_id", "=", $userId)
-				->where("uid", "=", Session::get("user.uid"))
-				->where("do", "=", $do)
-				->find();
-			if (!$job) {
-				return resultJson(0, "任务不存在");
-			}
-			if ($type === 'bilibili'
-				&& BilibiliTaskExecutor::offlineReason($do) !== null) {
-				$job->save(['state' => 0, 'nextExecute' => 0]);
-				return resultJson(0, BilibiliTaskExecutor::offlineReason($do));
-			}
-			if ($mode === "zt") {
-				if (Tasks::checkTaskPower($do) && empty(Session::get("user.vip_start"))) {
-					return resultJson(-1, "您需要开通 VIP 才可以使用该功能");
-				}
-				$state = (int)$job["state"];
-				$job->save(["state" => $state === -1 ? 1 : ($state ^ 1)]);
-				return resultJson(1, "修改成功");
-			}
-			$config = Request::post("config", []);
-			if (is_string($config)) {
-				$config = json_decode($config, true);
-			}
-			if (!is_array($config)) {
-				return resultJson(0, "任务配置格式错误");
-			}
-			$job->save(["data" => serialize($config)]);
-			return resultJson(1, "保存成功");
 		}
 		return resultJson(0, "未知操作");
 	}

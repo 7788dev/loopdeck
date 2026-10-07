@@ -13,6 +13,7 @@ if (!extension_loaded('pdo_sqlite')) {
     throw new RuntimeException('Functional tests require pdo_sqlite (Windows: php -d extension=pdo_sqlite)');
 }
 $app = new think\App(dirname(__DIR__) . '/');
+$app->config->set(['task_lock_directory' => sys_get_temp_dir() . '/loopdeck-test-locks-' . bin2hex(random_bytes(8))], 'app');
 $app->config->set(['default' => 'fixture', 'auto_timestamp' => false, 'connections' => [
     'fixture' => ['type' => 'sqlite', 'database' => ':memory:', 'prefix' => 'qa_', 'fields_strict' => true],
 ]], 'database');

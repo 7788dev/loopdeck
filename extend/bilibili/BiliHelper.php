@@ -21,86 +21,12 @@ class BiliHelper extends Bilibili
         parent::__construct($mid, $mid_md5, $token, $csrf, $access_key, $config, $client);
     }
 
-    public function globalroom(): array
-    {
-        return ['code' => 1, 'message' => '全局直播间配置已保存'];
-    }
-
     public function manga(): array
     {
         return $this->compose([
             ['签到', parent::manga_sign()],
             ['分享', parent::manga_share()],
         ]);
-    }
-
-    public function dailybag(): array
-    {
-        return $this->compose([
-            ['APP 礼包', parent::dailyBagAPP()],
-            ['PC 礼包', parent::dailyBagPC()],
-        ], ['done_suffix' => '已领取']);
-    }
-
-    public function doubleheart(): array
-    {
-        return $this->compose([
-            ['PC 心跳', parent::webHeart()],
-            ['APP 心跳', parent::appHeart()],
-        ]);
-    }
-
-    public function groupsignIn(): array
-    {
-        $list = parent::getGroupList();
-        if (($list['code'] ?? 0) !== 1) {
-            return $list;
-        }
-        $groups = is_array($list['groups'] ?? null) ? $list['groups'] : [];
-        if ($groups === []) {
-            return ['code' => 1, 'status' => 'none', 'message' => '暂无可签到的应援团'];
-        }
-        $signed = 0;
-        $intimacy = 0;
-        $failures = [];
-        foreach ($groups as $group) {
-            if (!is_array($group)) {
-                continue;
-            }
-            $result = parent::signInGroup($group);
-            if ((int)($result['code'] ?? 0) === 1) {
-                $signed++;
-                $intimacy += (int)($result['add_num'] ?? 0);
-                continue;
-            }
-            $message = trim((string)($result['message'] ?? ''));
-            if ($message !== '') {
-                $failures[] = $message;
-            }
-        }
-        if ($signed === 0) {
-            return [
-                'code' => 0,
-                'message' => '应援团签到失败',
-                'failures' => $failures,
-            ];
-        }
-        return [
-            'code' => $failures === [] ? 1 : 0,
-            'message' => '已为 ' . $signed . ' 个应援团签到，亲密度+' . $intimacy
-                . ($failures === [] ? '' : '，部分应援团签到失败'),
-            'failures' => $failures,
-        ];
-    }
-
-    public function giftheart(): array
-    {
-        return parent::gift_heart();
-    }
-
-    public function dailytask(): array
-    {
-        return ['code' => 0, 'message' => '直播签到功能已下线'];
     }
 
     public function silver2coin(): array

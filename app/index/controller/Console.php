@@ -364,62 +364,8 @@ class Console
 
     public function heybox($act = "", $uid = "")
     {
-        switch ($act) {
-            case "add" :
-                return view("console/heybox/add");
-                break;
-            case "list" :
-                return view("console/heybox/list", ["list" => Accounts::getMyList("heybox")]);
-                break;
-            case "info" :
-                return $this->heyboxInfo($uid);
-                break;
-        }
+        return response('Not Found', 404);
     }
-
-    /**
-     * 组装小黑盒账号详情页数据：任务/任务状态一次查询映射（替代模板内
-     * 循环逐条 getJobInfo），lastExecute 空值时展示"尚未执行"而非 1970。
-     */
-    private function heyboxInfo($uid)
-    {
-        $account = Accounts::findByUserId('heybox', $uid);
-        if (!$account) {
-            return view("common/alert", ["msg" => "账号不存在或无权查看", "url" => "/index/console/heybox/list"]);
-        }
-        Jobs::refreshJob('heybox', $uid);
-
-        $a_data = safe_unserialize_array((string)$account['data']);
-        $jobsByTask = [];
-        foreach (Jobs::where('type', 'heybox')->where('user_id', $uid)->where('uid', (int)$account['uid'])->select() as $job) {
-            $jobsByTask[(string)$job['do']] = $job;
-        }
-        $taskRows = [];
-        foreach (Tasks::getTaskList('heybox') as $task) {
-            $job = $jobsByTask[(string)$task['execute_name']] ?? null;
-            $config = $job && $job['data'] ? json_encode(safe_unserialize_array((string)$job['data'])) : '[]';
-            $taskRows[] = [
-                'icon' => (string)$task['icon'],
-                'name' => (string)$task['name'],
-                'describe' => (string)$task['describe'],
-                'more' => !empty($task['more']),
-                'execute_name' => (string)$task['execute_name'],
-                'config' => $config ?: '[]',
-                'last_execute' => $job ? (string)($job['lastExecute'] ?? '') : '',
-                'job_state' => $job ? (int)$job['state'] : 0,
-            ];
-        }
-
-        return view("console/heybox/info", [
-            "data" => $account,
-            "a_data" => [
-                'avatar' => (string)($a_data['avatar'] ?? ''),
-                'nickname' => (string)($a_data['displayname'] ?? ('小黑盒用户 ' . $uid)),
-            ],
-            "task_rows" => $taskRows,
-        ]);
-    }
-
     public function epic($act = "")
     {
         if ($act !== 'weeklygame') {

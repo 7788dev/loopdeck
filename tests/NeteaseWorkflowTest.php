@@ -11,6 +11,7 @@ final class WorkflowTransport implements TransportInterface
     public array $requests = [];
     public int $listenSongs = 10;
     private int $weblogRequests = 0;
+    private bool $vipRewardsClaimed = false;
 
     public function request(string $method, string $url, array $options = []): array
     {
@@ -123,10 +124,11 @@ final class WorkflowTransport implements TransportInterface
         if (str_contains($url, '/middle/vip/mission/user/progress/list')) {
             return [
                 'code' => 200,
-                'data' => [['historyUnObtainRewardWorth' => 3, 'children' => []]],
+                'data' => [['historyUnObtainRewardWorth' => $this->vipRewardsClaimed ? 0 : 3, 'children' => []]],
             ];
         }
         if (str_contains($url, '/vipnewcenter/app/level/task/reward/getall')) {
+            $this->vipRewardsClaimed = true;
             return ['code' => 200, 'data' => ['received' => true]];
         }
         if (str_contains($url, '/vipnewcenter/app/level/task/reward/get')) {

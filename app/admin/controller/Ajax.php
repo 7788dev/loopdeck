@@ -227,13 +227,13 @@ class Ajax extends Common
                         $up_task = $task->where('id', '=', $data['id'])->update($editable);
                         if ($up_task == 0) {  // 无修改
                             if ($offline) {
-                                $jobs->where('do', '=', $oTask['execute_name'])
+                                $jobs->where('type', '=', $oTask['type'])->where('do', '=', $oTask['execute_name'])
                                     ->update(['state' => 0, 'nextExecute' => 0]);
                             }
                             return resultJson(1, '保存成功');
                         } else {
                             $requiresVip = (int)($editable['vip'] ?? $oTask['vip']) === 1;
-                            foreach ($jobs->where('do', '=', $oTask['execute_name'])->select() as $value) {
+                            foreach ($jobs->where('type', '=', $oTask['type'])->where('do', '=', $oTask['execute_name'])->select() as $value) {
                                 $user = Users::findByUid($value['uid']);
                                 // Editing copy or prices must not enable tasks the user paused.
                                 $state = $offline || ($requiresVip && (int)strtotime((string)($user['vip_end'] ?? '')) <= time())

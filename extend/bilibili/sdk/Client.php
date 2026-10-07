@@ -420,24 +420,6 @@ final class Client
     }
 
     /** @return array<string,mixed> */
-    public function shareVideo(int|string $video): array
-    {
-        $id = (string)$video;
-        $body = ctype_digit($id) ? ['aid' => $id] : ['bvid' => $id];
-        $body += [
-            'csrf' => $this->csrf(),
-            'source' => 'web_normal',
-            'eab_x' => 2,
-            'ramval' => 0,
-            'ga' => 1,
-        ];
-        return $this->requestJson('POST', $this->api('/x/web-interface/share/add'), [
-            'form_params' => $body,
-            'origin' => 'https://www.bilibili.com',
-            'referer' => 'https://www.bilibili.com/video/' . (ctype_digit($id) ? 'av' : '') . $id,
-        ]);
-    }
-
     /** @return array<string,mixed> */
     public function deviceFingerprint(): array
     {
@@ -532,81 +514,15 @@ final class Client
     }
 
     /** @return array<string,mixed> */
-    public function liveDailyBagPc(): array
-    {
-        return $this->legacyAppRequest('GET', '/gift/v2/live/receive_daily_bag');
-    }
-
     /** @return array<string,mixed> */
-    public function liveDailyBagApp(): array
-    {
-        return $this->legacyAppRequest('GET', '/AppBag/sendDaily');
-    }
-
     /** @return array<string,mixed> */
-    public function liveWebHeart(int|string $roomId): array
-    {
-        return $this->requestJson('POST', $this->live('/User/userOnlineHeart'), [
-            'form_params' => [
-                'csrf' => $this->csrf(),
-                'csrf_token' => $this->csrf(),
-                'room_id' => (string)$roomId,
-                '_' => (int)round(microtime(true) * 1000),
-            ],
-            'referer' => 'https://live.bilibili.com/' . $roomId,
-            'origin' => 'https://live.bilibili.com',
-        ]);
-    }
-
     /** @return array<string,mixed> */
-    public function liveAppHeart(int|string $roomId): array
-    {
-        return $this->legacyAppRequest('POST', '/mobile/userOnlineHeart', ['room_id' => (string)$roomId]);
-    }
-
     /** @return array<string,mixed> */
-    public function liveGroupList(): array
-    {
-        return $this->legacyAppRequest('GET', 'https://api.vc.bilibili.com/link_group/v1/member/my_groups');
-    }
-
     /** @return array<string,mixed> */
-    public function liveGroupSign(array $group): array
-    {
-        return $this->legacyAppRequest('GET', 'https://api.vc.bilibili.com/link_setting/v1/link_setting/sign_in', [
-            'group_id' => (string)($group['group_id'] ?? ''),
-            'owner_id' => (string)($group['owner_uid'] ?? ''),
-        ]);
-    }
-
     /** @return array<string,mixed> */
-    public function liveGiftHeart(int|string $roomId): array
-    {
-        return $this->legacyAppRequest('GET', '/gift/v2/live/heart_gift_receive', ['roomid' => (string)$roomId]);
-    }
-
     /** @return array<string,mixed> */
-    public function liveTaskInfo(): array
-    {
-        return $this->legacyAppRequest('GET', '/i/api/taskInfo');
-    }
-
     /** @return array<string,mixed> */
-    public function liveSignInfo(): array
-    {
-        return $this->requestJson('GET', $this->live('/xlive/web-ucenter/v1/sign/WebGetSignInfo'), [
-            'referer' => 'https://live.bilibili.com/',
-        ]);
-    }
-
     /** @return array<string,mixed> */
-    public function liveSign(): array
-    {
-        return $this->requestJson('GET', $this->live('/xlive/web-ucenter/v1/sign/DoSign'), [
-            'referer' => 'https://live.bilibili.com/',
-        ]);
-    }
-
     /** @return array<string,mixed> */
     public function liveSilverToCoinApp(): array
     {

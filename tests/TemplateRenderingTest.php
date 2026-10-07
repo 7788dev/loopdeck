@@ -66,7 +66,7 @@ try {
             }
         }
     }
-    $accountData = ['avatar' => '', 'nickname' => '测试用户', 'displayname' => '小黑盒测试用户', 'user_id' => '42',
+    $accountData = ['avatar' => '', 'nickname' => '测试用户', 'displayname' => '测试用户', 'user_id' => '42',
         'name' => '测试收款码', 'alipay_url' => 'https://pay.example/a', 'qq_url' => 'https://pay.example/q', 'wechat_url' => 'wxp://fixture'];
     $account = ['id' => 1, 'uid' => 1, 'user_id' => '42', 'mid' => '42', 'nickname' => '测试用户', 'avatar' => '',
         'state' => 1, 'timing' => '', 'addtime' => '2026-09-28 08:00:00', 'data' => serialize($accountData)];
@@ -75,7 +75,7 @@ try {
         'user_id' => '42', 'is_global' => false, 'offline' => false, 'offline_reason' => ''];
     foreach ([''] as $themePath) {
     $populatedViewPath = $root . '/app/index/view/' . $themePath;
-    foreach (['netease', 'bilibili', 'heybox', 'qrcode'] as $platform) {
+    foreach (['netease', 'bilibili', 'qrcode'] as $platform) {
         foreach ($platform === 'qrcode' ? ['list'] : ['list', 'info'] as $page) {
             $relative = 'console/' . $platform . '/' . $page . '.html';
             $engine = new think\Template(['view_path' => $populatedViewPath, 'cache_path' => $cachePath]);

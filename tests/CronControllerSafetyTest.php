@@ -8,8 +8,7 @@ declare(strict_types=1);
  *
  * Covers: the Epic full-table UPDATE regression ($job->where() drops the
  * primary-key condition and would disable every enabled job), per-job
- * exception isolation in Heybox/Netease/Bilibili/Epic, and the Heybox task
- * name whitelist.
+ * exception isolation in Netease/Bilibili/Epic.
  */
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -49,42 +48,6 @@ cronSafetyCheck(
 cronSafetyCheck(
     str_contains($epicRunner, 'use Throwable;') && str_contains($epicSource, 'EpicJobRunner'),
     'epic controller does not import Throwable'
-);
-
-// --- Heybox: whitelist + exception isolation ------------------------------
-
-$heyboxSource = file_get_contents($root . '/app/cron/controller/Heybox.php');
-cronSafetyCheck(is_string($heyboxSource), 'Unable to inspect the heybox controller');
-
-// The task name dispatched to BlackBox must be whitelisted, not straight
-// from the jobs.do column.
-cronSafetyCheck(
-    str_contains($heyboxSource, "in_array(\$do, self::TASKS, true)"),
-    'heybox dispatches unwhitelisted task names to BlackBox'
-);
-// The sign task is the only defined heybox task today.
-cronSafetyCheck(
-    preg_match("/private const TASKS = \[[^\]]*'sign'/s", $heyboxSource) === 1,
-    'heybox task whitelist does not include the sign task'
-);
-// An exception in one BlackBox call must not abort the whole round.
-cronSafetyCheck(
-    str_contains($heyboxSource, 'catch (Throwable $exception)'),
-    'heybox runJob does not isolate exceptions'
-);
-cronSafetyCheck(
-    str_contains($heyboxSource, '[重试中] 任务调度异常'),
-    'heybox exceptions are not logged as retrying'
-);
-cronSafetyCheck(
-    str_contains($heyboxSource, 'private function runJob(int $jobId')
-        && str_contains($heyboxSource, 'if ($result === null)'),
-    'heybox advances the normal schedule after a failed execution'
-);
-cronSafetyCheck(
-    !str_contains($heyboxSource, 'Jobs::updateJobInfo(')
-        && str_contains($heyboxSource, "->where('uid'"),
-    'heybox job/account updates are not scoped to the current tenant and job'
 );
 
 // --- Netease: exception isolation -----------------------------------------
@@ -129,7 +92,7 @@ cronSafetyCheck(
 // Every cron endpoint sits behind app\middleware\CheckCronAccess; controllers
 // must not grow their own credential checks that drift from the middleware's
 // accepted credential sources.
-foreach (['Netease', 'Bilibili', 'Heybox', 'Epic', 'Notifications', 'Task'] as $controller) {
+foreach (['Netease', 'Bilibili', 'Epic', 'Notifications', 'Task'] as $controller) {
     $source = file_get_contents($root . '/app/cron/controller/' . $controller . '.php');
     cronSafetyCheck(is_string($source), 'Unable to inspect cron controller ' . $controller);
     cronSafetyCheck(

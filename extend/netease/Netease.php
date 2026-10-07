@@ -2886,6 +2886,13 @@ class Netease
 
         $messages = [];
         $success = true;
+        $rewardErrors = [];
+        $rewardFailure = static function (string $label, array $response) use (&$messages, &$success, &$rewardErrors): void {
+            $success = false;
+            $messages[] = TaskMessage::compose([['label' => $label, 'status' => TaskMessage::FAILED]]);
+            $rewardErrors[] = ['stage' => $label, 'code' => (int)($response['code'] ?? 0),
+                'reason' => (string)($response['message'] ?? $response['msg'] ?? '接口未返回有效结果')];
+        };
         $beforePoint = (int)($userLevel['growthPoint'] ?? 0);
 
         $sign = $this->vip_sign();
@@ -2909,7 +2916,11 @@ class Netease
         }
 
         $legacyTasks = $this->get_vip_tasks();
-        $unclaimedIds = $this->vipUnclaimedTaskIds($legacyTasks);
+        $legacyValid = (int)($legacyTasks['code'] ?? 0) === 200 && is_array($legacyTasks['data']['taskList'] ?? null);
+        if (!$legacyValid) {
+            $rewardFailure('成长值任务读取', $legacyTasks);
+        }
+        $unclaimedIds = $legacyValid ? $this->vipUnclaimedTaskIds($legacyTasks) : [];
         if ($unclaimedIds) {
             $claim = $this->vip_growthpoint_get($unclaimedIds);
             if ((int)($claim['code'] ?? 0) === 200) {
@@ -2921,31 +2932,48 @@ class Netease
         }
 
         $newTasks = $this->vip_tasks_v1();
-        $unclaimedWorth = $this->vipUnclaimedWorth($newTasks);
+        $newValid = (int)($newTasks['code'] ?? 0) === 200 && is_array($newTasks['data'] ?? null);
+        $unclaimedWorth = $newValid ? $this->vipUnclaimedWorth($newTasks) : 0;
         $remainingWorth = $unclaimedWorth;
         $claimedWorth = 0;
-        $claimAll = $this->vip_growthpoint_getall();
-        if ((int)($claimAll['code'] ?? 0) === 200) {
-            $remainingWorth = $this->vipUnclaimedWorth($this->vip_tasks_v1());
-            $claimedWorth = max(0, $unclaimedWorth - $remainingWorth);
-                if ($unclaimedWorth > 0) {
-                    $messages[] = $remainingWorth === 0
-                        ? '已领取' . $claimedWorth . '成长值'
-                        : '已提交领取，剩余' . $remainingWorth . '成长值待入账';
-                } else {
-                    $messages[] = '暂无遗漏的成长值奖励';
-                }
+        if (!$newValid) {
+            $rewardFailure('待领取成长值读取', $newTasks);
         } elseif ($unclaimedWorth > 0) {
-            $messages[] = (string)($claimAll['message'] ?? '一键领取成长值失败');
-            $success = false;
+            $claimAll = $this->vip_growthpoint_getall();
+            if ((int)($claimAll['code'] ?? 0) !== 200) {
+                $rewardFailure('成长值领取', $claimAll);
+            } else {
+                $verification = $this->vip_tasks_v1();
+                if ((int)($verification['code'] ?? 0) !== 200 || !is_array($verification['data'] ?? null)) {
+                    $rewardFailure('成长值到账核验', $verification);
+                } else {
+                    $remainingWorth = $this->vipUnclaimedWorth($verification);
+                    $claimedWorth = max(0, $unclaimedWorth - $remainingWorth);
+                    if ($remainingWorth === 0) {
+                        $messages[] = '已领取' . $claimedWorth . '成长值';
+                    } else {
+                        $success = false;
+                        $messages[] = TaskMessage::join([
+                            '已提交领取，剩余' . $remainingWorth . '成长值待入账',
+                            TaskMessage::compose([['label' => '成长值到账核验', 'status' => TaskMessage::FAILED]]),
+                        ]);
+                    }
+                }
+            }
+        } else {
+            $messages[] = TaskMessage::compose([['label' => '待领取成长值奖励', 'status' => TaskMessage::NONE]]);
         }
 
         $after = $this->vip_growthpoint();
+        if ((int)($after['code'] ?? 0) !== 200 || !is_array($after['data']['userLevel'] ?? null)) {
+            $rewardFailure('当前成长值读取', $after);
+        }
         $afterPoint = (int)($after['data']['userLevel']['growthPoint'] ?? $beforePoint);
         $delta = max(0, $afterPoint - $beforePoint);
         $messages[] = $delta > 0 ? '成长值+' . $delta . '（当前' . $afterPoint . '）' : '当前成长值' . $afterPoint;
 
         return $this->makeResult($success ? 200 : 201, TaskMessage::join($messages), [
+            'upstream_errors' => $rewardErrors,
             'signed' => !empty($sign['signed']),
             'listened' => (int)($listen['data']['reported'] ?? 0),
             'unclaimed_worth_before' => $unclaimedWorth,

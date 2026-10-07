@@ -17,13 +17,26 @@ final class NeteaseSchedule
             return null;
         }
 
-        $date = date('Y-m-d', $tomorrow);
+        // A late slot belongs to yesterday even when its jitter runs after midnight.
+        $yesterday = date('Y-m-d', (int)strtotime('-1 day', $now));
+        $previousBase = self::baseExecution($timing, $yesterday);
+        $previousSlot = $previousBase === null ? null
+            : $previousBase + self::dailyOffset($accountIdentity, $yesterday);
+        $crossedMidnight = $previousSlot !== null
+            && date('Y-m-d', $previousSlot) === date('Y-m-d', $now)
+            && $previousSlot <= $now;
+        $date = date('Y-m-d', $crossedMidnight ? $now : $tomorrow);
         $scheduled = self::baseExecution($timing, $date);
         if ($scheduled === null) {
             return null;
         }
 
-        return $scheduled + self::dailyOffset($accountIdentity, $date);
+        $candidate = $scheduled + self::dailyOffset($accountIdentity, $date);
+        if ($candidate <= $now) {
+            $date = date('Y-m-d', $tomorrow);
+            $candidate = self::baseExecution($timing, $date) + self::dailyOffset($accountIdentity, $date);
+        }
+        return $candidate;
     }
 
     public static function deferredLegacyExecution(

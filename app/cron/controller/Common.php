@@ -50,10 +50,7 @@ class Common
         $membershipChanged = Users::where('uid', '=', $uid)
             ->whereRaw('(`vip_start` IS NOT NULL OR `vip_end` IS NOT NULL)')
             ->update(['vip_start' => NULL, 'vip_end' => NULL]);
-        Jobs::where('type', '=', $type)
-            ->where('uid', '=', $uid)
-            ->where('user_id', '=', $user_id)
-            ->update(['state' => 0, 'nextExecute' => 0]);
+        Jobs::pauseVipJobs((string)$type, (int)$uid, (string)$user_id);
         $data = [
             'type' => $type,
             'user_id' => $user_id,
@@ -73,7 +70,6 @@ class Common
             'netease' => '网易云音乐',
             'bilibili' => '哔哩哔哩',
             'qq' => 'QQ',
-            'heybox' => '小黑盒',
         };
         $stateChanged = Accounts::where('user_id', '=', $user_id)
             ->where('type', '=', $type)

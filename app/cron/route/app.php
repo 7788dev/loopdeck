@@ -15,16 +15,14 @@ Route::rule('task', 'task/index');
 Route::rule('notifications', 'notifications/index');
 Route::rule('netease', 'netease/index');
 Route::rule('bilibili', 'bilibili/index');
-Route::rule('heybox', 'heybox/index');
 Route::rule('epic', 'epic/index');
 Route::rule('epic/notify', 'epic/notify');
 Route::rule('netease/:do', 'netease/execute');
 Route::rule('bilibili/:do', 'bilibili/execute');
-Route::rule('heybox/:do', 'heybox/execute');
 
 $retiredFeatureNotFound = static function () {
     return response('Not Found', 404);
 };
-foreach (['iqiyi', 'tieba', 'mihoyo', 'sport'] as $feature) {
+foreach (['iqiyi', 'tieba', 'mihoyo', 'sport', 'heybox'] as $feature) {
     Route::any("{$feature}/[:do]", $retiredFeatureNotFound);
 }

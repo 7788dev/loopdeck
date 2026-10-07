@@ -254,20 +254,9 @@ $protocolClient->videoDetail(170001);
 $protocolClient->startVideo($video);
 $protocolClient->videoHeartbeat($video, 60);
 $protocolClient->historyReport($video, 60);
-$protocolClient->shareVideo(170001);
 $protocolClient->coinVideo(170001);
 $protocolClient->mangaClockIn();
 $protocolClient->mangaShare();
-$protocolClient->liveDailyBagPc();
-$protocolClient->liveDailyBagApp();
-$protocolClient->liveWebHeart(1);
-$protocolClient->liveAppHeart(1);
-$protocolClient->liveGroupList();
-$protocolClient->liveGroupSign(['group_id' => 1, 'owner_uid' => 2]);
-$protocolClient->liveGiftHeart(1);
-$protocolClient->liveTaskInfo();
-$protocolClient->liveSignInfo();
-$protocolClient->liveSign();
 $protocolClient->liveSilverToCoinApp();
 $protocolClient->liveSilverToCoinPc();
 
@@ -284,20 +273,9 @@ $expectations = [
     '/x/click-interface/click/web/h5' => 'POST',
     '/x/click-interface/web/heartbeat' => 'POST',
     '/x/v2/history/report' => 'POST',
-    '/x/web-interface/share/add' => 'POST',
     '/x/web-interface/coin/add' => 'POST',
     '/twirp/activity.v1.Activity/ClockIn' => 'POST',
     '/twirp/activity.v1.Activity/ShareComic' => 'POST',
-    '/gift/v2/live/receive_daily_bag' => 'GET',
-    '/AppBag/sendDaily' => 'GET',
-    '/User/userOnlineHeart' => 'POST',
-    '/mobile/userOnlineHeart' => 'POST',
-    '/link_group/v1/member/my_groups' => 'GET',
-    '/link_setting/v1/link_setting/sign_in' => 'GET',
-    '/gift/v2/live/heart_gift_receive' => 'GET',
-    '/i/api/taskInfo' => 'GET',
-    '/xlive/web-ucenter/v1/sign/WebGetSignInfo' => 'GET',
-    '/xlive/web-ucenter/v1/sign/DoSign' => 'GET',
     '/AppExchange/silver2coin' => 'POST',
     '/xlive/revenue/v1/wallet/silver2coin' => 'POST',
 ];
@@ -337,13 +315,6 @@ $vipExperienceRequest = biliRequestByPath($protocolTransport->requests, '/x/vip/
 biliCheck(($vipExperienceRequest['options']['form_params']['csrf'] ?? '') === 'csrf', 'VIP experience claim is missing CSRF');
 $mangaRequest = biliRequestByPath($protocolTransport->requests, '/twirp/activity.v1.Activity/ClockIn');
 biliCheck(($mangaRequest['options']['form_params']['platform'] ?? '') === 'android', 'Manga clock-in is missing platform=android');
-$legacyRequest = biliRequestByPath($protocolTransport->requests, '/AppBag/sendDaily');
-biliCheck(isset($legacyRequest['options']['query']['appkey'], $legacyRequest['options']['query']['sign']), 'Legacy live compatibility request is unsigned');
-biliCheck(($legacyRequest['options']['query']['build'] ?? '') === '9050300', 'Legacy APP compatibility build is stale');
-biliCheck(str_contains($legacyRequest['options']['headers']['User-Agent'] ?? '', 'BiliDroid/9.5.0'), 'Legacy APP compatibility User-Agent is stale');
-$appHeartRequest = biliRequestByPath($protocolTransport->requests, '/mobile/userOnlineHeart');
-biliCheck(($appHeartRequest['options']['form_params']['csrf'] ?? '') === 'csrf', 'Legacy APP heartbeat is missing csrf');
-biliCheck(($appHeartRequest['options']['form_params']['csrf_token'] ?? '') === 'csrf', 'Legacy APP heartbeat is missing csrf_token');
 $appSilverRequest = biliRequestByPath($protocolTransport->requests, '/AppExchange/silver2coin');
 biliCheck(($appSilverRequest['options']['form_params']['csrf'] ?? '') === 'csrf', 'Legacy APP silver exchange is missing csrf');
 

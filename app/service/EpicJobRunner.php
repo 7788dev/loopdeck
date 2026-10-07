@@ -19,37 +19,41 @@ final class EpicJobRunner
             || !Jobs::claimDueJob($id, (int)($job['nextExecute'] ?? 0))) {
             return 'skipped';
         }
-        $common = new Common();
-        $notifications = new NotificationService();
-        $user = null;
         try {
-            $user = Users::where('uid', (int)$job['uid'])->where('web_id', 1)->where('state', 1)->find();
-            $config = safe_unserialize_array((string)($job['data'] ?? ''));
-            $timing = (string)($config['timing'] ?? '');
-            if (!$user || !AutomaticSchedule::isConfigured($timing)) {
-                Jobs::where('id', $id)->update(['state' => 0, 'nextExecute' => 0]);
-                return 'disabled';
+            $common = new Common();
+            $notifications = new NotificationService();
+            $user = null;
+            try {
+                $user = Users::where('uid', (int)$job['uid'])->where('web_id', 1)->where('state', 1)->find();
+                $config = safe_unserialize_array((string)($job['data'] ?? ''));
+                $timing = (string)($config['timing'] ?? '');
+                if (!$user || !AutomaticSchedule::isConfigured($timing)) {
+                    Jobs::where('id', $id)->update(['state' => 0, 'nextExecute' => 0]);
+                    return 'disabled';
+                }
+                if ((int)strtotime((string)($user['vip_end'] ?? '')) < time()) {
+                    $common->vipExpired('epic', (int)$user['uid'], (string)$job['user_id']);
+                    return 'disabled';
+                }
+                $result = (new EpicTaskExecutor($notifications))->execute($user);
+                $retry = (int)($result['retry_after_seconds'] ?? 0);
+                $disabled = !empty($result['disable_job']);
+                $next = $disabled ? 0 : ($retry > 0 ? time() + $retry : EpicSchedule::next($timing));
+                Jobs::updateClaimedJob($id, ['state' => $disabled ? 0 : 1,
+                    'lastExecute' => date('Y-m-d H:i:s'), 'nextExecute' => $next]);
+            } catch (Throwable $exception) {
+                $result = ['success' => false, 'message' => 'Epic 周免提醒执行异常，稍后重试', 'retry_after_seconds' => 300];
+                Jobs::updateClaimedJob($id, ['nextExecute' => time() + 300]);
             }
-            if ((int)strtotime((string)($user['vip_end'] ?? '')) < time()) {
-                $common->vipExpired('epic', (int)$user['uid'], (string)$job['user_id']);
-                return 'disabled';
+            $notifications->recordTask($user, 'epic', (string)$job['user_id'], 'weeklyGameNotify', 'Epic 周免提醒', $result);
+            try {
+                TaskLogs::operateExecuteLog('epic', (string)$job['user_id'], 'weeklyGameNotify',
+                    '[' . $common->statusTag($result) . '] ' . $result['message']);
+            } catch (Throwable $exception) {
             }
-            $result = (new EpicTaskExecutor($notifications))->execute($user);
-            $retry = (int)($result['retry_after_seconds'] ?? 0);
-            $disabled = !empty($result['disable_job']);
-            $next = $disabled ? 0 : ($retry > 0 ? time() + $retry : EpicSchedule::next($timing));
-            Jobs::where('id', $id)->update(['state' => $disabled ? 0 : 1,
-                'lastExecute' => date('Y-m-d H:i:s'), 'nextExecute' => $next]);
-        } catch (Throwable $exception) {
-            $result = ['success' => false, 'message' => 'Epic 周免提醒执行异常，稍后重试', 'retry_after_seconds' => 300];
-            Jobs::where('id', $id)->update(['nextExecute' => time() + 300]);
+            return !empty($result['success']) ? 'succeeded' : 'failed';
+        } finally {
+            Jobs::releaseDueJob($id);
         }
-        $notifications->recordTask($user, 'epic', (string)$job['user_id'], 'weeklyGameNotify', 'Epic 周免提醒', $result);
-        try {
-            TaskLogs::operateExecuteLog('epic', (string)$job['user_id'], 'weeklyGameNotify',
-                '[' . $common->statusTag($result) . '] ' . $result['message']);
-        } catch (Throwable $exception) {
-        }
-        return !empty($result['success']) ? 'succeeded' : 'failed';
     }
 }

@@ -38,6 +38,22 @@ foreach (['agent', 'site', 'vip', 'quota', 'money', 'unknown'] as $shop) {
 removalCheck((new Ajax())->shop('buy')->getCode() === 404, 'Purchase action remains reachable');
 removalCheck((new Ajax())->sport('add')->getCode() === 404, 'Retired sport AJAX action remains reachable');
 removalCheck((new Console())->sport('add', '1')->getCode() === 404, 'Retired sport console remains reachable');
+removalCheck((new Ajax())->heybox('add')->getCode() === 404, 'Retired Heybox import remains reachable');
+removalCheck((new Console())->heybox('info', '1')->getCode() === 404, 'Retired Heybox console remains reachable');
+foreach (['app/cron/controller/Heybox.php', 'extend/xiaoheihe/BlackBox.php', 'extend/xiaoheihe/Hkeyencode.php',
+    'app/index/view/console/heybox/add.html', 'app/index/view/console/heybox/list.html',
+    'app/index/view/console/heybox/info.html'] as $removedPath) {
+    removalCheck(!is_file($root . '/' . $removedPath), 'Retired Heybox implementation remains: ' . $removedPath);
+}
+foreach (['globalroom', 'dailybag', 'doubleheart', 'groupsignIn', 'giftheart', 'dailytask', 'shareAid',
+    'dailyBagPC', 'dailyBagAPP', 'webHeart', 'appHeart', 'getGroupList', 'signInGroup', 'gift_heart',
+    'check_daily', 'sign_info'] as $method) {
+    removalCheck(!method_exists(bilibili\BiliHelper::class, $method), 'Retired Bilibili protocol remains: ' . $method);
+}
+foreach (['shareVideo', 'liveDailyBagPc', 'liveDailyBagApp', 'liveWebHeart', 'liveAppHeart',
+    'liveGroupList', 'liveGroupSign', 'liveGiftHeart', 'liveTaskInfo', 'liveSignInfo', 'liveSign'] as $method) {
+    removalCheck(!method_exists(bilibili\sdk\Client::class, $method), 'Retired SDK protocol remains: ' . $method);
+}
 removalCheck(!method_exists(System::class, 'pay') && !method_exists(AdminAjax::class, 'pay'),
     'Payment settings or order actions remain auto-routable');
 removalCheck(!method_exists(app\index\model\Users::class, 'spendBalance'), 'Balance spending logic remains');
@@ -58,6 +74,7 @@ foreach (['app/index/view/index/default', 'app/index/view/login/default', 'publi
     removalCheck(!file_exists($root . '/' . $path), 'Original template remains: ' . $path);
 }
 $schema = file_get_contents($root . '/app/install/install.sql');
+removalCheck(!str_contains($schema, "'heybox'"), 'Fresh installations still create Heybox tasks');
 removalCheck(!preg_match('/cloud_(?:pays|order)|vip_price_|quota_price_|OrderPlacementMethod|`money`/', $schema),
     'Fresh installation recreates payment schema or settings');
 removalCheck((new System())->data('sites')->getCode() === 404, 'Retired site management page remains reachable');
@@ -113,7 +130,7 @@ removalCheck(!method_exists(app\index\model\Jobs::class, 'addSportJob'), 'Retire
 foreach (['app/cron/route/app.php', 'app/index/route/app.php'] as $routeFile) {
     $routeSource = file_get_contents($root . '/' . $routeFile);
     removalCheck(is_string($routeSource), 'Unable to inspect route file: ' . $routeFile);
-    removalCheck(preg_match("/\[\s*'iqiyi'\s*,\s*'tieba'\s*,\s*'mihoyo'\s*,\s*'sport'\s*\]/", $routeSource) === 1,
+    removalCheck(preg_match("/\[\s*'iqiyi'\s*,\s*'tieba'\s*,\s*'mihoyo'\s*,\s*'sport'\s*,\s*'heybox'\s*\]/", $routeSource) === 1,
         'Retired platform URLs lost their 404 mapping: ' . $routeFile);
 }
 $consoleCommands = file_get_contents($root . '/config/console.php');

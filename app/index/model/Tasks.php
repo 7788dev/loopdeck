@@ -27,20 +27,6 @@ class Tasks extends Model
         'bilibili' => [
             [
                 'type' => 'bilibili',
-                'name' => '每日分享',
-                'describe' => '每日分享功能已下架',
-                'icon' => 'si si-paper-plane',
-                'execute_name' => 'shareaid',
-                'execute_url' => null,
-                'execute_rate' => '86400',
-                'more' => 0,
-                'state' => 1,
-                'vip' => 1,
-                'time' => '2022-01-01 00:00:00',
-                'order' => 3,
-            ],
-            [
-                'type' => 'bilibili',
                 'name' => '每日经验任务',
                 'describe' => '核验登录、观看与投币基础经验，等待到账时自动复查',
                 'icon' => 'si si-graduation',

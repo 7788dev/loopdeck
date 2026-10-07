@@ -33,7 +33,6 @@ class Bilibili extends Command
         $limit = max(1, min(1000, (int)$input->getArgument('interval')));
         $executor = new BilibiliTaskExecutor();
         $this->disableOfflineJobs();
-        $vipExpiredAccounts = [];
         $executed = 0;
         $jobs = Jobs::where('type', 'bilibili')
             ->where('zid', 1)
@@ -49,9 +48,6 @@ class Bilibili extends Command
             $userId = (string)$job['user_id'];
             $taskName = (string)$job['do'];
             if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) {
-                continue;
-            }
-            if (isset($vipExpiredAccounts[$userId])) {
                 continue;
             }
 
@@ -78,7 +74,6 @@ class Bilibili extends Command
 
                 if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()) {
                     $this->vipExpired('bilibili', (int)$user['uid'], $userId);
-                    $vipExpiredAccounts[$userId] = true;
                     continue;
                 }
 
@@ -119,13 +114,15 @@ class Bilibili extends Command
 
                 Info::where('sysid', '100')->inc('times', 1)->update();
                 Info::where('sysid', '100')->update(['last' => date('Y-m-d H:i:s')]);
-                Jobs::where('id', $job['id'])->update(BilibiliTaskExecutor::jobUpdates(
+                Jobs::updateClaimedJob((int)$job['id'], BilibiliTaskExecutor::jobUpdates(
                     $result, $jobConfig, $userId, (string)$account['timing']
                 ));
                 $executed++;
             } catch (Throwable $exception) {
                 $this->writeLog($userId, $taskName,
                     '[' . (new \app\cron\controller\Common())->statusTag(['retry_after_seconds' => 300]) . '] 任务调度异常，等待租约到期后重试');
+            } finally {
+                Jobs::releaseDueJob((int)$job['id']);
             }
         }
 
@@ -135,14 +132,7 @@ class Bilibili extends Command
 
     private function disableOfflineJobs(): void
     {
-        $offlineTasks = array_keys(BilibiliTaskExecutor::OFFLINE_TASKS);
-        if ($offlineTasks === []) {
-            return;
-        }
-
-        Jobs::where('type', 'bilibili')
-            ->whereIn('do', $offlineTasks)
-            ->update(['state' => 0, 'nextExecute' => 0]);
+        Jobs::retireOfflineJobs();
     }
 
     private function writeLog(string $userId, string $task, string $message): void
@@ -152,22 +142,7 @@ class Bilibili extends Command
 
     private function vipExpired(string $type, int $uid, string $userId): void
     {
-        $membershipChanged = Users::where('uid', $uid)
-            ->whereRaw('(`vip_start` IS NOT NULL OR `vip_end` IS NOT NULL)')
-            ->update(['vip_start' => null, 'vip_end' => null]);
-        Jobs::where('type', $type)->where('user_id', $userId)->where('uid', $uid)->update(['state' => 0]);
-        TaskLogs::operateLog([
-            'type' => $type,
-            'user_id' => $userId,
-            'do' => '系统提示',
-            'response' => '会员过期，请开通会员后再试',
-        ]);
-        if ($membershipChanged > 0) {
-            $user = Users::where('uid', $uid)->find();
-            if ($user) {
-                (new BarkNotificationService())->sendVipExpired($user);
-            }
-        }
+        (new \app\cron\controller\Common())->vipExpired($type, $uid, $userId);
     }
 
     private function accountInvalid(string $type, $user, string $userId): void

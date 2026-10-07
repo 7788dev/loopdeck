@@ -72,7 +72,7 @@ function environment() {
     assert.equal(state.sent[0].data, 'id=2&quota_unlimited=1&vip_permanent=1&state=1',
         'Closing the administrator dialog discarded permanent entitlement settings');
 }
-for (const platform of ['netease', 'bilibili', 'heybox']) {
+for (const platform of ['netease', 'bilibili']) {
     const {state, context} = environment();
     vm.runInContext(scripts(`app/index/view/console/${platform}/info.html`), context);
     context.ajax_set_timing('42', '08:00');

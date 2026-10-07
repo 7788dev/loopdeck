@@ -43,7 +43,14 @@ final class AutomaticSchedule
 
         $nowDate = (new DateTimeImmutable('now'))->setTimestamp($now);
         [$hour, $minute] = array_map('intval', explode(':', $timing));
-        $next = $nowDate->modify('+1 day')->setTime($hour, $minute);
+        $identity = $type . ':' . $accountKey;
+        $previous = $nowDate->modify('-1 day')->setTime($hour, $minute);
+        $previousSlot = $previous->getTimestamp() + self::dailyJitter($identity, $previous->format('Y-m-d'));
+        $crossedMidnight = date('Y-m-d', $previousSlot) === $nowDate->format('Y-m-d') && $previousSlot <= $now;
+        $next = ($crossedMidnight ? $nowDate : $nowDate->modify('+1 day'))->setTime($hour, $minute);
+        if ($next->getTimestamp() + self::dailyJitter($identity, $next->format('Y-m-d')) <= $now) {
+            $next = $next->modify('+1 day');
+        }
         return $next->getTimestamp() + self::dailyJitter($type . ':' . $accountKey, $next->format('Y-m-d'));
     }
 

@@ -218,14 +218,6 @@ class Bilibili
         return ['code' => 0, 'pending_verification' => true, 'message' => '观看已上报，经验尚未确认'];
     }
 
-    public function shareAid(): array
-    {
-        // The main-site daily share task has been retired. Keep this method as
-        // a compatibility boundary, but never let a legacy caller reach the
-        // share endpoint.
-        return ['code' => 0, 'message' => '每日分享功能已下架'];
-    }
-
     public function coinAdd(): array
     {
         $nav = $this->authenticatedNav();
@@ -466,113 +458,6 @@ class Bilibili
         return $this->failure($response, '分享失败');
     }
 
-    public function dailyBagPC(): array
-    {
-        if ($this->authenticatedNav() === null) {
-            return $this->invalidAccount();
-        }
-        $response = $this->client->liveDailyBagPc();
-        if (($response['code'] ?? -1) !== 0) {
-            return $this->failure($response, 'PC 礼包领取失败');
-        }
-        if (empty($response['data']['bag_list'])) {
-            return ['code' => 0, 'message' => '暂无 PC 礼包可领取'];
-        }
-        return ['code' => 1, 'status' => 'done', 'message' => 'PC 礼包已领取'];
-    }
-
-    public function dailyBagAPP(): array
-    {
-        if ($this->authenticatedNav() === null) {
-            return $this->invalidAccount();
-        }
-        $response = $this->client->liveDailyBagApp();
-        if (($response['code'] ?? -1) !== 0) {
-            return $this->failure($response, 'APP 礼包领取失败');
-        }
-        // This legacy endpoint only acknowledges the request, without a receipt.
-        return ['code' => 1, 'status' => 'none', 'message' => 'APP 礼包请求已提交'];
-    }
-
-    public function webHeart(): array
-    {
-        $roomId = $this->config['global_room'] ?? 1;
-        return $this->liveCompatibility('PC 心跳', fn(): array => $this->client->liveWebHeart($roomId));
-    }
-
-    public function appHeart(): array
-    {
-        $roomId = $this->config['global_room'] ?? 1;
-        return $this->liveCompatibility('APP 心跳', fn(): array => $this->client->liveAppHeart($roomId));
-    }
-
-    public function getGroupList(): array
-    {
-        if ($this->authenticatedNav() === null) {
-            return $this->invalidAccount();
-        }
-        $response = $this->client->liveGroupList();
-        if (($response['code'] ?? -1) !== 0) {
-            return $this->failure($response, '应援团列表获取失败');
-        }
-        $groups = is_array($response['data']['list'] ?? null) ? $response['data']['list'] : [];
-        return [
-            'code' => 1,
-            'message' => $groups === [] ? '没有需要签到的应援团' : '获取应援团列表成功',
-            'groups' => $groups,
-        ];
-    }
-
-    public function signInGroup(array $groupInfo): array
-    {
-        $response = $this->client->liveGroupSign($groupInfo);
-        $name = (string)($groupInfo['group_name'] ?? $groupInfo['group_id'] ?? '未知应援团');
-        if (($response['code'] ?? -1) === 0 && (int)($response['data']['status'] ?? 0) === 0) {
-            return [
-                'code' => 1,
-                'add_num' => (int)($response['data']['add_num'] ?? 0),
-                'message' => '应援团「' . $name . '」签到成功',
-            ];
-        }
-        return $this->failure($response, '应援团「' . $name . '」签到失败');
-    }
-
-    public function gift_heart(): array
-    {
-        $roomId = $this->config['global_room'] ?? 1;
-        if ($this->authenticatedNav() === null) {
-            return $this->invalidAccount();
-        }
-        $response = $this->client->liveGiftHeart($roomId);
-        if (($response['code'] ?? -1) !== 0) {
-            return $this->failure($response, '礼物领取失败');
-        }
-        if (empty($response['data']['gift_list'])) {
-            return ['code' => 0, 'message' => '暂无可领取的礼物'];
-        }
-        return ['code' => 1, 'message' => '礼物已领取'];
-    }
-
-    public function check_daily(): array
-    {
-        if ($this->authenticatedNav() === null) {
-            return $this->invalidAccount();
-        }
-        return $this->client->liveSignInfo();
-    }
-
-    public function sign_info($info): array
-    {
-        if (is_array($info) && (int)($info['status'] ?? 0) === 1) {
-            return ['code' => 1, 'message' => '直播签到：今日已签到'];
-        }
-        $response = $this->client->liveSign();
-        if (($response['code'] ?? -1) === 0) {
-            return ['code' => 1, 'message' => '直播签到：成功'];
-        }
-        return $this->failure($response, '直播签到失败（上游已标记该活动下线）');
-    }
-
     public function appSilver2coin(): array
     {
         return $this->silverExchange('APP 银瓜子', fn(): array => $this->client->liveSilverToCoinApp());
@@ -703,18 +588,6 @@ class Bilibili
             ];
         }
         return $result;
-    }
-
-    private function liveCompatibility(string $label, callable $request): array
-    {
-        if ($this->authenticatedNav() === null) {
-            return $this->invalidAccount();
-        }
-        $response = $request();
-        if (($response['code'] ?? -1) === 0) {
-            return ['code' => 1, 'status' => 'done', 'message' => $label . '已完成'];
-        }
-        return $this->failure($response, $label . '不可用或已下线');
     }
 
     private function silverExchange(string $label, callable $request): array

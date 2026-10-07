@@ -119,7 +119,6 @@ class Task extends Common
         $taskMap = [
             'netease' => self::NETEASE_TASKS,
             'bilibili' => BilibiliTaskExecutor::executableTasks(),
-            'heybox' => ['sign'],
             'epic' => ['weeklyGameNotify'],
         ];
         $now = time();
@@ -280,6 +279,7 @@ class Task extends Common
         $taskName = trim((string)($job['do'] ?? ''));
         $scheduledAt = (int)($job['nextExecute'] ?? 0);
         $accountKey = $this->accountKey($type, $uid, $userId);
+        $claimed = false;
 
         try {
             if ($jobId <= 0 || $uid <= 0 || $userId === '' || !$this->supports($type, $taskName)) {
@@ -295,7 +295,7 @@ class Task extends Common
                 }
                 return;
             }
-            if (!Jobs::claimDueJob($jobId, $scheduledAt)) {
+            if (!($claimed = Jobs::claimDueJob($jobId, $scheduledAt))) {
                 return;
             }
             if (isset($this->suppressedAccounts[$accountKey])) {
@@ -344,7 +344,6 @@ class Task extends Common
                 $result = match ($type) {
                     'netease' => $this->executeNetease($taskName, $userId, $accountData, $jobConfig),
                     'bilibili' => $this->executeBilibili($taskName, $accountData, $jobConfig),
-                    'heybox' => $this->executeHeybox($taskName, $accountData),
                 };
             } catch (Throwable $exception) {
                 $this->retryJob($jobId);
@@ -381,7 +380,7 @@ class Task extends Common
                     $result, $storedJobConfig, $userId, (string)$account['timing']
                 );
             }
-            Jobs::where('id', $jobId)->update($updates);
+            Jobs::updateClaimedJob($jobId, $updates);
             $summary[$result['success'] ? 'succeeded' : 'failed']++;
         } catch (Throwable $exception) {
             if ($jobId > 0) {
@@ -392,6 +391,10 @@ class Task extends Common
                 $this->statusTag(['retry_after_seconds' => 300])
             );
             $summary['failed']++;
+        } finally {
+            if ($claimed) {
+                Jobs::releaseDueJob($jobId);
+            }
         }
     }
 
@@ -399,25 +402,12 @@ class Task extends Common
     {
         return ($type === 'netease' && in_array($task, self::NETEASE_TASKS, true))
             || ($type === 'bilibili' && BilibiliTaskExecutor::supports($task))
-            || ($type === 'heybox' && $task === 'sign')
             || ($type === 'epic' && $task === 'weeklyGameNotify');
     }
 
     private function notifications(): NotificationService
     {
         return $this->notificationService ??= new NotificationService();
-    }
-
-    private function executeHeybox(string $task, array $account): array
-    {
-        if ($task !== 'sign') {
-            throw new \RuntimeException('Unsupported Heybox task');
-        }
-        $client = new \xiaoheihe\BlackBox((string)($account['heybox_id'] ?? ''), (string)($account['pkey'] ?? ''));
-        $response = $client->sign();
-        return ['success' => in_array((int)($response['code'] ?? 0), [1, 200], true),
-            'message' => (string)($response['message'] ?? '小黑盒任务执行完成'),
-            'account_invalid' => $client->cookiezt, 'retry_after_seconds' => 0];
     }
 
     private function executeNetease(string $task, string $userId, array $account, array $config): array
@@ -565,7 +555,7 @@ class Task extends Common
                 }
             }
 
-            Jobs::where('id', $jobId)->update([
+            Jobs::updateClaimedJob($jobId, [
                 'lastExecute' => date('Y-m-d H:i:s'),
                 'nextExecute' => $nextExecute,
             ]);
@@ -575,7 +565,7 @@ class Task extends Common
             // Make one best-effort short lease update; if the database is
             // unavailable, the original claim will expire on its own.
             try {
-                Jobs::where('id', $jobId)->update([
+                Jobs::updateClaimedJob($jobId, [
                     'lastExecute' => date('Y-m-d H:i:s'),
                     'nextExecute' => time() + 300,
                 ]);
@@ -592,14 +582,7 @@ class Task extends Common
      */
     private function disableOfflineBilibiliJobs(): void
     {
-        $offlineTasks = array_keys(BilibiliTaskExecutor::OFFLINE_TASKS);
-        if ($offlineTasks === []) {
-            return;
-        }
-
-        Jobs::where('type', 'bilibili')
-            ->whereIn('do', $offlineTasks)
-            ->update(['state' => 0, 'nextExecute' => 0]);
+        Jobs::retireOfflineJobs();
     }
 
     private function stableJitter(int $seed, int $maximum): int
@@ -624,11 +607,7 @@ class Task extends Common
         $membershipChanged = Users::where('uid', $uid)
             ->whereRaw('(`vip_start` IS NOT NULL OR `vip_end` IS NOT NULL)')
             ->update(['vip_start' => null, 'vip_end' => null]);
-        Jobs::where('type', $type)
-            ->where('uid', $uid)
-            ->where('user_id', $userId)
-            ->update(['state' => 0]);
-        $this->suppressedAccounts[$this->accountKey($type, $uid, $userId)] = true;
+        Jobs::pauseVipJobs($type, $uid, $userId);
         $this->writeLog($type, $userId, '系统提示', '会员过期，请开通会员后再试');
         $user = $this->user($uid);
         if ($membershipChanged > 0 && $user) {

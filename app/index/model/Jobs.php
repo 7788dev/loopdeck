@@ -5,6 +5,7 @@ namespace app\index\model;
 
 use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
+use app\service\TaskExecutionLock;
 use think\Collection;
 use think\db\exception\DataNotFoundException;
 use think\db\exception\DbException;
@@ -17,6 +18,7 @@ class Jobs extends Model
     protected $pk = 'id';
 
     private const EXECUTION_LEASE_SECONDS = 1800;
+    private static array $executionLeases = [];
 
     public static function add($type, $user_id)
     {
@@ -257,18 +259,29 @@ class Jobs extends Model
             ->where('do', $do)
             ->where('uid', Session::get('user.uid'));
         if ($ret = $sql->find()) {
-            if ($type === 'bilibili'
-                && BilibiliTaskExecutor::offlineReason((string)$do) !== null) {
-                return $sql->update(['state' => 0, 'nextExecute' => 0]);
+            $id = (int)$ret['id'];
+            if (!TaskExecutionLock::acquire('job:' . $id)) {
+                return false;
             }
-            if ($ret->state == -1) {
-                $result = $sql->update(['state' => 1]);
-            } else {
-                $result = $sql->update([
-                    'state' => $ret['state'] ^ 1
-                ]);
+            try {
+                $ret = (new static())->where('id', $id)->find();
+                if (!$ret) {
+                    return false;
+                }
+                if ($type === 'bilibili'
+                    && BilibiliTaskExecutor::offlineReason((string)$do) !== null) {
+                    return $sql->update(['state' => 0, 'nextExecute' => 0]);
+                }
+                $state = (int)$ret['state'] === 1 ? 0 : 1;
+                $updates = ['state' => $state];
+                if ($state === 1 && (int)$ret['nextExecute'] <= 0) {
+                    $updates['nextExecute'] = self::nextExecutionForAccount((string)$type, (string)$user_id);
+                }
+                $result = $sql->update($updates);
+                return $result;
+            } finally {
+                TaskExecutionLock::release('job:' . $id);
             }
-            return $result;
         }
         return false;
     }
@@ -377,16 +390,117 @@ class Jobs extends Model
             return false;
         }
 
-        $affected = (new static())
-            ->where('id', '=', $id)
-            ->where('zid', '=', 1)
-            ->where('state', '=', 1)
-            ->where('nextExecute', '=', $expectedNextExecute)
-            ->where('nextExecute', '>', 0)
-            ->where('nextExecute', '<=', $now)
-            ->update(['nextExecute' => $now + self::EXECUTION_LEASE_SECONDS]);
+        if (!TaskExecutionLock::acquire('job:' . $id)) {
+            return false;
+        }
 
-        return (int)$affected === 1;
+        try {
+            $affected = (new static())
+                ->where('id', '=', $id)
+                ->where('zid', '=', 1)
+                ->where('state', '=', 1)
+                ->where('nextExecute', '=', $expectedNextExecute)
+                ->where('nextExecute', '>', 0)
+                ->where('nextExecute', '<=', $now)
+                ->update(['nextExecute' => $now + self::EXECUTION_LEASE_SECONDS]);
+            if ((int)$affected === 1) {
+                self::$executionLeases[$id] = $now + self::EXECUTION_LEASE_SECONDS;
+                return true;
+            }
+        } catch (\Throwable $exception) {
+            TaskExecutionLock::release('job:' . $id);
+            throw $exception;
+        }
+        TaskExecutionLock::release('job:' . $id);
+        return false;
+    }
+
+    /** Finish only the lease we own; never overwrite a later user schedule or cancellation. */
+    public static function updateClaimedJob(int $id, array $updates): bool
+    {
+        if (!isset(self::$executionLeases[$id])) {
+            return false;
+        }
+        return (int)(new static())->where('id', $id)->where('state', 1)
+            ->where('nextExecute', self::$executionLeases[$id])->update($updates) > 0;
+    }
+
+    public static function releaseDueJob(int $id): void
+    {
+        unset(self::$executionLeases[$id]);
+        TaskExecutionLock::release('job:' . $id);
+    }
+
+    /** Queue manual work only while idle; the worker holds this lock until its finally block. */
+    public static function requestImmediate(array $ids): int
+    {
+        $updated = 0;
+        foreach ($ids as $id) {
+            $id = (int)$id;
+            if ($id <= 0 || !TaskExecutionLock::acquire('job:' . $id)) {
+                continue;
+            }
+            try {
+                $updated += (int)(new static())->where('id', $id)->where('state', 1)
+                    ->update(['nextExecute' => time()]);
+            } finally {
+                TaskExecutionLock::release('job:' . $id);
+            }
+        }
+        return $updated;
+    }
+
+    public static function pauseVipJobs(string $type, int $uid, string $userId): void
+    {
+        $tasks = $type === 'epic' ? ['weeklyGameNotify']
+            : Tasks::where('type', $type)->where('vip', 1)->column('execute_name');
+        if ($tasks !== []) {
+            (new static())->where('type', $type)->where('uid', $uid)->where('user_id', $userId)
+                ->whereIn('do', $tasks)->update(['state' => 0, 'nextExecute' => 0]);
+        }
+    }
+
+    /** Best-effort housekeeping must not abort an otherwise runnable scheduler batch. */
+    public static function retireOfflineJobs(): void
+    {
+        $key = 'maintenance:retired-jobs';
+        try {
+            if (!TaskExecutionLock::acquire($key)) {
+                return;
+            }
+        } catch (\Throwable $exception) {
+            error_log('LoopDeck: retired-task maintenance lock unavailable');
+            return;
+        }
+        try {
+            $ids = (new static())->where(static function ($query): void {
+                $query->where(static function ($bilibili): void {
+                    $bilibili->where('type', 'bilibili')->whereIn('do', array_keys(BilibiliTaskExecutor::OFFLINE_TASKS));
+                })->whereOr('type', 'heybox');
+            })
+                ->where(static function ($query): void {
+                    $query->where('state', '<>', 0)->whereOr('nextExecute', '<>', 0);
+                })->order('id')->limit(500)->column('id');
+            foreach ($ids as $id) {
+                // PK updates avoid scanning and locking the mutable due-time index.
+                for ($attempt = 0; $attempt < 3; $attempt++) {
+                    try {
+                        (new static())->where('id', (int)$id)
+                            ->update(['state' => 0, 'nextExecute' => 0]);
+                        break;
+                    } catch (\Throwable $exception) {
+                        if ($attempt === 2) {
+                            throw $exception;
+                        }
+                        usleep(20000);
+                    }
+                }
+            }
+        } catch (\Throwable $exception) {
+            error_log('LoopDeck: retired-task maintenance deferred to the next batch');
+        } finally {
+            TaskExecutionLock::release($key);
+        }
     }
 
     private static function nextExecutionForAccount(string $type, string $userId, $uid = null): int

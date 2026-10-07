@@ -47,7 +47,7 @@ hardeningCheck(
 
 // --- Cron: no RUN_KEY in URLs -------------------------------------------
 
-foreach (['Bilibili', 'Heybox', 'Epic'] as $controller) {
+foreach (['Bilibili', 'Epic'] as $controller) {
     $source = file_get_contents($root . '/app/cron/controller/' . $controller . '.php');
     hardeningCheck(is_string($source), 'Unable to inspect cron controller ' . $controller);
     hardeningCheck(

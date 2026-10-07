@@ -57,6 +57,8 @@ Every feature removal must be pinned by "no longer reachable" assertions in `tes
 
 `DockerDeploymentTest.php` executes deployment scripts against a stub Docker CLI in a temporary directory. On Windows, set `LOOPDECK_TEST_SHELL` to Git for Windows `bin/sh.exe`; Linux uses `sh` from `PATH`.
 
+For Linux container tests sourced from Windows, transfer committed code with `git -c core.autocrlf=false archive` and verify LF inside the archive; keep test MySQL, volumes and upstream fixtures isolated from production ([validation](.agents/notes/implemented/testing/2026-10-07-isolated-container-scheduler.md)).
+
 ## Commit & Pull Request Guidelines
 
 History uses concise Conventional Commit subjects: `feat: add ...`, `fix: prevent ...`, `test: align ...`, and `docs: clarify ...`. Keep commits focused. A release is one commit: bump `VERSION` and rewrite the README `当前版本` section together — the old current-version block moves to the top of `历史更新` as a single line ([decision](.agents/notes/implemented/process/2026-09-25-release-updates-version-and-readme.md)); run releases with the [release-version workflow](.agents/skills/release-version/SKILL.md), which ends only after the GHCR image for the pushed HEAD is verified. Pull requests should explain behavior and risk, link issues, list commands run, and include screenshots for UI changes. Highlight schema, environment, Docker, or scheduler changes.

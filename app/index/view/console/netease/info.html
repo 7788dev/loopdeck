@@ -158,6 +158,9 @@
                                     {if condition="$v.next_execute neq ''"}
                                     <p class="text-muted" style="margin-bottom: 0;"><small>下次计划：{$v.next_execute}（含当日偏移）</small></p>
                                     {/if}
+                                    {if condition="!empty($v.progress)"}
+                                    <p class="text-info" style="margin-bottom: 0;"><small>{$v.progress}</small></p>
+                                    {/if}
                                 </td>
                                 <td class="hidden-xs"><i class="fa fa-clock-o"></i>
                                     {if condition="$v.last_execute neq ''"}
@@ -221,6 +224,7 @@
                     <h5>任务运行日志 <small>仅展示最新的50条数据</small></h5>
                 </div>
                 <div class="ibox-content">
+                    <p class="text-muted"><small>每日300首的补齐进度显示在上方任务中；运行日志只记录最终结果。刷新页面可查看最新进度。</small></p>
                     <table class="table table-bordered table-striped task-table js-dataTable-responsive" id="task-logs-list" data-type="netease" data-user_id="{$data.user_id}">
                     </table>
                 </div>

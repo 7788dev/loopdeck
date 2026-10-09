@@ -55,6 +55,10 @@ class Netease
      */
     protected bool $dakaHistorySeedIncomplete = false;
 
+    private const DAKA_COMPLETION_WINDOW_SECONDS = 1800;
+    protected ?int $dakaDeadlineAt = null;
+    protected bool $dakaPreferSearch = false;
+
     protected $resourceTypeMap = [
         0 => 'R_SO_4_',
         1 => 'R_MV_5_',
@@ -788,6 +792,9 @@ class Netease
         ];
         $success = 0;
         foreach (array_chunk($songs, $concurrency, true) as $chunk) {
+            if ($this->dakaTimeRemaining() <= 45) {
+                break;
+            }
             $startRequests = [];
             $playRequests = [];
             foreach ($chunk as $index => $song) {
@@ -969,12 +976,20 @@ class Netease
         return time();
     }
 
-    /** Keep settlement retries within the day whose baseline they verify. */
+    /** Leave a whole scheduler minute for the final read before the deadline. */
     protected function dakaRetryDelay(int $seconds): int
     {
         $now = $this->dakaNow();
-        $remaining = (int)strtotime('tomorrow', $now) - $now - 1;
+        $deadline = $this->dakaDeadlineAt ?? (int)strtotime('tomorrow', $now);
+        $lastVerification = (int)(floor(($deadline - 60) / 60) * 60);
+        $remaining = $lastVerification - $now;
         return $remaining >= 60 ? min(max(60, $seconds), $remaining) : 0;
+    }
+
+    protected function dakaTimeRemaining(): int
+    {
+        return $this->dakaDeadlineAt === null ? PHP_INT_MAX
+            : max(0, $this->dakaDeadlineAt - $this->dakaNow());
     }
 
     /**
@@ -1053,11 +1068,14 @@ class Netease
         }
 
         if ($source === 'highquality') {
-            $pools[] = fn(): array => $this->get_highquality_playlist(50);
+            $preferred = fn(): array => $this->get_highquality_playlist(50);
         } elseif ($source === 'personalized') {
-            $pools[] = fn(): array => $this->personalized(50);
+            $preferred = fn(): array => $this->personalized(50);
         } else {
-            $pools[] = fn(): array => $this->recommend_playlist();
+            $preferred = fn(): array => $this->recommend_playlist();
+        }
+        if (!$this->dakaPreferSearch) {
+            $pools[] = $preferred;
         }
         // Search is the long-tail source. Keep every configured search round
         // ahead of the hot charts: popular chart tracks are the least likely
@@ -1073,6 +1091,12 @@ class Netease
                 shuffle($ids);
                 return array_slice($ids, 0, $searchPlaylistLimit);
             };
+        }
+        // The play-record API is only a sample of lifetime listening. If the
+        // selected feed was accepted but barely counted, try different pools
+        // before consuming another batch on that same recommendation feed.
+        if ($this->dakaPreferSearch) {
+            $pools[] = $preferred;
         }
         // Official charts are the final safety net, not the first deep pool.
         $pools[] = static fn(): array => self::DAKA_CHART_PLAYLISTS;
@@ -1147,6 +1171,9 @@ class Netease
         }
         foreach ($floors as $minimumSeconds) {
             foreach ($pools as $index => $pool) {
+                if ($this->dakaTimeRemaining() <= 90) {
+                    return $songs;
+                }
                 if (!array_key_exists($index, $resolved)) {
                     try {
                         $resolved[$index] = $this->normalizePlaylistIds($pool());
@@ -1295,6 +1322,9 @@ class Netease
         $minimumSeconds ??= $this->dakaMinimumSongSeconds();
         shuffle($playlists);
         foreach ($playlists as $playlistId) {
+            if ($this->dakaTimeRemaining() <= 75) {
+                return;
+            }
             $playlistId = (int)$playlistId;
             if ($playlistId <= 0) {
                 continue;
@@ -1678,7 +1708,42 @@ class Netease
     public function daka_new()
     {
         $startedAt = microtime(true);
-        $retrySeconds = max(120, min(3600, (int)($this->config['daka_retry_seconds'] ?? 300)));
+        $now = $this->dakaNow();
+        $today = date('Y-m-d', $now);
+        $dailyState = $this->loadDakaDailyState();
+        $stateDate = (string)($dailyState['date'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $stateDate) && $stateDate < $today
+            && empty($dailyState['completed']) && empty($dailyState['sealed'])
+            && !empty($dailyState['next_verification_at'])) {
+            // A delayed scheduler must finish yesterday before starting a new
+            // baseline. Otherwise the only visible final result is lost.
+            $target = max(1, min(300, (int)($dailyState['target'] ?? 300)));
+            $progress = min($target, max(0, (int)($dailyState['actual_progress'] ?? 0)));
+            $dailyState['sealed'] = true;
+            $dailyState['next_verification_at'] = 0;
+            $dailyState['reason'] = '上次任务的核验窗口已结束';
+            $dailyState['updated_at'] = date('c', $now);
+            $this->rememberDakaDailyState($dailyState);
+            return $this->makeResult(201, $stateDate . ' 已完成 ' . $progress . '/' . $target
+                . '，上次任务的核验窗口已结束', [
+                    'submitted' => 0, 'retry_after_seconds' => 0, 'run_date' => $stateDate,
+                    'daily_actual_progress' => $progress, 'daily_target' => $target,
+                ]);
+        }
+        $sameDay = $stateDate === $today;
+        $windowStartedAt = $sameDay ? (int)($dailyState['window_started_at'] ?? $now) : $now;
+        $windowStartedAt = min($now, max(1, $windowStartedAt));
+        $this->dakaDeadlineAt = min($windowStartedAt + self::DAKA_COMPLETION_WINDOW_SECONDS,
+            (int)strtotime($today . ' +1 day'));
+        $dailyState = array_replace($sameDay ? $dailyState : [], [
+            'date' => $today, 'window_started_at' => $windowStartedAt,
+            'deadline_at' => $this->dakaDeadlineAt,
+        ]);
+        if (!$this->rememberDakaDailyState($dailyState)) {
+            return $this->makeResult(201, '保存打卡进度失败，本次未上报', ['submitted' => 0, 'retry_after_seconds' => 0]);
+        }
+        // Six default batches can now settle and be replaced within 30 minutes.
+        $retrySeconds = max(60, min(120, (int)($this->config['daka_retry_seconds'] ?? 60)));
         $before = $this->dakaListenSongs(0);
         $beforeCode = $before['code'];
         $listenSongs = $before['listen_songs'];
@@ -1690,19 +1755,25 @@ class Netease
             ]);
         }
         if ($beforeCode !== 200) {
-            return $this->makeResult(201, '网易云听歌数据读取失败，稍后自动重试', [
+            $retryAfter = $this->dakaRetryDelay($retrySeconds);
+            $dailyState['next_verification_at'] = $retryAfter > 0 ? $this->dakaNow() + $retryAfter : 0;
+            $dailyState['sealed'] = $retryAfter === 0;
+            $dailyState['reason'] = '网易云听歌数据读取失败';
+            $dailyState['updated_at'] = date('c', $this->dakaNow());
+            $this->rememberDakaDailyState($dailyState);
+            return $this->makeResult(201, $retryAfter > 0 ? '网易云听歌数据读取失败，稍后自动重试'
+                : '网易云听歌数据读取失败，本轮核验已结束（限时30分钟）', [
                 'submitted' => 0,
-                'retry_after_seconds' => $this->dakaRetryDelay($retrySeconds),
+                'retry_after_seconds' => $retryAfter,
+                'next_verification_at' => $dailyState['next_verification_at'],
+                'deadline_at' => $this->dakaDeadlineAt,
+                'run_date' => $today,
                 'target_reached' => false,
             ]);
         }
 
         $source = (string)($this->config['daka_music_from'] ?? 'daily_recommend');
         $target = max(1, min(300, (int)($this->config['daka_limit'] ?? 300)));
-        $now = $this->dakaNow();
-        $today = date('Y-m-d', $now);
-        $dailyState = $this->loadDakaDailyState();
-        $sameDay = (string)($dailyState['date'] ?? '') === $today;
         $baseline = $sameDay
             ? (int)($dailyState['listen_songs_baseline']
                 ?? $dailyState['listen_songs_before']
@@ -1747,16 +1818,17 @@ class Netease
         }
 
         $maxBatches = max(1, min(30, (int)($this->config['daka_max_batches_per_day'] ?? 6)));
-        $settlementChecks = max(1, min(10, (int)($this->config['daka_max_verification_runs'] ?? 3)));
+        $settlementChecks = max(1, min(2, (int)($this->config['daka_max_verification_runs'] ?? 2)));
         $settlementWait = max(0, min(60, (int)($this->config['daka_internal_wait_seconds'] ?? 15)));
         $lastSubmittedAt = $sameDay ? max(0, (int)($dailyState['last_submitted_at'] ?? 0)) : 0;
         if ($lastSubmittedAt === 0 && $sameDay && $submittedTotal > 0) {
             $lastSubmittedAt = max(0, (int)strtotime((string)($dailyState['updated_at'] ?? '')));
         }
         $nextVerificationAt = $sameDay ? max(0, (int)($dailyState['next_verification_at'] ?? 0)) : 0;
+        $nextVerificationAt = min($nextVerificationAt, $now + $retrySeconds);
         // The profile counter commonly settles minutes after weblog accepts
         // a batch. Preserve replacement capacity while that batch is pending.
-        $canSubmit = $attempts < $maxBatches && $now >= $nextVerificationAt
+        $canSubmit = $this->dakaTimeRemaining() > 90 && $attempts < $maxBatches && $now >= $nextVerificationAt
             && ($lastSubmittedAt === 0 || $now >= $lastSubmittedAt + $retrySeconds * $settlementChecks);
         // Keep a small replacement cushion for accepted weblogs that NetEase
         // declines to count. This is a submission ceiling, not a new quota;
@@ -1808,10 +1880,15 @@ class Netease
             &$internalBatches,
             &$protocolWaitSeconds,
             &$lastSubmittedAt,
-            &$nextVerificationAt
+            &$nextVerificationAt,
+            &$reason,
+            $windowStartedAt
         ): bool {
             return $this->rememberDakaDailyState([
                 'date' => $today,
+                'window_started_at' => $windowStartedAt,
+                'deadline_at' => $this->dakaDeadlineAt,
+                'reason' => $reason,
                 'target' => $target,
                 'listen_songs_baseline' => $baseline,
                 'listen_songs_observed' => $observedBefore,
@@ -1875,6 +1952,8 @@ class Netease
                     'attempts' => $attempts,
                     'internal_batches' => 0,
                     'retry_after_seconds' => 0,
+                    'run_date' => $today,
+                    'deadline_at' => $this->dakaDeadlineAt,
                     'protocol_wait_seconds' => 0,
                     'listen_songs_before' => $confirmedBefore,
                     'listen_songs_after' => $observedBefore,
@@ -1909,7 +1988,7 @@ class Netease
             return 200;
         };
 
-        while ($canSubmit && $attempts < $maxBatches && $remaining > 0) {
+        while ($canSubmit && $this->dakaTimeRemaining() > 90 && $attempts < $maxBatches && $remaining > 0) {
             $available = max(0, $submissionCeiling - $submittedTotal);
             if ($available <= 0) {
                 $reason = '已达到本次补齐安全上限';
@@ -1927,8 +2006,19 @@ class Netease
                 1000,
                 max(1, min($remaining + $batchCushion, $available))
             );
+            $this->dakaPreferSearch = $submittedTotal > 0 && $actualProgressBefore * 5 < $submittedTotal * 4;
+            if ($this->dakaPreferSearch && $remaining > 10) {
+                // Low-yield batches need enough genuinely different candidates;
+                // shrinking every replacement to the shortfall repeats the stall.
+                $candidateLimit = min($target + $submissionCushion, $maxSubmittedPerDay - $submittedTotal,
+                    max($candidateLimit, (int)ceil($remaining * $submittedTotal / max(1, $actualProgressBefore))));
+            }
             $candidates = $this->dakaCandidates($source, $submittedToday, $candidateLimit);
             $candidateCountTotal += count($candidates);
+            if ($this->dakaTimeRemaining() <= 90) {
+                $reason = '本轮核验时间已用尽';
+                break;
+            }
             if ($this->cookiezt) {
                 $reason = '登录状态已失效';
                 break;
@@ -2023,6 +2113,7 @@ class Netease
         // endpoint acknowledges the batch before the profile counter catches
         // up. Longer settlement waits are handed back to the scheduler so a
         // pending account does not occupy a PHP worker for several minutes.
+        $settlementWait = min($settlementWait, max(0, $this->dakaTimeRemaining() - 30));
         if ($remaining > 0 && $internalBatches > 0 && !$this->cookiezt
             && $lastDelta <= 0 && $settlementWait > 0) {
             $this->waitDakaSettlement($settlementWait);
@@ -2040,8 +2131,7 @@ class Netease
         if (!$completed && !$this->cookiezt) {
             $delay = $nextVerificationAt > $this->dakaNow()
                 ? $nextVerificationAt - $this->dakaNow()
-                : ($attempts >= $maxBatches || $submittedTotal >= $maxSubmittedPerDay
-                    ? max(900, $retrySeconds) : $retrySeconds);
+                : $retrySeconds;
             $retryAfter = $this->dakaRetryDelay($delay);
         }
         $nextVerificationAt = $retryAfter > 0 ? $this->dakaNow() + $retryAfter : 0;
@@ -2051,7 +2141,7 @@ class Netease
                 : '等待网易云累计听歌入账';
         }
         if (!$completed && !$this->cookiezt && $retryAfter === 0) {
-            $reason = '今日核验窗口已结束，实际计数未达到目标';
+            $reason = '本轮核验已结束（限时30分钟），网易云实际计数未达到目标';
         }
         $persist($completed, $retryAfter === 0);
 
@@ -2065,7 +2155,7 @@ class Netease
                 . ($capped ? '本次上报已达上限' : '其余待网易云入账')
                 . '，' . (int)ceil($retryAfter / 60) . ' 分钟后自动重试';
         } else {
-            $message = '已完成 ' . $actualProgressBefore . '/' . $target . '，今日上报已截止';
+            $message = '已完成 ' . $actualProgressBefore . '/' . $target . '，' . $reason;
         }
 
         return $this->makeResult($completed ? 200 : 201, $message, [
@@ -2101,6 +2191,8 @@ class Netease
             'verification_only' => $submittedThisRun === 0,
             'next_verification_at' => $nextVerificationAt,
             'retry_after_seconds' => $retryAfter,
+            'run_date' => $today,
+            'deadline_at' => $this->dakaDeadlineAt,
             'skipped_duplicate' => false,
         ]);
     }

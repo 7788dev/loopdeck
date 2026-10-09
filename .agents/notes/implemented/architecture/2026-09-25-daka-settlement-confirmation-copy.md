@@ -24,6 +24,7 @@ Status: implemented
     触发）才返回「今日已完成，无需重复打卡」，`skipped_duplicate=true`。
 - 完全失败（核验窗口结束、达到每日上报上限等）的文案与 [失败]/[重试中]
   状态语义不变。
+- 核验窗口现为[固定最多 30 分钟](2026-10-10-netease-bounded-completion.md)，详情页另行显示中间进度；最终成功仍沿用上述真实计数。
 
 ## Alternatives considered
 

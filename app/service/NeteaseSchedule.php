@@ -9,6 +9,27 @@ final class NeteaseSchedule
     public const MINIMUM_JITTER_SECONDS = 180;
     public const MAXIMUM_JITTER_SECONDS = 900;
 
+    /** Use the adapter's absolute verification time so request duration cannot extend its budget. */
+    public static function nextAfterResult(string $accountKey, string $timing, array $result, ?int $now = null): int
+    {
+        $now ??= time();
+        $data = is_array($result['data'] ?? null) ? $result['data'] : $result;
+        $retryAfter = max(0, (int)($data['retry_after_seconds'] ?? $result['retry_after_seconds'] ?? 0));
+        if ($retryAfter > 0) {
+            $next = (int)($data['next_verification_at'] ?? 0);
+            return max($now, $next > 0 ? $next : $now + max(60, min(3600, $retryAfter)));
+        }
+
+        $today = date('Y-m-d', $now);
+        $runDate = (string)($data['run_date'] ?? $today);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $runDate) && $runDate < $today) {
+            $base = self::baseExecution($timing, $today);
+            // Closing yesterday after a delayed tick must not skip today's slot.
+            return $base === null ? 0 : max($now, $base + self::dailyOffset('netease:' . $accountKey, $today));
+        }
+        return self::nextTimedExecution($timing, 'netease:' . $accountKey, $now) ?? 0;
+    }
+
     public static function nextTimedExecution(string $timing, string $accountIdentity, ?int $now = null): ?int
     {
         $now ??= time();

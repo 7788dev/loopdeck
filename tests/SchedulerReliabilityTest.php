@@ -18,11 +18,17 @@ final class ReliabilityNetease
 {
     public bool $cookiezt = false;
     public static int $calls = 0;
+    public static int $dakaCalls = 0;
     public function __construct(...$args) {}
     public function vip_growth_task(): array
     {
         self::$calls++;
         return ['code' => 200, 'message' => 'fixture ordinary task'];
+    }
+    public function daka_new(): array
+    {
+        self::$dakaCalls++;
+        return ['code' => 200, 'message' => 'fixture confirmed 300/300', 'data' => ['retry_after_seconds' => 0]];
     }
 }
 class_alias(ReliabilityNetease::class, 'netease\Netease');
@@ -149,6 +155,36 @@ $enabled = (new app\index\controller\Netease())->handle('set')->getData();
 $saved = Db::name('jobs')->find(1);
 functionalCheck($enabled['code'] === 1 && (int)$saved['state'] === 1 && $saved['nextExecute'] > time(),
     'Re-enabled job has no automatic schedule');
+
+// Earlier completed tasks must not prevent a newly enabled listening task
+// from being included in the account's manual retry.
+reliabilityReset();
+reliabilityAccount();
+reliabilityTask(1, 'netease', 'sign', 0);
+reliabilityTask(2, 'netease', 'daka_new', 1);
+reliabilityTask(3, 'netease', 'musician_task', 1);
+reliabilityJob(1, 'netease', 'sign');
+reliabilityJob(2, 'netease', 'daka_new');
+reliabilityJob(3, 'netease', 'musician_task');
+Db::name('users')->where('uid', 1)->update(['vip_start' => date('Y-m-d'), 'vip_end' => '2099-12-31']);
+think\facade\Session::set('user', Db::name('users')->find(1));
+$tomorrow = time() + 86400;
+Db::name('jobs')->where('id', 1)->update(['lastExecute' => date('Y-m-d H:i:s', time() - 600), 'nextExecute' => $tomorrow]);
+Db::name('jobs')->whereIn('id', [2, 3])->update(['state' => 0, 'nextExecute' => $tomorrow]);
+fixtureRequest(['user_id' => '42', 'do' => 'daka_new', 'act' => 'zt']);
+$controller = new app\index\controller\Netease();
+functionalCheck($controller->handle('set')->getData()['code'] === 1, 'Afternoon listening enable failed');
+fixtureRequest(['user_id' => '42']);
+functionalCheck($controller->handle('reExecute')->getData()['code'] === 1, 'Manual retry was rejected after earlier tasks ran');
+$dakaJob = Db::name('jobs')->find(2);
+functionalCheck((int)$dakaJob['nextExecute'] <= time(), 'Newly enabled listening task was left until tomorrow');
+functionalCheck((int)Db::name('jobs')->where('id', 3)->value('nextExecute') === $tomorrow,
+    'Retry scheduled a task that was still disabled');
+$summary = ['attempted' => 0, 'failed' => 0, 'succeeded' => 0, 'disabled' => 0];
+$run->invokeArgs(reliabilityRunner(), [$dakaJob, &$summary]);
+functionalCheck(ReliabilityNetease::$dakaCalls === 1 && $summary['succeeded'] === 1
+    && Db::name('task_logs')->where('do', 'daka_new')->count() === 1,
+    'Newly enabled listening task did not execute and produce its final log');
 
 // Stable daily jitter can cross midnight without turning a daily schedule into 48 hours.
 $oldJitter = getenv('SCHEDULER_JITTER_SECONDS');

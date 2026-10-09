@@ -65,4 +65,15 @@ scheduleCheck(count(array_unique($offsets)) > 1, 'NetEase timing offset did not 
 scheduleCheck(NeteaseSchedule::nextTimedExecution('24:00', 'netease:1', $now) === null, 'Invalid timing was accepted');
 scheduleCheck(NeteaseSchedule::nextTimedExecution('8:00', 'netease:1', $now) === null, 'Non-canonical timing was accepted');
 
+$afterRequest = strtotime('2026-10-10 15:00:40');
+scheduleCheck(NeteaseSchedule::nextAfterResult('42', '08:00', ['data' => [
+    'retry_after_seconds' => 60, 'next_verification_at' => $afterRequest + 20,
+]], $afterRequest) === $afterRequest + 20, 'Request duration extended the absolute verification schedule');
+$afterMidnight = strtotime('2026-10-11 00:01:00');
+$afterRollover = NeteaseSchedule::nextAfterResult('42', '08:00', ['data' => [
+    'retry_after_seconds' => 0, 'run_date' => '2026-10-10',
+]], $afterMidnight);
+scheduleCheck(date('Y-m-d', $afterRollover) === '2026-10-11' && $afterRollover > $afterMidnight,
+    'Finishing an overdue result skipped the next normal daily task');
+
 echo "Netease schedule tests passed\n";

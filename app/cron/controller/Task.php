@@ -371,6 +371,9 @@ class Task extends Common
             if ($retryAfter > 0) {
                 $nextExecute = time() + max(60, min(3600, $retryAfter));
             }
+            if ($type === 'netease') {
+                $nextExecute = NeteaseSchedule::nextAfterResult($userId, (string)$account['timing'], $result);
+            }
             $updates = [
                 'lastExecute' => date('Y-m-d H:i:s'),
                 'nextExecute' => $nextExecute,
@@ -436,6 +439,7 @@ class Task extends Common
             // Accepted playback and counted playback are separate events.
             // Keep the adapter's delay so an unfinished day is verified again.
             'retry_after_seconds' => max(0, (int)($response['data']['retry_after_seconds'] ?? 0)),
+            'data' => is_array($response['data'] ?? null) ? $response['data'] : [],
         ];
     }
 

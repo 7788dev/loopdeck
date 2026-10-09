@@ -9,6 +9,7 @@ use app\index\model\Jobs;
 use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
+use app\service\NeteaseSchedule;
 use netease\Netease as NeteaseAPI;
 use Throwable;
 
@@ -96,17 +97,9 @@ class Netease extends Common
 
                 (new \app\service\NotificationService())->recordTask($user, 'netease', (string)$job['user_id'],
                     (string)$job['do'], (string)$task['name'], $result);
-                $nextExecute = AutomaticSchedule::nextExecution(
-                    'netease',
-                    (string)$job['user_id'],
-                    (string)$account['timing']
-                ) ?? 0;
-                $retryAfter = (int)($result['data']['retry_after_seconds']
-                    ?? $result['retry_after_seconds']
-                    ?? 0);
-                if ($retryAfter > 0) {
-                    $nextExecute = time() + max(60, min(3600, $retryAfter));
-                }
+                $nextExecute = NeteaseSchedule::nextAfterResult(
+                    (string)$job['user_id'], (string)$account['timing'], $result
+                );
                 try {
                     Jobs::updateClaimedJob($jobId, [
                         'lastExecute' => date("Y-m-d H:i:s"),

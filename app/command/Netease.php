@@ -11,6 +11,7 @@ use app\index\model\Tasks;
 use app\index\model\Users;
 use app\cron\controller\Common as CronCommon;
 use app\service\AutomaticSchedule;
+use app\service\NeteaseSchedule;
 use app\service\NotificationService;
 use think\console\Command;
 use think\console\Input;
@@ -86,15 +87,9 @@ class Netease extends Command
                 }
                 Info::where('sysid','=','100')->inc('times',1)->update();
                 Info::where('sysid','=','100')->update(['last' => date('Y-m-d H:i:s')]);
-                $nextExecute = AutomaticSchedule::nextExecution(
-                    'netease',
-                    (string)$job['user_id'],
-                    (string)$account['timing']
-                ) ?? 0;
-                $retryAfter = max(0, (int)($execute['data']['retry_after_seconds'] ?? 0));
-                if ($retryAfter > 0) {
-                    $nextExecute = time() + max(60, min(3600, $retryAfter));
-                }
+                $nextExecute = NeteaseSchedule::nextAfterResult(
+                    (string)$job['user_id'], (string)$account['timing'], $execute
+                );
                 Jobs::updateClaimedJob((int)$job['id'], [
                     'lastExecute' => date("Y-m-d H:i:s"),
                     'nextExecute' => $nextExecute,

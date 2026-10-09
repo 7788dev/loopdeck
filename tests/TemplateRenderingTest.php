@@ -82,12 +82,20 @@ try {
             ob_start();
             try {
                 $taskRows = [$task];
+                if ($platform === 'netease' && $page === 'info') {
+                    $taskRows[] = array_replace($task, ['execute_name' => 'daka_new', 'name' => '每日300首',
+                        'progress' => '已确认 144/300 首，正在自动补齐与核验（本轮截止 15:30）']);
+                }
                 if ($platform === 'bilibili') {
                     $taskRows[] = array_replace($task, ['execute_name' => 'globalroom', 'name' => '旧直播间配置',
                         'is_global' => true, 'offline' => true, 'offline_reason' => '旧直播任务已停用']);
                 }
                 $engine->fetch($populatedViewPath . $relative, array_replace($variables, ['list' => [$account], 'task_rows' => $taskRows]));
                 $html = ob_get_contents();
+                if ($platform === 'netease' && $page === 'info') {
+                    functionalCheck(str_contains($html, '已确认 144/300 首') && str_contains($html, '本轮截止 15:30'),
+                        'Listening progress did not render in the actual account page');
+                }
                 if ($platform === 'bilibili' && $page === 'info') {
                     if (str_contains($html, 'onclick="updateConfig(\'globalroom\'')
                         || !str_contains($html, 'disabled title="旧直播任务已停用"')) {

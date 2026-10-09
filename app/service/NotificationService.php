@@ -86,6 +86,11 @@ class NotificationService
             }
             $message = NotificationText::clean((string)($result['message'] ?? '任务执行完成'), 4000);
             $date = date('Y-m-d');
+            $runDate = (string)($result['data']['run_date'] ?? '');
+            if ($type === 'netease' && $taskKey === 'daka_new'
+                && preg_match('/^\d{4}-\d{2}-\d{2}$/', $runDate) && $runDate <= $date) {
+                $date = $runDate;
+            }
             $this->repository->recordTask([
                 'uid' => $uid, 'web_id' => $webId, 'run_date' => $date, 'type' => $type,
                 'account_id' => $accountId, 'task_key' => $taskKey, 'task_name' => $taskName,

@@ -159,11 +159,11 @@ try {
     $partialDirectory = $newDirectory();
     $partial = new SettlementProbe($partialDirectory, $morning);
     $partial->daka_new();
-    $checking = new SettlementProbe($partialDirectory, $morning + 300);
+    $checking = new SettlementProbe($partialDirectory, $morning + 60);
     $checking->counter = 7745;
     $partialResult = $checking->daka_new();
     settlementCheck($checking->batches === [] && $partialResult['data']['daily_actual_progress'] === 296, 'Partial accounting triggered a premature top-up');
-    $replacement = new SettlementProbe($partialDirectory, $morning + 900);
+    $replacement = new SettlementProbe($partialDirectory, $morning + 120);
     $replacement->counter = 7745;
     $replacement->countPerBatch = 4;
     $replaced = $replacement->daka_new();
@@ -194,7 +194,7 @@ try {
     $capped->daka_new();
     $second = new SettlementProbe($capDirectory, $morning + 120, $capConfig);
     $second->daka_new();
-    $afterCap = new SettlementProbe($capDirectory, $morning + 7200, $capConfig);
+    $afterCap = new SettlementProbe($capDirectory, $morning + 600, $capConfig);
     $capResult = $afterCap->daka_new();
     settlementCheck($afterCap->batches === [] && $capResult['data']['retry_after_seconds'] > 0, 'The day cap either reset or disabled late verification');
     settlementCheck(settlementState($capDirectory)['attempts'] === 2, 'The batch budget was reset by a new process');
@@ -208,7 +208,8 @@ try {
     $invalid->counterResponse = ['code' => 200];
     $invalidResult = $invalid->daka_new();
     settlementCheck($invalid->batches === [] && $invalidResult['data']['retry_after_seconds'] > 0, 'A missing counter was treated as zero');
-    settlementCheck(settlementState($invalidDirectory) === [], 'An invalid counter was saved as a daily baseline');
+    settlementCheck(!array_key_exists('listen_songs_baseline', settlementState($invalidDirectory)), 'An invalid counter was saved as a daily baseline');
+    settlementCheck(settlementState($invalidDirectory)['deadline_at'] === $morning + 1800, 'Counter errors lost the retry deadline');
     $invalid->counterThrows = true;
     settlementCheck($invalid->daka_new()['data']['retry_after_seconds'] > 0, 'A counter exception was not retryable');
     $invalid->counterThrows = false;

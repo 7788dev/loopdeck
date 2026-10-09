@@ -47,6 +47,12 @@ class NeteaseSelectionFixture extends Netease
         return $this->dakaCandidates($source, $exclude, $limit);
     }
 
+    public function replacementCandidates(int $limit): array
+    {
+        $this->dakaPreferSearch = true;
+        return $this->dakaCandidates('daily_recommend', [], $limit);
+    }
+
     protected function loadDakaHistory(): array
     {
         return $this->history;
@@ -223,6 +229,17 @@ selectionCheck(
     count($fixture->playlistDetailCalls) === $detailCallsBefore,
     'A second batch re-downloaded playlists instead of using the per-run cache'
 );
+
+// A low-yield account must leave the recommendation feed even when it can
+// still supply hundreds of songs missing from our incomplete history sample.
+$replacementFixture = new NeteaseSelectionFixture();
+$replacementFixture->searchPlaylistResults = [[880, 881]];
+$replacementSongs = $replacementFixture->replacementCandidates(300);
+selectionCheck(count($replacementSongs) === 300 && $replacementFixture->searchPlaylistCalls === 1
+    && $replacementFixture->recommendPlaylistCalls === 0,
+    'Replacement batches kept using the low-yield recommendation feed');
+selectionCheck(array_diff(array_unique(array_column($replacementSongs, 'sourceId')), [880, 881]) === [],
+    'Replacement candidates did not come from the newly selected playlists');
 
 // The core rule: songs already reported on earlier days can never count, so
 // they must be excluded from the batch instead of padding it. The collector

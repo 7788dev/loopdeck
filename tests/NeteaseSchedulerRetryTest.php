@@ -52,11 +52,14 @@ namespace {
         netease\Netease::$response = [
             'code' => $delay === 0 ? 200 : 201,
             'message' => $delay === 0 ? '进度 300/300' : '进度 0/300 | 等待入账',
-            'data' => ['retry_after_seconds' => $delay],
+            'data' => ['retry_after_seconds' => $delay, 'next_verification_at' => 1791648060, 'run_date' => '2026-10-10'],
         ];
         $result = $execute->invoke($scheduler, 'daka_new', '1', $credentials, []);
         if ($result['retry_after_seconds'] !== $delay) {
             throw new RuntimeException('The scheduler dropped the daily settlement retry delay');
+        }
+        if ($result['data']['next_verification_at'] !== 1791648060 || $result['data']['run_date'] !== '2026-10-10') {
+            throw new RuntimeException('The scheduler dropped the absolute verification time or original run date');
         }
         if ($scheduler->statusTag($result) !== ($delay === 0 ? '成功' : '重试中')) {
             throw new RuntimeException('The scheduler logged pending accounting as a final failure');

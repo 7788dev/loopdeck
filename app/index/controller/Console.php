@@ -8,6 +8,7 @@ use app\index\model\Tasks;
 use app\index\model\Users;
 use app\index\model\Accounts;
 use app\service\BilibiliTaskExecutor;
+use app\service\NeteaseDakaProgress;
 use app\service\UserNotificationSettings;
 use bilibili\Bilibili as BilibiliClient;
 use think\facade\Session;
@@ -309,6 +310,8 @@ class Console
                 'next_execute' => $job && (int)$job['state'] === 1 && (int)$job['nextExecute'] > 0
                     ? date('m-d H:i:s', (int)$job['nextExecute']) : '',
                 'job_state' => $job ? (int)$job['state'] : 0,
+                'progress' => (string)$task['execute_name'] === 'daka_new'
+                    ? NeteaseDakaProgress::describe($userId, $job ? (int)$job['state'] : 0) : '',
             ];
         }
 

@@ -178,6 +178,16 @@ try {
     deadlineCheck($heavyResult['code'] === 200 && $heavyResult['data']['daily_actual_progress'] === 300 && $elapsed < 1800,
         'Bounded replacements did not finish a low-yield account successfully within 30 minutes');
 
+    $sanitize = new ReflectionMethod(app\index\controller\Netease::class, 'sanitizeJobConfig');
+    $sanitize->setAccessible(true);
+    $saved = $sanitize->invoke(null, ['daka_retry_seconds' => '60', 'daka_max_verification_runs' => '2']);
+    deadlineCheck($saved['daka_retry_seconds'] === 60, 'The settings endpoint rejected the new default verification interval');
+    try {
+        $sanitize->invoke(null, ['daka_retry_seconds' => '3600']);
+        throw new RuntimeException('The settings endpoint accepted an interval outside the completion window');
+    } catch (InvalidArgumentException $expected) {
+    }
+
     echo "Netease 30-minute completion window tests passed\n";
 } finally {
     foreach ($directories as $directory) {

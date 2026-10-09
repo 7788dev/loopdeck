@@ -69,4 +69,12 @@ notificationCheck(str_contains($largeReport, '共 65 项') && str_contains($larg
     && !str_contains($largeReport, '听歌60') && str_contains($largeReport, '其余 5 项'),
     'Legacy waiting rows consumed the 60-result summary limit or changed its remainder count');
 
+$yesterday = date('Y-m-d', strtotime('-1 day'));
+$service->recordTask($user, 'netease', 'overdue-account', 'daka_new', '每日300首', [
+    'code' => 201, 'message' => '上一日核验结束', 'data' => ['run_date' => $yesterday, 'retry_after_seconds' => 0],
+]);
+$overdueRows = array_values(array_filter($store->tasks, static fn(array $row): bool => $row['account_id'] === 'overdue-account'));
+notificationCheck(count($overdueRows) === 1 && $overdueRows[0]['run_date'] === $yesterday,
+    'An overdue result was attributed to today instead of its original listening date');
+
 echo "Netease final notification tests passed: silent verification, terminal alerts and legacy summary filtering\n";

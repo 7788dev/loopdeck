@@ -363,8 +363,8 @@ class Netease
                     $clean[$key] = self::sanitizeIntegerConfig(
                         $value,
                         1,
-                        10,
-                        '最大核验轮次需要在 1 到 10 之间'
+                        2,
+                        '补批前核验间隔数需要在 1 到 2 之间'
                     );
                     break;
 
@@ -374,9 +374,9 @@ class Netease
                     }
                     $clean[$key] = self::sanitizeIntegerConfig(
                         $value,
+                        60,
                         120,
-                        3600,
-                        '重试间隔需要在 120 到 3600 秒之间'
+                        '重试间隔需要在 60 到 120 秒之间'
                     );
                     break;
 

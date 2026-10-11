@@ -62,20 +62,30 @@ class Users extends Model
             if (config('sys.reg_free_quota') == 1) {
                 $quota = config('sys.reg_free_quota_num');
             }
-            $ret = $self->create([
-                'web_id' => WEB_ID,
-                'username' => $data['username'],
-                'password' => self::hashLoginPassword((string)$data['password']),
-                'qq' => $data['qq'],
-                'mail' => $data['qq'] . '@qq.com',
-                'nickname' => get_qqname($data['qq']),
-                'quota' => $quota ?? 0,
-                'vip_start' => $vip_start ?? null,
-                'vip_end' => $vip_end ?? null,
-                'login_time' => time(),
-                'login_ip' => real_ip(),
-                'login_city' => get_ip_city(real_ip()),
-            ]);
+            try {
+                $ret = $self->create([
+                    'web_id' => WEB_ID,
+                    'username' => $data['username'],
+                    'password' => self::hashLoginPassword((string)$data['password']),
+                    'qq' => $data['qq'],
+                    'mail' => $data['qq'] . '@qq.com',
+                    'nickname' => get_qqname($data['qq']),
+                    'quota' => $quota ?? 0,
+                    'vip_start' => $vip_start ?? null,
+                    'vip_end' => $vip_end ?? null,
+                    'login_time' => time(),
+                    'login_ip' => real_ip(),
+                    'login_city' => get_ip_city(real_ip()),
+                ]);
+            } catch (\think\db\exception\PDOException $exception) {
+                // The check-then-insert above races with concurrent registrations;
+                // udx_users_username is the backstop, so report it as the normal
+                // duplicate error instead of an unhandled 500.
+                if (str_contains($exception->getMessage(), 'udx_users_username')) {
+                    return resultJson(-1, '用户名已存在');
+                }
+                throw $exception;
+            }
             if ($ret->uid) {
                 return resultJson(1, '注册成功');
             } else {

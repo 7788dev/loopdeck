@@ -36,7 +36,11 @@ class Index
 
     public function install()
     {
-        if (!Request::isAjax()) {
+        // isAjax(true) requires the real X-Requested-With header: isAjax()
+        // alone also accepts a `?_ajax=1` query marker, which a cross-site
+        // form POST forges. The origin check rejects the cross-site POSTs
+        // that do carry headers.
+        if (!Request::isAjax(true) || is_cross_origin_request()) {
             return resultJson(-1, '非法请求');
         }
 

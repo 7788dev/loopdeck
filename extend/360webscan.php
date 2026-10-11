@@ -194,18 +194,33 @@ function webscan_white($webscan_white_name,$webscan_white_url=array()) {
   if (preg_match("/".$webscan_white_name."/is",$url_path)==1&&!empty($webscan_white_name)) {
     return false;
   }
+  // The application's route path (PATH_INFO under the shipped nginx config,
+  // REQUEST_URI/SCRIPT_NAME under the development server). Whitelisting the
+  // route prefix instead of a query-string substring stops any request from
+  // disabling the firewall by appending whitelisted text to its query string.
+  $route_path=$_SERVER['PATH_INFO'] ?? '';
+  if ($route_path===''||$route_path==='/') {
+    $request_path=parse_url((string)($_SERVER['REQUEST_URI'] ?? ''),PHP_URL_PATH);
+    if (is_string($request_path)&&$request_path!==''&&$request_path!=='/') {
+      $route_path=$request_path;
+    }
+  }
+  if ($route_path===''||$route_path==='/') {
+    $route_path=$url_path;
+  }
   foreach ($webscan_white_url as $key => $value) {
-    if(!empty($url_var)&&!empty($value)){
-      if (stristr($url_path,$key)&&stristr($url_var,$value)) {
+    if (stristr($url_path,$key)) {
+      // Legacy entries carry an `s=` route prefix; strip the marker and match
+      // the path itself, anchored at a segment boundary.
+      $prefix=preg_replace('/^s=/i','',(string)$value);
+      if ($prefix==='') {
+        return false;
+      }
+      $boundary=rtrim($prefix,'/').'/';
+      if (strcasecmp($route_path,$prefix)===0||stripos($route_path,$boundary)===0) {
         return false;
       }
     }
-    elseif (empty($url_var)&&empty($value)) {
-      if (stristr($url_path,$key)) {
-        return false;
-      }
-    }
-
   }
 
   return true;

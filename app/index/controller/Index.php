@@ -71,7 +71,9 @@ class Index extends Common
         if (!$account) {
             return response('收款码不存在', 404);
         }
-        $data = unserialize((string)$account['data'], ['allowed_classes' => false]);
+        // Legacy payloads may be corrupt; suppress the warning and reject the
+        // payload below, exactly like every other decode site in the codebase.
+        $data = @unserialize((string)$account['data'], ['allowed_classes' => false]);
         if (!is_array($data)) {
             return response('收款码数据损坏', 500);
         }

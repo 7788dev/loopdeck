@@ -105,8 +105,10 @@ if (!function_exists('get_Domain')) {
 
         $isLoopback = $host !== ''
             && preg_match('/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i', $host) === 1;
+        // An empty registration list must never widen trust: Host is attacker
+        // controlled, so without a registered domain nothing is echoed back.
         $trusted = $host !== ''
-            && ($registered === [] || $isLoopback || in_array($host, $registered, true));
+            && ($isLoopback || ($registered !== [] && in_array($host, $registered, true)));
 
         if (!$trusted) {
             $host = (string)($registered[0] ?? '');
@@ -136,9 +138,29 @@ if (!function_exists('safe_html')) {
         $value = strip_tags($value, '<p><br><b><strong><i><em><u><s><ul><ol><li><h4><h5><h6><span><div><a><code><pre><blockquote>');
         $value = preg_replace('/\son[a-z-]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $value) ?? '';
         $value = preg_replace('/\sstyle\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $value) ?? '';
-        $value = preg_replace(
-            '/\s(?:href|src|xlink:href|formaction|action)\s*=\s*(["\']?)\s*(?:javascript|vbscript|data)\s*:[^"\'>\s]*\1/i',
-            '',
+        // Browsers decode HTML entities and strip tab/newline characters inside
+        // URL attributes before resolving the scheme, so a literal
+        // `javascript:` match is bypassed by `javascript&#58;` or `jav&#9;ascript:`.
+        // Resolve the URL the way a browser would before deciding whether the
+        // attribute survives.
+        $value = preg_replace_callback(
+            '/\s(?:href|src|xlink:href|formaction|action)\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i',
+            static function (array $match): string {
+                $attribute = $match[0];
+                $value = (string)preg_replace(
+                    '/^\s*(?:href|src|xlink:href|formaction|action)\s*=\s*/i',
+                    '',
+                    $attribute
+                );
+                $value = trim($value, "\"'");
+                $decoded = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $compact = preg_replace('/[\x00-\x20\x7f]+/', '', $decoded) ?? '';
+                if (preg_match('/^(?:javascript|vbscript|data):/i', $compact) === 1) {
+                    return '';
+                }
+
+                return $attribute;
+            },
             $value
         ) ?? '';
 

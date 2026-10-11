@@ -92,6 +92,28 @@ securityHardeningCheck(
     str_contains(safe_html('<p><strong>ok</strong></p>'), '<strong>'),
     'safe_html dropped ordinary formatting'
 );
+// Browsers decode entities and strip tab/newline characters inside URL
+// attributes before resolving the scheme, so a literal scheme match is not
+// enough — every encoded or split variant must be stripped as well.
+foreach ([
+    '<a href="javascript&#58;alert(1)">x</a>',
+    '<a href="javascript&#x3a;alert(1)">x</a>',
+    "<a href=\"jav\tascript:alert(1)\">x</a>",
+    "<a href=\"jav\nascript:alert(1)\">x</a>",
+    '<a href=javascript&#58;alert(1)>x</a>',
+    '<a href="jaVaScRiPt:alert(1)">x</a>',
+    '<a href="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">x</a>',
+    "<a href=\"\tjavascript:alert(1)\">x</a>",
+] as $encodedUrl) {
+    securityHardeningCheck(
+        !preg_match('/(?:javascript|vbscript|data)\s*:/i', strtolower(safe_html($encodedUrl))),
+        'safe_html kept an entity-encoded or split script URL'
+    );
+}
+securityHardeningCheck(
+    str_contains(safe_html('<a href="https://example.com/?a=1&amp;b=2">text</a>'), 'href="https://example.com/?a=1&amp;b=2"'),
+    'safe_html rewrote a legitimate absolute link'
+);
 securityHardeningCheck(
     js_string("</script><img src=x onerror=alert(1)>") === '"\u003C\/script\u003E\u003Cimg src=x onerror=alert(1)\u003E"',
     'js_string did not neutralise a script break-out'
@@ -147,6 +169,43 @@ securityHardeningCheck(is_string($commonSource), 'Unable to inspect the common h
 securityHardeningCheck(
     str_contains($commonSource, "config('web.domain')"),
     'get_Domain does not validate the Host header against the registered domain'
+);
+securityHardeningCheck(
+    str_contains($commonSource, '$registered !== [] && in_array($host, $registered, true)'),
+    'get_Domain still echoes an arbitrary Host when no domain is registered'
+);
+
+// --- Installer request boundary ----------------------------------------------
+
+$installSource = file_get_contents($root . '/app/install/controller/Index.php');
+securityHardeningCheck(is_string($installSource), 'Unable to inspect the installer');
+securityHardeningCheck(
+    str_contains($installSource, 'Request::isAjax(true)'),
+    'The installer still accepts forged ?_ajax=1 markers as AJAX'
+);
+securityHardeningCheck(
+    str_contains($installSource, 'is_cross_origin_request()'),
+    'The installer does not reject cross-origin form submissions'
+);
+
+// --- 360webscan whitelist anchoring ------------------------------------------
+
+require $root . '/extend/360webscan.php';
+$webscanWhite = ['index.php' => 's=/admin/ajax/data'];
+$_SERVER['SCRIPT_NAME'] = '/index.php';
+$_SERVER['PATH_INFO'] = '/index/ajax/notice';
+$_SERVER['REQUEST_URI'] = '/index/ajax/notice?x=1&s=/admin/ajax/data';
+$_SERVER['QUERY_STRING'] = 'x=1&s=/admin/ajax/data';
+securityHardeningCheck(
+    webscan_white('', $webscanWhite) === true,
+    'A query string containing whitelisted text disabled the 360webscan filters'
+);
+$_SERVER['PATH_INFO'] = '/admin/ajax/data/add/notice';
+$_SERVER['REQUEST_URI'] = '/admin/ajax/data/add/notice';
+$_SERVER['QUERY_STRING'] = '';
+securityHardeningCheck(
+    webscan_white('', $webscanWhite) === false,
+    'The 360webscan whitelist no longer covers real admin rich-text operations'
 );
 
 // --- Scheduler keys ----------------------------------------------------------

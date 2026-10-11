@@ -50,6 +50,24 @@
                         </div>
                         <form class="js-validation-installation" onsubmit="return false;" id="install-form">
                             <div class="block block-rounded block-fx-shadow">
+                                {if condition="$install_token_required"}
+                                <div class="block-content">
+                                    <h2 class="content-heading pt-3">安装令牌</h2>
+                                    <div class="row items-push">
+                                        <div class="col-lg-4">
+                                            <p class="text-muted">
+                                                为防止他人抢先生成管理员账号，本次部署要求填写安装令牌。令牌由部署脚本生成并输出（docker compose logs 或部署完成提示中可查看）。
+                                            </p>
+                                        </div>
+                                        <div class="col-lg-6 offset-lg-1">
+                                            <div class="mb-4">
+                                                <label class="form-label" for="install-token">安装令牌</label>
+                                                <input type="text" class="form-control form-control-lg" id="install-token" name="install-token" placeholder="请输入部署时生成的安装令牌" autocomplete="off">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {/if}
                                 {if condition="!$database_auto_configured"}
                                 <div class="block-content">
                                     <h2 class="content-heading pt-3">数据库配置</h2>

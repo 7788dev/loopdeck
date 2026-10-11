@@ -149,6 +149,9 @@ fi
 set_env COMPOSE_PROFILES "$profiles"
 
 set_if_placeholder CRON_KEY replace_with_a_long_random_cron_key "$(random_hex 48)"
+# 一次性安装令牌：安装向导在首次安装时要求填写，防止公网上的陌生人
+# 在运维完成安装前抢先创建管理员账号并锁死面板。留空则不启用该校验。
+set_if_placeholder INSTALL_TOKEN '' "$(random_hex 24)"
 
 sh "$script_dir/tune-env.sh" "$env_file"
 
@@ -162,3 +165,7 @@ docker compose --env-file "$env_file" pull
 docker compose --env-file "$env_file" up --no-build --wait --wait-timeout 180
 echo "数据库连接信息（不含密码）已写入 app 容器启动日志"
 printf '查看完整配置：docker compose --env-file "%s" exec app loopdeck-db-info --show-password\n' "$env_file"
+install_token=$(read_env INSTALL_TOKEN)
+if [ -n "$install_token" ]; then
+    echo "安装令牌（首次安装向导需填写，请妥善保管）：$install_token"
+fi

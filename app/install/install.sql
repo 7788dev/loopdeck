@@ -87,7 +87,7 @@ CREATE TABLE `cloud_notice` (
                                 `sort` int(11) DEFAULT '0',
                                 `addtime` varchar(255) DEFAULT NULL,
                                 `zid` int(11) DEFAULT '1'
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -155,6 +155,58 @@ CREATE TABLE `cloud_user_notifications` (
                                                 `web_id` int(11) NOT NULL,
                                                 `bark_token` varchar(255) NOT NULL DEFAULT '',
                                                 `updated_at` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `cloud_user_notification_preferences` (
+    `uid` int unsigned NOT NULL,
+    `web_id` int unsigned NOT NULL,
+    `settings` text NOT NULL,
+    `enabled` tinyint unsigned NOT NULL DEFAULT 0,
+    `summary_enabled` tinyint unsigned NOT NULL DEFAULT 0,
+    `next_summary_at` bigint unsigned NOT NULL DEFAULT 0,
+    `updated_at` bigint unsigned NOT NULL,
+    PRIMARY KEY (`uid`,`web_id`),
+    KEY `idx_notification_summary_due` (`enabled`,`summary_enabled`,`next_summary_at`,`uid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `cloud_notification_outbox` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+    `uid` int unsigned NOT NULL,
+    `web_id` int unsigned NOT NULL,
+    `event_key` char(64) NOT NULL,
+    `event_type` varchar(32) NOT NULL,
+    `channel` varchar(16) NOT NULL,
+    `title` varchar(240) NOT NULL,
+    `body` text NOT NULL,
+    `url` varchar(512) NOT NULL DEFAULT '',
+    `status` tinyint unsigned NOT NULL DEFAULT 0,
+    `attempts` int unsigned NOT NULL DEFAULT 0,
+    `available_at` bigint unsigned NOT NULL,
+    `created_at` bigint unsigned NOT NULL,
+    `finished_at` bigint unsigned NOT NULL DEFAULT 0,
+    `last_error` varchar(255) NOT NULL DEFAULT '',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uniq_notification_event` (`uid`,`web_id`,`event_key`,`channel`),
+    KEY `idx_notification_delivery_due` (`status`,`available_at`,`id`),
+    KEY `idx_notification_user` (`uid`,`web_id`,`id`),
+    KEY `idx_notification_finished` (`status`,`finished_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `cloud_notification_task_results` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+    `uid` int unsigned NOT NULL,
+    `web_id` int unsigned NOT NULL,
+    `run_date` date NOT NULL,
+    `type` varchar(24) NOT NULL,
+    `account_id` varchar(255) NOT NULL,
+    `task_key` varchar(80) NOT NULL,
+    `task_name` varchar(200) NOT NULL,
+    `status` varchar(16) NOT NULL,
+    `message` text NOT NULL,
+    `updated_at` bigint unsigned NOT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uniq_notification_task_day` (`uid`,`web_id`,`run_date`,`type`,`account_id`,`task_key`),
+    KEY `idx_notification_result_retention` (`run_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `cloud_weblist` (

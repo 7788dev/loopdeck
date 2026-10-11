@@ -29,7 +29,7 @@ $variables = [
     'epic_enabled' => false, 'epic_next' => '', 'notification' => app\service\UserNotificationSettings::redact(app\service\UserNotificationSettings::defaults()),
     'notification_error' => '', 'email_available' => false, 'deliveries' => [], 'email_ready' => false, 'email_enabled' => false, 'email_password_configured' => false,
     'notification_email_available' => false, 'notification_can_epic' => false, 'notification_deliveries' => [],
-    'database_auto_configured' => true, 'name' => '测试收款人', 'type' => 'wechat', 'url' => 'wxp://fixture',
+    'database_auto_configured' => true, 'install_token_required' => false, 'name' => '测试收款人', 'type' => 'wechat', 'url' => 'wxp://fixture',
 ] + (new app\service\SystemUpdater(sys_get_temp_dir() . '/loopdeck-render-no-updater.json'))->status();
 $count = 0;
 $failures = [];

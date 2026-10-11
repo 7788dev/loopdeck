@@ -204,8 +204,14 @@ final class SystemUpdater
         $requestedAt = is_file($requestFile) ? @filemtime($requestFile) : false;
         if ($requestedAt !== false) {
             $status['check_requested_at'] = gmdate('c', $requestedAt);
+            // A future-dated marker (clock moved backwards after creation) is
+            // treated as stale instead of blocking new requests until real
+            // time catches up with the mtime — the same rule the updater
+            // applies to its own state timestamps.
+            $requestAge = time() - $requestedAt;
             $status['check_request_stale'] = $status['status'] !== 'checking'
-                && time() - $requestedAt > self::CHECK_REQUEST_STALE_SECONDS;
+                && ($requestAge > self::CHECK_REQUEST_STALE_SECONDS
+                    || $requestAge < -self::CLOCK_SKEW_TOLERANCE_SECONDS);
         }
 
         foreach (['probe_completed', 'probe_total', 'mirror_attempt', 'mirror_total'] as $field) {

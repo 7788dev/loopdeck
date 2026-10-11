@@ -94,22 +94,54 @@ try {
         'cache_path' => $cache . 'templates/',
     ]);
     foreach ([true, false] as $automatic) {
-        ob_start();
-        try {
-            $engine->fetch('index/install', ['database_auto_configured' => $automatic]);
-            $html = (string)ob_get_contents();
-        } finally {
-            ob_end_clean();
+        foreach ([true, false] as $tokenRequired) {
+            ob_start();
+            try {
+                $engine->fetch('index/install', [
+                    'database_auto_configured' => $automatic,
+                    'install_token_required' => $tokenRequired,
+                ]);
+                $html = (string)ob_get_contents();
+            } finally {
+                ob_end_clean();
+            }
+            installDatabaseCheck(str_contains($html, 'name="install-admin-username"'), 'Administrator form is missing');
+            installDatabaseCheck(str_contains($html, 'name="install-admin-password-confirm"'), 'Administrator password confirmation is missing');
+            installDatabaseCheck(str_contains($html, 'name="install-db-password"') === !$automatic, 'Database fields are shown in the wrong installation mode');
+            installDatabaseCheck(str_contains($html, 'name="install-token"') === $tokenRequired, 'Install token field is shown in the wrong installation mode');
+            if ($automatic) {
+                installDatabaseCheck(!str_contains($html, 'name="install-db-'), 'Automatic installation still submits database inputs');
+                installDatabaseCheck(str_contains($html, '数据库连接已自动配置'), 'Automatic installation instructions are missing');
+            }
+            installDatabaseCheck(!str_contains($html, 'fixture-$password#with=characters'), 'Server database password leaked into the page');
         }
-        installDatabaseCheck(str_contains($html, 'name="install-admin-username"'), 'Administrator form is missing');
-        installDatabaseCheck(str_contains($html, 'name="install-admin-password-confirm"'), 'Administrator password confirmation is missing');
-        installDatabaseCheck(str_contains($html, 'name="install-db-password"') === !$automatic, 'Database fields are shown in the wrong installation mode');
-        if ($automatic) {
-            installDatabaseCheck(!str_contains($html, 'name="install-db-'), 'Automatic installation still submits database inputs');
-            installDatabaseCheck(str_contains($html, '数据库连接已自动配置'), 'Automatic installation instructions are missing');
-        }
-        installDatabaseCheck(!str_contains($html, 'fixture-$password#with=characters'), 'Server database password leaked into the page');
     }
+
+    // The setup token is read from the environment and never leaks into the
+    // rendered page: the operator receives it out-of-band (deploy.sh output).
+    $controllerClass = new ReflectionClass(\app\install\controller\Index::class);
+    $tokenReader = $controllerClass->getMethod('installToken');
+    $tokenReader->setAccessible(true);
+    $verifier = $controllerClass->getMethod('verifyInstallToken');
+    $verifier->setAccessible(true);
+    $controller = $controllerClass->newInstanceWithoutConstructor();
+    putenv('INSTALL_TOKEN');
+    installDatabaseCheck($tokenReader->invoke($controller) === '', 'INSTALL_TOKEN was set without configuration');
+    installDatabaseCheck($verifier->invoke($controller) === null, 'Installer demanded a token that was never configured');
+    putenv('INSTALL_TOKEN=fixture-install-token-123');
+    $missing = $verifier->invoke($controller);
+    installDatabaseCheck($missing !== null && (int)($missing->getData()['code'] ?? 0) === -1, 'Installer accepted a POST without the required setup token');
+    putenv('INSTALL_TOKEN');
+    installDatabaseCheck(!str_contains(json_encode($missing->getData(), JSON_UNESCAPED_UNICODE), 'fixture-install-token-123'), 'The expected token value leaked into the refusal message');
+
+    // The reinstall guard must be part of the flow: the schema check runs on
+    // the live connection before install.sql is imported.
+    $controllerSource = file_get_contents($root . '/app/install/controller/Index.php');
+    installDatabaseCheck(
+        str_contains($controllerSource, 'schemaAlreadyPresent')
+            && strpos($controllerSource, 'schemaAlreadyPresent($connection)') < strpos($controllerSource, 'importSchema($connection)'),
+        'Installer does not refuse databases that already contain LoopDeck tables'
+    );
 
     echo "Install database configuration and rendered form tests passed\n";
 } finally {

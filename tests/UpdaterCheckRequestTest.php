@@ -75,6 +75,14 @@ try {
     touch($marker, time() - 600);
     clearstatcache();
     checkRequestCheck($web->status()['check_request_stale'], 'An unhandled request was not flagged');
+    // A future-dated marker (the host clock moved backwards after creation)
+    // reads as stale instead of blocking new requests until real time
+    // catches up with the mtime.
+    touch($marker, time() + 3600);
+    clearstatcache();
+    checkRequestCheck($web->status()['check_request_stale'], 'A future-dated request was treated as fresh');
+    touch($marker, time() - 600);
+    clearstatcache();
 
     // The updater wakes early, honours the cooldown and reads nothing but mtime.
     $commands = [];

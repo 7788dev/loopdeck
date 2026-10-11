@@ -31,7 +31,38 @@ class Index
     {
         return View::fetch($this->checkfun() ? 'install' : 'status', [
             'database_auto_configured' => DatabaseConfig::environmentInput() !== null,
+            'install_token_required' => self::installToken() !== '',
         ]);
+    }
+
+    /**
+     * The installer is unauthenticated by design until first-run setup
+     * completes, so a fresh deployment that is internet-exposed before the
+     * operator finishes the wizard can otherwise be taken over: anyone who
+     * reaches POST /install first creates the admin account and locks the
+     * real operator out ("程序已经安装"). Container deployments therefore
+     * generate a one-time setup token out-of-band (deploy.sh writes
+     * INSTALL_TOKEN into .env and prints it); until a token is configured the
+     * installer behaves exactly as before, so manual and legacy installs keep
+     * working.
+     */
+    private static function installToken(): string
+    {
+        return trim((string)getenv('INSTALL_TOKEN'));
+    }
+
+    private function verifyInstallToken(): mixed
+    {
+        $required = self::installToken();
+        if ($required === '') {
+            return null;
+        }
+        $provided = trim((string)Request::post('install-token', ''));
+        if ($provided !== '' && hash_equals($required, $provided)) {
+            return null;
+        }
+
+        return resultJson(-1, '安装令牌不正确，请输入部署输出中的安装令牌');
     }
 
     public function install()
@@ -42,6 +73,9 @@ class Index
         // that do carry headers.
         if (!Request::isAjax(true) || is_cross_origin_request()) {
             return resultJson(-1, '非法请求');
+        }
+        if ($tokenFailure = $this->verifyInstallToken()) {
+            return $tokenFailure;
         }
 
         $input = DatabaseConfig::resolveInput(Request::post());
@@ -69,6 +103,14 @@ class Index
                 $database['hostport']
             );
             $connection->set_charset('utf8mb4');
+            if ($this->schemaAlreadyPresent($connection)) {
+                $connection->close();
+                // The installer's own lock message tells operators to remove
+                // config/Db.php to reinstall; without this guard the retry
+                // dies on the first CREATE TABLE with a misleading
+                // "check your credentials" hint and the install is bricked.
+                return resultJson(-1, '该数据库中已存在 LoopDeck 数据表。为避免覆盖现有数据，请先清空该数据库或更换数据库名后再安装');
+            }
             $this->importSchema($connection);
             // install.sql wraps schema creation in a transaction. Re-enable
             // autocommit before inserting the site, runtime config and admin
@@ -96,6 +138,23 @@ class Index
         }
 
         return resultJson(0, '安装成功');
+    }
+
+    /**
+     * True when tables from a previous (possibly half-finished) install are
+     * already in this database. install.sql uses plain CREATE TABLE, so a
+     * second import always fails with error 1050.
+     */
+    private function schemaAlreadyPresent(mysqli $connection): bool
+    {
+        $result = $connection->query("SHOW TABLES LIKE 'cloud\\_%'");
+        if ($result === false) {
+            return false;
+        }
+        $present = $result->num_rows > 0;
+        $result->close();
+
+        return $present;
     }
 
     private function importSchema(mysqli $connection): void

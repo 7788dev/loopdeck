@@ -19,6 +19,11 @@ class Bilibili extends Common
     /** @var int 本轮实际领取并执行（含失败）的任务数 */
     private int $scheduled = 0;
 
+    /** Per-batch lookups: most jobs in a batch share the same user, task or account. */
+    private array $userCache = [];
+    private array $taskCache = [];
+    private array $accountCache = [];
+
     public function index()
     {
         $this->disableOfflineJobs();
@@ -41,16 +46,9 @@ class Bilibili extends Common
             try {
                 $this->scheduled++;
                 $userId = (string)$job['user_id'];
-                $user = Users::where('uid', $job['uid'])->where('web_id', 1)->where('state', 1)->find();
-                $account = Accounts::where('type', 'bilibili')
-                    ->where('user_id', $userId)
-                    ->where('uid', $job['uid'])
-                    ->where('state', 1)
-                    ->find();
-                $task = Tasks::where('type', 'bilibili')
-                    ->where('execute_name', $job['do'])
-                    ->where('state', 1)
-                    ->find();
+                $user = $this->user((int)$job['uid']);
+                $account = $this->account((int)$job['uid'], $userId);
+                $task = $this->task((string)$job['do']);
 
                 if (!$user || !$account || !$task) {
                     Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
@@ -75,6 +73,41 @@ class Bilibili extends Common
             return resultJson(-1002, '没有要执行的任务');
         }
         return resultJson(1000, '已调度 ' . $this->scheduled . ' 条任务');
+    }
+
+    private function user(int $uid)
+    {
+        if (!array_key_exists($uid, $this->userCache)) {
+            $this->userCache[$uid] = Users::where('uid', $uid)->where('web_id', 1)->where('state', 1)->find() ?: null;
+        }
+
+        return $this->userCache[$uid];
+    }
+
+    private function task(string $taskName)
+    {
+        if (!array_key_exists($taskName, $this->taskCache)) {
+            $this->taskCache[$taskName] = Tasks::where('type', 'bilibili')
+                ->where('execute_name', $taskName)
+                ->where('state', 1)
+                ->find() ?: null;
+        }
+
+        return $this->taskCache[$taskName];
+    }
+
+    private function account(int $uid, string $userId)
+    {
+        $key = $uid . '|' . $userId;
+        if (!array_key_exists($key, $this->accountCache)) {
+            $this->accountCache[$key] = Accounts::where('type', 'bilibili')
+                ->where('user_id', $userId)
+                ->where('uid', $uid)
+                ->where('state', 1)
+                ->find() ?: null;
+        }
+
+        return $this->accountCache[$key];
     }
 
     /**

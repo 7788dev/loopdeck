@@ -36,11 +36,15 @@ run_worker() {
     esac
     url="${scheduler_url}${separator}worker=${worker}&workers=${workers}"
 
+    # --max-time caps a hung batch so one slow tick cannot stall every later
+    # one: the PHP side runs with set_time_limit(0) and nginx cuts the fastcgi
+    # connection at 300s, so the worker curl must give up by then as well.
     if ! curl \
         --fail \
         --silent \
         --show-error \
         --connect-timeout 5 \
+        --max-time 300 \
         --header "X-Cron-Key: $cron_key" \
         --output /dev/null \
         "$url"; then

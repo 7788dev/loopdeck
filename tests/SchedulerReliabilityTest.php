@@ -93,6 +93,22 @@ functionalCheck((int)Db::name('jobs')->where('id', 1)->value('state') === 0, 'Ex
 functionalCheck((int)Db::name('jobs')->where('id', 2)->value('state') === 1 && ReliabilityNetease::$calls === 1,
     'Expired VIP suppressed an ordinary task in the same batch');
 
+// A deactivated account must disable all of its remaining jobs at once;
+// disabling only the current job re-claimed the rest one per 30-minute
+// lease-expiry cycle.
+reliabilityReset();
+reliabilityAccount();
+Db::name('accounts')->where('id', 1)->update(['state' => 0]);
+reliabilityTask(1, 'netease', 'sign', 0);
+reliabilityJob(1, 'netease', 'sign');
+reliabilityJob(2, 'netease', 'vip_growth_task');
+$summary = ['disabled' => 0, 'failed' => 0];
+$run->invokeArgs(reliabilityRunner(), [Db::name('jobs')->find(1), &$summary]);
+functionalCheck((int)Db::name('jobs')->where('id', 1)->value('state') === -1,
+    'A deactivated account did not disable the current job');
+functionalCheck((int)Db::name('jobs')->where('id', 2)->value('state') === -1,
+    'A deactivated account left other jobs queued for one-per-cycle disabling');
+
 reliabilityReset();
 reliabilityTask(1, 'netease', 'sign', 0);
 reliabilityTask(2, 'archived-fixture', 'sign', 0);

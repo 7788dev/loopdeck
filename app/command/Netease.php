@@ -19,6 +19,7 @@ use think\console\input\Argument;
 use think\console\input\Option;
 use think\console\Output;
 use netease\Netease as NeteaseAPI;
+use Throwable;
 
 class Netease extends Command
 {
@@ -64,18 +65,42 @@ class Netease extends Command
                     Jobs::where('id', $job['id'])->update(['nextExecute' => 0]);
                     continue;
                 }
-                $account_info = safe_unserialize_array($account['data']);
-                $job_config = safe_unserialize_array($job['data'] ?? '');
-                $do = new NeteaseAPI($account_info['user_id'], $account_info['csrf'], $account_info['musicu'], $job_config);
-                $execute = $do->{$job['do']}();
+                try {
+                    $account_info = safe_unserialize_array($account['data']);
+                    $job_config = safe_unserialize_array($job['data'] ?? '');
+                    $accountUserId = trim((string)($account_info['user_id'] ?? ''));
+                    $csrf = trim((string)($account_info['csrf'] ?? ''));
+                    $musicU = trim((string)($account_info['musicu'] ?? ''));
+                    if ($accountUserId === '' || $csrf === '' || $musicU === '') {
+                        // Match the HTTP scheduler: incomplete credentials
+                        // invalidate the account instead of reaching upstream
+                        // with an empty client.
+                        $this->accountInvalid('netease', $user, (string)$job['user_id']);
+                        continue;
+                    }
+                    $do = new NeteaseAPI($accountUserId, $csrf, $musicU, $job_config);
+                    $execute = $do->{$job['do']}();
+                    if (!is_array($execute)) {
+                        throw new \RuntimeException('Invalid NetEase task response');
+                    }
+                } catch (Throwable $exception) {
+                    // Exceptions are scoped to this job: reschedule it and keep
+                    // the rest of the batch running.
+                    Jobs::updateClaimedJob((int)$job['id'], [
+                        'nextExecute' => time() + max(60, min(3600, (int)(config('sys.reExecute_time') ?: 300))),
+                    ]);
+                    continue;
+                }
                 if ($do->cookiezt) {
                     $account = Accounts::where('type', '=', 'netease')
                         ->where('user_id', '=', $job['user_id'])
                         ->where('uid', '=', $job['uid'])
                         ->find();
-                    $user = Users::where('uid', '=', $account['uid'])->find();
-                    $this->accountInvalid('netease', $user, $job['user_id']); // 账号失效处理
-                    break;
+                    $user = $account === null ? null : Users::where('uid', '=', $account['uid'])->find();
+                    if ($user !== null) {
+                        $this->accountInvalid('netease', $user, $job['user_id']); // 账号失效处理
+                    }
+                    continue; // 失效只影响本账号，其余任务继续执行
                 } else {
                     $status = (new CronCommon())->statusTag($execute);
                     if (CronCommon::shouldReportTaskStatus('netease', (string)$job['do'], $status)) {
@@ -85,8 +110,7 @@ class Netease extends Command
                     (new NotificationService())->recordTask($user, 'netease', (string)$job['user_id'],
                         (string)$job['do'], (string)$task['name'], $execute);
                 }
-                Info::where('sysid','=','100')->inc('times',1)->update();
-                Info::where('sysid','=','100')->update(['last' => date('Y-m-d H:i:s')]);
+                Info::recordRun(100);
                 $nextExecute = NeteaseSchedule::nextAfterResult(
                     (string)$job['user_id'], (string)$account['timing'], $execute
                 );

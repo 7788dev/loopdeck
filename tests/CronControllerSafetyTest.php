@@ -112,4 +112,45 @@ foreach (['system/set/cron', 'system/task/set'] as $view) {
     );
 }
 
+// --- Legacy batch limit: a misconfigured sys.interval must not unbound it ----
+
+$jobsModel = file_get_contents($root . '/app/index/model/Jobs.php');
+cronSafetyCheck(is_string($jobsModel), 'Unable to inspect the jobs model');
+cronSafetyCheck(
+    str_contains($jobsModel, 'max(1, min(500, $interval ?: 50))')
+        && !str_contains($jobsModel, "(int)config('sys.interval') ?? 0"),
+    'getUnexecutedList still trusts sys.interval as the raw LIMIT (limit(0) emits no LIMIT clause)'
+);
+$adminAjaxSource = file_get_contents($root . '/app/admin/controller/Ajax.php');
+cronSafetyCheck(
+    str_contains($adminAjaxSource, "if (\$key === 'interval'"),
+    'The admin settings save still accepts an unvalidated sys.interval value'
+);
+
+// --- CLI netease: one invalid account must not abort the batch ---------------
+
+$cliNetease = file_get_contents($root . '/app/command/Netease.php');
+cronSafetyCheck(is_string($cliNetease), 'Unable to inspect the CLI netease command');
+cronSafetyCheck(
+    !preg_match('/accountInvalid\([^\n]*\);\s*break;/s', $cliNetease),
+    'The CLI netease command still aborts the whole batch when one account is invalid'
+);
+cronSafetyCheck(
+    str_contains($cliNetease, 'if (!is_array($execute))'),
+    'The CLI netease command still feeds non-array adapter results into the scheduler'
+);
+cronSafetyCheck(
+    str_contains($cliNetease, '$accountUserId === \'\' || $csrf === \'\' || $musicU === \'\''),
+    'The CLI netease command still builds an API client from unvalidated credentials'
+);
+
+// --- Scheduler worker curl needs a total timeout -----------------------------
+
+$scheduler = file_get_contents($root . '/docker/scheduler.sh');
+cronSafetyCheck(is_string($scheduler), 'Unable to inspect docker/scheduler.sh');
+cronSafetyCheck(
+    str_contains($scheduler, '--max-time 300'),
+    'The scheduler worker curl still has no total timeout and can stall every later tick'
+);
+
 echo "Cron controller safety tests passed\n";

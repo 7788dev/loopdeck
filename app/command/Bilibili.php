@@ -112,8 +112,7 @@ class Bilibili extends Command
                     continue;
                 }
 
-                Info::where('sysid', '100')->inc('times', 1)->update();
-                Info::where('sysid', '100')->update(['last' => date('Y-m-d H:i:s')]);
+                Info::recordRun(100);
                 Jobs::updateClaimedJob((int)$job['id'], BilibiliTaskExecutor::jobUpdates(
                     $result, $jobConfig, $userId, (string)$account['timing']
                 ));

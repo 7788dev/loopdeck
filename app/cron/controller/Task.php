@@ -313,7 +313,13 @@ class Task extends Common
                 return;
             }
             if ((int)$account['state'] !== 1) {
-                Jobs::where('id', $jobId)->update(['state' => -1]);
+                // Deactivate every remaining job of the account in one statement;
+                // disabling only the current job left the rest to be re-claimed
+                // and disabled one per lease-expiry cycle (~30 minutes each).
+                Jobs::where('type', $type)
+                    ->where('uid', $uid)
+                    ->where('user_id', $userId)
+                    ->update(['state' => -1]);
                 $this->writeLog($type, $userId, $taskName, '账号已停用，请重新登录后执行');
                 $this->suppressedAccounts[$accountKey] = true;
                 $summary['disabled']++;

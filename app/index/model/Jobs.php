@@ -302,8 +302,12 @@ class Jobs extends Model
         if ($type === 'bilibili') {
             $query->whereIn('do', BilibiliTaskExecutor::executableTasks());
         }
+        // A misconfigured (or missing) `sys.interval` must never widen the
+        // batch: `limit(0)` emits no LIMIT clause at all and a negative value
+        // is invalid SQL. Mirror the unified scheduler's 1..500 clamp.
+        $interval = (int)config('sys.interval');
         $result = $query
-            ->limit((int)config('sys.interval') ?? 0)
+            ->limit(max(1, min(500, $interval ?: 50)))
             ->select();
         if ($result) {
             return $result;

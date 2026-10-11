@@ -34,6 +34,11 @@ class Netease extends Common
         'vip_growth_task',
     ];
 
+    /** Per-batch lookups: most jobs in a batch share the same user, task or account. */
+    private array $userCache = [];
+    private array $taskCache = [];
+    private array $accountCache = [];
+
     public function index()
     {
         $jobs = Jobs::getUnexecutedList('netease'); // 获取未执行任务列表
@@ -47,23 +52,17 @@ class Netease extends Common
             }
             try {
 
-                $user = Users::where('uid', '=', (int)($job['uid'] ?? 0))->where('web_id', 1)->where('state', 1)->find();
+                $user = $this->user((int)($job['uid'] ?? 0));
                 if ($user === null) {
                     $this->disableJob($jobId, (string)($job['user_id'] ?? ''), (string)($job['do'] ?? ''), '用户不存在，任务已停用');
                     continue;
                 }
-                $task = Tasks::where('type', '=', 'netease')
-                    ->where('execute_name', '=', (string)($job['do'] ?? ''))
-                    ->where('state', '=', 1)
-                    ->find();
+                $task = $this->task((string)($job['do'] ?? ''));
                 if ($task === null) {
                     $this->disableJob($jobId, (string)($job['user_id'] ?? ''), (string)($job['do'] ?? ''), '任务不存在或已停用');
                     continue;
                 }
-                $account = Accounts::where('type', '=', 'netease')
-                    ->where('user_id', '=', (string)($job['user_id'] ?? ''))
-                    ->where('uid', '=', (int)($job['uid'] ?? 0))
-                    ->find();
+                $account = $this->account((int)($job['uid'] ?? 0), (string)($job['user_id'] ?? ''));
                 if ($account === null) {
                     $this->disableJob($jobId, (string)($job['user_id'] ?? ''), (string)($job['do'] ?? ''), '账号不存在，任务已停用');
                     continue;
@@ -136,6 +135,40 @@ class Netease extends Common
         // 历史自调用入口：账号 cookie 与 RUN_KEY 曾随 URL 传播，任务已在
         // index() 进程内执行，该端点仅作路由兼容并拒绝外部触发。
         return resultJson(-1001, 'RunKey Access Denied!');
+    }
+
+    private function user(int $uid)
+    {
+        if (!array_key_exists($uid, $this->userCache)) {
+            $this->userCache[$uid] = Users::where('uid', '=', $uid)->where('web_id', 1)->where('state', 1)->find() ?: null;
+        }
+
+        return $this->userCache[$uid];
+    }
+
+    private function task(string $taskName)
+    {
+        if (!array_key_exists($taskName, $this->taskCache)) {
+            $this->taskCache[$taskName] = Tasks::where('type', '=', 'netease')
+                ->where('execute_name', '=', $taskName)
+                ->where('state', '=', 1)
+                ->find() ?: null;
+        }
+
+        return $this->taskCache[$taskName];
+    }
+
+    private function account(int $uid, string $userId)
+    {
+        $key = $uid . '|' . $userId;
+        if (!array_key_exists($key, $this->accountCache)) {
+            $this->accountCache[$key] = Accounts::where('type', '=', 'netease')
+                ->where('user_id', '=', $userId)
+                ->where('uid', '=', $uid)
+                ->find() ?: null;
+        }
+
+        return $this->accountCache[$key];
     }
 
     /**

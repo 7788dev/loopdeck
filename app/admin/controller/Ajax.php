@@ -98,6 +98,11 @@ class Ajax extends Common
                     ) {
                         return resultJson(0, '网易云工具每日次数必须在 1 到 1000 之间');
                     }
+                    if ($key === 'interval'
+                        && (preg_match('/\A[1-9]\d{0,3}\z/', $value) !== 1 || (int)$value > 500)
+                    ) {
+                        return resultJson(0, '每次执行任务数量必须在 1 到 500 之间');
+                    }
                     if (in_array($key, ['site_template', 'index_template', 'login_template'], true)) {
                         return resultJson(0, '模板选择已移除');
                     }
@@ -233,17 +238,29 @@ class Ajax extends Common
                             return resultJson(1, '保存成功');
                         } else {
                             $requiresVip = (int)($editable['vip'] ?? $oTask['vip']) === 1;
-                            foreach ($jobs->where('type', '=', $oTask['type'])->where('do', '=', $oTask['execute_name'])->select() as $value) {
-                                $user = Users::findByUid($value['uid']);
-                                // Editing copy or prices must not enable tasks the user paused.
-                                $state = $offline || ($requiresVip && (int)strtotime((string)($user['vip_end'] ?? '')) <= time())
-                                    ? 0
-                                    : (int)$value['state'];
-                                $updates = ['state' => $state];
-                                if ($offline) {
-                                    $updates['nextExecute'] = 0;
+                            $jobRows = $jobs->where('type', '=', $oTask['type'])
+                                ->where('do', '=', $oTask['execute_name'])
+                                ->field('id,uid,state')
+                                ->select()->toArray();
+                            if ($offline) {
+                                // Editing copy or prices must not re-enable or reschedule anything:
+                                // one bulk statement replaces the per-row loop.
+                                $jobs->where('type', '=', $oTask['type'])
+                                    ->where('do', '=', $oTask['execute_name'])
+                                    ->update(['state' => 0, 'nextExecute' => 0]);
+                            } elseif ($requiresVip) {
+                                // Expired VIP rows are the only state change this edit can make;
+                                // fetch every owner's membership in one query instead of per row.
+                                $uids = array_values(array_unique(array_map('intval', array_column($jobRows, 'uid'))));
+                                $vipEndByUid = $uids === []
+                                    ? []
+                                    : Users::whereIn('uid', $uids)->column('vip_end', 'uid');
+                                foreach ($jobRows as $value) {
+                                    $expired = (int)strtotime((string)($vipEndByUid[$value['uid']] ?? '')) <= time();
+                                    if ($expired && (int)$value['state'] !== 0) {
+                                        $jobs->where('id', '=', $value['id'])->update(['state' => 0]);
+                                    }
                                 }
-                                $jobs->where('id', '=', $value['id'])->update($updates);
                             }
                             return resultJson(1, '保存成功');
                         }

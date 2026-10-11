@@ -11,8 +11,8 @@ final class TaskExecutionLock
 
     public static function acquire(string $key): bool
     {
-        // Multi-app changes runtime_path() to runtime/cron or runtime/index.
-        // Always use the common installation directory for cross-entry locks.
+        // HTTP cron, CLI commands and index requests share one installation, so
+        // cross-entry locks must live in one directory, not per runtime path.
         $directory = (string)config('app.task_lock_directory', root_path() . 'runtime/task-locks');
         $path = rtrim($directory, '/\\') . DIRECTORY_SEPARATOR . hash('sha256', $key) . '.lock';
         if (isset(self::$handles[$key])) {

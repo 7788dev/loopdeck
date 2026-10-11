@@ -36,7 +36,7 @@ cronSafetyCheck(
     'epic still disables jobs through a full-table model UPDATE'
 );
 cronSafetyCheck(
-    str_contains($epicRunner, "Jobs::where('id', \$id)") && str_contains($epicRunner, 'Jobs::claimDueJob('),
+    str_contains($epicRunner, 'Jobs::updateClaimedJob($id,') && str_contains($epicRunner, 'Jobs::claimDueJob('),
     'epic does not disable the timing-less job by primary key'
 );
 // A mail/upstream exception must not abort the whole scheduling round.

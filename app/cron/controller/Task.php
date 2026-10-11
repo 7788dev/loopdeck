@@ -15,6 +15,8 @@ use app\service\NotificationService;
 use app\service\EpicJobRunner;
 use app\service\BilibiliTaskExecutor;
 use app\service\NeteaseSchedule;
+use app\service\SchemaMaintenance;
+use app\service\SchedulerRetry;
 use netease\Netease as NeteaseAPI;
 use think\facade\Request;
 use Throwable;
@@ -104,6 +106,8 @@ class Task extends Common
             $summary['deferred'] = $summary['selected'] - $summary['processed'];
             $this->recordAttempts($summary['attempted']);
             $this->pruneLogsIfDue();
+            $this->pruneDakaStateFilesIfDue();
+            SchemaMaintenance::runIfDue();
 
             $message = $summary['selected'] === 0 ? '没有要执行的任务' : '任务调度完成';
             return resultJson(1000, $message, $summary);
@@ -308,7 +312,9 @@ class Task extends Common
             $account = $this->account($type, $uid, $userId);
 
             if (!$user || !$task || !$account) {
-                $this->disableJob($jobId, $type, $userId, $taskName, '用户、账号或任务数据不存在，任务已停用');
+                if (!$this->disableClaimedJob($jobId, $type, $userId, $taskName, '用户、账号或任务数据不存在，任务已停用')) {
+                    return;
+                }
                 $summary['disabled']++;
                 return;
             }
@@ -316,17 +322,25 @@ class Task extends Common
                 // Deactivate every remaining job of the account in one statement;
                 // disabling only the current job left the rest to be re-claimed
                 // and disabled one per lease-expiry cycle (~30 minutes each).
+                // The claimed row is excluded so its own write still compares
+                // the lease instead of clobbering a plan saved mid-run, and
+                // only enabled rows flip to -1: `updateJob` resurrects -1 rows
+                // on the next account save, which would silently re-enable a
+                // job the user switched off by hand.
                 Jobs::where('type', $type)
                     ->where('uid', $uid)
                     ->where('user_id', $userId)
+                    ->where('state', 1)
+                    ->where('id', '<>', $jobId)
                     ->update(['state' => -1]);
+                Jobs::updateClaimedJob($jobId, ['state' => -1]);
                 $this->writeLog($type, $userId, $taskName, '账号已停用，请重新登录后执行');
                 $this->suppressedAccounts[$accountKey] = true;
                 $summary['disabled']++;
                 return;
             }
             if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
-                Jobs::where('id', $jobId)->update(['nextExecute' => 0]);
+                Jobs::updateClaimedJob($jobId, ['nextExecute' => 0]);
                 $summary['unscheduled']++;
                 return;
             }
@@ -339,7 +353,9 @@ class Task extends Common
             $accountData = $this->decodeArray((string)$account['data']);
             $jobConfig = $this->decodeArray((string)($job['data'] ?? ''));
             if ($accountData === null || $accountData === [] || $jobConfig === null) {
-                $this->disableJob($jobId, $type, $userId, $taskName, '账号或任务配置损坏，请重新登录后配置');
+                if (!$this->disableClaimedJob($jobId, $type, $userId, $taskName, '账号或任务配置损坏，请重新登录后配置')) {
+                    return;
+                }
                 $summary['disabled']++;
                 return;
             }
@@ -352,13 +368,17 @@ class Task extends Common
                     'bilibili' => $this->executeBilibili($taskName, $accountData, $jobConfig),
                 };
             } catch (Throwable $exception) {
-                $this->retryJob($jobId);
-                $this->notifications()->recordTask($user, $type, $userId, $taskName, (string)$task['name'],
-                    ['success' => false, 'message' => '任务执行异常，已安排稍后重试', 'retry_after_seconds' => 300]);
-                $this->writeLog(
-                    $type, $userId, $taskName, '任务执行异常，已安排稍后重试',
-                    $this->statusTag(['retry_after_seconds' => 300])
-                );
+                // When the retry budget is exhausted, retryJob has already
+                // disabled the job and written its final [失败] record; the
+                // interim "will retry" copy must not contradict it.
+                if ($this->retryJob($jobId)) {
+                    $this->notifications()->recordTask($user, $type, $userId, $taskName, (string)$task['name'],
+                        ['success' => false, 'message' => '任务执行异常，已安排稍后重试', 'retry_after_seconds' => 300]);
+                    $this->writeLog(
+                        $type, $userId, $taskName, '任务执行异常，已安排稍后重试',
+                        $this->statusTag(['retry_after_seconds' => 300])
+                    );
+                }
                 $summary['failed']++;
                 return;
             }
@@ -384,6 +404,11 @@ class Task extends Common
                 'lastExecute' => date('Y-m-d H:i:s'),
                 'nextExecute' => $nextExecute,
             ];
+            if ($type === 'netease') {
+                // A run that returned a result breaks the consecutive-failure
+                // streak tracked in the payload.
+                $updates['data'] = serialize(SchedulerRetry::dataAfterSuccess($jobConfig));
+            }
             if ($type === 'bilibili') {
                 $updates = BilibiliTaskExecutor::jobUpdates(
                     $result, $storedJobConfig, $userId, (string)$account['timing']
@@ -392,13 +417,12 @@ class Task extends Common
             Jobs::updateClaimedJob($jobId, $updates);
             $summary[$result['success'] ? 'succeeded' : 'failed']++;
         } catch (Throwable $exception) {
-            if ($jobId > 0) {
-                $this->retryJob($jobId);
+            if ($jobId > 0 && $this->retryJob($jobId)) {
+                $this->writeLog(
+                    $type, $userId, $taskName, '任务调度异常，已安排稍后重试',
+                    $this->statusTag(['retry_after_seconds' => 300])
+                );
             }
-            $this->writeLog(
-                $type, $userId, $taskName, '任务调度异常，已安排稍后重试',
-                $this->statusTag(['retry_after_seconds' => 300])
-            );
             $summary['failed']++;
         } finally {
             if ($claimed) {
@@ -541,18 +565,28 @@ class Task extends Common
         return $next;
     }
 
-    private function retryJob(int $jobId): void
+    /**
+     * Reschedule a failed claimed job. Returns true only when a retry was
+     * actually scheduled — the write landed and `nextExecute` points minutes
+     * ahead. Returns false when the retry budget was exhausted and the job
+     * was finalized (disabled with one final `[失败]` record), when the
+     * account no longer has a schedule (the job is paused instead), or when
+     * the lease-guarded write landed nowhere — callers must not promise
+     * another retry afterwards.
+     */
+    private function retryJob(int $jobId): bool
     {
         if ($jobId <= 0) {
-            return;
+            return false;
         }
 
         try {
             $nextExecute = 0;
-            $job = Jobs::where('id', $jobId)->field('uid,type,user_id,data')->find();
+            $job = Jobs::where('id', $jobId)->field('uid,type,user_id,do,data')->find();
+            $jobData = $job ? $this->decodeArray((string)($job['data'] ?? '')) : null;
             if ($job) {
                 $timing = $job['type'] === 'epic'
-                    ? ($this->decodeArray((string)($job['data'] ?? ''))['timing'] ?? '')
+                    ? ($jobData['timing'] ?? '')
                     : Accounts::where('type', (string)$job['type'])
                         ->where('uid', (int)$job['uid'])
                         ->where('user_id', (string)$job['user_id'])
@@ -565,22 +599,53 @@ class Task extends Common
                 }
             }
 
-            Jobs::updateClaimedJob($jobId, [
+            $updates = [
                 'lastExecute' => date('Y-m-d H:i:s'),
                 'nextExecute' => $nextExecute,
-            ]);
+            ];
+            if ($nextExecute > 0) {
+                // Bounded retries: a payload that can be decoded carries the
+                // consecutive-failure counter. Once the cap is reached the job
+                // is disabled with one final `[失败]` record instead of
+                // retrying forever at minute-level cadence.
+                if (is_array($jobData)) {
+                    $nextData = SchedulerRetry::dataAfterFailure($jobData);
+                    if ($nextData === null) {
+                        $updates['state'] = 0;
+                        $updates['nextExecute'] = 0;
+                        $updates['data'] = serialize(SchedulerRetry::settledData($jobData));
+                        if (Jobs::updateClaimedJob($jobId, $updates)) {
+                            $this->writeLog(
+                                (string)$job['type'],
+                                (string)$job['user_id'],
+                                (string)$job['do'],
+                                SchedulerRetry::finalMessage(SchedulerRetry::attemptsIn($jobData) + 1)
+                            );
+                        }
+                        return false;
+                    }
+                    $updates['data'] = serialize($nextData);
+                }
+                return Jobs::updateClaimedJob($jobId, $updates);
+            }
+            // The account lost its schedule while the job ran: pause it like
+            // the claim-time path does instead of promising a retry that will
+            // never come.
+            Jobs::updateClaimedJob($jobId, $updates);
+            return false;
         } catch (Throwable $exception) {
             // A database failure while handling an exception must not escape
             // the per-job boundary and abort the remaining scheduler batch.
             // Make one best-effort short lease update; if the database is
             // unavailable, the original claim will expire on its own.
             try {
-                Jobs::updateClaimedJob($jobId, [
+                return (bool)Jobs::updateClaimedJob($jobId, [
                     'lastExecute' => date('Y-m-d H:i:s'),
                     'nextExecute' => time() + 300,
                 ]);
             } catch (Throwable $ignored) {
                 // Nothing else can be safely done without a working database.
+                return false;
             }
         }
     }
@@ -612,6 +677,26 @@ class Task extends Common
         $this->writeLog($type, $userId, $task, $message);
     }
 
+    /**
+     * Disable a job whose execution lease we hold. The write must still
+     * compare the lease: an unconditional update could clobber a schedule the
+     * user just saved while this run was in flight. A failed write means the
+     * user took over, so nothing is disabled and nothing is logged.
+     */
+    private function disableClaimedJob(int $jobId, string $type, string $userId, string $task, string $message): bool
+    {
+        try {
+            if ($jobId > 0 && Jobs::updateClaimedJob($jobId, ['state' => 0, 'nextExecute' => 0])) {
+                $this->writeLog($type, $userId, $task, $message);
+                return true;
+            }
+        } catch (Throwable $exception) {
+            // A database hiccup must not abort the remaining scheduler batch.
+        }
+
+        return false;
+    }
+
     private function expireVip(string $type, int $uid, string $userId): void
     {
         $membershipChanged = Users::where('uid', $uid)
@@ -632,9 +717,13 @@ class Task extends Common
             ->where('user_id', $userId)
             ->where('state', 1)
             ->update(['state' => 0]);
+        // Only enabled jobs flip to -1 (account invalid): `updateJob`
+        // resurrects -1 rows on the next account save, and a user-disabled
+        // job must stay disabled.
         Jobs::where('type', $type)
             ->where('uid', $uid)
             ->where('user_id', $userId)
+            ->where('state', 1)
             ->update(['state' => -1]);
         $key = $this->accountKey($type, $uid, $userId);
         $this->suppressedAccounts[$key] = true;
@@ -702,10 +791,50 @@ class Task extends Common
                     break;
                 }
             }
-            $this->pruneDakaStateFiles();
             @touch($stamp);
         } catch (Throwable $exception) {
-            @touch($stamp);
+            // Pruning failed: leave the stamp untouched so the next scheduler
+            // run retries instead of waiting another full day. The Daka state
+            // sweep below runs on its own gate for the same reason.
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /**
+     * Daily sweep of orphaned NetEase Daka state files. This runs on its own
+     * 24-hour gate, separate from `TASK_LOG_RETENTION_DAYS`: disabling task
+     * log retention must not also disable state file cleanup, and a failed
+     * log prune must not postpone the sweep by a day.
+     */
+    private function pruneDakaStateFilesIfDue(): void
+    {
+        $stamp = runtime_path() . 'daka-state-prune.stamp';
+        clearstatcache(true, $stamp);
+        if (is_file($stamp) && (int)filemtime($stamp) > time() - 86400) {
+            return;
+        }
+
+        $lock = @fopen(runtime_path() . 'daka-state-prune.lock', 'c+');
+        if (!is_resource($lock) || !flock($lock, LOCK_EX | LOCK_NB)) {
+            if (is_resource($lock)) {
+                fclose($lock);
+            }
+            return;
+        }
+
+        try {
+            clearstatcache(true, $stamp);
+            if (is_file($stamp) && (int)filemtime($stamp) > time() - 86400) {
+                return;
+            }
+
+            if ($this->pruneDakaStateFiles()) {
+                @touch($stamp);
+            }
+        } catch (Throwable $exception) {
+            // Failed sweeps retry on the next scheduler run.
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
@@ -716,12 +845,16 @@ class Task extends Common
      * The daily NetEase task keeps two JSON files per account under
      * `runtime/netease-daka/`. Nothing removed them when an account went away,
      * so the directory grew without bound.
+     *
+     * Returns false when the sweep had to fail closed (the account list was
+     * unreadable): the caller must not stamp its gate, or the failed sweep
+     * would be postponed by a full day.
      */
-    private function pruneDakaStateFiles(): void
+    private function pruneDakaStateFiles(): bool
     {
         $directory = rtrim(runtime_path(), '/\\') . DIRECTORY_SEPARATOR . 'netease-daka';
         if (!is_dir($directory)) {
-            return;
+            return true;
         }
 
         // A state file can be older than the retention window while its
@@ -731,7 +864,7 @@ class Task extends Common
         // state file is orphaned.
         $activeHashes = $this->activeDakaStateHashes();
         if ($activeHashes === null) {
-            return;
+            return false;
         }
 
         $retentionDays = $this->envInt('DAKA_STATE_RETENTION_DAYS', 30, 1, 3650);
@@ -758,6 +891,8 @@ class Task extends Common
                 @unlink($file);
             }
         }
+
+        return true;
     }
 
     /**
@@ -773,7 +908,11 @@ class Task extends Common
     private function activeDakaStateHashes(): ?array
     {
         try {
+            // Only live accounts keep their state files: an invalidated
+            // account (`state` 0) can no longer produce new state, so its
+            // files age out through the normal retention window.
             $accounts = Accounts::where('type', 'netease')
+                ->where('state', 1)
                 ->field('user_id,data')
                 ->select();
         } catch (Throwable $exception) {

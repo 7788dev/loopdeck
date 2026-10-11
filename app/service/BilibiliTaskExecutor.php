@@ -169,6 +169,9 @@ final class BilibiliTaskExecutor
     {
         $now ??= time();
         unset($jobConfig['_bilibili_verification']);
+        // A run that returned a result breaks the consecutive-failure streak
+        // tracked by the scheduler (SchedulerRetry is in this namespace).
+        unset($jobConfig[SchedulerRetry::DATA_KEY]);
         $retry = (int)($result['retry_after_seconds'] ?? 0) === 300
             && is_array($result['verification_state'] ?? null);
         if ($retry) {

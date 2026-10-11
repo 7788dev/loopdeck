@@ -10,6 +10,7 @@ use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
 use app\service\NeteaseSchedule;
+use app\service\SchedulerRetry;
 use netease\Netease as NeteaseAPI;
 use Throwable;
 
@@ -68,11 +69,11 @@ class Netease extends Common
                     continue;
                 }
                 if ((int)($account['state'] ?? 0) !== 1) {
-                    Jobs::where('id', $jobId)->update(['state' => -1, 'nextExecute' => 0]);
+                    Jobs::updateClaimedJob($jobId, ['state' => -1, 'nextExecute' => 0]);
                     continue;
                 }
                 if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
-                    Jobs::where('id', $jobId)->update(['nextExecute' => 0]);
+                    Jobs::updateClaimedJob($jobId, ['nextExecute' => 0]);
                     continue;
                 }
                 if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()) {
@@ -103,18 +104,23 @@ class Netease extends Common
                     Jobs::updateClaimedJob($jobId, [
                         'lastExecute' => date("Y-m-d H:i:s"),
                         'nextExecute' => $nextExecute,
+                        // A completed run breaks the consecutive-failure streak.
+                        'data' => serialize(SchedulerRetry::dataAfterSuccess(
+                            safe_unserialize_array((string)($job['data'] ?? ''))
+                        )),
                     ]);
                 } catch (Throwable $exception) {
                     // Keep the leased job retryable when its completion update
                     // fails; do not abort the remaining jobs in this batch.
-                    $this->scheduleRetry($jobId);
-                    $this->writeLog(
-                        'netease',
-                        (string)$job['user_id'],
-                        (string)$job['do'],
-                        '执行结果写入失败，稍后自动重试',
-                        $this->statusTag(['retry_after_seconds' => 300])
-                    );
+                    if ($this->scheduleRetry($jobId)) {
+                        $this->writeLog(
+                            'netease',
+                            (string)$job['user_id'],
+                            (string)$job['do'],
+                            '执行结果写入失败，稍后自动重试',
+                            $this->statusTag(['retry_after_seconds' => 300])
+                        );
+                    }
                     continue;
                 }
                 try {
@@ -123,6 +129,11 @@ class Netease extends Common
                     // Statistics are best-effort and must not repeat a completed
                     // upstream task.
                 }
+            } catch (Throwable $exception) {
+                // One broken job (failed lookup, VIP bookkeeping, ...) must not
+                // abort the remaining jobs in this batch; the lease is released
+                // below and the job retries at lease expiry.
+                continue;
             } finally {
                 Jobs::releaseDueJob((int)$job['id']);
             }
@@ -214,12 +225,13 @@ class Netease extends Common
             return $execute;
         } catch (Throwable $exception) {
             // 异常只影响本条任务；不要把租约推进到下一次正常计划。
-            $this->scheduleRetry($jobId);
-            $this->writeLog(
-                'netease', $account['user_id'], $do,
-                '执行异常，稍后自动重试',
-                $this->statusTag(['retry_after_seconds' => 300])
-            );
+            if ($this->scheduleRetry($jobId)) {
+                $this->writeLog(
+                    'netease', $account['user_id'], $do,
+                    '执行异常，稍后自动重试',
+                    $this->statusTag(['retry_after_seconds' => 300])
+                );
+            }
             return null;
         }
     }
@@ -227,28 +239,63 @@ class Netease extends Common
     private function disableJob(int $jobId, string $userId, string $do, string $message): void
     {
         try {
-            if ($jobId > 0) {
-                Jobs::where('id', $jobId)->update(['state' => 0, 'nextExecute' => 0]);
+            if ($jobId > 0 && !Jobs::updateClaimedJob($jobId, ['state' => 0, 'nextExecute' => 0])) {
+                // The lease-guarded write landed nowhere: the user re-planned
+                // the job during execution, so their plan wins and the
+                // disable record would be wrong.
+                return;
             }
         } catch (Throwable $exception) {
             // A database hiccup must not abort the remaining jobs.
+            return;
         }
         if ($userId !== '') {
             $this->writeLog('netease', $userId, $do, $message);
         }
     }
 
-    private function scheduleRetry(int $jobId): void
+    /**
+     * Reschedule a failed claimed job. Returns true only when a retry was
+     * actually scheduled. Returns false when the retry budget was exhausted
+     * and the job was finalized (disabled with one final `[失败]` record) or
+     * when the lease-guarded write landed nowhere — callers must not promise
+     * another retry afterwards.
+     */
+    private function scheduleRetry(int $jobId): bool
     {
         if ($jobId <= 0) {
-            return;
+            return false;
         }
         try {
             $delay = max(60, min(3600, (int)(config('sys.reExecute_time') ?: 300)));
-            Jobs::updateClaimedJob($jobId, ['nextExecute' => time() + $delay]);
+            $job = Jobs::where('id', $jobId)->field('user_id,do,data')->find();
+            $jobData = safe_unserialize_array((string)($job['data'] ?? ''));
+            $updates = ['nextExecute' => time() + $delay];
+            $nextData = SchedulerRetry::dataAfterFailure($jobData);
+            if ($nextData === null) {
+                $updates = [
+                    'state' => 0,
+                    'nextExecute' => 0,
+                    'data' => serialize(SchedulerRetry::settledData($jobData)),
+                ];
+                if (Jobs::updateClaimedJob($jobId, $updates) && $job) {
+                    $this->writeLog(
+                        'netease',
+                        (string)$job['user_id'],
+                        (string)$job['do'],
+                        SchedulerRetry::finalMessage(SchedulerRetry::attemptsIn($jobData) + 1)
+                    );
+                }
+                return false;
+            }
+            $updates['data'] = serialize($nextData);
+            return Jobs::updateClaimedJob($jobId, $updates);
         } catch (Throwable $exception) {
-            // Keep the claimed lease when the retry write itself fails.
+            // Keep the claimed lease when the retry write itself fails: the
+            // lease expiry re-claims the job, so a retry does still happen.
         }
+
+        return true;
     }
 
     private function writeLog(string $type, string $userId, string $do, string $message, string $status = '失败'): void

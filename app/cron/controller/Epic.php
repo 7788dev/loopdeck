@@ -17,7 +17,12 @@ class Epic extends Common
             ->order('nextExecute')->limit(50)->select();
         $runner = new EpicJobRunner();
         foreach ($jobs as $job) {
-            $runner->run($job);
+            try {
+                $runner->run($job);
+            } catch (\Throwable $exception) {
+                // 一条任务的领取或记账异常不能中断本轮其余任务；租约若已
+                // 领取会在 EpicJobRunner 的 finally 中释放。
+            }
         }
         return resultJson(1000, 'Epic 提醒任务处理完成');
     }

@@ -12,6 +12,7 @@ use app\index\model\Tasks;
 use app\index\model\Users;
 use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
+use app\service\SchedulerRetry;
 use Throwable;
 
 class Bilibili extends Common
@@ -51,11 +52,11 @@ class Bilibili extends Common
                 $task = $this->task((string)$job['do']);
 
                 if (!$user || !$account || !$task) {
-                    Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
+                    Jobs::updateClaimedJob((int)$job['id'], ['state' => 0, 'nextExecute' => 0]);
                     continue;
                 }
                 if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
-                    Jobs::where('id', $job['id'])->update(['nextExecute' => 0]);
+                    Jobs::updateClaimedJob((int)$job['id'], ['nextExecute' => 0]);
                     continue;
                 }
                 if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()) {
@@ -64,6 +65,10 @@ class Bilibili extends Common
                 }
                 // 凭据/配置都在库内，任务在本进程执行，RUN_KEY 不再进 URL
                 $this->runJob((string)$job['do'], $job, $user, $account, $task);
+            } catch (Throwable $exception) {
+                // 一次查询或记账失败不能中断本轮其余任务；租约在 finally 中
+                // 释放，任务在租约到期后自动重试。
+                continue;
             } finally {
                 Jobs::releaseDueJob((int)$job['id']);
             }
@@ -121,8 +126,9 @@ class Bilibili extends Common
             $accountData = BilibiliTaskExecutor::decodeSerializedArray((string)$account['data']);
             $jobConfig = BilibiliTaskExecutor::decodeSerializedArray((string)($job['data'] ?? ''));
             if ($accountData === null || $jobConfig === null) {
-                Jobs::where('id', $job['id'])->update(['state' => 0, 'nextExecute' => 0]);
-                TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[失败] 账号或任务配置异常');
+                if (Jobs::updateClaimedJob((int)$job['id'], ['state' => 0, 'nextExecute' => 0])) {
+                    TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[失败] 账号或任务配置异常');
+                }
                 return;
             }
 
@@ -145,13 +151,36 @@ class Bilibili extends Common
                 return;
             }
 
-            Info::recordRun(100);
+            try {
+                Info::recordRun(100);
+            } catch (Throwable $exception) {
+                // 统计是尽力而为的：一次统计失败不能把一次成功的上游执行
+                // 变成调度失败（那会重复执行任务并计入重试计数）。
+            }
             Jobs::updateClaimedJob((int)$job['id'], BilibiliTaskExecutor::jobUpdates(
                 $result, $jobConfig, $userId, (string)$account['timing']
             ));
         } catch (Throwable $exception) {
-            // 租约未推进，任务稍后自动重试；日志标签按仓库规范走 [重试中]
-            TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[重试中] 执行异常，稍后自动重试');
+            // 租约未推进，任务在租约到期后自动重试；连续异常达到上限则停用
+            // 任务并写一条 [失败] 终态记录。计数持久化在 job data 中。
+            $jobData = BilibiliTaskExecutor::decodeSerializedArray((string)($job['data'] ?? ''));
+            $jobData = is_array($jobData) ? $jobData : [];
+            $nextData = SchedulerRetry::dataAfterFailure($jobData);
+            if ($nextData === null) {
+                $finalUpdates = [
+                    'state' => 0,
+                    'nextExecute' => 0,
+                    'data' => serialize(SchedulerRetry::settledData($jobData)),
+                ];
+                if (Jobs::updateClaimedJob((int)$job['id'], $finalUpdates)) {
+                    TaskLogs::operateExecuteLog('bilibili', $userId, $taskName,
+                        '[失败] ' . SchedulerRetry::finalMessage(SchedulerRetry::attemptsIn($jobData) + 1));
+                }
+            } else if (Jobs::updateClaimedJob((int)$job['id'], ['data' => serialize($nextData)])) {
+                // 计数写入落空说明租约已被接管，任务不再由本调度推进，
+                // 此时不能留下“稍后自动重试”的承诺。
+                TaskLogs::operateExecuteLog('bilibili', $userId, $taskName, '[重试中] 执行异常，稍后自动重试');
+            }
         }
     }
 

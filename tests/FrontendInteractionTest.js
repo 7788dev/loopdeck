@@ -194,6 +194,19 @@ console.log('Sidebar navigation state and responsive boundaries passed');
 }
 
 
+// The notices preview must decode entities like a browser: strip real tags
+// first, decode once, and let the caller's escapeHtml re-escape the result.
+{
+    const {context} = environment();
+    vm.runInContext(read('public/static/js/admin_noticesList_datatables.js'), context);
+    assert.equal(context.cutstr('<p>下午&nbsp;茶</p>', 30), '下午 茶',
+        'The notice preview rendered &nbsp; as literal text instead of a space');
+    assert.equal(context.cutstr('&lt;b&gt;重点&lt;/b&gt;&amp;&#39;x&#x41;', 30), '<b>重点</b>&\'xA',
+        'cutstr must decode entities exactly once for the escaped preview');
+    assert.equal(context.cutstr('&amp;lt; stays &amp;', 30), '&lt; stays &',
+        'cutstr must not double-decode entity text');
+}
+
 // Run the real updater controller against a small DOM and controlled network.
 (async function updaterProgressInteractions() {
     const elements = new Map();

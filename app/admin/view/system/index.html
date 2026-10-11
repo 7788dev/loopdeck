@@ -84,6 +84,14 @@
 <script src="/static/js/plugins/slick-carousel/slick.min.js"></script>
 <script>
     $(function () {
+            // PJAX swaps the dashboard DOM without unloading this script, which
+            // would leave the previous slider's autoplay interval running on a
+            // detached node forever. Stop it before the swap.
+            $(document).off('pjax:start.loopdeck-slick').on('pjax:start.loopdeck-slick', function () {
+                $(".js-slider-enabled.slick-initialized").each(function () {
+                    $(this).slick('unslick');
+                });
+            });
             {if condition="count($notices) neq 0"}
             $(".js-slider:not(.js-slider-enabled)").each(function () {
                 var slider = $(this);
@@ -101,7 +109,7 @@
     })
 
     function show_notice_modal(id) {
-        x.mode('/admin/ajax/data/info/site_notice', {id: id}, '公告详情' );
+        x.mode('/admin/ajax/data/info/notice', {id: id}, '公告详情' );
     }
 
 </script>

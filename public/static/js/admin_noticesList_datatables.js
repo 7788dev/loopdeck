@@ -23,7 +23,7 @@
         columns: [
             {"title": "ID", "data": "id", "className": "fs-sm", "sortable": false},
             {"title": "内容", "data": "content", "className": "fs-sm", "sortable": false, "render": function (data, type, row, meta) {
-                    return cutstr(data, 30);
+                    return x.escapeHtml(cutstr(data, 30));
                 }},
             {"title": "显示位置", "data": "type", "className": "fs-sm", "render": function (data, type, row, meta) {
                    if (row.type == 1) {
@@ -43,13 +43,13 @@
                 }},
             {"title": "置顶等级", "data":"sort", "render": function (data, type, row, meta) {
                     if(row.sort == 0){
-                        return "<div class=\"btn-group\"><select class=\"form-select\" id=\"sort\" name=\"sort\" onchange=\"selChange('" + row.id + "', this);\"><option value=\"0\" selected>无置顶</option><option value=\"1\" >低级置顶</option><option value=\"2\">中级置顶</option><option value=\"3\">高级置顶</option></select></div>";
+                        return "<div class=\"btn-group\"><select class=\"form-select\" name=\"sort\" onchange=\"selChange('" + row.id + "', this);\"><option value=\"0\" selected>无置顶</option><option value=\"1\" >低级置顶</option><option value=\"2\">中级置顶</option><option value=\"3\">高级置顶</option></select></div>";
                     } else if (row.sort == 1){
-                        return "<div class=\"btn-group\"><select class=\"form-select\" id=\"sort\" name=\"sort\" onchange=\"selChange('" + row.id + "', this);\"><option value=\"0\">无置顶</option><option value=\"1\" selected>低级置顶</option><option value=\"2\">中级置顶</option><option value=\"3\">高级置顶</option></select></div>";
+                        return "<div class=\"btn-group\"><select class=\"form-select\" name=\"sort\" onchange=\"selChange('" + row.id + "', this);\"><option value=\"0\">无置顶</option><option value=\"1\" selected>低级置顶</option><option value=\"2\">中级置顶</option><option value=\"3\">高级置顶</option></select></div>";
                     }else if (row.sort == 2){
-                        return "<div class=\"btn-group\"><select class=\"form-select\" id=\"sort\" name=\"sort\" onchange=\"selChange('" + row.id + "', this);\"><option value=\"0\">无置顶</option><option value=\"1\">低级置顶</option><option value=\"2\" selected>中级置顶</option><option value=\"3\">高级置顶</option></select></div>";
+                        return "<div class=\"btn-group\"><select class=\"form-select\" name=\"sort\" onchange=\"selChange('" + row.id + "', this);\"><option value=\"0\">无置顶</option><option value=\"1\">低级置顶</option><option value=\"2\" selected>中级置顶</option><option value=\"3\">高级置顶</option></select></div>";
                     }else{
-                        return "<div class=\"btn-group\"><select class=\"form-select\" id=\"sort\" name=\"sort\" onchange=\"selChange('" + row.id + "', this);\"><option value=\"0\">无置顶</option><option value=\"1\">低级置顶</option><option value=\"2\">中级置顶</option><option value=\"3\" selected>高级置顶</option></select></div>";
+                        return "<div class=\"btn-group\"><select class=\"form-select\" name=\"sort\" onchange=\"selChange('" + row.id + "', this);\"><option value=\"0\">无置顶</option><option value=\"1\">低级置顶</option><option value=\"2\">中级置顶</option><option value=\"3\" selected>高级置顶</option></select></div>";
                     }
                 }},
             {"title": "添加时间", "data": "addtime", "className":"", "render": function (data, type, row, meta) {
@@ -69,7 +69,24 @@
 
 
 function cutstr(str, len) {
-    str = str.replace(/<\/?.+?\/?>/g,'');
+    // 标签先剥离、实体后解码，模拟浏览器渲染顺序：&nbsp; 显示为空格，
+    // 作者手打的 &lt;b&gt; 保留字面尖括号，由调用方的 escapeHtml 重新转义。
+    str = String(str == null ? '' : str)
+        .replace(/<\/?.+?\/?>/gs, '')
+        .replace(/&#x([0-9a-f]+);/gi, function (entity, code) {
+            var point = parseInt(code, 16);
+            return point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : entity;
+        })
+        .replace(/&#(\d+);/g, function (entity, code) {
+            var point = parseInt(code, 10);
+            return point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : entity;
+        })
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&quot;/gi, '"')
+        .replace(/&apos;|&#39;/gi, "'")
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&amp;/gi, '&');
     var temp,
         icount = 0,
         patrn = /[^\x00-\xff]/,
@@ -114,6 +131,19 @@ function selChange(id,_this) {
     })
 }
 
+// The rich-text editor instance of the currently open notice dialog. It is
+// module state rather than an implicit global: reading a bare `content`
+// variable returned undefined whenever the admin saved without typing.
+var noticeEditor = null;
+
+function noticeContent() {
+    return noticeEditor ? noticeEditor.getHtml() : '';
+}
+
+function noticeContentIsEmpty(content) {
+    return String(content).replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;|\s/g, '') === '';
+}
+
 function ajax_edit_notice(id)
 {
     layer.open({
@@ -124,16 +154,23 @@ function ajax_edit_notice(id)
         area: ['50%', '50%'],//设置相对于父页面的大小
         content: '<form id="edit-form"><input type="hidden" id="id" name="id"><div class="mb-4"><div id="toolbar-container"></div><div id="editor-container" style="height: 250px;"></div></div></form>',
         success: function (res, index) {
-            x.ajax('/admin/ajax/data/info/notice', {id: id}, function (data) {
-                var data = JSON.parse(data);
-                $("#id").val(data.id);
-                loadwangEditor(data.content);
+            x.ajax('/admin/ajax/data/info/notice', {id: id}, function (info) {
+                if (!info || !info.id) {
+                    layer.msg('公告不存在或已被删除');
+                    return;
+                }
+                $("#id").val(info.id);
+                noticeEditor = loadwangEditor(info.content);
             })
         },
         yes: function (index, dom) {
+            var content = noticeContent();
+            if (noticeContentIsEmpty(content)) {
+                layer.msg('公告内容不能为空');
+                return;
+            }
             layer.close(index);
             var loading = layer.load(2);
-            const params = JSON.stringify($(dom).find("form").parseForm());
             x.ajax('/admin/ajax/data/set/notice', {id: $("#id").val(), content: content}, function (data) {
                 if (data.code == 1) {
                     x.close(loading);
@@ -171,9 +208,14 @@ function ajax_add_notice()
         area: ['50%', '50%'],//设置相对于父页面的大小
         content: '<form id="add-form"><input type="hidden"id="id"name="id"><div class="mb-4"><div id="toolbar-container"></div><div id="editor-container" style="height: 250px;"></div></div></form>',
         success:function (index, dom) {
-            loadwangEditor();
+            noticeEditor = loadwangEditor();
         },
         yes: function (index, dom) {
+            var content = noticeContent();
+            if (noticeContentIsEmpty(content)) {
+                layer.msg('公告内容不能为空');
+                return;
+            }
             x.ajax('/admin/ajax/data/add/notice', {type: 1 ,content: content}, function (data) {
                 if (data.code == 1) {
                     var table = $("#noticesList").DataTable();
@@ -196,11 +238,7 @@ function loadwangEditor(html) {
         autofocus: true
     }
 
-    editorConfig.onChange = () => {
-        // 当编辑器选区、内容变化时，即触发
-        content = editor.getHtml();
-        // console.log('html', editor.getHtml())
-    }
+    // 保存时直接读取 editor.getHtml()，不再依赖 onChange 维护外部变量。
 
     editorConfig.placeholder = '请输入公告内容'
 
@@ -235,6 +273,7 @@ function loadwangEditor(html) {
         config: toolbarConfig,
         mode: 'default', // 或 'simple' 参考下文
     })
+    return editor;
 }
 
 function ajax_set_alert(id, _this) {

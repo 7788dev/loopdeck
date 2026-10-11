@@ -157,4 +157,75 @@ frontEndCheck(
     'the layout still closes </head> more than once'
 );
 
+// --- Admin dialogs: x.ajax already decodes JSON, dialogs must not re-parse --
+
+foreach (['admin_noticesList_datatables.js', 'admin_tasklist_datatables.js', 'admin_usersList_datatables.js'] as $dataTableScript) {
+    $source = file_get_contents($root . '/public/static/js/' . $dataTableScript);
+    frontEndCheck(is_string($source), 'Unable to inspect ' . $dataTableScript);
+    frontEndCheck(
+        !str_contains($source, 'JSON.parse('),
+        $dataTableScript . ' still re-parses the already-decoded x.ajax payload'
+    );
+}
+
+$noticesScript = file_get_contents($root . '/public/static/js/admin_noticesList_datatables.js');
+frontEndCheck(is_string($noticesScript), 'Unable to inspect the notices script');
+frontEndCheck(
+    str_contains($noticesScript, 'var noticeEditor = null;') && str_contains($noticesScript, 'noticeEditor.getHtml()'),
+    'The notice save path no longer reads the editor value directly'
+);
+frontEndCheck(
+    !str_contains($noticesScript, 'content = editor.getHtml()'),
+    'The notice editor still writes through an implicit global `content`'
+);
+frontEndCheck(
+    str_contains($noticesScript, 'x.escapeHtml(cutstr('),
+    'The notice list still injects cutstr output as unescaped HTML'
+);
+frontEndCheck(
+    !str_contains($noticesScript, 'id=\\"sort\\"'),
+    'The notices table still renders duplicate id="sort" attributes'
+);
+
+// --- Dashboard: the notice modal route and the slider autoplay timer --------
+
+$dashboard = file_get_contents($root . '/app/admin/view/system/index.html');
+frontEndCheck(is_string($dashboard), 'Unable to inspect the admin dashboard');
+frontEndCheck(
+    !str_contains($dashboard, 'info/site_notice'),
+    'The dashboard notice modal still calls the retired site_notice route'
+);
+frontEndCheck(
+    str_contains($dashboard, "pjax:start.loopdeck-slick") && str_contains($dashboard, "slick('unslick')"),
+    'The dashboard slider autoplay still leaks its interval across PJAX navigation'
+);
+
+// --- PJAX timer hygiene on the account binding pages ------------------------
+
+$neteaseAdd = file_get_contents($root . '/app/index/view/console/netease/add.html');
+frontEndCheck(
+    str_contains($neteaseAdd, 'document.body.contains($qrImg[0])'),
+    'The netease verify poll still runs after PJAX leaves the page'
+);
+$bilibiliAdd = file_get_contents($root . '/app/index/view/console/bilibili/add.html');
+frontEndCheck(
+    str_contains($bilibiliAdd, 'document.body.contains(button[0])'),
+    'The SMS countdown still runs after PJAX leaves the page'
+);
+
+// --- Shared admin scripts carry the app_version cache stamp ------------------
+
+foreach ([
+    'system/data/notices.html' => 'admin_noticesList_datatables.js',
+    'system/data/accounts.html' => 'admin_accountList_datatables.js',
+    'system/task/list.html' => 'admin_tasklist_datatables.js',
+] as $view => $script) {
+    $source = file_get_contents($root . '/app/admin/view/' . $view);
+    frontEndCheck(is_string($source), 'Unable to inspect ' . $view);
+    frontEndCheck(
+        str_contains($source, $script . '?v={:app_version()}'),
+        $view . ' loads ' . $script . ' without an app_version cache stamp'
+    );
+}
+
 echo "Front-end repair tests passed\n";

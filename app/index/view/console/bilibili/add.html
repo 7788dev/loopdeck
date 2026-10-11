@@ -185,6 +185,12 @@
             button.prop('disabled', true).text('重新发送（' + remaining + '）');
             if (countdownTimer) clearInterval(countdownTimer);
             countdownTimer = setInterval(function () {
+                // PJAX 跳转后按钮已随旧页面离开文档，立即停止本次倒计时。
+                if (!document.body.contains(button[0])) {
+                    clearInterval(countdownTimer);
+                    countdownTimer = null;
+                    return;
+                }
                 remaining--;
                 if (remaining <= 0) {
                     clearInterval(countdownTimer);

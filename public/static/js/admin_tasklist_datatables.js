@@ -57,18 +57,21 @@ function ajax_edit_task(id)
         shadeClose: true,
         content: '<form id="info-form"><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input class="form-control"id="type"name="type"placeholder="."type="text"><label class="form-label"for="type">任务类型</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input class="form-control"id="name"name="name"placeholder="."type="text"><label class="form-label"for="name">任务名称</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><div class="form-floating mb-4"><textarea class="form-control"id="describe"name="describe"placeholder="write something"style="height: 100px"></textarea><label class="form-label"for="describe">任务描述</label></div></div></div></div><div class="row"><div class="col-md-4"><div class="form-floating mb-4"><div class="form-floating mb-4"><input class="form-control"id="icon"name="icon"placeholder="."type="text"><label class="form-label"for="icon">任务图标</label></div></div></div><div class="col-md-4"><div class="form-floating mb-4"><input class="form-control"id="execute_name"name="execute_name"placeholder="."type="text"><label class="form-label"for="execute_name">执行方法</label></div></div><div class="col-md-4"><div class="form-floating mb-4"><input class="form-control"id="execute_rate"name="execute_rate"placeholder="."type="text"><label class="form-label"for="execute_rate">执行频率</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input class="form-control"id="more"name="more"placeholder="."type="text"><label class="form-label"for="more">拓展配置</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><select aria-label="vip"class="form-select"id="vip"name="vip"><option value="0">否</option><option value="1">是</option></select><label class="form-label"for="more">VIP功能</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><select aria-label="状态"class="form-select"id="state"name="state"><option value="0">关闭</option><option value="1">开启</option></select><label class="form-label"for="state">状态</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input class="form-control"disabled id="time"name="time"placeholder="."type="text"><label class="form-label"for="type">添加时间</label></div></div></div></form>',
         success: function (res, index) {
-            x.ajax('/admin/ajax/task/getInfo', {id: id}, function (data) {
-                var data = JSON.parse(data);
-                $("#type").val(data.type);
-                $("#name").val(data.name);
-                $("#describe").val(data.describe);
-                $("#icon").val(data.icon);
-                $("#execute_name").val(data.execute_name);
-                $("#execute_rate").val(data.execute_rate);
-                $("#more").val(data.more);
-                $("#vip").val(data.vip);
-                $("#state").val(data.state);
-                $("#time").val(data.time);
+            x.ajax('/admin/ajax/task/getInfo', {id: id}, function (info) {
+                if (!info) {
+                    layer.msg('任务不存在或已被删除');
+                    return;
+                }
+                $("#type").val(info.type);
+                $("#name").val(info.name);
+                $("#describe").val(info.describe);
+                $("#icon").val(info.icon);
+                $("#execute_name").val(info.execute_name);
+                $("#execute_rate").val(info.execute_rate);
+                $("#more").val(info.more);
+                $("#vip").val(info.vip);
+                $("#state").val(info.state);
+                $("#time").val(info.time);
             })
         },
         yes: function (index, dom) {

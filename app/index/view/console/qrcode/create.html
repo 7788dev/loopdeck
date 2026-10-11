@@ -106,7 +106,7 @@
         }, function (res) {
             if (res.code == 1) {
                 x.notify(res.message, 'success');
-                $('#qrcode').html('<img id="qrcode-img" src="data:image/png;base64,'+ res.data +'" height="200" alt="收款二维码"><br><br><button type="button" onclick="ajax_downloadImg()" class="btn btn-primary"><i class="fa fa-cloud-download"></i> 下载 </button>');
+                $('#qrcode').html('<img id="qrcode-img" src="data:image/png;base64,'+ x.escapeHtml(res.data) +'" height="200" alt="收款二维码"><br><br><button type="button" onclick="ajax_downloadImg()" class="btn btn-primary"><i class="fa fa-cloud-download"></i> 下载 </button>');
             } else {
                 x.notify(res.message, 'warning');
             }

@@ -121,7 +121,14 @@
             $('#qr-img').html('<img src="data:image/png;base64,' + d.verify_qrimg + '" height="145px;">');
         }
         if (verify_timer) clearInterval(verify_timer);
+        // 记住本次页面的节点：PJAX 跳转后旧定时器发现节点已离开文档就自动停止。
+        var $qrImg = $('#qr-img');
         var poll = function () {
+            if ($qrImg.length === 0 || !document.body.contains($qrImg[0])) {
+                clearInterval(verify_timer);
+                verify_timer = null;
+                return;
+            }
             x.ajax('/index/ajax/netease/verifyCheck', {
                 verify_unikey: unikey,
             }, function (data) {

@@ -228,4 +228,118 @@ foreach ([
     );
 }
 
+// --- QR alert injection, admin notice add dialog, users dialog pickers -----
+
+frontEndCheck(
+    substr_count($neteaseAdd, "qr-alert').text(data.message)") === 3
+        && !str_contains($neteaseAdd, "qr-alert').html(data.message)"),
+    'The netease QR alert still injects upstream messages as HTML'
+);
+frontEndCheck(
+    str_contains($neteaseAdd, "qr-alert').html('当前网络环境存在风险"),
+    'The static verify hint lost its trusted markup'
+);
+
+$noticesView = file_get_contents($root . '/app/admin/view/system/data/notices.html');
+frontEndCheck(is_string($noticesView), 'Unable to inspect the notices view');
+frontEndCheck(
+    preg_match('/yes:\s*function\s*\(index,\s*dom\)\s*\{\s*var content = noticeContent\(\);/', $noticesView) === 1,
+    'The admin notice add dialog still reads an undefined `content` variable'
+);
+frontEndCheck(
+    str_contains($noticesView, 'noticeEditor = loadwangEditor();'),
+    'The admin notice add dialog still discards the editor instance'
+);
+
+$usersScript = file_get_contents($root . '/public/static/js/admin_usersList_datatables.js');
+frontEndCheck(is_string($usersScript), 'Unable to inspect the users dialog script');
+frontEndCheck(
+    !str_contains($usersScript, 'Codebase'),
+    'The user dialog still depends on the absent Codebase helper'
+);
+frontEndCheck(
+    str_contains($usersScript, '#info-form .js-flatpickr")'),
+    'The user dialog date pickers are not initialized directly'
+);
+frontEndCheck(
+    substr_count($usersScript, 'slice(0, 10)') === 2,
+    'The user dialog still feeds raw datetime values into a date-only picker'
+);
+
+// --- Stale-dialog races, editor height, QR base64 injection --------------
+
+// A closed dialog's editor must never feed the next dialog's save: both the
+// edit and add flows drop the module editor before opening a new dialog.
+$functionResetsEditor = static function (string $source, string $function): bool {
+    if (preg_match('/function ' . $function . '\([^)]*\)\s*\{/', $source, $m, PREG_OFFSET_CAPTURE) !== 1) {
+        return false;
+    }
+    $bodyStart = $m[0][1] + strlen($m[0][0]);
+    $openAt = strpos($source, 'layer.open({', $bodyStart);
+    $resetAt = strpos($source, 'noticeEditor = null;', $bodyStart);
+    return $openAt !== false && $resetAt !== false && $resetAt < $openAt;
+};
+frontEndCheck(
+    $functionResetsEditor($noticesScript, 'ajax_edit_notice'),
+    'The notice edit dialog still reuses the previous dialog\'s editor'
+);
+frontEndCheck(
+    $functionResetsEditor($noticesScript, 'ajax_add_notice'),
+    'The notice add dialog still reuses the previous dialog\'s editor'
+);
+frontEndCheck(
+    $functionResetsEditor($noticesView, 'ajax_add_notice2'),
+    'The admin notice add dialog still reuses the previous dialog\'s editor'
+);
+frontEndCheck(
+    str_contains($noticesView, '<div id="editor-container" style="height: 250px;">'),
+    'The admin notice add dialog editor renders with a collapsed height'
+);
+
+// A late response for a closed user dialog must not fill the newly opened one.
+frontEndCheck(
+    str_contains($usersScript, 'var userEditRequestToken = 0;')
+        && str_contains($usersScript, 'if (requestToken !== userEditRequestToken) {'),
+    'The user edit dialog still fills its inputs from a stale info response'
+);
+
+// Upstream QR payloads are concatenated into an img-src HTML sink: the
+// base64 payload must be escaped like every other upstream value.
+$qrSinkEscape = static function (string $source): bool {
+    return str_contains($source, "x.escapeHtml(data.data.qrimg)")
+        && str_contains($source, 'x.escapeHtml(d.verify_qrimg)');
+};
+frontEndCheck(
+    $qrSinkEscape($neteaseAdd),
+    'The netease QR image still injects the upstream payload unescaped'
+);
+frontEndCheck(
+    str_contains($bilibiliAdd, 'x.escapeHtml(data.data.qrimg)'),
+    'The bilibili QR image still injects the upstream payload unescaped'
+);
+
+// The admin notice detail endpoint filters the rich text through the same
+// sanitizer the user dashboard uses (the modal renders content as HTML).
+$adminAjax = file_get_contents($root . '/app/admin/controller/Ajax.php');
+frontEndCheck(
+    preg_match("/case 'notice':.*?\\\$record\['content'\] = safe_html/s", $adminAjax) === 1,
+    'The admin notice detail endpoint still returns unfiltered rich text'
+);
+
+$templateDivBalance = static function (string $html): int {
+    $stripped = preg_replace('/\{[^{}]*\}/', '', $html) ?? '';
+    return substr_count($stripped, '<div') - substr_count($stripped, '</div>');
+};
+$bilibiliList = file_get_contents($root . '/app/index/view/console/bilibili/list.html');
+frontEndCheck(is_string($bilibiliList), 'Unable to inspect the bilibili account list');
+frontEndCheck(
+    $templateDivBalance($bilibiliList) === 0,
+    'The bilibili account list still ships an unbalanced <div> structure'
+);
+$neteaseList = file_get_contents($root . '/app/index/view/console/netease/list.html');
+frontEndCheck(
+    $templateDivBalance((string)$neteaseList) === 0,
+    'The netease account list reference template is unbalanced'
+);
+
 echo "Front-end repair tests passed\n";

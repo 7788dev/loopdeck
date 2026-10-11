@@ -114,6 +114,26 @@ securityHardeningCheck(
     str_contains(safe_html('<a href="https://example.com/?a=1&amp;b=2">text</a>'), 'href="https://example.com/?a=1&amp;b=2"'),
     'safe_html rewrote a legitimate absolute link'
 );
+// Browsers start a new attribute after `/` and directly after a quoted value,
+// not only after whitespace — the separator between attributes must not be
+// part of the attacker's payload.
+foreach ([
+    '<a/onclick=alert(1)>x</a>',
+    '<a href="https://x"onclick=alert(1)>x</a>',
+    '<a href="https://x"/onclick=alert(1)>x</a>',
+    '<a/href=javascript:alert(1)>x</a>',
+    '<a href="https://x"onmouseover=alert(1)>x</a>',
+    '<div/style=color:red>x</div>',
+] as $separatorBypass) {
+    securityHardeningCheck(
+        !preg_match('/on[a-z-]+\s*=|javascript\s*:/i', strtolower((string)safe_html($separatorBypass))),
+        'safe_html kept a separator-bypass attribute: ' . $separatorBypass
+    );
+}
+securityHardeningCheck(
+    str_contains(safe_html('<a href="https://x">normal</a>'), 'href="https://x"'),
+    'safe_html broke a legitimate link while hardening separators'
+);
 securityHardeningCheck(
     js_string("</script><img src=x onerror=alert(1)>") === '"\u003C\/script\u003E\u003Cimg src=x onerror=alert(1)\u003E"',
     'js_string did not neutralise a script break-out'
@@ -234,5 +254,18 @@ securityHardeningCheck(
 $cookieConfig = require $root . '/config/cookie.php';
 securityHardeningCheck($cookieConfig['httponly'] === true, 'Session cookies are readable by JavaScript');
 securityHardeningCheck($cookieConfig['samesite'] === 'Lax', 'Session cookies are sent on cross-site requests');
+
+// --- SMS relay throttle ------------------------------------------------------
+
+// The bilibili SMS endpoint makes the server request upstream verification
+// codes for arbitrary phone numbers; without a per-user throttle it is an
+// SMS-bombing relay.
+$bilibiliController = file_get_contents($root . '/app/index/controller/Bilibili.php');
+securityHardeningCheck(
+    str_contains($bilibiliController, 'use think\\facade\\Cache;')
+        && str_contains($bilibiliController, '-cooldown')
+        && str_contains($bilibiliController, 'SMS_DAILY_LIMIT'),
+    'The bilibili SMS relay lost its per-user cooldown and daily cap'
+);
 
 echo "Security hardening tests passed\n";

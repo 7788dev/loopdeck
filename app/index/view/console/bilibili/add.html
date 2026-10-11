@@ -121,7 +121,7 @@
                     return;
                 }
                 qrKey = data.data.qrcode_key;
-                $('#qr-img').attr('key', qrKey).html('<img alt="哔哩哔哩登录二维码" src="data:image/png;base64,' + data.data.qrimg + '" height="145px;">');
+                $('#qr-img').attr('key', qrKey).html('<img alt="哔哩哔哩登录二维码" src="data:image/png;base64,' + x.escapeHtml(data.data.qrimg) + '" height="145px;">');
                 setQrStatus('请使用哔哩哔哩 APP 扫码，完成后点击验证');
             }, function () {
                 resetQr('二维码获取失败，点击图片重试');

@@ -123,8 +123,13 @@ function ajax_del_user(id) {
     })
 }
 
+// 每次打开编辑弹窗递增：迟到的旧请求响应不得填进新弹窗（否则会把上一个
+// 用户的资料保存到当前编辑的用户上）。
+var userEditRequestToken = 0;
+
 function ajax_edit_user(id)
 {
+    var requestToken = ++userEditRequestToken;
     layer.open({
         title: "用户编辑[UID："+id+"]",
         btn: ['保存', '取消'],
@@ -135,6 +140,10 @@ function ajax_edit_user(id)
         content: '<form id="info-form"><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="uid" name="uid"  placeholder="." disabled><label class="form-label" for="uid">UID</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="username" name="username" placeholder="." disabled><label class="form-label" for="username">用户名称</label></div></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><input type="password" class="form-control" id="password" name="password" placeholder="." autocomplete="new-password"><label class="form-label" for="password">用户密码(不修改则留空)</label></div></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><div class="form-floating mb-4"><input type="text" class="form-control" id="qq" name="qq" placeholder="." /><label class="form-label" for="qq">绑定QQ</label></div></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="mail" name="mail" placeholder="." /><label class="form-label" for="mail">绑定邮箱</label></div></div></div><div class="row"><div class="col-md-6"></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="form-control" id="quota" name="quota" placeholder="." /><label class="form-label" for="quota">账号总数（所有平台共用）</label></div><label class="form-check-label mb-3"><input type="checkbox" id="quota-unlimited" name="quota_unlimited" value="1" class="form-check-input" onchange="document.getElementById(&quot;quota&quot;).disabled = this.checked;"> 账号数量不限</label></div></div><div class="row"><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_start" name="vip_start" placeholder="." readonly="readonly"><label class="form-label" for="vip_start">会员开始</label></div></div><div class="col-md-6"><div class="form-floating mb-4"><input type="text" class="js-flatpickr form-control flatpickr-input" id="vip_end" name="vip_end" placeholder="." readonly="readonly"><label class="form-label" for="vip_end">会员结束</label></div><label class="form-check-label mb-3"><input type="checkbox" id="vip-permanent" name="vip_permanent" value="1" class="form-check-input" onchange="document.getElementById(&quot;vip_end&quot;).disabled = this.checked;"> 永久会员</label></div></div><div class="row"><div class="col-md-12"><div class="form-floating mb-4"><select class="form-select" id="state" name="state" aria-label="状态"><option value="0">封禁</option><option value="1">激活</option></select><label class="form-label" for="state">账号状态</label></div></div></div></form>',
         success: function (res, index) {
             x.ajax('/admin/ajax/data/info/user', {id: id}, function (info) {
+                if (requestToken !== userEditRequestToken) {
+                    // 该弹窗已被关闭并打开了新的编辑弹窗：迟到的响应直接丢弃。
+                    return;
+                }
                 if (!info || !info.uid) {
                     layer.msg('用户不存在或无权查看');
                     return;
@@ -146,11 +155,13 @@ function ajax_edit_user(id)
                 $("#mail").val(info.mail);
                 $("#quota-unlimited").prop("checked", Number(info.quota) === -1);
                 $("#quota").val(Number(info.quota) === -1 ? 0 : info.quota).prop("disabled", Number(info.quota) === -1);
-                $("#vip_start").val(info.vip_start);
+                $("#vip_start").val(String(info.vip_start || '').slice(0, 10));
                 $("#vip-permanent").prop("checked", info.vip_end === "9999-12-31");
-                $("#vip_end").val(info.vip_end === "9999-12-31" ? "" : info.vip_end).prop("disabled", info.vip_end === "9999-12-31");
+                $("#vip_end").val(info.vip_end === "9999-12-31" ? "" : String(info.vip_end || '').slice(0, 10)).prop("disabled", info.vip_end === "9999-12-31");
                 $("#state").val(info.state);
-                Codebase.helpersOnLoad(['js-flatpickr']);
+                // The theme bootstrap helper is not part of this build:
+                // initialize the dialog's date pickers directly.
+                $("#info-form .js-flatpickr").flatpickr({ dateFormat: 'Y-m-d' });
             })
         },
         yes: function (index, dom) {

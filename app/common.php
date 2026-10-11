@@ -136,19 +136,24 @@ if (!function_exists('safe_html')) {
         }
 
         $value = strip_tags($value, '<p><br><b><strong><i><em><u><s><ul><ol><li><h4><h5><h6><span><div><a><code><pre><blockquote>');
-        $value = preg_replace('/\son[a-z-]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $value) ?? '';
-        $value = preg_replace('/\sstyle\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $value) ?? '';
+        // Browsers start a new attribute not only after whitespace but also
+        // after `/` (`<a/onclick=…>`) and directly after a quoted value
+        // (`<a href="…"onclick=…>`), so the separator before an attribute
+        // name is any of those characters, not just whitespace.
+        $attributeStart = '(?<=[\\s/"\'])';
+        $value = preg_replace('#' . $attributeStart . 'on[a-z-]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $value) ?? '';
+        $value = preg_replace('#' . $attributeStart . 'style\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $value) ?? '';
         // Browsers decode HTML entities and strip tab/newline characters inside
         // URL attributes before resolving the scheme, so a literal
         // `javascript:` match is bypassed by `javascript&#58;` or `jav&#9;ascript:`.
         // Resolve the URL the way a browser would before deciding whether the
         // attribute survives.
         $value = preg_replace_callback(
-            '/\s(?:href|src|xlink:href|formaction|action)\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i',
+            '#' . $attributeStart . '(?:href|src|xlink:href|formaction|action)\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)#i',
             static function (array $match): string {
                 $attribute = $match[0];
                 $value = (string)preg_replace(
-                    '/^\s*(?:href|src|xlink:href|formaction|action)\s*=\s*/i',
+                    '/^(?:href|src|xlink:href|formaction|action)\s*=\s*/i',
                     '',
                     $attribute
                 );

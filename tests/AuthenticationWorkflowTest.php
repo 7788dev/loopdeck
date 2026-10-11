@@ -39,6 +39,12 @@ $sidBefore = Db::name('users')->where('uid', 1)->value('sid');
 functionalCheck(Users::findPass(['mail' => 'fixture@example.com', 'captcha' => 'fixture-captcha'])->getData()['code'] !== 1, 'Unconfigured email sender reported success');
 functionalCheck(Db::name('users')->where('uid', 1)->value('sid') === $sidBefore, 'Failed recovery email logged out the user');
 functionalCheck(Db::name('captcha')->where('type', 2)->count() === 0, 'Failed recovery email minted a token');
+// The recovery endpoint must not distinguish "mailbox unknown" from "mail
+// sent": distinct answers let anyone enumerate registered mailboxes.
+$unknown = Users::findPass(['mail' => 'nobody@example.com', 'captcha' => 'fixture-captcha'])->getData();
+functionalCheck((int)$unknown['code'] === 1, 'Unknown recovery mailbox was reported as an error');
+functionalCheck(!str_contains((string)$unknown['message'], '不存在'), 'Unknown recovery mailbox leaked its absence in the copy');
+functionalCheck(Db::name('captcha')->where('type', 2)->count() === 0, 'Unknown recovery mailbox minted a token');
 
 $token = str_repeat('a', 48);
 $reset = ['mail' => 'fixture@example.com', 'password' => 'fixture-new-password', 'repass' => 'fixture-new-password', 'token' => $token];

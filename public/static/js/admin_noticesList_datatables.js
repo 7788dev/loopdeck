@@ -146,6 +146,10 @@ function noticeContentIsEmpty(content) {
 
 function ajax_edit_notice(id)
 {
+    // Drop the previous dialog's editor immediately: until this dialog's own
+    // info response arrives, noticeContent() must return empty instead of the
+    // last notice's HTML, which the empty check then refuses to save.
+    noticeEditor = null;
     layer.open({
         title: "公告编辑 [ID："+id+"]",
         btn: ['保存', '取消'],
@@ -200,6 +204,8 @@ function ajax_del_notice(id) {
 
 function ajax_add_notice()
 {
+    // A stale editor from a previous dialog must never feed this one's save.
+    noticeEditor = null;
     layer.open({
         title: "添加公告",
         btn: ['添加', '取消'],

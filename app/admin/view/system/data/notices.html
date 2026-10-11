@@ -46,17 +46,24 @@
 {if condition="config('web.web_id') eq 1"}
 <script>
     function ajax_add_notice2() {
+        // 与编辑弹窗一致：先丢弃上一个弹窗遗留的编辑器，避免串内容。
+        noticeEditor = null;
         layer.open({
             title: "添加后台公告",
             btn: ['添加', '取消'],
             closeBtn: 0,
             shadeClose: true,
             area: ['50%', '50%'],//设置相对于父页面的大小
-            content: '<form id="add-form"><input type="hidden"id="id"name="id"><div class="form-floating mb-4"><input type="text"class="form-control"id="title"name="title"placeholder="."><label class="form-label"for="title">公告标题</label></div><div class="mb-4"><div id="toolbar-container"></div><div id="editor-container"></div></div></form>',
+            content: '<form id="add-form"><input type="hidden"id="id"name="id"><div class="form-floating mb-4"><input type="text"class="form-control"id="title"name="title"placeholder="."><label class="form-label"for="title">公告标题</label></div><div class="mb-4"><div id="toolbar-container"></div><div id="editor-container" style="height: 250px;"></div></div></form>',
             success:function (index, dom) {
-                loadwangEditor();
+                noticeEditor = loadwangEditor();
             },
             yes: function (index, dom) {
+                var content = noticeContent();
+                if (noticeContentIsEmpty(content)) {
+                    layer.msg('公告内容不能为空');
+                    return;
+                }
                 x.ajax('/admin/ajax/data/add/notice', {type: 2, title: $('#title').val(), content: content}, function (data) {
                     if (data.code == 1) {
                         var table = $("#noticesList").DataTable();

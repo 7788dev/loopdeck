@@ -19,6 +19,7 @@ function environment() {
     const chain = {pjax() {return this;}, on(event, handler) {state.events[event] = handler; return this;}, each() {return this;}, ready() {return this;}, removeClass() {return this;},
         DataTable() {return {ajax: {reload() {}}};},
         find() {return this;}, prop(name, value) {state[name] = value; return this;},
+        flatpickr() {return this;},
         parseForm() {return state.closed ? {} : {selected: 'saved-value'};}};
     const $ = selector => Object.assign(Object.create(chain), {
         text(value) {state.values[selector] = value; return this;},
@@ -31,8 +32,7 @@ function environment() {
     const context = vm.createContext({$, jQuery: $, document: {},
         ClipboardJS: function () {this.on = () => {};},
         window: {innerWidth: 375, location: {href: ''}}, setTimeout() {},
-        layer: {open(options) {state.dialog = options;}, close() {state.closed = true;}, load() {return 2;}},
-        Codebase: {helpers() {}, helpersOnLoad() {}},
+        layer: {open(options) {state.dialog = options;}, close() {state.closed = true;}, load() {return 2;}, msg() {}, closeAll() {}},
         x: {getval: selector => state.closed && selector === '#timing' ? '' : state.values[selector],
             ajax: (url, data) => state.sent.push({url, data}), notify() {}, close() {}}
     });
@@ -71,6 +71,34 @@ function environment() {
     state.dialog.yes(1, {});
     assert.equal(state.sent[0].data, 'id=2&quota_unlimited=1&vip_permanent=1&state=1',
         'Closing the administrator dialog discarded permanent entitlement settings');
+}
+{
+    // The edit dialog must initialize its own date pickers: the theme helper
+    // it used to call does not exist in this build, which made the VIP dates
+    // read-only with no picker at all.
+    const {state, context} = environment();
+    vm.runInContext(read('public/static/js/admin_usersList_datatables.js'), context);
+    context.ajax_edit_user(2);
+    context.x.ajax = (url, data, onSuccess) => onSuccess({
+        uid: 2, username: 'fixture', qq: '12345', mail: 'fixture@example.com',
+        quota: 5, vip_start: '2026-01-01 08:00:00', vip_end: '2026-02-01', state: 1,
+    });
+    state.dialog.success(1, {});
+    assert.equal(state.values['#vip_start'], '2026-01-01',
+        'The user dialog kept a datetime value a date-only picker cannot parse');
+    assert.equal(state.values['#vip_end'], '2026-02-01',
+        'The user dialog dropped the VIP end date');
+}
+{
+    // The admin notice add dialog used to read an undefined `content`
+    // variable, so the button threw a ReferenceError and never submitted.
+    const {state, context} = environment();
+    vm.runInContext(read('public/static/js/admin_noticesList_datatables.js'), context);
+    vm.runInContext(scripts('app/admin/view/system/data/notices.html'), context);
+    context.ajax_add_notice2();
+    state.dialog.yes(1, {});
+    assert.equal(state.sent.length, 0,
+        'The notice add dialog submitted without reading the editor content');
 }
 for (const platform of ['netease', 'bilibili']) {
     const {state, context} = environment();

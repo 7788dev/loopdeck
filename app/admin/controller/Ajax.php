@@ -430,7 +430,15 @@ class Ajax extends Common
                     case 'notice':
                         $notices = new Notice();
                         $data = Request::post();
-                        return $notices->findById($data['id']);
+                        $record = $notices->findById($data['id']);
+                        if ($record) {
+                            // The admin detail modal renders `content` as HTML
+                            // (app.min.js get_url). The user dashboard filters
+                            // the same stored value through safe_html, so the
+                            // admin view must not bypass that sanitizer.
+                            $record['content'] = safe_html((string)$record['content']);
+                        }
+                        return $record;
                 }
                 break;
         }

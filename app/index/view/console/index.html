@@ -115,9 +115,9 @@
         <div class="col-lg-4">
             <div class="ibox float-e-margins">
                 <div class="ibox-content text-center ld-account-summary">
-                    <img alt="用户头像" class="img-circle" src="//q2.qlogo.cn/g?b=qq&nk={:session('user.qq')}&s=100">
+                    <img alt="用户头像" class="img-circle" src="//q2.qlogo.cn/g?b=qq&nk={:html_escape(session('user.qq'))}&s=100">
                     <h3 class="font-bold m-xs">
-                        {:session('user.nickname')}
+                        {:html_escape(session('user.nickname'))}
                     </h3>
                     <div class="text-muted m-xs">UID: {:session('user.uid')}</div>
                     {if session('user.vip_start')}

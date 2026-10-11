@@ -11,6 +11,7 @@ use app\service\BilibiliTaskExecutor;
 use bilibili\Bilibili as BilibiliClient;
 use netease\QRcode;
 use think\exception\ValidateException;
+use think\facade\Cache;
 use think\facade\Request;
 use think\facade\Session;
 
@@ -90,12 +91,26 @@ class Bilibili
         return resultJson((int)($result['code'] ?? 0), $result['message'] ?? '二维码登录失败');
     }
 
+    private const SMS_DAILY_LIMIT = 10;
+
     private function sendSms()
     {
         $phone = trim((string)Request::post('phone', ''));
         $cid = max(1, (int)Request::post('cid', 86));
         if (!preg_match('/^\d{5,20}$/', $phone)) {
             return resultJson(0, '手机号格式错误');
+        }
+        // 短信中继节流：该接口会以服务器的身份向任意手机号请求上游验证码，
+        // 不设上限就会被用来轰炸他人手机或耗尽上游风控额度（人机验证只
+        // 提高自动化成本，不构成限流）。
+        $throttleKey = 'bilibili-sms-' . md5((string)Session::get('user.uid'));
+        if (Cache::get($throttleKey . '-cooldown')) {
+            return resultJson(0, '发送过于频繁，请稍后再试');
+        }
+        $dailyKey = $throttleKey . '-' . date('Ymd');
+        $sentToday = (int)Cache::get($dailyKey, 0);
+        if ($sentToday >= self::SMS_DAILY_LIMIT) {
+            return resultJson(0, '今日发送次数已达上限，请明天再试');
         }
         $captcha = [
             'token' => trim((string)Request::post('token', '')),
@@ -127,6 +142,8 @@ class Bilibili
             'context' => $context,
             'expires_at' => time() + self::SMS_SESSION_TTL,
         ]);
+        Cache::set($throttleKey . '-cooldown', 1, 60);
+        Cache::set($dailyKey, $sentToday + 1, 86400);
         return resultJson(1, $result['message'] ?? '短信验证码已发送', [
             'captcha_key' => $captchaKey,
         ]);

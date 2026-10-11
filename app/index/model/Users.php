@@ -115,7 +115,9 @@ class Users extends Model
         $self = new static();
         $row = $self->where('mail', $data['mail'])->find();
         if (!$row) {
-            return resultJson(-1, '邮箱不存在');
+            // 与登录一致的口径：不区分“邮箱不存在”和“已发送”，避免
+            // 该端点被用来枚举注册邮箱。
+            return resultJson(1, '如果该邮箱已注册，找回密码邮件将发送至邮箱，请注意查收');
         } else {
             $user_data = $self->where('mail', '=', $data['mail'])->find();
             // The old token was md5() over predictable material; use a token

@@ -78,7 +78,7 @@
         x.ajax('/index/ajax/netease/getQrimg',null ,function (data) {
             if (data.code == 1) {
                 $('#qr-img').attr('key', data.data.key);
-                $('#qr-img').html('<img src="data:image/png;base64,'+ data.data.qrimg +'" height="145px;">');
+                $('#qr-img').html('<img src="data:image/png;base64,'+ x.escapeHtml(data.data.qrimg) +'" height="145px;">');
             }
         })
         $('#qr-img').attr('role', 'button').attr('tabindex', '0');
@@ -102,7 +102,7 @@
                 $('#qr-img').click();
             } else {
                 x.notify(data.message, 'warning')
-                $('#qr-alert').html(data.message);
+                $('#qr-alert').text(data.message);
             }
         })
     }
@@ -118,7 +118,7 @@
         $('#qr-img').attr('key', '');
         $('#qr-alert').html('当前网络环境存在风险，请用<strong>已登录该账号</strong>的网易云音乐APP扫描下方验证二维码');
         if (d.verify_qrimg) {
-            $('#qr-img').html('<img src="data:image/png;base64,' + d.verify_qrimg + '" height="145px;">');
+            $('#qr-img').html('<img src="data:image/png;base64,' + x.escapeHtml(d.verify_qrimg) + '" height="145px;">');
         }
         if (verify_timer) clearInterval(verify_timer);
         // 记住本次页面的节点：PJAX 跳转后旧定时器发现节点已离开文档就自动停止。
@@ -145,9 +145,9 @@
                     x.notify('验证二维码已过期，请重新获取', 'warning');
                 } else if (data.code == -1) {
                     // 801等待扫码 / 802已扫描待确认 —— 更新文案继续轮询
-                    $('#qr-alert').html(data.message);
+                    $('#qr-alert').text(data.message);
                 } else {
-                    $('#qr-alert').html(data.message);
+                    $('#qr-alert').text(data.message);
                 }
             })
         };

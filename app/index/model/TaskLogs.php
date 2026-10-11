@@ -53,15 +53,6 @@ class TaskLogs extends Model
         }
         return false;
     }
-    
-    public static function deleteLogsById($type, $user_id)
-    {
-        $self = new static();
-        if ($result = $self->where('type', '=', $type)->where('user_id', '=', $user_id)->delete() !== false) {
-            return $result;
-        }
-        return false;
-    }
 
     public static function operateLog($data = [])
     {

@@ -57,6 +57,10 @@ foreach (['shareVideo', 'liveDailyBagPc', 'liveDailyBagApp', 'liveWebHeart', 'li
 removalCheck(!method_exists(System::class, 'pay') && !method_exists(AdminAjax::class, 'pay'),
     'Payment settings or order actions remain auto-routable');
 removalCheck(!method_exists(app\index\model\Users::class, 'spendBalance'), 'Balance spending logic remains');
+removalCheck(!method_exists(app\cron\controller\Common::class, 'curl'), 'Dead scheduler self-invocation curl helper remains');
+removalCheck(!method_exists(app\cron\controller\Common::class, 'curl_mulit'), 'Dead parallel self-invocation helper remains');
+removalCheck(!method_exists(app\cron\controller\Common::class, 'applyTlsOptions'), 'Dead TLS loopback helper remains');
+removalCheck(!method_exists(app\index\model\TaskLogs::class, 'deleteLogsById'), 'Misleading deleteLogsById helper remains');
 foreach (['app/index/controller/Epay.php', 'app/index/controller/Alipay.php',
     'app/index/model/Pays.php', 'app/service/PaymentSettlement.php', 'app/admin/model/Order.php',
     'app/index/view/common/alipay.html', 'public/static/js/admin_order_datatables.js',

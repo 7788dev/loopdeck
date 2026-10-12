@@ -38,7 +38,7 @@ $check = static function (bool $ok, string $name) use (&$checks): void {
     $checks++;
     echo "PASS {$name}\n";
 };
-$ajaxHeaders = ['X-Requested-With: XMLHttpRequest', 'Origin: ' . $base];
+$ajaxHeaders = ['X-Requested-With: XMLHttpRequest', 'Accept: application/json', 'Origin: ' . $base];
 $probe = dirname(__DIR__) . '/public/static/uploads/qa-execution-probe.php';
 try {
     $response = $request('/healthcheck');

@@ -47,7 +47,7 @@ try {
     $check($response['code'] === 200 && trim($response['body']) === trim(file_get_contents(dirname(__DIR__) . '/VERSION')), 'served version');
     $response = $request('/admin/ajax/data/list/users', [], $ajaxHeaders);
     $check($response['code'] === 302, 'anonymous admin access rejected');
-    $response = $request('/index/loginajax/login', ['username' => $username, 'password' => $password], $ajaxHeaders);
+    $response = $request('/index/LoginAjax/login', ['username' => $username, 'password' => $password], $ajaxHeaders);
     $check(($response['json']['code'] ?? null) === 1, 'administrator login');
     foreach (['/index/console/index', '/index/console/user/profile', '/admin/system/index', '/admin/system/update'] as $path) {
         $response = $request($path);

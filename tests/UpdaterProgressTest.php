@@ -19,9 +19,10 @@ $updater = new LoopDeckAutoUpdater(static function (array $command, int $timeout
 $reflection = new ReflectionClass($updater);
 $call = static fn(string $method, ...$args) => $reflection->getMethod($method)->invoke($updater, ...$args);
 $reflection->getProperty('stateFile')->setValue($updater, $stateFile);
+$reflection->getProperty('enabled')->setValue($updater, true);
 $reflection->getProperty('lastCheckStartedAt')->setValue($updater, time());
 $reflection->getProperty('acceptsCheckRequests')->setValue($updater, true);
-$web = new SystemUpdater($stateFile);
+$web = new SystemUpdater($stateFile, ['enabled' => true]);
 try {
     $call('writeCheckingState', gmdate('c'), 'manual', ['requested_at' => gmdate('c')]);
     $call('progress', 'versions', '正在检查版本');

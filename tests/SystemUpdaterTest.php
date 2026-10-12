@@ -58,7 +58,7 @@ updaterCheck($status['image_repository'] === 'ghcr.nju.edu.cn/7788dev/loopdeck',
 updaterCheck($status['check_interval_seconds'] === 600, 'Configured check interval was not retained');
 
 file_put_contents($stateFile, '{not-json');
-$invalid = new SystemUpdater(null, ['state_file' => $stateFile]);
+$invalid = new SystemUpdater(null, ['state_file' => $stateFile, 'enabled' => true]);
 updaterCheck($invalid->status()['error'] !== null, 'Invalid state did not produce an error');
 
 $disabled = new SystemUpdater(null, ['state_file' => $stateFile, 'enabled' => false]);

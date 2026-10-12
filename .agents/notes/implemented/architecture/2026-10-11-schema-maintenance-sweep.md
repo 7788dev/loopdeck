@@ -18,6 +18,7 @@ Status: implemented
 - `plan()` 是纯函数：输入各表已存在的索引名列表与表状态，输出精确的 `ALTER` DDL（列集与 `install.sql` 完全一致）。离线套件无需 MySQL 即可钉死每条语句（`tests/SchemaMaintenanceTest.php`）。
 - 元数据不可得的表（`SHOW INDEX`/`SHOW TABLE STATUS` 失败，例如离线 SQLite fixture 或数据库不可用）按 null 处理并跳过——绝不猜测；`cloud_notice` 仅在引擎非 InnoDB 或字符集非 utf8mb4 时转换。
 - 整个清扫 best-effort：任何异常吞掉且不写 stamp，下个调度周期重试；不破坏调度本身。
+- 验证码表的 `send` 和 `ip` 分别至少为 `varchar(255)`、`varchar(45)`，覆盖允许保存的邮箱及 IPv6。`plan()` 接收列类型，仅读取已知且过短的 varchar 列并扩容，不缩减管理员扩展的列。`schema-maintenance-v2.stamp` 使新增列迁移无需等待旧版本的每日门过期；读取验证码列失败时不记成功。
 
 ## Alternatives considered
 
@@ -27,8 +28,8 @@ Status: implemented
 
 **只为 `udx_users_username` 做特例迁移。** 输了：缺口每加一个索引就复发一次；统一的定义表（`requiredIndexes()`）让后续索引变更只需加一行。
 
-**在线测试（真实 MySQL）里验证执行。** 输入 `LOOPDECK_TEST_DATABASE` 的集成测试已存在（NotificationDatabaseIntegration），但构建门内没有 MySQL；因此把可离线验证的部分收敛进纯函数，把执行路径做成"失败即重试"。
+**仅用在线测试验证执行。** 构建门内没有 MySQL；纯函数和内存 fixture 留在离线门，`RecoveryDatabaseIntegration.php` 在显式指定的空测试库验证新安装及旧列升级。
 
 ## Consequences
 
-ALTER 在表上取短暂写锁——面板规模下可接受；清扫每天最多跑一次且只在缺定义时产生语句。语义上"检测与执行分离"意味着未来新增受管定义时必须同步更新 `install.sql` 与 `requiredIndexes()`（SchemaMaintenanceTest 的 `cloud_notice` 引擎断言示范了这个配对检查）。执行失败不会被上报到任务日志：它属于运维健康而非任务结果，失败表现为次日重试。
+ALTER 可能取表锁，存量部署在升级前保留备份；清扫每天最多跑一次且只在缺定义时产生语句。新增受管定义必须同步更新 `install.sql` 和迁移计划。执行失败不进入用户任务日志，不写 stamp，并在后续调度周期重试。离线测试的连接隔离见[测试记录](../testing/2026-10-12-schema-test-isolation.md)。

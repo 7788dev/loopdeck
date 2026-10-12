@@ -266,4 +266,25 @@ removalCheck(str_contains($bilibiliHtml, '旧直播任务已停用') && str_cont
 removalCheck(str_contains($bilibiliHtml, "updateConfig('coinadd'"),
     'Retiring live tasks removed the configuration dialog of a retained task');
 
+// R2: app/provider.php binds a single exception handler. The never-resolved
+// legacy app\ExceptionHandle class must stay deleted so edits to it cannot
+// silently do nothing.
+removalCheck(!is_file($root . '/app/ExceptionHandle.php'), 'The never-wired legacy exception handler file remains');
+$providerSource = (string)file_get_contents($root . '/app/provider.php');
+removalCheck(str_contains($providerSource, app\exception\handler\AppExceptionHandler::class)
+    && !str_contains($providerSource, "'app\\ExceptionHandle'"),
+    'The exception handler binding is not the single AppExceptionHandler');
+
+// R3: the always-empty IP-geolocation pretense is gone: the stub helper is
+// removed and no login/registration path writes an empty login_city any more.
+removalCheck(!function_exists('get_ip_city'), 'The dead get_ip_city() helper remains');
+removalCheck(!str_contains((string)file_get_contents($root . '/app/index/model/Users.php'), 'get_ip_city'),
+    'login_city is still written from the removed geolocation stub');
+
+// R4: the unscoped admin delete helper (which skipped jobs, logs and the
+// per-account daka state file) is removed so it cannot be wired into a
+// user-delete flow later and orphan state.
+removalCheck(!method_exists(app\admin\model\Accounts::class, 'delByUserid'),
+    'The unscoped admin account delete helper remains');
+
 echo "Feature removal and retained entitlement view tests passed\n";

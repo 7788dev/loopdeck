@@ -6,6 +6,7 @@ use think\facade\Db;
 use think\facade\Session;
 use think\Model;
 use app\service\RedemptionPlan;
+use app\service\TaskExecutionLock;
 
 class Accounts extends Model
 {
@@ -22,7 +23,13 @@ class Accounts extends Model
     private static function saveAccount(string $type, string $userId, array $data, bool $qrcode)
     {
         $uid = (int)Session::get('user.uid');
+        $lockKey = 'account-bind:' . $type . ':' . $userId;
+        $locked = false;
         try {
+            $locked = TaskExecutionLock::acquire($lockKey);
+            if (!$locked) {
+                return resultJson(0, '该账号正在保存，请稍后重试');
+            }
             return Db::transaction(static function () use ($type, $userId, $data, $qrcode, $uid) {
                 // Share the same owner lock as redemption: simultaneous additions
                 // on different platforms cannot both take the final free slot.
@@ -33,6 +40,10 @@ class Accounts extends Model
                 if ($qrcode && static::where('type', 'qrcode')->where('user_id', $userId)
                     ->where('zid', WEB_ID)->where('uid', '<>', $uid)->find()) {
                     return resultJson(0, '收款识别码已被使用，请更换识别码');
+                }
+                if (in_array($type, ['netease', 'bilibili'], true)
+                    && static::where('type', $type)->where('user_id', $userId)->where('uid', '<>', $uid)->find()) {
+                    return resultJson(0, '系统已存在该账号，无法继续添加');
                 }
                 $query = static::where('type', $type)->where('user_id', $userId)->where('uid', $uid);
                 $values = ['data' => serialize($data), 'addtime' => date('Y-m-d H:i:s'), 'state' => 1];
@@ -59,6 +70,10 @@ class Accounts extends Model
             });
         } catch (\Throwable $exception) {
             return resultJson(0, '账号保存失败，请稍后重试');
+        } finally {
+            if ($locked) {
+                TaskExecutionLock::release($lockKey);
+            }
         }
     }
 

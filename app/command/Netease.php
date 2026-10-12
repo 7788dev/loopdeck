@@ -41,6 +41,7 @@ class Netease extends Command
             ->limit((int)$interval)
             ->select();
         foreach ($jobs as $job) {
+            $jobId = (int)$job['id'];
             if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) continue;
             try {
                 $user = Users::where('uid', $job['uid'])->where('web_id', 1)->where('state', 1)->find();
@@ -49,8 +50,8 @@ class Netease extends Command
                     Jobs::updateClaimedJob((int)$job['id'], ['state' => 0, 'nextExecute' => 0]);
                     continue;
                 }
-                if ($task['vip'] == 1 && strtotime($user['vip_end'] ?? '') < time()) {  // 判断会员功能、用户会员是否过期
-                    $this->vipExpired('netease', $user['uid'], $job['user_id']); // 会员过期处理
+                if ($task['vip'] == 1 && strtotime($user['vip_end'] ?? '') < time()
+                    && $this->vipExpired('netease', $user['uid'], $job['user_id'])) {
                     continue;
                 }
                 $account = Accounts::where('type', '=', 'netease')
@@ -62,11 +63,19 @@ class Netease extends Command
                     Jobs::delJob('netease', $job['user_id'], (int)$job['uid']);
                     continue;
                 }
+                if ((int)$account['state'] !== 1) {
+                    Jobs::updateClaimedJob((int)$job['id'], ['state' => -1, 'nextExecute' => 0]);
+                    continue;
+                }
                 if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
                     Jobs::updateClaimedJob((int)$job['id'], ['nextExecute' => 0]);
                     continue;
                 }
                 try {
+                $job = Jobs::where('id', $jobId)->find();
+                if (!$job) {
+                    continue;
+                }
                     $account_info = safe_unserialize_array($account['data']);
                     $job_config = safe_unserialize_array($job['data'] ?? '');
                     $accountUserId = trim((string)($account_info['user_id'] ?? ''));
@@ -151,7 +160,7 @@ class Netease extends Command
                 // 任务在租约到期后自动重试。
                 continue;
             } finally {
-                Jobs::releaseDueJob((int)$job['id']);
+                Jobs::releaseDueJob($jobId);
             }
         }
         $count = $executed;
@@ -160,7 +169,7 @@ class Netease extends Command
 
     protected function vipExpired($type, $uid, $user_id)
     {
-        (new \app\cron\controller\Common())->vipExpired($type, $uid, $user_id);
+        return (new \app\cron\controller\Common())->vipExpired($type, $uid, $user_id);
     }
 
     protected function accountInvalid($type, $user, $user_id)

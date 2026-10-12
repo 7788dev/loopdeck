@@ -46,6 +46,7 @@ class Bilibili extends Command
             ->select();
 
         foreach ($jobs as $job) {
+            $jobId = (int)$job['id'];
             $userId = (string)$job['user_id'];
             $taskName = (string)$job['do'];
             if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) {
@@ -53,6 +54,10 @@ class Bilibili extends Command
             }
 
             try {
+                $job = Jobs::where('id', $jobId)->find();
+                if (!$job) {
+                    continue;
+                }
                 $user = Users::where('uid', $job['uid'])->find();
                 if (!$user) {
                     Jobs::where('type', 'bilibili')->where('user_id', $userId)->where('uid', $job['uid'])->delete();
@@ -74,8 +79,8 @@ class Bilibili extends Command
                     continue;
                 }
 
-                if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()) {
-                    $this->vipExpired('bilibili', (int)$user['uid'], $userId);
+                if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()
+                    && $this->vipExpired('bilibili', (int)$user['uid'], $userId)) {
                     continue;
                 }
 
@@ -88,7 +93,9 @@ class Bilibili extends Command
                     continue;
                 }
                 if ((int)$account['state'] !== 1) {
-                    Jobs::where('type', 'bilibili')->where('user_id', $userId)->where('uid', $job['uid'])->update(['state' => -1]);
+                    Jobs::where('type', 'bilibili')->where('user_id', $userId)->where('uid', $job['uid'])
+                        ->where('state', 1)->where('id', '<>', (int)$job['id'])->update(['state' => -1]);
+                    Jobs::updateClaimedJob((int)$job['id'], ['state' => -1, 'nextExecute' => 0]);
                     continue;
                 }
                 if (!AutomaticSchedule::isConfigured((string)($account['timing'] ?? ''))) {
@@ -146,7 +153,7 @@ class Bilibili extends Command
                     $this->writeLog($userId, $taskName, '[重试中] 任务调度异常，等待租约到期后重试');
                 }
             } finally {
-                Jobs::releaseDueJob((int)$job['id']);
+                Jobs::releaseDueJob($jobId);
             }
         }
 
@@ -164,9 +171,9 @@ class Bilibili extends Command
         TaskLogs::operateExecuteLog('bilibili', $userId, $task, $message);
     }
 
-    private function vipExpired(string $type, int $uid, string $userId): void
+    private function vipExpired(string $type, int $uid, string $userId): bool
     {
-        (new \app\cron\controller\Common())->vipExpired($type, $uid, $userId);
+        return (new \app\cron\controller\Common())->vipExpired($type, $uid, $userId);
     }
 
     private function accountInvalid(string $type, $user, string $userId): void

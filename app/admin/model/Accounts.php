@@ -68,10 +68,14 @@ class Accounts extends Model
         return false;
     }
 
-    public static function delByid($id, bool $cleanupState = true)
+    public static function delByid($id, bool $cleanupState = true, ?int $ownerUid = null)
     {
-        $account = \think\facade\Db::transaction(static function () use ($id) {
-            $account = self::where('id', $id)->where('zid', WEB_ID)->lock(true)->find();
+        $account = \think\facade\Db::transaction(static function () use ($id, $ownerUid) {
+            $query = self::where('id', $id)->where('zid', WEB_ID);
+            if ($ownerUid !== null) {
+                $query->where('uid', $ownerUid);
+            }
+            $account = $query->lock(true)->find();
             if (!$account) {
                 return null;
             }
@@ -95,7 +99,9 @@ class Accounts extends Model
     {
         if ($account['type'] === 'netease' && !self::where('type', 'netease')->where('user_id', $account['user_id'])->find()) {
             try {
-                (new \netease\Netease((string)$account['user_id'], '', '', [
+                $payload = safe_unserialize_array((string)($account['data'] ?? ''));
+                $stateId = trim((string)($payload['user_id'] ?? $account['user_id']));
+                (new \netease\Netease($stateId, '', '', [
                     'auto_anonymous_token' => false, 'cache_dir' => '',
                 ]))->forgetDakaState();
             } catch (\Throwable $exception) {
@@ -103,15 +109,4 @@ class Accounts extends Model
             }
         }
     }
-
-    public static function delByUserid($uid)
-    {
-        $self = new static();
-        if ($self->where('uid', '=', $uid)->where('zid', '=', WEB_ID)->delete()) {
-            return true;
-        }
-        return false;
-    }
-    
-    
 }

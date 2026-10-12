@@ -76,7 +76,7 @@ barkCheck(str_contains($adminAjaxController, "['mail_enabled', 'mail_invalid', '
 barkCheck(str_contains($scheduler, 'sendAccountInvalid'), 'Scheduler does not send Bark account-invalid notifications');
 barkCheck(str_contains($scheduler, 'sendVipExpired'), 'Scheduler does not send Bark VIP-expiry notifications');
 barkCheck(str_contains($scheduler, '$stateChanged > 0'), 'Scheduler can send duplicate account-invalid notifications');
-barkCheck(str_contains($scheduler, '$membershipChanged > 0'), 'Scheduler can send duplicate VIP-expiry notifications');
+// Repeated expiry is exercised against the database in StateConsistencyTest.
 barkCheck(str_contains($installSql, 'cloud_user_notifications'), 'Fresh-install Bark settings table is missing');
 
 echo "Bark notification tests passed\n";

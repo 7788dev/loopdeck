@@ -70,11 +70,123 @@ if (!function_exists('app_version')) {
     }
 }
 
+if (!function_exists('loopdeck_trusted_proxies')) {
+    /**
+     * Parse TRUSTED_PROXIES (comma/space separated IPs or CIDRs) into networks.
+     * Empty or unset means no proxy is ever trusted, so real_ip() keeps using
+     * the direct socket peer only — the safe default when there is no front proxy.
+     *
+     * @return list<array{packed:string,mask:int,family:int}>
+     */
+    function loopdeck_trusted_proxies(): array
+    {
+        $raw = trim((string)(getenv('TRUSTED_PROXIES') ?: ''));
+        if ($raw === '') {
+            return [];
+        }
+
+        $networks = [];
+        foreach (preg_split('/[,\s]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $entry) {
+            $prefix = null;
+            if (str_contains($entry, '/')) {
+                [$entry, $prefixString] = explode('/', $entry, 2);
+                $prefix = ctype_digit($prefixString) ? (int)$prefixString : null;
+            }
+            if (filter_var($entry, FILTER_VALIDATE_IP) === false) {
+                continue;
+            }
+            $family = filter_var($entry, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false ? 4 : 6;
+            $packed = @inet_pton($entry);
+            if ($packed === false) {
+                continue;
+            }
+            $maximum = $family === 4 ? 32 : 128;
+            $mask = $prefix === null ? $maximum : $prefix;
+            if ($mask < 0 || $mask > $maximum) {
+                continue;
+            }
+            $networks[] = ['packed' => $packed, 'mask' => $mask, 'family' => $family];
+        }
+
+        return $networks;
+    }
+}
+
+if (!function_exists('loopdeck_ip_in_networks')) {
+    /**
+     * @param list<array{packed:string,mask:int,family:int}> $networks
+     */
+    function loopdeck_ip_in_networks(string $ip, array $networks): bool
+    {
+        if ($networks === [] || filter_var($ip, FILTER_VALIDATE_IP) === false) {
+            return false;
+        }
+        $packed = @inet_pton($ip);
+        if ($packed === false) {
+            return false;
+        }
+
+        foreach ($networks as $network) {
+            if (strlen($network['packed']) !== strlen($packed)) {
+                continue;
+            }
+            $bits = $network['mask'];
+            $fullBytes = intdiv($bits, 8);
+            if ($fullBytes > 0 && substr($packed, 0, $fullBytes) !== substr($network['packed'], 0, $fullBytes)) {
+                continue;
+            }
+            $remainder = $bits % 8;
+            if ($remainder > 0) {
+                $maskByte = (0xFF << (8 - $remainder)) & 0xFF;
+                if ((ord($packed[$fullBytes]) & $maskByte) !== (ord($network['packed'][$fullBytes]) & $maskByte)) {
+                    continue;
+                }
+            }
+            return true;
+        }
+
+        return false;
+    }
+}
+
 if (!function_exists('real_ip')) {
     function real_ip(): string
     {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
-        return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '127.0.0.1';
+        $remote = isset($_SERVER['REMOTE_ADDR'])
+            && filter_var($_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP) !== false
+            ? (string)$_SERVER['REMOTE_ADDR']
+            : '';
+
+        $networks = loopdeck_trusted_proxies();
+        // A forwarded header may only be believed when the direct socket peer is
+        // a configured trusted proxy; otherwise any client could spoof the value.
+        if ($remote !== '' && $networks !== [] && loopdeck_ip_in_networks($remote, $networks)) {
+            $header = (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+            if ($header !== '') {
+                $chain = [];
+                foreach (preg_split('/[,\s]+/', $header, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $token) {
+                    // Strip an :port suffix from a dotted-quad address; IPv6
+                    // bracket forms are already handled by filter_var.
+                    if (filter_var($token, FILTER_VALIDATE_IP) === false
+                        && preg_match('/\A(\d{1,3}(?:\.\d{1,3}){3}):\d{1,5}\z/', $token, $matches) === 1) {
+                        $token = $matches[1];
+                    }
+                    if (filter_var($token, FILTER_VALIDATE_IP) !== false) {
+                        $chain[] = $token;
+                    }
+                }
+                // Walk the chain right-to-left and return the closest hop that is
+                // not itself a trusted proxy: the address the trusted proxies
+                // appended, which the client cannot overwrite.
+                foreach (array_reverse($chain) as $candidate) {
+                    if (!loopdeck_ip_in_networks($candidate, $networks)) {
+                        return $candidate;
+                    }
+                }
+            }
+        }
+
+        return $remote !== '' ? $remote : '127.0.0.1';
     }
 }
 
@@ -295,13 +407,6 @@ if (!function_exists('get_qqname')) {
     {
         $qq = preg_replace('/\D+/', '', (string)$qq);
         return $qq === '' ? 'LoopDeck 用户' : 'QQ' . $qq;
-    }
-}
-
-if (!function_exists('get_ip_city')) {
-    function get_ip_city(string $ip): string
-    {
-        return filter_var($ip, FILTER_VALIDATE_IP) ? '' : '';
     }
 }
 

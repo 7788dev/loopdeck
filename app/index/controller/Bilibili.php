@@ -241,21 +241,16 @@ class Bilibili
     private function delete()
     {
         $userId = trim((string)Request::post('user_id', Request::post('mid', '')));
-        if (!$this->ownedAccount($userId)) {
+        $account = $this->ownedAccount($userId);
+        if (!$account) {
             return resultJson(0, '账号不存在或无权操作');
         }
-        $accountDeleted = Accounts::where('type', 'bilibili')
-            ->where('user_id', $userId)
-            ->where('uid', Session::get('user.uid'))
-            ->delete() !== false;
-        $jobsDeleted = Jobs::where('type', 'bilibili')
-            ->where('user_id', $userId)
-            ->where('uid', Session::get('user.uid'))
-            ->delete() !== false;
-        $logsDeleted = TaskLogs::where('type', 'bilibili')
-            ->where('user_id', $userId)
-            ->delete() !== false;
-        return $accountDeleted && $jobsDeleted && $logsDeleted
+        try {
+            $deleted = \app\admin\model\Accounts::delByid((int)$account['id'], true, (int)Session::get('user.uid'));
+        } catch (\Throwable $exception) {
+            $deleted = false;
+        }
+        return $deleted
             ? resultJson(1, '删除成功')
             : resultJson(0, '删除失败');
     }
@@ -305,12 +300,8 @@ class Bilibili
         if ($config === null) {
             return resultJson(0, '任务配置参数错误');
         }
-        $updated = Jobs::where('type', 'bilibili')
-            ->where('user_id', $userId)
-            ->where('uid', Session::get('user.uid'))
-            ->where('do', $do)
-            ->update(['data' => serialize($config)]);
-        return $updated !== false ? resultJson(1, '保存成功') : resultJson(0, '保存失败');
+        return Jobs::saveUserConfig('bilibili', $userId, $do, $config)
+            ? resultJson(1, '保存成功') : resultJson(0, '任务正在执行或已不存在，请稍后重试');
     }
 
     private function setTiming(string $userId, string $timing)

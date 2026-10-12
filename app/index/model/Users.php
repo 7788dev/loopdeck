@@ -75,7 +75,6 @@ class Users extends Model
                     'vip_end' => $vip_end ?? null,
                     'login_time' => time(),
                     'login_ip' => real_ip(),
-                    'login_city' => get_ip_city(real_ip()),
                 ]);
             } catch (\think\db\exception\PDOException $exception) {
                 // The check-then-insert above races with concurrent registrations;
@@ -269,7 +268,6 @@ class Users extends Model
             ->update([
                 'sid' => bin2hex(random_bytes(24)),
                 'login_ip' => real_ip(),
-                'login_city' => get_ip_city(real_ip()),
                 'login_time' => time()
             ]);
         // A fresh session id on privilege change closes session fixation.
@@ -388,6 +386,25 @@ class Users extends Model
     {
         return str_starts_with($storedPassword, '$2y$')
             || str_starts_with($storedPassword, '$argon2');
+    }
+
+    /** Recheck expiry under the same owner lock used by redemption. */
+    public static function pauseExpiredVipJobs(string $type, int $uid, string $userId): array
+    {
+        return \think\facade\Db::transaction(static function () use ($type, $uid, $userId): array {
+            $row = static::where('uid', $uid)->where('web_id', 1)->lock(true)->find();
+            $user = $row ? $row->toArray() : [];
+            $expires = strtotime((string)($user['vip_end'] ?? ''));
+            if ($expires !== false && $expires >= time()) {
+                return ['expired' => false, 'changed' => false, 'user' => $user];
+            }
+            $changed = false;
+            if ($row && ($row['vip_start'] !== null || $row['vip_end'] !== null)) {
+                $changed = static::where('uid', $uid)->update(['vip_start' => null, 'vip_end' => null]) > 0;
+            }
+            Jobs::pauseVipJobs($type, $uid, $userId);
+            return ['expired' => true, 'changed' => $changed, 'user' => $user];
+        });
     }
 
     /**

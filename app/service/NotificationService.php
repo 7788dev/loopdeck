@@ -194,30 +194,34 @@ class NotificationService
                 continue;
             }
             try {
-                $user = ($this->userLoader)((int)$row['uid'], (int)$row['web_id']);
-                $settings = $this->settings->get((int)$row['uid'], (int)$row['web_id']);
-                $site = $this->sites->get((int)$row['web_id']);
-                if ($user === [] || !$settings['enabled'] || empty($settings['channels'][$row['channel']])
-                    || empty($settings['events'][$row['event_type']]) || !$site['exists']
-                    || ($row['channel'] === 'email' && !$site['email_available'])) {
-                    $this->repository->finishMessage($id, ['status' => 3, 'finished_at' => $now, 'last_error' => '用户或渠道已关闭']);
-                    $counts['skipped']++;
-                    continue;
+                try {
+                    $user = ($this->userLoader)((int)$row['uid'], (int)$row['web_id']);
+                    $settings = $this->settings->get((int)$row['uid'], (int)$row['web_id']);
+                    $site = $this->sites->get((int)$row['web_id']);
+                    if ($user === [] || !$settings['enabled'] || empty($settings['channels'][$row['channel']])
+                        || empty($settings['events'][$row['event_type']]) || !$site['exists']
+                        || ($row['channel'] === 'email' && !$site['email_available'])) {
+                        $this->repository->finishMessage($id, ['status' => 3, 'finished_at' => $now, 'last_error' => '用户或渠道已关闭']);
+                        $counts['skipped']++;
+                        continue;
+                    }
+                    $result = $this->transport->send($row['channel'], $settings, $site, $row['title'], $row['body'], $row['url']);
+                } catch (Throwable $exception) {
+                    $result = ['success' => false, 'message' => '推送服务暂时不可用'];
                 }
-                $result = $this->transport->send($row['channel'], $settings, $site, $row['title'], $row['body'], $row['url']);
-            } catch (Throwable $exception) {
-                $result = ['success' => false, 'message' => '推送服务暂时不可用'];
+                $attempts = (int)$row['attempts'] + 1;
+                $success = !empty($result['success']);
+                $retry = !$success && $attempts < 3;
+                $this->repository->finishMessage($id, [
+                    'status' => $success ? 1 : ($retry ? 0 : 2),
+                    'available_at' => $retry ? $now + 300 * $attempts : 0,
+                    'finished_at' => $retry ? 0 : $now,
+                    'last_error' => $success ? '' : NotificationText::clean((string)$result['message'], 200),
+                ]);
+                $counts[$success ? 'sent' : ($retry ? 'retrying' : 'failed')]++;
+            } finally {
+                $this->repository->releaseMessage($id);
             }
-            $attempts = (int)$row['attempts'] + 1;
-            $success = !empty($result['success']);
-            $retry = !$success && $attempts < 3;
-            $this->repository->finishMessage($id, [
-                'status' => $success ? 1 : ($retry ? 0 : 2),
-                'available_at' => $retry ? $now + 300 * $attempts : 0,
-                'finished_at' => $retry ? 0 : $now,
-                'last_error' => $success ? '' : NotificationText::clean((string)$result['message'], 200),
-            ]);
-            $counts[$success ? 'sent' : ($retry ? 'retrying' : 'failed')]++;
         }
         $this->repository->prune($now);
         return $counts;

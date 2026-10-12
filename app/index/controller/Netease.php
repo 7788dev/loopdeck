@@ -166,40 +166,12 @@ class Netease
         if (!$account) {
             return resultJson(0, '账号不存在或无权操作');
         }
-        $accountUid = (int)($account['uid'] ?? Session::get('user.uid'));
-        $accountData = safe_unserialize_array((string)($account['data'] ?? ''));
-        $stateUserId = trim((string)($accountData['user_id'] ?? $account['user_id'] ?? $userId));
-
         try {
-            $accountDeleted = Accounts::where('type', 'netease')
-                ->where('user_id', $userId)
-                ->where('uid', $accountUid)
-                ->delete() !== false;
+            $deleted = \app\admin\model\Accounts::delByid((int)$account['id'], true, (int)Session::get('user.uid'));
         } catch (\Throwable $exception) {
-            $accountDeleted = false;
+            $deleted = false;
         }
-
-        try {
-            // Zero matching jobs is a valid cleanup result; only a database
-            // error should make the operation report failure.
-            $jobsDeleted = Jobs::delJob('netease', $userId, $accountUid) !== false;
-        } catch (\Throwable $exception) {
-            $jobsDeleted = false;
-        }
-
-        try {
-            $logsDeleted = TaskLogs::deleteLogs('netease', $userId) !== false;
-        } catch (\Throwable $exception) {
-            $logsDeleted = false;
-        }
-
-        // Otherwise the daily-task state files stay behind as orphans. Use the
-        // ID stored with the account, not an untrusted request value.
-        if ($accountDeleted && $stateUserId !== '') {
-            (new NeteaseClient($stateUserId))->forgetDakaState();
-        }
-
-        return $accountDeleted && $jobsDeleted && $logsDeleted
+        return $deleted
             ? resultJson(1, '删除成功')
             : resultJson(0, '删除失败');
     }
@@ -253,12 +225,8 @@ class Netease
                 } catch (InvalidArgumentException $exception) {
                     return resultJson(0, $exception->getMessage());
                 }
-                $updated = Jobs::where('type', 'netease')
-                    ->where('user_id', $userId)
-                    ->where('uid', Session::get('user.uid'))
-                    ->where('do', $taskName)
-                    ->update(['data' => serialize($config)]);
-                return $updated !== false ? resultJson(1, '保存成功') : resultJson(0, '保存失败');
+                return Jobs::saveUserConfig('netease', $userId, $taskName, $config)
+                    ? resultJson(1, '保存成功') : resultJson(0, '任务正在执行或已不存在，请稍后重试');
         }
     }
 

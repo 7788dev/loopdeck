@@ -20,9 +20,9 @@ CREATE TABLE `cloud_captcha` (
                                  `id` int(11) NOT NULL,
                                  `type` int(1) DEFAULT '1' COMMENT '类型',
                                  `code` varchar(64) DEFAULT NULL COMMENT '验证码',
-                                 `send` varchar(20) NOT NULL COMMENT '收件人',
+                                 `send` varchar(255) NOT NULL COMMENT '收件人',
                                  `time` varchar(255) NOT NULL COMMENT '添加时间',
-                                 `ip` varchar(20) NOT NULL COMMENT 'ip地址',
+                                 `ip` varchar(45) NOT NULL COMMENT 'ip地址',
                                  `status` int(11) NOT NULL DEFAULT '0' COMMENT '状态'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

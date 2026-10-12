@@ -5,6 +5,7 @@ namespace app\index\model;
 
 use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
+use app\service\SchedulerRetry;
 use app\service\TaskExecutionLock;
 use think\Collection;
 use think\db\exception\DataNotFoundException;
@@ -374,6 +375,30 @@ class Jobs extends Model
             'uid' => $uid,
         ])->update($data);
         return $result === false ? false : $result;
+    }
+
+    /** Save user options only while idle, retaining state owned by the scheduler. */
+    public static function saveUserConfig(string $type, string $userId, string $task, array $config): bool
+    {
+        $uid = self::resolveTenantUid();
+        $job = $uid === null ? null : self::getJobInfo($type, $userId, $task, $uid);
+        if (!$job || !TaskExecutionLock::acquire('job:' . (int)$job['id'])) {
+            return false;
+        }
+        $id = (int)$job['id'];
+        try {
+            $current = static::where('id', $id)->where('uid', $uid)->find();
+            if (!$current) {
+                return false;
+            }
+            $state = array_intersect_key(safe_unserialize_array((string)$current['data']), array_flip([
+                SchedulerRetry::DATA_KEY, '_bilibili_verification',
+            ]));
+            unset($config[SchedulerRetry::DATA_KEY], $config['_bilibili_verification']);
+            return static::where('id', $id)->where('uid', $uid)->update(['data' => serialize($config + $state)]) !== false;
+        } finally {
+            TaskExecutionLock::release('job:' . $id);
+        }
     }
 
     /**

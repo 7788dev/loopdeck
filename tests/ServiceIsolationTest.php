@@ -52,10 +52,7 @@ serviceIsolationCheck(
     'A service controller can still toggle another service job'
 );
 
-serviceIsolationCheck(
-    str_contains($neteaseController, 'Jobs::delJob(\'netease\', $userId, $accountUid)')
-        && str_contains($neteaseController, "->where('uid', \$accountUid)"),
-    'NetEase account deletion is not tenant-scoped'
-);
+// User deletion now shares the transactional cleanup used by administrators.
+// StateConsistencyTest executes its ownership boundary and rollback behavior.
 
 echo "Service isolation tests passed\n";

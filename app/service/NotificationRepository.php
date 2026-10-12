@@ -14,6 +14,8 @@ use Throwable;
 class NotificationRepository
 {
     private bool $ready = false;
+    /** @var array<int,array{at:int,attempts:int}> */
+    private array $leases = [];
 
     public function ensureSchema(): void
     {
@@ -174,17 +176,57 @@ class NotificationRepository
 
     public function claimMessage(int $id, int $expectedAt, int $now): bool
     {
-        $table = $this->table('notification_outbox');
-        return Db::execute(
-            "UPDATE `{$table}` SET `available_at`=:lease, `attempts`=`attempts`+1 "
-            . 'WHERE `id`=:id AND `status`=0 AND `available_at`=:expected AND `available_at`<=:now',
-            ['id' => $id, 'expected' => $expectedAt, 'now' => $now, 'lease' => $now + 120]
-        ) === 1;
+        $key = 'notification:' . $id;
+        if ($id <= 0 || !TaskExecutionLock::acquire($key)) {
+            return false;
+        }
+        try {
+            $table = $this->table('notification_outbox');
+            $claimed = Db::execute(
+                "UPDATE `{$table}` SET `available_at`=:lease, `attempts`=`attempts`+1 "
+                . 'WHERE `id`=:id AND `status`=0 AND `available_at`=:expected AND `available_at`<=:now',
+                ['id' => $id, 'expected' => $expectedAt, 'now' => $now, 'lease' => $now + 120]
+            ) === 1;
+            if ($claimed) {
+                $this->leases[$id] = ['at' => $now + 120,
+                    'attempts' => (int)Db::name('notification_outbox')->where('id', $id)->value('attempts')];
+                return true;
+            }
+        } catch (Throwable $exception) {
+            TaskExecutionLock::release($key);
+            throw $exception;
+        }
+        TaskExecutionLock::release($key);
+        return false;
     }
 
     public function finishMessage(int $id, array $changes): void
     {
-        Db::name('notification_outbox')->where('id', $id)->update($changes);
+        $lease = $this->leases[$id] ?? null;
+        if ($lease === null) {
+            return;
+        }
+        try {
+            Db::name('notification_outbox')->where('id', $id)->where('status', 0)
+                ->where('available_at', $lease['at'])->where('attempts', $lease['attempts'])->update($changes);
+        } finally {
+            $this->releaseMessage($id);
+        }
+    }
+
+    public function releaseMessage(int $id): void
+    {
+        if (isset($this->leases[$id])) {
+            unset($this->leases[$id]);
+            TaskExecutionLock::release('notification:' . $id);
+        }
+    }
+
+    public function __destruct()
+    {
+        foreach (array_keys($this->leases) as $id) {
+            $this->releaseMessage($id);
+        }
     }
 
     public function dueSummaries(int $now, int $limit): array

@@ -27,7 +27,7 @@ use Throwable;
  */
 final class SchemaMaintenance
 {
-    private const STAMP_FILE = 'schema-maintenance.stamp';
+    private const STAMP_FILE = 'schema-maintenance-v2.stamp';
 
     /**
      * Definitions every installation must have. Column sets mirror
@@ -53,7 +53,7 @@ final class SchemaMaintenance
      * @param array<string, array{engine: string, collation: string}> $tableStates per short table name
      * @return array<int, string>
      */
-    public static function plan(array $existingIndexes, array $tableStates): array
+    public static function plan(array $existingIndexes, array $tableStates, array $columnTypes = []): array
     {
         $statements = [];
         foreach (self::requiredIndexes() as $required) {
@@ -80,6 +80,15 @@ final class SchemaMaintenance
                 'ALTER TABLE `%s` ENGINE=InnoDB CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
                 self::tableName('notice')
             );
+        }
+
+        foreach (['send' => 255, 'ip' => 45] as $column => $length) {
+            $type = (string)($columnTypes['captcha'][$column] ?? '');
+            // Never shrink an operator-expanded column, or guess after a metadata error.
+            if (preg_match('/\Avarchar\((\d+)\)\z/i', $type, $match) === 1 && (int)$match[1] < $length) {
+                $statements[] = sprintf('ALTER TABLE `%s` MODIFY `%s` varchar(%d) NOT NULL',
+                    self::tableName('captcha'), $column, $length);
+            }
         }
 
         return $statements;
@@ -111,7 +120,7 @@ final class SchemaMaintenance
                 return;
             }
 
-            $plan = self::plan(self::existingIndexes(), self::tableStates());
+            $plan = self::plan(self::existingIndexes(), self::tableStates(), self::columnTypes());
             if ($plan === []) {
                 @touch($stamp);
                 return;
@@ -181,6 +190,12 @@ final class SchemaMaintenance
         } catch (Throwable $exception) {
             return ['notice' => null];
         }
+    }
+
+    private static function columnTypes(): array
+    {
+        $rows = Db::query(sprintf('SHOW COLUMNS FROM `%s`', self::tableName('captcha')));
+        return ['captcha' => array_column($rows, 'Type', 'Field')];
     }
 
     private static function tableName(string $name): string

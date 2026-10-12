@@ -12,7 +12,7 @@ declare(strict_types=1);
  * converted; the sweep is stamped once per day and retried on failure.
  */
 
-require dirname(__DIR__) . '/vendor/autoload.php';
+require __DIR__ . '/FunctionalDatabaseBootstrap.php';
 
 use app\service\SchemaMaintenance;
 
@@ -23,9 +23,13 @@ function schemaMaintenanceCheck(bool $condition, string $message): void
     }
 }
 
-$app = new think\App(dirname(__DIR__) . '/');
 $app->setRuntimePath(sys_get_temp_dir() . '/loopdeck-schema-maint-' . bin2hex(random_bytes(4)) . '/');
-$app->initialize();
+// DDL planning uses the installation prefix; execution stays on the in-memory fixture.
+$configuration = $app->config->get('database');
+$configuration['connections']['mysql']['prefix'] = 'cloud_';
+$app->config->set($configuration, 'database');
+schemaMaintenanceCheck(think\facade\Db::connect()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite',
+    'Offline schema checks must never use an installed MySQL connection');
 
 // --- plan(): missing definitions produce exact DDL -------------------------
 
@@ -65,6 +69,14 @@ $partial = SchemaMaintenance::plan([
     'notice' => ['engine' => 'InnoDB', 'collation' => 'utf8mb4_unicode_ci'],
 ]);
 schemaMaintenanceCheck($partial === [], 'A fully upgraded install was not recognized as up to date');
+
+$recovery = SchemaMaintenance::plan([], [], ['captcha' => ['send' => 'varchar(20)', 'ip' => 'varchar(20)']]);
+schemaMaintenanceCheck($recovery === [
+    'ALTER TABLE `cloud_captcha` MODIFY `send` varchar(255) NOT NULL',
+    'ALTER TABLE `cloud_captcha` MODIFY `ip` varchar(45) NOT NULL',
+], 'Legacy recovery columns cannot store supported mailboxes and IPv6 clients');
+schemaMaintenanceCheck(SchemaMaintenance::plan([], [], ['captcha' => ['send' => 'varchar(512)', 'ip' => 'varchar(128)']]) === [],
+    'Recovery migration would shrink custom columns');
 
 // One missing definition out of many plans exactly that one.
 $one = SchemaMaintenance::plan([
@@ -132,7 +144,7 @@ if (!is_dir($runtime)) {
 }
 try {
     SchemaMaintenance::runIfDue();
-    schemaMaintenanceCheck(true, '');
+    schemaMaintenanceCheck(think\facade\Db::name('users')->count() === 1, 'Maintenance changed the isolated fixture');
 } finally {
     if (is_dir($runtime)) {
         $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($runtime, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);

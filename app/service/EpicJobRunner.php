@@ -20,6 +20,10 @@ final class EpicJobRunner
             return 'skipped';
         }
         try {
+            $job = Jobs::where('id', $id)->find();
+            if (!$job) {
+                return 'skipped';
+            }
             $common = new Common();
             $notifications = new NotificationService();
             $user = null;
@@ -35,8 +39,8 @@ final class EpicJobRunner
                     }
                     return 'disabled';
                 }
-                if ((int)strtotime((string)($user['vip_end'] ?? '')) < time()) {
-                    $common->vipExpired('epic', (int)$user['uid'], (string)$job['user_id']);
+                if ((int)strtotime((string)($user['vip_end'] ?? '')) < time()
+                    && $common->vipExpired('epic', (int)$user['uid'], (string)$job['user_id'])) {
                     return 'disabled';
                 }
                 $result = (new EpicTaskExecutor($notifications))->execute($user);

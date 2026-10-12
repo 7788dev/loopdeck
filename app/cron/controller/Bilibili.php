@@ -41,10 +41,15 @@ class Bilibili extends Common
             ->select();
 
         foreach ($jobs as $job) {
+            $jobId = (int)$job['id'];
             if (!Jobs::claimDueJob((int)$job['id'], (int)$job['nextExecute'])) {
                 continue;
             }
             try {
+                $job = Jobs::where('id', $jobId)->find();
+                if (!$job) {
+                    continue;
+                }
                 $this->scheduled++;
                 $userId = (string)$job['user_id'];
                 $user = $this->user((int)$job['uid']);
@@ -59,8 +64,8 @@ class Bilibili extends Common
                     Jobs::updateClaimedJob((int)$job['id'], ['nextExecute' => 0]);
                     continue;
                 }
-                if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()) {
-                    $this->vipExpired('bilibili', $user['uid'], $userId);
+                if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()
+                    && $this->vipExpired('bilibili', $user['uid'], $userId)) {
                     continue;
                 }
                 // 凭据/配置都在库内，任务在本进程执行，RUN_KEY 不再进 URL
@@ -70,7 +75,7 @@ class Bilibili extends Common
                 // 释放，任务在租约到期后自动重试。
                 continue;
             } finally {
-                Jobs::releaseDueJob((int)$job['id']);
+                Jobs::releaseDueJob($jobId);
             }
         }
 

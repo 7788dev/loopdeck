@@ -302,6 +302,10 @@ class Task extends Common
             if (!($claimed = Jobs::claimDueJob($jobId, $scheduledAt))) {
                 return;
             }
+            $job = Jobs::where('id', $jobId)->find();
+            if (!$job) {
+                return;
+            }
             if (isset($this->suppressedAccounts[$accountKey])) {
                 $summary['disabled']++;
                 return;
@@ -344,8 +348,8 @@ class Task extends Common
                 $summary['unscheduled']++;
                 return;
             }
-            if ((int)$task['vip'] === 1 && $this->vipExpiredAt($user)) {
-                $this->expireVip($type, $uid, $userId);
+            if ((int)$task['vip'] === 1 && $this->vipExpiredAt($user)
+                && $this->expireVip($type, $uid, $userId)) {
                 $summary['vip_expired']++;
                 return;
             }
@@ -697,17 +701,18 @@ class Task extends Common
         return false;
     }
 
-    private function expireVip(string $type, int $uid, string $userId): void
+    private function expireVip(string $type, int $uid, string $userId): bool
     {
-        $membershipChanged = Users::where('uid', $uid)
-            ->whereRaw('(`vip_start` IS NOT NULL OR `vip_end` IS NOT NULL)')
-            ->update(['vip_start' => null, 'vip_end' => null]);
-        Jobs::pauseVipJobs($type, $uid, $userId);
-        $this->writeLog($type, $userId, '系统提示', '会员过期，请开通会员后再试');
-        $user = $this->user($uid);
-        if ($membershipChanged > 0 && $user) {
-            $this->notifications()->sendVipExpired($user);
+        $expiry = Users::pauseExpiredVipJobs($type, $uid, $userId);
+        $this->userCache[$uid] = $expiry['user'];
+        if (!$expiry['expired']) {
+            return false;
         }
+        $this->writeLog($type, $userId, '系统提示', '会员过期，请开通会员后再试');
+        if ($expiry['changed'] && $expiry['user']) {
+            $this->notifications()->sendVipExpired($expiry['user']);
+        }
+        return true;
     }
 
     private function invalidateAccount(string $type, int $uid, string $userId): void

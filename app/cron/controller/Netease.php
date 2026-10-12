@@ -52,7 +52,10 @@ class Netease extends Common
                 continue;
             }
             try {
-
+                $job = Jobs::where('id', $jobId)->find();
+                if (!$job) {
+                    continue;
+                }
                 $user = $this->user((int)($job['uid'] ?? 0));
                 if ($user === null) {
                     $this->disableJob($jobId, (string)($job['user_id'] ?? ''), (string)($job['do'] ?? ''), '用户不存在，任务已停用');
@@ -76,8 +79,8 @@ class Netease extends Common
                     Jobs::updateClaimedJob($jobId, ['nextExecute' => 0]);
                     continue;
                 }
-                if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()) {
-                    $this->vipExpired('netease', (int)$user['uid'], (string)$job['user_id']);
+                if ((int)$task['vip'] === 1 && strtotime((string)($user['vip_end'] ?? '')) < time()
+                    && $this->vipExpired('netease', (int)$user['uid'], (string)$job['user_id'])) {
                     continue;
                 }
 
@@ -135,7 +138,7 @@ class Netease extends Common
                 // below and the job retries at lease expiry.
                 continue;
             } finally {
-                Jobs::releaseDueJob((int)$job['id']);
+                Jobs::releaseDueJob($jobId);
             }
         }
         return resultJson(1000, '执行任务成功');

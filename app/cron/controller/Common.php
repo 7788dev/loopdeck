@@ -45,10 +45,10 @@ class Common
 
     public function vipExpired($type, $uid, $user_id)
     {
-        $membershipChanged = Users::where('uid', '=', $uid)
-            ->whereRaw('(`vip_start` IS NOT NULL OR `vip_end` IS NOT NULL)')
-            ->update(['vip_start' => NULL, 'vip_end' => NULL]);
-        Jobs::pauseVipJobs((string)$type, (int)$uid, (string)$user_id);
+        $expiry = Users::pauseExpiredVipJobs((string)$type, (int)$uid, (string)$user_id);
+        if (!$expiry['expired']) {
+            return false;
+        }
         $data = [
             'type' => $type,
             'user_id' => $user_id,
@@ -56,10 +56,10 @@ class Common
             'response' => '[失败] 会员过期，请开通会员后再试',
         ];
         TaskLogs::operateLog($data);
-        $user = $membershipChanged > 0 ? Users::getByUid($uid) : null;
-        if ($membershipChanged > 0 && $user) {
-            (new NotificationService())->sendVipExpired($user);
+        if ($expiry['changed'] && $expiry['user']) {
+            (new NotificationService())->sendVipExpired($expiry['user']);
         }
+        return true;
     }
 
     public function accountInvalid($type, $user, $user_id)

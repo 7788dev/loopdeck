@@ -42,9 +42,16 @@ class CheckLoginUser
                     ->update(['vip_start' => null, 'vip_end' => null]);
                 if ($changed > 0) {
                     (new \app\service\NotificationService())->sendVipExpired($current);
+                    $current['vip_start'] = null;
+                    $current['vip_end'] = null;
+                } else {
+                    $fresh = Users::where('uid', (int)$current['uid'])->withoutField('password')->find();
+                    $current = $fresh ? $fresh->toArray() : [];
+                    if (!self::validSessionUser((array)Session::get('user'), $current, (int)WEB_ID)) {
+                        Session::delete('user');
+                        return redirect('/index/login/login');
+                    }
                 }
-                $current['vip_start'] = null;
-                $current['vip_end'] = null;
             }
             Session::set('user', $current);
         }

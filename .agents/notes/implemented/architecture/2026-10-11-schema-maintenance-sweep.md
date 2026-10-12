@@ -19,6 +19,7 @@ Status: implemented
 - 元数据不可得的表（`SHOW INDEX`/`SHOW TABLE STATUS` 失败，例如离线 SQLite fixture 或数据库不可用）按 null 处理并跳过——绝不猜测；`cloud_notice` 仅在引擎非 InnoDB 或字符集非 utf8mb4 时转换。
 - 整个清扫 best-effort：任何异常吞掉且不写 stamp，下个调度周期重试；不破坏调度本身。
 - 验证码表的 `send` 和 `ip` 分别至少为 `varchar(255)`、`varchar(45)`，覆盖允许保存的邮箱及 IPv6。`plan()` 接收列类型，仅读取已知且过短的 varchar 列并扩容，不缩减管理员扩展的列。`schema-maintenance-v2.stamp` 使新增列迁移无需等待旧版本的每日门过期；读取验证码列失败时不记成功。
+- 旧 `kms` 表迁移为 InnoDB；MyISAM 会在权益更新失败时保留已使用标记，违背兑换事务的回滚约定。各条 DDL 独立执行，历史唯一键冲突不阻挡引擎和列宽修复；任何失败或元数据未知都不写完成标记，后续周期重试。退役支付表不在迁移范围内。
 
 ## Alternatives considered
 
@@ -27,6 +28,8 @@ Status: implemented
 **在 `ensureSchema()` 里顺带做。** 输了：通知仓库的结构关注点与全站索引/引擎无关，且 ensureSchema 在通知读写路径上同步执行，不适合承载可能锁表的 DDL。
 
 **只为 `udx_users_username` 做特例迁移。** 输了：缺口每加一个索引就复发一次；统一的定义表（`requiredIndexes()`）让后续索引变更只需加一行。
+
+**只修改新安装表定义，或首条 ALTER 失败就停止。** 存量兑换码表不会自动变成事务表，其他历史索引问题还会长期阻挡无关修复。真实旧库结构复现证明 MyISAM 下失败兑换仍消耗卡密。
 
 **仅用在线测试验证执行。** 构建门内没有 MySQL；纯函数和内存 fixture 留在离线门，`RecoveryDatabaseIntegration.php` 在显式指定的空测试库验证新安装及旧列升级。
 

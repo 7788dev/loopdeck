@@ -77,6 +77,11 @@ schemaMaintenanceCheck($recovery === [
 ], 'Legacy recovery columns cannot store supported mailboxes and IPv6 clients');
 schemaMaintenanceCheck(SchemaMaintenance::plan([], [], ['captcha' => ['send' => 'varchar(512)', 'ip' => 'varchar(128)']]) === [],
     'Recovery migration would shrink custom columns');
+schemaMaintenanceCheck(SchemaMaintenance::plan([], ['kms' => ['engine' => 'MyISAM', 'collation' => 'utf8_general_ci']]) === [
+    'ALTER TABLE `cloud_kms` ENGINE=InnoDB',
+], 'Legacy redemption cards still ignore transactional rollback');
+schemaMaintenanceCheck(SchemaMaintenance::plan([], ['kms' => ['engine' => 'InnoDB', 'collation' => 'utf8_general_ci']]) === [],
+    'An already transactional card table was altered unnecessarily');
 
 // One missing definition out of many plans exactly that one.
 $one = SchemaMaintenance::plan([

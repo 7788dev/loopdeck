@@ -82,6 +82,11 @@ final class SchemaMaintenance
             );
         }
 
+        $cards = $tableStates['kms'] ?? null;
+        if (is_array($cards) && strtoupper($cards['engine']) !== 'INNODB') {
+            $statements[] = sprintf('ALTER TABLE `%s` ENGINE=InnoDB', self::tableName('kms'));
+        }
+
         foreach (['send' => 255, 'ip' => 45] as $column => $length) {
             $type = (string)($columnTypes['captcha'][$column] ?? '');
             // Never shrink an operator-expanded column, or guess after a metadata error.
@@ -120,16 +125,29 @@ final class SchemaMaintenance
                 return;
             }
 
-            $plan = self::plan(self::existingIndexes(), self::tableStates(), self::columnTypes());
+            $indexes = self::existingIndexes();
+            $tables = self::tableStates();
+            $columns = self::columnTypes();
+            $complete = !in_array(null, $indexes, true) && !in_array(null, $tables, true) && !in_array(null, $columns, true);
+            $plan = self::plan($indexes, $tables, $columns);
             if ($plan === []) {
-                @touch($stamp);
+                if ($complete) {
+                    @touch($stamp);
+                }
                 return;
             }
 
             foreach ($plan as $statement) {
-                Db::execute($statement);
+                try {
+                    Db::execute($statement);
+                } catch (Throwable $exception) {
+                    // A conflicting legacy index must not block independent repairs.
+                    $complete = false;
+                }
             }
-            @touch($stamp);
+            if ($complete) {
+                @touch($stamp);
+            }
         } catch (Throwable $exception) {
             // Maintenance must never break scheduling; a failed sweep retries
             // on the next scheduler run because the stamp was not written.
@@ -173,29 +191,30 @@ final class SchemaMaintenance
      */
     private static function tableStates(): array
     {
-        try {
-            $rows = Db::query(sprintf(
-                "SHOW TABLE STATUS LIKE '%s'",
-                self::tableName('notice')
-            ));
-            $row = is_array($rows) ? ($rows[0] ?? null) : null;
-            if (!is_array($row)) {
-                return ['notice' => null];
+        $states = [];
+        foreach (['notice', 'kms'] as $table) {
+            try {
+                $rows = Db::query(sprintf("SHOW TABLE STATUS LIKE '%s'", self::tableName($table)));
+                $row = is_array($rows) ? ($rows[0] ?? null) : null;
+                $states[$table] = is_array($row) ? [
+                    'engine' => (string)($row['Engine'] ?? ''),
+                    'collation' => (string)($row['Collation'] ?? ''),
+                ] : null;
+            } catch (Throwable $exception) {
+                $states[$table] = null;
             }
-
-            return ['notice' => [
-                'engine' => (string)($row['Engine'] ?? ''),
-                'collation' => (string)($row['Collation'] ?? ''),
-            ]];
-        } catch (Throwable $exception) {
-            return ['notice' => null];
         }
+        return $states;
     }
 
     private static function columnTypes(): array
     {
-        $rows = Db::query(sprintf('SHOW COLUMNS FROM `%s`', self::tableName('captcha')));
-        return ['captcha' => array_column($rows, 'Type', 'Field')];
+        try {
+            $rows = Db::query(sprintf('SHOW COLUMNS FROM `%s`', self::tableName('captcha')));
+            return ['captcha' => array_column($rows, 'Type', 'Field')];
+        } catch (Throwable $exception) {
+            return ['captcha' => null];
+        }
     }
 
     private static function tableName(string $name): string

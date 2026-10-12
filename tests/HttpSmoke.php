@@ -58,7 +58,7 @@ try {
     foreach ($response['json']['data'] ?? [] as $user) {
         $check(!isset($user['password']) && !isset($user['sid']), 'admin list redacts credentials');
     }
-    $profile = ['nickname' => '<script>x</script>', 'qq' => '1234567', 'mail' => 'long.recovery.fixture@example.com'];
+    $profile = ['nickname' => 'HTTP 测试 & 正常', 'qq' => '1234567', 'mail' => 'long.recovery.fixture@example.com'];
     $response = $request('/index/ajax/user/profile', $profile);
     $check($response['code'] === 403, 'non-AJAX profile mutation rejected');
     $response = $request('/index/ajax/user/profile', $profile, ['X-Requested-With: XMLHttpRequest', 'Origin: https://foreign.invalid']);

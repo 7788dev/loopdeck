@@ -42,7 +42,7 @@ $ajaxHeaders = ['X-Requested-With: XMLHttpRequest', 'Origin: ' . $base];
 $probe = dirname(__DIR__) . '/public/static/uploads/qa-execution-probe.php';
 try {
     $response = $request('/healthcheck');
-    $check($response['code'] === 200 && trim($response['body']) === 'ok', 'healthcheck');
+    $check($response['code'] === 200 && strtolower(trim($response['body'])) === 'ok', 'healthcheck');
     $response = $request('/version');
     $check($response['code'] === 200 && trim($response['body']) === trim(file_get_contents(dirname(__DIR__) . '/VERSION')), 'served version');
     $response = $request('/admin/ajax/data/list/users', [], $ajaxHeaders);

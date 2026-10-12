@@ -109,6 +109,7 @@ try {
     };
     $set('stateFile', $stateFile);
     $set('appImage', 'ghcr.io/7788dev/loopdeck:latest');
+    $set('enabled', true);
     $set('versionSources', []);
 
     $set('lastCheckStartedAt', time());

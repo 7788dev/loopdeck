@@ -56,7 +56,7 @@ schemaMaintenanceCheck(in_array('ALTER TABLE `cloud_jobs` ADD KEY `idx_jobs_due`
     'The due-jobs index was not planned on a legacy install');
 schemaMaintenanceCheck(in_array('ALTER TABLE `cloud_task_logs` ADD KEY `idx_task_logs_retention` (`addtime`,`id`)', $missing, true),
     'The task-log retention index was not planned on a legacy install');
-schemaMaintenanceCheck(in_array('ALTER TABLE `cloud_notice` ENGINE=InnoDB CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci', $missing, true),
+schemaMaintenanceCheck(in_array('ALTER TABLE `cloud_notice` ENGINE=InnoDB, CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci', $missing, true),
     'The legacy MyISAM notice table was not planned for conversion');
 
 // A partially upgraded install only gets the definitions it still lacks.

@@ -33,8 +33,16 @@ define('WEB_ID', 1);
 if (Db::query('SELECT DATABASE() AS db')[0]['db'] !== $database || Db::query('SHOW TABLES') !== []) {
     throw new RuntimeException('The disposable database must be empty');
 }
-Db::connect()->getPdo()->exec(file_get_contents(dirname(__DIR__) . '/app/install/install.sql'));
+$pdo = Db::connect()->getPdo();
+$originalMode = Db::query('SELECT @@SESSION.sql_mode AS mode')[0]['mode'];
+$pdo->exec(file_get_contents(dirname(__DIR__) . '/app/install/install.sql'));
 Db::execute('ALTER TABLE cloud_kms ENGINE=MyISAM');
+Db::execute('ALTER TABLE cloud_notice CONVERT TO CHARACTER SET utf8mb3');
+Db::execute('ALTER TABLE cloud_notice ENGINE=MyISAM');
+if (Db::query("SHOW INDEX FROM cloud_notice WHERE Key_name='idx_notice_site'") === []) {
+    Db::execute('ALTER TABLE cloud_notice ADD KEY idx_notice_site (zid,type,sort,addtime)');
+}
+$pdo->exec('SET SESSION sql_mode = ' . $pdo->quote($originalMode));
 Db::execute('ALTER TABLE cloud_users DROP INDEX udx_users_username');
 foreach ([1, 2] as $uid) {
     Db::name('users')->insert(['uid' => $uid, 'web_id' => 1, 'username' => 'legacy-fixture',
@@ -51,6 +59,9 @@ try {
     SchemaMaintenance::runIfDue();
     $engine = Db::query("SHOW TABLE STATUS LIKE 'cloud_kms'")[0]['Engine'];
     $check(strtoupper($engine) === 'INNODB', 'legacy card engine migrates despite an unrelated index failure');
+    $notice = Db::query("SHOW TABLE STATUS LIKE 'cloud_notice'")[0];
+    $check(strtoupper($notice['Engine']) === 'INNODB' && str_starts_with($notice['Collation'], 'utf8mb4'),
+        'legacy indexed notice table converts engine and character set');
     Db::execute('ALTER TABLE cloud_users ADD CONSTRAINT qa_reject_grant CHECK (quota = 0)');
     foreach ([1, 2] as $round) {
         $code = 'qa-legacy-card-' . $round;

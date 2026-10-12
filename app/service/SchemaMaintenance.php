@@ -77,7 +77,7 @@ final class SchemaMaintenance
             && (strtoupper($notice['engine']) !== 'INNODB'
                 || !str_starts_with(strtolower($notice['collation']), 'utf8mb4'))) {
             $statements[] = sprintf(
-                'ALTER TABLE `%s` ENGINE=InnoDB CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
+                'ALTER TABLE `%s` ENGINE=InnoDB, CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
                 self::tableName('notice')
             );
         }

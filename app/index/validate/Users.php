@@ -33,7 +33,6 @@ class Users extends Validate
         'nickname.require' => '昵称不能为空',
         'nickname.min' => '请输入不低于1位的昵称',
         'nickname.max' => '请输入1-32位的昵称',
-        'nickname.chsAlphaNum' => '昵称只能是汉字、字母和数字',
     ];
 
     protected $scene = [

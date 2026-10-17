@@ -11,6 +11,11 @@ $_GET['token'] = str_repeat('a', 48);
 $root = dirname(__DIR__);
 $cachePath = sys_get_temp_dir() . '/loopdeck-render-' . bin2hex(random_bytes(6)) . '/';
 mkdir($cachePath);
+$viewConfig = require $root . '/config/view.php';
+unset($viewConfig['type']);
+$templateConfig = static function (string $viewPath) use ($viewConfig, $cachePath): array {
+    return array_replace($viewConfig, ['view_path' => $viewPath, 'cache_path' => $cachePath]);
+};
 $app->config->set(['webname' => 'LoopDeck', 'title' => '测试站点', 'web_id' => 1, 'user_qq' => '10000', 'index_template' => 'default', 'login_template' => 'default'], 'web');
 think\facade\Session::set('user.nickname', '测试用户');
 think\facade\Session::set('user.qq', '10000');
@@ -44,7 +49,7 @@ try {
             $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($viewPath)));
             if ($file->getExtension() !== 'html' || str_starts_with($relative, 'common/')
                 || str_ends_with($relative, '/head.html')) continue;
-            $engine = new think\Template(['view_path' => $viewPath, 'cache_path' => $cachePath]);
+            $engine = new think\Template($templateConfig($viewPath));
             ob_start();
             try {
                 $engine->fetch($file->getPathname(), $variables);
@@ -78,7 +83,7 @@ try {
     foreach (['netease', 'bilibili', 'qrcode'] as $platform) {
         foreach ($platform === 'qrcode' ? ['list'] : ['list', 'info'] as $page) {
             $relative = 'console/' . $platform . '/' . $page . '.html';
-            $engine = new think\Template(['view_path' => $populatedViewPath, 'cache_path' => $cachePath]);
+            $engine = new think\Template($templateConfig($populatedViewPath));
             ob_start();
             try {
                 $taskRows = [$task];
@@ -97,7 +102,7 @@ try {
                         'Listening progress did not render in the actual account page');
                 }
                 if ($platform === 'bilibili' && $page === 'info') {
-                    if (str_contains($html, 'onclick="updateConfig(\'globalroom\'')
+                    if (str_contains($html, 'data-execute-name="globalroom"')
                         || !str_contains($html, 'disabled title="旧直播任务已停用"')) {
                         throw new RuntimeException('Retired global room configuration remained editable');
                     }
@@ -130,7 +135,7 @@ try {
                 'start_at' => 1790870400, 'end_at' => 1791475200,
             ];
         }
-        $engine = new think\Template(['view_path' => $populatedViewPath, 'cache_path' => $cachePath]);
+        $engine = new think\Template($templateConfig($populatedViewPath));
         ob_start();
         try {
             $engine->fetch('console/epic/weeklyGame', array_replace($variables, ['list' => $games]));
@@ -164,12 +169,167 @@ try {
             ob_end_clean();
         }
     }
+    functionalCheck(($viewConfig['default_filter'] ?? '') === 'html_escape',
+        'Template output is not globally HTML-escaped');
+    $payload = '<img src=x onerror=alert(1)>';
+    $attributePayload = '"><img src=x onerror=alert(1)>';
+    $jsBreakout = '1};alert(1);//';
+    $render = static function (string $module, string $relative, array $vars) use ($root, $templateConfig): string {
+        $engine = new think\Template($templateConfig($root . '/app/' . $module . '/view/'));
+        ob_start();
+        try {
+            $engine->fetch($root . '/app/' . $module . '/view/' . $relative, $vars);
+            $html = (string)ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+        functionalCheck(strlen($html) > 100, 'Escaping fixture did not render: ' . $module . '/' . $relative);
+        return $html;
+    };
+    $assertEncoded = static function (string $label, string $html, array $values): void {
+        foreach ($values as $value) {
+            functionalCheck(!str_contains($html, $value), $label . ': raw value escaped into markup');
+            functionalCheck(str_contains($html, html_escape($value)), $label . ': value was not HTML-encoded');
+        }
+    };
+
+    $publicQr = $render('index', 'index/qrcode.html', array_replace($variables, [
+        'name' => $payload, 'type' => 'qq', 'url' => 'https://pay.example/qr',
+    ]));
+    $assertEncoded('Public payment page', $publicQr, [$payload]);
+
+    $qrList = $render('index', 'console/qrcode/list.html', array_replace($variables, [
+        'list' => [[
+            'data' => serialize(['name' => $payload, 'alipay_url' => $attributePayload,
+                'qq_url' => 'https://pay.example/q', 'wechat_url' => 'wxp://fixture']),
+            'user_id' => $payload, 'addtime' => '2026-10-17 10:00:00', 'uid' => 1,
+        ]],
+    ]));
+    $assertEncoded('Payment code list', $qrList, [$payload, $attributePayload]);
+
+    $maliciousTask = array_replace($task, [
+        'name' => $payload, 'describe' => $attributePayload, 'progress' => $payload,
+        'config' => '{}', 'config_json' => '{}',
+    ]);
+    foreach ([
+        ['bilibili', 'list', ['list' => [array_replace($account, [
+            'nickname' => $payload, 'avatar' => $attributePayload, 'mid' => $jsBreakout,
+        ])]]],
+        ['netease', 'list', ['list' => [array_replace($account, [
+            'user_id' => $jsBreakout,
+            'data' => serialize(array_replace($accountData, [
+                'nickname' => $payload, 'avatar' => $attributePayload, 'user_id' => $jsBreakout,
+            ])),
+        ])]]],
+        ['bilibili', 'info', ['a_data' => array_replace($variables['a_data'], [
+            'nickname' => $payload, 'avatar' => $attributePayload, 'mid' => $jsBreakout,
+        ]), 'info_warning' => $payload, 'task_rows' => [$maliciousTask]]],
+        ['netease', 'info', ['a_data' => array_replace($variables['a_data'], [
+            'nickname' => $payload, 'avatar' => $attributePayload, 'user_id' => $jsBreakout,
+        ]), 'signature' => $payload, 'task_rows' => [$maliciousTask],
+            'data' => array_replace($variables['data'], ['user_id' => $jsBreakout])]],
+    ] as [$platform, $page, $overrides]) {
+        $html = $render('index', 'console/' . $platform . '/' . $page . '.html', array_replace($variables, $overrides));
+        $assertEncoded($platform . ' ' . $page, $html, [$payload, $attributePayload]);
+        functionalCheck(!str_contains($html, 'onclick="ajax_' . $platform . '_delete'),
+            $platform . ' ' . $page . ': dynamic action was interpolated into inline JavaScript');
+        if ($page === 'list') {
+            functionalCheck(str_contains($html, 'data-' . $platform . '-delete='),
+                $platform . ' list: delete action lost its data attribute');
+        } else {
+            functionalCheck(str_contains($html, 'data-task-toggle=') && str_contains($html, 'data-config-action'),
+                $platform . ' info: task controls lost their data attributes');
+            functionalCheck(str_contains($html, 'user_id: ' . js_string($jsBreakout)),
+                $platform . ' info: account id was not encoded as a JavaScript string');
+            functionalCheck(!str_contains($html, 'user_id: ' . $jsBreakout),
+                $platform . ' info: account id reached a JavaScript object unquoted');
+        }
+    }
+
+    $notification = $variables['notification'];
+    $notification['email_address'] = $attributePayload;
+    $notificationHtml = $render('index', 'console/user/notification.html', array_replace($variables, [
+        'notification' => $notification,
+        'notification_error' => $payload,
+        'notification_email_available' => true,
+        'notification_deliveries' => [[
+            'channel' => $payload, 'title' => $payload, 'last_error' => $attributePayload,
+            'status' => 2, 'attempts' => 1, 'created_at' => time(),
+        ]],
+    ]));
+    $assertEncoded('Notification delivery log', $notificationHtml, [$payload, $attributePayload]);
+
+    foreach (['index', 'admin'] as $module) {
+        $alertHtml = $render($module, 'common/alert.html', [
+            'msg' => $payload, 'url' => $attributePayload,
+        ]);
+        $assertEncoded(ucfirst($module) . ' alert page', $alertHtml, [$payload, $attributePayload]);
+    }
+
+    $epicHtml = $render('index', 'console/epic/weeklyGame.html', array_replace($variables, ['list' => [[
+        'title' => $payload, 'description' => $attributePayload, 'productUrl' => 'javascript:alert(1)',
+        'image' => '', 'available' => true, 'start_at' => time(), 'end_at' => time() + 60,
+    ]]]));
+    $assertEncoded('Epic weekly games', $epicHtml, [$payload, $attributePayload]);
+    functionalCheck(!str_contains($epicHtml, 'javascript:alert(1)'),
+        'Epic page followed an unsafe product URL');
+
+    $previousToken = $_GET['token'] ?? null;
+    $_GET['token'] = $jsBreakout;
+    try {
+        $resetHtml = $render('index', 'login/reset.html', array_replace($variables, ['mail' => $attributePayload]));
+        functionalCheck(str_contains($resetHtml, 'mail:' . js_string($attributePayload)),
+            'Reset page did not JavaScript-encode the mail value');
+        functionalCheck(str_contains($resetHtml, 'token:' . js_string($jsBreakout)),
+            'Reset page did not JavaScript-encode the token');
+        functionalCheck(!str_contains($resetHtml, 'mail:"' . $attributePayload)
+            && !str_contains($resetHtml, 'token:"' . $jsBreakout),
+            'Reset page interpolated a value into a raw JavaScript string');
+    } finally {
+        if ($previousToken === null) {
+            unset($_GET['token']);
+        } else {
+            $_GET['token'] = $previousToken;
+        }
+    }
+
+    $savedWeb = $app->config->get('web');
+    $app->config->set([
+        'webname' => $payload, 'title' => $payload,
+        'keywords' => $attributePayload, 'description' => $attributePayload,
+        'icp' => $payload, 'user_qq' => $attributePayload,
+    ], 'web');
+    $homeHtml = $render('index', 'index/index.html', $variables);
+    $assertEncoded('Homepage site settings', $homeHtml, [$payload, $attributePayload]);
+    $settingsHtml = $render('admin', 'system/set/info.html', $variables);
+    $assertEncoded('Admin site settings form', $settingsHtml, [$payload, $attributePayload]);
+    $app->config->set($savedWeb, 'web');
+
+    foreach (['index', 'admin', 'install'] as $module) {
+        $viewRoot = $root . '/app/' . $module . '/view/';
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($viewRoot)) as $file) {
+            if ($file->getExtension() !== 'html') {
+                continue;
+            }
+            $source = (string)file_get_contents($file->getPathname());
+            $label = $module . '/' . str_replace('\\', '/', substr($file->getPathname(), strlen($viewRoot)));
+            functionalCheck(!preg_match('/\son[a-z]+\s*=\s*(["\'])[^"\']*(?:\{\$|\{:\$)/i', $source),
+                $label . ': inline event handler interpolates template output');
+            functionalCheck(!preg_match('/javascript:[^"\']*(?:\{\$|\{:\$)/i', $source),
+                $label . ': javascript: link interpolates template output');
+            functionalCheck(!preg_match('/<script\b[^>]*>.*?\{\$.*?<\/script>/is', $source),
+                $label . ': script block interpolates an auto-escaped variable');
+            functionalCheck(!str_contains($source, '{:config('),
+                $label . ': raw config output bypasses HTML escaping');
+        }
+    }
+
     $savedUser = think\facade\Session::get('user');
     think\facade\Session::set('user.quota', app\service\RedemptionPlan::UNLIMITED_ACCOUNTS);
     think\facade\Session::set('user.vip_start', date('Y-m-d'));
     think\facade\Session::set('user.vip_end', app\service\RedemptionPlan::PERMANENT_VIP_END);
     foreach (['console/index.html', 'console/shop/card.html'] as $relative) {
-        $engine = new think\Template(['view_path' => $populatedViewPath, 'cache_path' => $cachePath]);
+        $engine = new think\Template($templateConfig($populatedViewPath));
         ob_start();
         try {
             $engine->fetch($populatedViewPath . $relative, $variables);

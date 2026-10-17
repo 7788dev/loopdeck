@@ -149,7 +149,9 @@ final class UserNotificationSettings
             }
         }
         $email = trim((string)($input['email_address'] ?? $settings['email_address']));
-        if ($email !== '' && (strlen($email) > 254 || !filter_var($email, FILTER_VALIDATE_EMAIL))) {
+        if ($email !== '' && (strlen($email) > 254
+            || preg_match('/[\x00-\x20"\'<>]/', $email)
+            || !filter_var($email, FILTER_VALIDATE_EMAIL))) {
             throw new InvalidArgumentException('通知邮箱格式无效');
         }
         $settings['email_address'] = $email;

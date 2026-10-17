@@ -3,9 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width,initial-scale=1.0" name="viewport">
-    <title>{:config('web.webname')} - {:config('web.title')}</title>
-    <meta content="{:config('web.keywords')}" name="keywords">
-    <meta content="{:config('web.description')}" name="description">
+    <title>{:html_escape(config('web.webname'))} - {:html_escape(config('web.title'))}</title>
+    <meta content="{:html_escape(config('web.keywords'))}" name="keywords">
+    <meta content="{:html_escape(config('web.description'))}" name="description">
     <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
     <link href="/static/ruoyi/css/bootstrap.min.css" rel="stylesheet">
     <link href="/static/ruoyi/css/font-awesome.min.css" rel="stylesheet">
@@ -20,7 +20,7 @@
         <div class="col-sm-7">
             <div class="signin-info">
                 <div class="logopanel m-b">
-                    <h1>{:config('web.webname')}</h1>
+                    <h1>{:html_escape(config('web.webname'))}</h1>
                 </div>
                 <h3>
                     很高兴你选择加入我们！
@@ -54,7 +54,7 @@
             <a href="{:url('/index/login/find')}">找回密码</a>
         </div>
         <div class="pull-right">
-            Copyright &copy; {:date('Y')} {:config('web.webname')} &nbsp; <a href="https://beian.miit.gov.cn/" target="_blank">{:config('web.icp')}</a>
+            Copyright &copy; {:date('Y')} {:html_escape(config('web.webname'))} &nbsp; <a href="https://beian.miit.gov.cn/" target="_blank">{:html_escape(config('web.icp'))}</a>
         </div>
     </div>
 </div>

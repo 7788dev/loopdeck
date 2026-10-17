@@ -58,6 +58,22 @@ try {
     boundaryCheck(!is_cross_origin_request(), 'The exact origin was rejected');
     $_SERVER = ['HTTP_HOST' => 'panel.example', 'REQUEST_SCHEME' => 'https', 'HTTP_ORIGIN' => 'https://panel.example:443'];
     boundaryCheck(!is_cross_origin_request(), 'An explicit default HTTPS port was rejected');
+    foreach ([
+        [['HTTP_X_FORWARDED_PROTO' => 'https'], 'https'],
+        [['HTTP_X_FORWARDED_PROTO' => 'HTTPS, http'], 'https'],
+        [['HTTP_X_FORWARDED_PROTO' => 'http'], 'http'],
+        [['HTTP_X_FORWARDED_PROTO' => 'http', 'HTTPS' => 'on'], 'https'],
+        [['REQUEST_SCHEME' => 'https'], 'https'],
+        [['SERVER_PORT' => '443'], 'https'],
+    ] as [$serverValues, $expectedScheme]) {
+        $_SERVER = $serverValues;
+        boundaryCheck(request_scheme() === $expectedScheme,
+            'Forwarded scheme detection failed for ' . json_encode($serverValues));
+    }
+    $_SERVER = ['HTTP_HOST' => 'panel.example', 'HTTP_X_FORWARDED_PROTO' => 'https, http',
+        'HTTP_ORIGIN' => 'https://panel.example'];
+    boundaryCheck(!is_cross_origin_request(),
+        'A proxied HTTPS origin was rejected while X-Forwarded-Proto used a comma-separated list');
 
     $user = ['uid' => 1, 'sid' => 'session-secret', 'state' => 1, 'web_id' => 1];
     boundaryCheck(CheckLoginUser::validSessionUser($user, $user, 1), 'A valid session was rejected');

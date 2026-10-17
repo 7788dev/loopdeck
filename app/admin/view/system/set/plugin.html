@@ -27,12 +27,12 @@
                                 </td>
                                 <td>
                                     <input type="text" class="form-control" id="netease_proxy_secret"
-                                           value="{:config('sys.netease_proxy_secret')}" autocomplete="off">
+                                           value="{:html_escape(config('sys.netease_proxy_secret'))}" autocomplete="off">
                                 </td>
                                 <td>
                                     <div class="input-group">
                                         <input type="text" class="form-control" id="netease_proxy_orderno"
-                                               value="{:config('sys.netease_proxy_orderno')}" autocomplete="off">
+                                               value="{:html_escape(config('sys.netease_proxy_orderno'))}" autocomplete="off">
                                         <span class="input-group-btn">
                                             <button type="button" class="btn btn-primary" onclick="ajax_edit_proxy();">保存</button>
                                         </span>
@@ -66,7 +66,7 @@
                                 <td>
                                     <div class="input-group">
                                         <input type="number" min="1" class="form-control" id="netease_tool_limit"
-                                               value="{:config('sys.netease_tool_limit')}">
+                                               value="{:html_escape(config('sys.netease_tool_limit'))}">
                                         <span class="input-group-btn">
                                             <button type="button" class="btn btn-primary"
                                                     onclick="ajax_edit_netease_tool();">保存</button>

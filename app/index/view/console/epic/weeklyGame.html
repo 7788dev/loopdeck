@@ -24,7 +24,7 @@
     <div class="row">
         {foreach $games as $game}
         <div class="col-md-6">
-            <a class="ibox float-e-margins no-margins" style="display: block; overflow: hidden;" href="{$game.productUrl}" target="_blank" rel="noopener noreferrer">
+            <a class="ibox float-e-margins no-margins" style="display: block; overflow: hidden;" href="{:html_escape(safe_http_url((string)$game['productUrl']))}" target="_blank" rel="noopener noreferrer">
                 {if condition="$game.image neq ''"}<img class="img-responsive" style="aspect-ratio:16/9;object-fit:cover" src="{$game.image}" alt="{$game.title}" loading="lazy">{/if}
                 <div class="ibox-content">
                     <span class="label {if condition='$game.available'}label-success{else /}label-info{/if}">{if condition="$game.available"}限时免费{else /}即将免费{/if}</span>

@@ -78,7 +78,7 @@ class Ajax extends Common
 		if ($act === "create") {
 			$data = Request::post();
 			$name = trim((string)($data["name"] ?? ""));
-			if ($name === "" || mb_strlen($name) > 40) {
+			if ($name === "" || mb_strlen($name) > 40 || preg_match('/[\x00-\x1F\x7F]/', $name)) {
 				return resultJson(0, "收款识别码长度应为 1 到 40 个字符");
 			}
 			foreach (["alipay_url", "qq_url", "wechat_url"] as $field) {

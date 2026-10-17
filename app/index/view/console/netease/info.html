@@ -65,14 +65,14 @@
                     <div style="margin-top: 5px;">
                         <span class="text-muted"><small>
                             挂机时间：<span class="text-success">{if condition="$timing neq ''"}{$timing}{else /}未设置{/if}</span>
-                            <a href="javascript:ajax_set_timing('{$a_data[\'user_id\']}', '{$timing}');">设置</a>
+                            <a href="javascript:void(0)" data-set-timing="{$a_data.user_id}" data-timing="{$timing}">设置</a>
                         </small></span>
                     </div>
                     <div style="margin-top: 5px;"><small class="text-muted">
                         未设置挂机时间时，系统不会自动执行任务；设置后每天随机延迟 3–15 分钟执行。
                         同一日期的计划保持不变，第二天重新计算偏移；实际执行可能因排队顺延。
                     </small></div>
-                    <button type="button" class="btn btn-sm btn-primary" style="margin-top: 10px;" onclick="ajax_reexecute_task('{$a_data[\'user_id\']}')" {if condition="$timing eq ''"}disabled{/if}>
+                    <button type="button" class="btn btn-sm btn-primary" style="margin-top: 10px;" data-reexecute-task="{$a_data.user_id}" {if condition="$timing eq ''"}disabled{/if}>
                         <i class="fa fa-bolt"></i>申请补挂
                     </button>
                 </div>
@@ -149,7 +149,7 @@
                                 <td>
                                     <p style="margin-bottom: 5px;"><b>{$v.name}
                                         {if condition="$v.more"}
-                                        <button type="button" class="btn btn-outline btn-primary btn-sm" style="padding: 1px 5px; margin-left: 5px;" data-config='{$v.config}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="fa fa-cogs"></i></button>
+                                        <button type="button" class="btn btn-outline btn-primary btn-sm" style="padding: 1px 5px; margin-left: 5px;" data-config='{$v.config}' data-config-action data-execute-name="{$v.execute_name}" data-task-name="{$v.name}"><i class="fa fa-cogs"></i></button>
                                         {/if}
                                     </b></p>
                                     <p class="text-muted" style="margin-bottom: 0;">
@@ -171,9 +171,9 @@
                                 </td>
                                 <td class="text-center">
                                     {if condition="$v.job_state eq 1"}
-                                    <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}', this);" checked>
+                                    <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" data-task-toggle="{$v.execute_name}" data-user-id="{$data.user_id}" checked>
                                     {else /}
-                                    <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" onclick="ajax_set_zt('{$v.execute_name}', '{:$data.user_id}', this);">
+                                    <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" data-task-toggle="{$v.execute_name}" data-user-id="{$data.user_id}">
                                     {/if}
                                 </td>
                             </tr>
@@ -206,7 +206,7 @@
                         </div>
                         <div class="col-md-2">
                             <div class="form-group">
-                                <button type="submit" class="btn btn-primary btn-sm" onclick="ajax_tool_listen('{$data.user_id}');">
+                                <button type="submit" class="btn btn-primary btn-sm" data-tool-listen="{$data.user_id}">
                                     <i class="fa fa-paper-plane"></i> 提交
                                 </button>
                             </div>
@@ -262,7 +262,7 @@
     function musicianTask(execute_name, name, config)
     {
         layer.open({
-            title: name + "配置",
+            title: x.escapeHtml(name) + "配置",
             btn: ['保存', '取消'],
             btnAlign: 'c',
             closeBtn: 0,
@@ -284,11 +284,11 @@
             yes: function (index, dom) {
                 const params = JSON.stringify($(dom).find("form").parseForm());
                 layer.close(index);
-                x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {$a_data['user_id']}, config: params}, function (data) {
+                x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {:js_string((string)$a_data['user_id'])}, config: params}, function (data) {
                     if (data.code == 1) {
                         x.notify(data.message, 'success');
                         setTimeout(function () {
-                            window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
+                            window.location.href = {:js_string('/index/console/netease/info/' . rawurlencode((string)$a_data['user_id']))};
                         }, 1000)
                     } else {
                         x.notify(data.message, 'warning');
@@ -301,7 +301,7 @@
     function evaluateTask(execute_name, name, config)
     {
         layer.open({
-            title: name + "配置",
+            title: x.escapeHtml(name) + "配置",
             btn: ['保存', '取消'],
             btnAlign: 'c',
             closeBtn: 0,
@@ -317,11 +317,11 @@
             yes: function (index, dom) {
                 const params = JSON.stringify($(dom).find("form").parseForm());
                 layer.close(index);
-                x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {$a_data['user_id']}, config: params}, function (data) {
+                x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {:js_string((string)$a_data['user_id'])}, config: params}, function (data) {
                     if (data.code == 1) {
                         x.notify(data.message, 'success');
                         setTimeout(function () {
-                            window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
+                            window.location.href = {:js_string('/index/console/netease/info/' . rawurlencode((string)$a_data['user_id']))};
                         }, 1000)
                     } else {
                         x.notify(data.message, 'warning');
@@ -334,7 +334,7 @@
     function dakaTask(execute_name, name, config)
     {
         layer.open({
-            title: name + "配置",
+            title: x.escapeHtml(name) + "配置",
             btn: ['保存', '取消'],
             btnAlign: 'c',
             closeBtn: 0,
@@ -369,11 +369,11 @@
             yes: function (index, dom) {
                 const params = JSON.stringify($(dom).find("form").parseForm());
                 layer.close(index);
-                x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {$a_data['user_id']}, config: params}, function (data) {
+                x.ajax('/index/ajax/netease/set', {do: execute_name, user_id: {:js_string((string)$a_data['user_id'])}, config: params}, function (data) {
                     if (data.code == 1) {
                         x.notify(data.message, 'success');
                         setTimeout(function () {
-                            window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
+                            window.location.href = {:js_string('/index/console/netease/info/' . rawurlencode((string)$a_data['user_id']))};
                         }, 1000)
                     } else {
                         x.notify(data.message, 'warning');
@@ -447,12 +447,12 @@
             yes: function (index, dom) {
                 const selectedTiming = x.getval('#timing');
                 layer.close(index);
-                x.ajax('/index/ajax/netease/set', {act: 'timing', user_id: {$a_data['user_id']}, timing: selectedTiming}, function (data) {
+                x.ajax('/index/ajax/netease/set', {act: 'timing', user_id: {:js_string((string)$a_data['user_id'])}, timing: selectedTiming}, function (data) {
                     if (data.code == 1) {
                         x.notify(data.message, 'success');
                         setTimeout(function () {
-                            // x.pjax('/index/console/netease/info/{$a_data["user_id"]}');
-                            window.location.href = '/index/console/netease/info/{$a_data["user_id"]}';
+                            // x.pjax({:js_string('/index/console/netease/info/' . rawurlencode((string)$a_data['user_id']))});
+                            window.location.href = {:js_string('/index/console/netease/info/' . rawurlencode((string)$a_data['user_id']))};
                         }, 1000)
                     } else {
                         x.notify(data.message, 'warning');
@@ -461,5 +461,25 @@
             },
         });
     }
+
+    $(document)
+        .off('click.ldNeteaseInfo')
+        .on('click.ldNeteaseInfo', '[data-reexecute-task]', function () {
+            ajax_reexecute_task($(this).attr('data-reexecute-task'));
+        })
+        .on('click.ldNeteaseInfo', '[data-set-timing]', function () {
+            ajax_set_timing($(this).attr('data-set-timing'), $(this).attr('data-timing') || '');
+        })
+        .on('click.ldNeteaseInfo', '[data-config-action]', function () {
+            updateConfig($(this).attr('data-execute-name'), $(this).attr('data-task-name'), this);
+        })
+        .on('click.ldNeteaseInfo', '[data-tool-listen]', function (event) {
+            event.preventDefault();
+            ajax_tool_listen($(this).attr('data-tool-listen'));
+        })
+        .off('change.ldNeteaseInfo')
+        .on('change.ldNeteaseInfo', '[data-task-toggle]', function () {
+            ajax_set_zt($(this).attr('data-task-toggle'), $(this).attr('data-user-id'), this);
+        });
 </script>
 {/block}

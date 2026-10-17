@@ -190,6 +190,19 @@ if (!function_exists('real_ip')) {
     }
 }
 
+if (!function_exists('request_scheme')) {
+    function request_scheme(): string
+    {
+        $forwarded = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+        $https = $forwarded === 'https'
+            || ($_SERVER['HTTPS'] ?? '') === 'on'
+            || ($_SERVER['REQUEST_SCHEME'] ?? '') === 'https'
+            || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443;
+
+        return $https ? 'https' : 'http';
+    }
+}
+
 if (!function_exists('get_Domain')) {
     /**
      * Absolute base URL for links this application hands to third parties
@@ -201,9 +214,7 @@ if (!function_exists('get_Domain')) {
      */
     function get_Domain(): string
     {
-        $https = ($_SERVER['HTTPS'] ?? '') === 'on'
-            || ($_SERVER['REQUEST_SCHEME'] ?? '') === 'https'
-            || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443;
+        $https = request_scheme() === 'https';
 
         $host = (string)($_SERVER['HTTP_HOST'] ?? '');
         if (!preg_match('/^[a-z0-9.:\-\[\]]+$/i', $host)) {
@@ -307,7 +318,7 @@ if (!function_exists('safe_http_url')) {
     function safe_http_url(?string $value): string
     {
         $value = trim((string)$value);
-        if ($value === '' || strlen($value) > 2048) {
+        if ($value === '' || strlen($value) > 2048 || preg_match('/[\x00-\x20\x7f"\'<>`\\\\]/', $value)) {
             return '';
         }
         if (!preg_match('#\Ahttps?://#i', $value) || !filter_var($value, FILTER_VALIDATE_URL)) {
@@ -355,9 +366,7 @@ if (!function_exists('is_cross_origin_request')) {
         if (!is_array($parts) || empty($parts['host'])) {
             return true;
         }
-        $scheme = ($_SERVER['HTTPS'] ?? '') === 'on'
-            || ($_SERVER['REQUEST_SCHEME'] ?? '') === 'https'
-            || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https' ? 'https' : 'http';
+        $scheme = request_scheme();
         $current = parse_url($scheme . '://' . (string)($_SERVER['HTTP_HOST'] ?? ''));
         if (!is_array($current) || empty($current['host'])) {
             return true;

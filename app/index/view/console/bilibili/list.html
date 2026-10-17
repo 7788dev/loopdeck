@@ -48,7 +48,7 @@
                             </a>
                         </div>
                         <div class="col-xs-4">
-                            <a class="btn btn-sm btn-danger btn-block" onclick="ajax_bilibili_delete('{$value.mid}')">
+                            <a class="btn btn-sm btn-danger btn-block" data-bilibili-delete="{$value.mid}">
                                 <i class="fa fa-times"></i>
                             </a>
                         </div>
@@ -74,5 +74,9 @@
             }
         });
     }
+
+    $(document).off('click.ldBilibiliDelete').on('click.ldBilibiliDelete', '[data-bilibili-delete]', function () {
+        ajax_bilibili_delete($(this).attr('data-bilibili-delete'));
+    });
 </script>
 {/block}

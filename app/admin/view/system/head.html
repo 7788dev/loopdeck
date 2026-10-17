@@ -5,7 +5,7 @@
     </div>
     <a href="{:url('/admin/system/index')}">
         <li class="logo hidden-xs">
-            <span class="logo-mini" aria-hidden="true"><i class="fa fa-cube"></i></span><span class="logo-lg">{:config('web.webname')}</span>
+            <span class="logo-mini" aria-hidden="true"><i class="fa fa-cube"></i></span><span class="logo-lg">{:html_escape(config('web.webname'))}</span>
         </li>
     </a>
     <div class="sidebar-collapse">

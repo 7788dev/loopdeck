@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta content="width=device-width,initial-scale=1.0" name="viewport">
     <title>LoopDeck - 程序安装</title>
-    <meta content="{:config('web.description')}" name="description">
+    <meta content="{:html_escape(config('web.description'))}" name="description">
     <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
     <link href="/static/ruoyi/css/bootstrap.min.css" rel="stylesheet">
     <link href="/static/ruoyi/css/font-awesome.min.css" rel="stylesheet">

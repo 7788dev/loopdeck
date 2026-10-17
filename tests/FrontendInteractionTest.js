@@ -16,7 +16,7 @@ function scripts(file) {
 
 function environment() {
     const state = {closed: false, sent: [], events: {}, values: {'#timing': '18:35', '#km': 'fixture-code'}};
-    const chain = {pjax() {return this;}, on(event, handler) {state.events[event] = handler; return this;}, each() {return this;}, ready() {return this;}, removeClass() {return this;},
+    const chain = {pjax() {return this;}, on(event, handler) {state.events[event] = handler; return this;}, off() {return this;}, each() {return this;}, ready() {return this;}, removeClass() {return this;},
         DataTable() {return {ajax: {reload() {}}};},
         find() {return this;}, prop(name, value) {state[name] = value; return this;},
         flatpickr() {return this;},
@@ -34,6 +34,8 @@ function environment() {
         window: {innerWidth: 375, location: {href: ''}}, setTimeout() {},
         layer: {open(options) {state.dialog = options;}, close() {state.closed = true;}, load() {return 2;}, msg() {}, closeAll() {}},
         x: {getval: selector => state.closed && selector === '#timing' ? '' : state.values[selector],
+            escapeHtml: value => String(value == null ? '' : value).replace(/[&<>"']/g,
+                character => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character])),
             ajax: (url, data) => state.sent.push({url, data}), notify() {}, close() {}}
     });
     return {state, context};
@@ -107,12 +109,18 @@ for (const platform of ['netease', 'bilibili']) {
     assert.equal(state.dialog.area[0], '343px', `${platform}: dialog must fit mobile viewport`);
     state.dialog.yes(1, {});
     assert.equal(state.sent[0].data.timing, '18:35', `${platform}: closing the dialog discarded the selected time`);
-    assert.match(read(`app/index/view/console/${platform}/info.html`), /ajax_set_zt\([^\n]+this\)/);
+    assert.match(read(`app/index/view/console/${platform}/info.html`),
+        /data-task-toggle="\{\$[^}]+\}" data-user-id="\{\$[^}]+\}"/);
+    assert.doesNotMatch(read(`app/index/view/console/${platform}/info.html`),
+        /onclick="ajax_set_zt\(/);
 }
 for (const [platform, functions] of Object.entries({netease: ['musicianTask', 'evaluateTask', 'dakaTask'], bilibili: ['coinAdd']})) {
     for (const fn of functions) {
         const {state, context} = environment();
         vm.runInContext(scripts(`app/index/view/console/${platform}/info.html`), context);
+        context[fn]('fixture', '<img src=x onerror=alert(1)>', '{}');
+        assert.ok(!state.dialog.title.includes('<img') && state.dialog.title.includes('&lt;img'),
+            `${fn}: task title reached the layer as HTML`);
         context[fn]('fixture', '任务配置', '{}');
         state.dialog.yes(1, {});
         assert.equal(JSON.parse(state.sent[0].data.config).selected, 'saved-value', `${fn}: closing the dialog discarded configuration`);

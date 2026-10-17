@@ -22,6 +22,10 @@ foreach (['index', 'admin'] as $module) {
         $expected = $root . '/app/' . $module . '/view/' . '';
         $actual = preg_replace('~/+~', '/', str_replace('\\', '/', View::engine()->getConfig('view_path')));
         functionalCheck($actual === $expected, 'Theme view path mismatch: ' . $actual . ' != ' . $expected);
+        $cachePath = str_replace('\\', '/', View::engine()->getConfig('cache_path'));
+        $cacheNamespace = substr(hash('sha256', 'html_escape'), 0, 12);
+        functionalCheck(str_starts_with($cachePath, str_replace('\\', '/', $temporary) . 'temp/'
+            . $cacheNamespace . '/'), 'Template cache is not namespaced by the output filter: ' . $cachePath);
     }
     $viewRoot = $root . '/app/' . $module . '/view/';
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($viewRoot)) as $file) {
@@ -68,6 +72,32 @@ foreach (['ruoyi', 'default'] as $theme) {
     functionalCheck(is_string($html) && str_contains($html, '测试收款码'), 'Public QR route did not render');
     functionalCheck(str_contains($html, '/static/ruoyi/'), 'Public QR route used the wrong theme');
 }
+$storedPayload = '<img src=x onerror=alert(1)>';
+think\facade\Db::name('accounts')->insert([
+    'id' => 2, 'uid' => 1, 'zid' => 1, 'type' => 'qrcode', 'user_id' => 'stored-payload',
+    'data' => serialize(['name' => $storedPayload, 'qq_url' => 'https://pay.example/payload']),
+]);
+fixtureRequest([], ['name' => 'stored-payload', 'uid' => '1']);
+$middleware->handle($app->request, static fn($nextRequest) => $nextRequest);
+$html = (new app\index\controller\Index())->qrcode();
+functionalCheck(!str_contains($html, $storedPayload) && str_contains($html, html_escape($storedPayload)),
+    'A stored payment name reached the public page unescaped');
+think\facade\Db::name('accounts')->insert([
+    'id' => 3, 'uid' => 2, 'zid' => 1, 'type' => 'qrcode', 'user_id' => 'fixture',
+    'data' => serialize(['name' => '其他用户收款码', 'qq_url' => 'https://pay.example/other']),
+]);
+fixtureRequest([], ['name' => 'fixture']);
+$middleware->handle($app->request, static fn($nextRequest) => $nextRequest);
+$duplicate = (new app\index\controller\Index())->qrcode();
+functionalCheck($duplicate instanceof think\Response && $duplicate->getCode() === 409,
+    'A duplicated public payment name was not rejected in one query');
+$app->config->set(['domain' => 'panel.example', 'domain2' => ''], 'web');
+$_SERVER = ['HTTP_HOST' => 'panel.example', 'REQUEST_SCHEME' => 'http', 'HTTP_X_FORWARDED_PROTO' => 'https, http'];
+functionalCheck(get_Domain() === 'https://panel.example/',
+    'Forwarded HTTPS scheme was not used for public links');
+$_SERVER['HTTP_HOST'] = 'evil.example';
+functionalCheck(get_Domain() === 'https://panel.example/',
+    'A spoofed Host header changed the public base URL');
 define('PJAX', true);
 $title = "O'Reilly </script> \"标题\"";
 $app->config->set(['webname' => $title, 'title' => '测试'], 'web');

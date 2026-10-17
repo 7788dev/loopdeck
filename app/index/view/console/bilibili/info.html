@@ -64,11 +64,11 @@
                     <div style="margin-top: 5px;">
                         <span class="text-muted"><small>
                             挂机时间：<span class="text-success">{if condition="$timing neq ''"}{$timing}{else /}未设置{/if}</span>
-                            <a href="javascript:ajax_set_timing('{$a_data[\'mid\']}', '{$timing}');">设置</a>
+                            <a href="javascript:void(0)" data-set-timing="{$a_data.mid}" data-timing="{$timing}">设置</a>
                         </small></span>
                     </div>
                     <div style="margin-top: 5px;"><small class="text-muted">未设置挂机时间时，系统不会自动执行任务。</small></div>
-                    <button type="button" class="btn btn-sm btn-primary" style="margin-top: 10px;" onclick="ajax_reexecute_task('{$a_data[\'mid\']}')" {if condition="$timing eq ''"}disabled{/if}>
+                    <button type="button" class="btn btn-sm btn-primary" style="margin-top: 10px;" data-reexecute-task="{$a_data.mid}" {if condition="$timing eq ''"}disabled{/if}>
                         <i class="fa fa-bolt"></i>申请补挂
                     </button>
                 </div>
@@ -147,7 +147,7 @@
                                                 <span class="label label-default">已下架</span>
                                             {/if}
                                             {if condition="$v.more && !$v.offline"}
-                                                <button type="button" class="btn btn-outline btn-primary btn-sm" style="padding: 1px 5px; margin-left: 5px;" data-config='{$v.config_json}' onclick="updateConfig('{$v.execute_name}', '{$v.name}', this)"><i class="fa fa-cogs"></i></button>
+                                                <button type="button" class="btn btn-outline btn-primary btn-sm" style="padding: 1px 5px; margin-left: 5px;" data-config='{$v.config_json}' data-config-action data-execute-name="{$v.execute_name}" data-task-name="{$v.name}"><i class="fa fa-cogs"></i></button>
                                             {/if}
                                         </b></p>
                                         <p class="text-muted" style="margin-bottom: 0;">
@@ -160,9 +160,9 @@
                                         {if condition="$v.offline"}
                                         <input type="checkbox" disabled title="{$v.offline_reason}">
                                         {elseif condition="$v.job_state eq 1" /}
-                                        <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}', this);" checked>
+                                        <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" data-task-toggle="{$v.execute_name}" data-user-id="{$v.user_id}" checked>
                                         {else /}
-                                        <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" onclick="ajax_set_zt('{$v.execute_name}', '{$v.user_id}', this);">
+                                        <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" data-task-toggle="{$v.execute_name}" data-user-id="{$v.user_id}">
                                         {/if}
                                     </td>
                                 </tr>
@@ -213,7 +213,7 @@
     function coinAdd(execute_name, name, config)
     {
         layer.open({
-            title: name + "配置",
+            title: x.escapeHtml(name) + "配置",
             btn: ['保存', '取消'],
             btnAlign: 'c',
             closeBtn: 0,
@@ -232,12 +232,11 @@
             yes: function (index, dom) {
                 const params = JSON.stringify($(dom).find("form").parseForm());
                 layer.close(index);
-                x.ajax('/index/ajax/bilibili/set', {do: execute_name, user_id: {$a_data['mid']}, config: params}, function (data) {
+                x.ajax('/index/ajax/bilibili/set', {do: execute_name, user_id: {:js_string((string)$a_data['mid'])}, config: params}, function (data) {
                     if (data.code == 1) {
                         x.notify(data.message, 'success');
                         setTimeout(function () {
-                            // x.pjax('/index/console/bilibili/info/{$a_data["mid"]}');
-                            window.location.href = '/index/console/bilibili/info/{$a_data["mid"]}';
+                            window.location.href = {:js_string('/index/console/bilibili/info/' . rawurlencode((string)$a_data['mid']))};
                         }, 1000)
                     } else {
                         x.notify(data.message, 'warning');
@@ -288,12 +287,11 @@
             yes: function (index, dom) {
                 const selectedTiming = x.getval('#timing');
                 layer.close(index);
-                x.ajax('/index/ajax/bilibili/set', {act: 'timing', user_id: {$a_data['mid']}, timing: selectedTiming}, function (data) {
+                x.ajax('/index/ajax/bilibili/set', {act: 'timing', user_id: {:js_string((string)$a_data['mid'])}, timing: selectedTiming}, function (data) {
                     if (data.code == 1) {
                         x.notify(data.message, 'success');
                         setTimeout(function () {
-                            // x.pjax('/index/console/bilibili/info/{$a_data["mid"]}');
-                            window.location.href = '/index/console/bilibili/info/{$a_data["mid"]}';
+                            window.location.href = {:js_string('/index/console/bilibili/info/' . rawurlencode((string)$a_data['mid']))};
                         }, 1000)
                     } else {
                         x.notify(data.message, 'warning');
@@ -302,5 +300,21 @@
             },
         });
     }
+
+    $(document)
+        .off('click.ldBilibiliInfo')
+        .on('click.ldBilibiliInfo', '[data-reexecute-task]', function () {
+            ajax_reexecute_task($(this).attr('data-reexecute-task'));
+        })
+        .on('click.ldBilibiliInfo', '[data-set-timing]', function () {
+            ajax_set_timing($(this).attr('data-set-timing'), $(this).attr('data-timing') || '');
+        })
+        .on('click.ldBilibiliInfo', '[data-config-action]', function () {
+            updateConfig($(this).attr('data-execute-name'), $(this).attr('data-task-name'), this);
+        })
+        .off('change.ldBilibiliInfo')
+        .on('change.ldBilibiliInfo', '[data-task-toggle]', function () {
+            ajax_set_zt($(this).attr('data-task-toggle'), $(this).attr('data-user-id'), this);
+        });
 </script>
 {/block}

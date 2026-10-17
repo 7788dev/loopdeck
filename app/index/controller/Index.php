@@ -64,10 +64,11 @@ class Index extends Common
             }
             $query->where('uid', (int)$uid);
         }
-        if ((clone $query)->count() > 1) {
+        $accounts = $query->limit(2)->select();
+        if (count($accounts) > 1) {
             return response('收款识别码存在重复，请收款人重新生成二维码', 409);
         }
-        $account = $query->find();
+        $account = $accounts[0] ?? null;
         if (!$account) {
             return response('收款码不存在', 404);
         }

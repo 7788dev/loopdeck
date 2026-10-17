@@ -101,7 +101,7 @@
         check_requested_at: {:js_string($check_requested_at)},
         manual_check_available: {:json_encode($manual_check_available)},
         manual_check_hint: {:js_string($manual_check_hint)},
-        cooldown_seconds: {$cooldown_seconds}
+        cooldown_seconds: {:intval($cooldown_seconds)}
     }, '/admin/ajax/updater/check', '/admin/ajax/updater/status');
 </script>
 {/block}

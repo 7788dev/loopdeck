@@ -38,7 +38,8 @@ $store->preferences['1:1']['next_summary_at'] = $dueBeforeEdit;
 $settings->save(1, 1, $input, false);
 notificationCheck($store->preferences['1:1']['next_summary_at'] === $dueBeforeEdit, 'Editing settings skipped the daily report awaiting delivery');
 foreach ([['email_enabled' => 1, 'email_address' => 'test@example.com'], ['summary_time' => '25:00'],
-    ['enabled' => 2], ['bark_token' => ['nested']], ['wxpusher_enabled' => 1], ['bark_token' => 'https://evil.example/key']] as $bad) {
+    ['enabled' => 2], ['bark_token' => ['nested']], ['wxpusher_enabled' => 1], ['bark_token' => 'https://evil.example/key'],
+    ['email_enabled' => 1, 'email_address' => '"onmouseover=alert(1)"@example.com']] as $bad) {
     try {
         $settings->save(1, 1, array_replace($input, $bad), false);
         throw new LogicException('Invalid notification input was accepted');

@@ -51,7 +51,7 @@
                             </a>
                         </div>
                         <div class="col-xs-4">
-                            <a class="btn btn-sm btn-danger btn-block" onclick="ajax_netease_delete('{$v.user_id}')">
+                            <a class="btn btn-sm btn-danger btn-block" data-netease-delete="{$v.user_id}">
                                 <i class="fa fa-times"></i>
                             </a>
                         </div>
@@ -79,6 +79,10 @@
             }
         });
     }
+
+    $(document).off('click.ldNeteaseDelete').on('click.ldNeteaseDelete', '[data-netease-delete]', function () {
+        ajax_netease_delete($(this).attr('data-netease-delete'));
+    });
 
 </script>
 {/block}

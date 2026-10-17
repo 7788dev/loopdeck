@@ -15,7 +15,7 @@
                             <div class="col-sm-8">
                                 <input class="form-control" id="webname" name="webname"
                                        placeholder="输入你的网站名称"
-                                       type="text" value="{:config('web.webname')}">
+                                       type="text" value="{:html_escape(config('web.webname'))}">
                                 <small class="text-muted">网站名称建议4-6个文字，太长会造成前台显示问题</small>
                             </div>
                         </div>
@@ -24,21 +24,21 @@
                             <div class="col-sm-8">
                                 <input class="form-control" id="title" name="title"
                                        placeholder="输入你的网站标题"
-                                       type="text" value="{:config('web.title')}">
+                                       type="text" value="{:html_escape(config('web.title'))}">
                                 <small class="text-muted">此项为搜索SEO优化作用，说明 <a class="lan dl" href="http://www.chinaz.com/web/2014/0513/351260.shtml" target="_blank">点击查看</a>，系统会自动在标题前加入 （您的网站名称 _ ）前缀信息</small>
                             </div>
                         </div>
                         <div class="form-group">
                             <label class="col-sm-3 control-label">网站关键字</label>
                             <div class="col-sm-8">
-                                <textarea class="form-control" id="keywords" name="keywords" placeholder="输入你的网站关键字" rows="4">{:config('web.keywords')}</textarea>
+                                <textarea class="form-control" id="keywords" name="keywords" placeholder="输入你的网站关键字" rows="4">{:html_escape(config('web.keywords'))}</textarea>
                                 <small class="text-muted">此项为搜索SEO优化作用，说明 <a class="lan dl" href="http://www.chinaz.com/web/2014/0106/334280.shtml" target="_blank">点击查看</a></small>
                             </div>
                         </div>
                         <div class="form-group">
                             <label class="col-sm-3 control-label">网站描述</label>
                             <div class="col-sm-8">
-                                <textarea class="form-control" id="description" name="description" placeholder="输入你的网站描述" rows="4">{:config('web.description')}</textarea>
+                                <textarea class="form-control" id="description" name="description" placeholder="输入你的网站描述" rows="4">{:html_escape(config('web.description'))}</textarea>
                                 <small class="text-muted">此项为搜索SEO优化作用，说明 <a class="lan dl" href="http://www.chinaz.com/web/2014/0106/334280.shtml" target="_blank">点击查看</a></small>
                             </div>
                         </div>
@@ -47,7 +47,7 @@
                             <div class="col-sm-8">
                                 <input class="form-control" id="domain" name="domain"
                                        placeholder="输入你的网站域名"
-                                       type="text" value="{:config('web.domain')}">
+                                       type="text" value="{:html_escape(config('web.domain'))}">
                             </div>
                         </div>
                         <div class="form-group">
@@ -55,7 +55,7 @@
                             <div class="col-sm-8">
                                 <input class="form-control" id="domain2" name="domain2"
                                        placeholder="输入你的网站备用域名"
-                                       type="text" value="{:config('web.domain2')}">
+                                       type="text" value="{:html_escape(config('web.domain2'))}">
                             </div>
                         </div>
                         <div class="form-group">
@@ -63,7 +63,7 @@
                             <div class="col-sm-8">
                                 <input class="form-control" id="user_qq" name="user_qq"
                                        placeholder="输入站长QQ"
-                                       type="text" value="{:config('web.user_qq')}">
+                                       type="text" value="{:html_escape(config('web.user_qq'))}">
                             </div>
                         </div>
                         <div class="form-group">
@@ -71,7 +71,7 @@
                             <div class="col-sm-8">
                                 <input class="form-control" id="icp" name="icp"
                                        placeholder="输入备案号"
-                                       type="text" value="{:config('web.icp')}">
+                                       type="text" value="{:html_escape(config('web.icp'))}">
                             </div>
                         </div>
                         <div class="form-group">
@@ -79,7 +79,7 @@
                             <div class="col-sm-8">
                                 <input class="form-control" id="index_bg" name="index_bg"
                                        placeholder="输入首页背景图片地址"
-                                       type="text" value="{:config('web.index_bg')}">
+                                       type="text" value="{:html_escape(config('web.index_bg'))}">
                             </div>
                         </div>
                         <div class="form-group">
@@ -97,7 +97,7 @@
                             <div class="col-sm-8">
                                 <input class="form-control" id="index_url" name="index_url"
                                        placeholder="输入首页网址"
-                                       type="text" value="{:config('web.index_url')}">
+                                       type="text" value="{:html_escape(config('web.index_url'))}">
                             </div>
                         </div>
                         <div class="form-group">

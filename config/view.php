@@ -6,6 +6,8 @@
 return [
     // 模板引擎类型使用Think
     'type'          => 'Think',
+    // 普通标签默认输出转义；{:func()} 与 |raw 不受影响
+    'default_filter' => 'html_escape',
     // 默认模板渲染规则 1 解析为小写+下划线 2 全部转换小写 3 保持操作方法
     'auto_rule'     => 1,
     // 模板目录名

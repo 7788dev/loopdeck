@@ -18,6 +18,12 @@ final class SiteTemplate
                 'view_path' => $app->getBasePath()
                     . $application . DIRECTORY_SEPARATOR
                     . (string)config('view.view_dir_name', 'view') . DIRECTORY_SEPARATOR,
+                // Compiled templates persist in the runtime volume across image
+                // upgrades. Namespace them by the output filter so a config-only
+                // escaping fix is never defeated by a stale compiled page.
+                'cache_path' => $app->getRuntimePath() . 'temp' . DIRECTORY_SEPARATOR
+                    . substr(hash('sha256', (string)config('view.default_filter', '')), 0, 12)
+                    . DIRECTORY_SEPARATOR,
             ]);
         }
 

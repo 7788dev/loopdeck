@@ -259,11 +259,11 @@ try {
 removalCheck($bilibiliHtml !== '', 'The Bilibili console page failed to render');
 removalCheck(!preg_match('/globalRoom|global_room|is_global/u', $bilibiliHtml),
     'Live-room configuration markup remains in the Bilibili console page');
-removalCheck(!str_contains($bilibiliHtml, "updateConfig('globalroom'"),
+removalCheck(!str_contains($bilibiliHtml, 'data-execute-name="globalroom"'),
     'The retired live-room row still offers a configuration dialog');
 removalCheck(str_contains($bilibiliHtml, '旧直播任务已停用') && str_contains($bilibiliHtml, '已下架'),
     'The retired live-room row is no longer explained as disabled');
-removalCheck(str_contains($bilibiliHtml, "updateConfig('coinadd'"),
+removalCheck(str_contains($bilibiliHtml, 'data-execute-name="coinadd"'),
     'Retiring live tasks removed the configuration dialog of a retained task');
 
 // R2: app/provider.php binds a single exception handler. The never-resolved

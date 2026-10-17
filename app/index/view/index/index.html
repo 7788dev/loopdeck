@@ -3,9 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width,initial-scale=1.0" name="viewport">
-    <title>{:config('web.webname')} - {:config('web.title')}</title>
-    <meta content="{:config('web.keywords')}" name="keywords">
-    <meta content="{:config('web.description')}" name="description">
+    <title>{:html_escape(config('web.webname'))} - {:html_escape(config('web.title'))}</title>
+    <meta content="{:html_escape(config('web.keywords'))}" name="keywords">
+    <meta content="{:html_escape(config('web.description'))}" name="description">
     <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
     <link href="/static/ruoyi/css/bootstrap.min.css" rel="stylesheet">
     <link href="/static/ruoyi/css/font-awesome.min.css" rel="stylesheet">
@@ -54,7 +54,7 @@
     <div class="container">
         <div class="navbar-header">
             <a class="navbar-brand" href="{:url('index/index')}">
-                <strong>{:config('web.webname')}</strong>
+                <strong>{:html_escape(config('web.webname'))}</strong>
             </a>
         </div>
         <ul class="nav navbar-top-links navbar-right">
@@ -72,10 +72,10 @@
     <div class="mask"></div>
     <div class="container">
         <h1 class="text-white" >
-            {:config('web.webname')}
+            {:html_escape(config('web.webname'))}
         </h1>
         <h3 class="text-white" style="opacity: .8; margin-top: 20px;">
-            {:config('web.title')}
+            {:html_escape(config('web.title'))}
         </h3>
         {if condition="!session('user')"}
         <a class="btn btn-info btn-lg m-t-lg" href="{:url('login/login')}">
@@ -162,7 +162,7 @@
 
 {if condition="count($users) gt 0"}
 <div class="container text-center" id="users" style="padding: 30px 15px;">
-    <h2 class="ld-section-title">TA们都在使用 <span class="text-navy">{:config('web.webname')}</span></h2>
+    <h2 class="ld-section-title">TA们都在使用 <span class="text-navy">{:html_escape(config('web.webname'))}</span></h2>
     <p class="ld-section-sub">极致的享受</p>
     <div class="row">
         {volist name="users" id="vo"}
@@ -204,8 +204,8 @@
 
 <footer class="ld-footer text-center bg-white">
     <div class="container">
-        &copy; {:date('Y')} <strong>{:config('web.webname')}</strong> &nbsp;
-        <a href="https://beian.miit.gov.cn/" target="_blank" class="text-muted">{:config('web.icp')}</a>
+        &copy; {:date('Y')} <strong>{:html_escape(config('web.webname'))}</strong> &nbsp;
+        <a href="https://beian.miit.gov.cn/" target="_blank" class="text-muted">{:html_escape(config('web.icp'))}</a>
     </div>
 </footer>
 

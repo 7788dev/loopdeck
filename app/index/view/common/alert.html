@@ -5,8 +5,8 @@
     <meta name="referrer" content="no-referrer">
     <meta content="width=device-width,initial-scale=1.0" name="viewport">
     <title>提示信息</title>
-    <meta content="{:config('web.keywords')}" name="keywords">
-    <meta content="{:config('web.description')}" name="description">
+    <meta content="{:html_escape(config('web.keywords'))}" name="keywords">
+    <meta content="{:html_escape(config('web.description'))}" name="description">
     <link href="/favicon.ico?v={:app_version()}" rel="shortcut icon">
     <link href="/static/media/favicons/favicon-192x192.png?v={:app_version()}" rel="icon" sizes="192x192" type="image/png">
     <link href="/static/media/favicons/apple-touch-icon-180x180.png?v={:app_version()}" rel="apple-touch-icon" sizes="180x180">

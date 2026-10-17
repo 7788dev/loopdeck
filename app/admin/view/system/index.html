@@ -58,7 +58,7 @@
                         {/if}
                         {foreach $notices as $k => $v}
                         <div class="text-center" style="background-color: #f9f9f9; margin-bottom: 0;">
-                            <a href="javascript:show_notice_modal({$v['id']});">
+                            <a href="javascript:void(0)" data-notice-id="{$v['id']}">
                                 <div style="padding: 12px 0;">
                                     <h2 class="font-bold">
                                         {$v.title}
@@ -84,6 +84,9 @@
 <script src="/static/js/plugins/slick-carousel/slick.min.js"></script>
 <script>
     $(function () {
+            $(document).off('click.ldNoticeModal').on('click.ldNoticeModal', '[data-notice-id]', function () {
+                show_notice_modal($(this).attr('data-notice-id'));
+            });
             // PJAX swaps the dashboard DOM without unloading this script, which
             // would leave the previous slider's autoplay interval running on a
             // detached node forever. Stop it before the swap.

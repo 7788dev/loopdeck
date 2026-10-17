@@ -20,7 +20,7 @@
                     <div class="panel-group" id="faq1" aria-multiselectable="true">
                         <div class="panel panel-default">
                             <div class="panel-heading" role="tab" id="faq1_h1">
-                                <a class="font-bold" data-toggle="collapse" href="#faq1_q1" aria-expanded="true" aria-controls="faq1_q1">{:config('web.webname')} 有什么<span class="text-primary">作用</span></a>
+                                <a class="font-bold" data-toggle="collapse" href="#faq1_q1" aria-expanded="true" aria-controls="faq1_q1">{:html_escape(config('web.webname'))} 有什么<span class="text-primary">作用</span></a>
                             </div>
                             <div id="faq1_q1" class="panel-collapse collapse in" role="tabpanel" aria-labelledby="faq1_h1" data-parent="#faq1">
                                 <div class="panel-body">
@@ -37,7 +37,7 @@
                         </div>
                         <div class="panel panel-default">
                             <div class="panel-heading" role="tab" id="faq1_h2">
-                                <a class="font-bold" data-toggle="collapse" href="#faq1_q2" aria-expanded="true" aria-controls="faq1_q2">如何在 {:config('web.webname')} <span class="text-primary">添加账号</span></a>
+                                <a class="font-bold" data-toggle="collapse" href="#faq1_q2" aria-expanded="true" aria-controls="faq1_q2">如何在 {:html_escape(config('web.webname'))} <span class="text-primary">添加账号</span></a>
                             </div>
                             <div id="faq1_q2" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq1_h2" data-parent="#faq1">
                                 <div class="panel-body">
@@ -73,7 +73,7 @@
             <div class="ibox float-e-margins">
                 <div class="ibox-title">
                     <h5>
-                        <strong>2.</strong> {:config('web.webname')} <span class="text-primary">常见问题</span>
+                        <strong>2.</strong> {:html_escape(config('web.webname'))} <span class="text-primary">常见问题</span>
                     </h5>
                     <div class="ibox-tools">
                         <a href="javascript:;">
@@ -90,7 +90,7 @@
                             <div id="faq2_q1" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h1" data-parent="#faq2">
                                 <div class="panel-body">
                                     <p>
-                                        1.忘记密码：在登录页/注册页 点击找回密码，填写自己的QQ邮箱，输入验证码后点击找回密码，您的邮箱将会收到一封来自 {:config('web.webname')} 的邮件 点击链接重置密码即可。<br>
+                                        1.忘记密码：在登录页/注册页 点击找回密码，填写自己的QQ邮箱，输入验证码后点击找回密码，您的邮箱将会收到一封来自 {:html_escape(config('web.webname'))} 的邮件 点击链接重置密码即可。<br>
                                         2.修改密码：在个人资料中 输入原密码 以及新密码 即可更改密码 <br>
                                         <a href="{:url('/index/console/user/profile')}">点我修改</a>
                                     </p>
@@ -107,7 +107,7 @@
                                         请检查账号状态是否失效，之后查看<span class="text-danger">日志</span>以及功能运行时间是否正常，<br>
                                         若任务没有运行或没有完成 请点击<span class="text-primary">补挂</span>按钮。<br>
                                         若有疑问 请联系站长反馈<br>
-                                        <a target="_blank" href="https://wpa.qq.com/msgrd?v=3&uin={:config('web.user_qq')}&site=qq&menu=yes">点我联系</a>
+                                        <a target="_blank" href="https://wpa.qq.com/msgrd?v=3&uin={:html_escape(config('web.user_qq'))}&site=qq&menu=yes">点我联系</a>
                                     </p>
                                 </div>
                             </div>

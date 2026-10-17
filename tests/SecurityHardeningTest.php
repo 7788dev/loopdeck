@@ -141,9 +141,14 @@ securityHardeningCheck(
 securityHardeningCheck(js_string("it's") === '"it\u0027s"', 'js_string did not escape a single quote');
 
 securityHardeningCheck(safe_http_url('https://example.com/pay') === 'https://example.com/pay', 'A valid URL was rejected');
-foreach (['javascript:alert(1)', 'data:text/html,<script>', 'ftp://x/y', '', 'not a url'] as $unsafeUrl) {
+foreach (['javascript:alert(1)', 'data:text/html,<script>', 'ftp://x/y', '', 'not a url',
+    'https://x.com/"onmouseover="alert(1)', "https://x.com/'onmouseover='alert(1)"] as $unsafeUrl) {
     securityHardeningCheck(safe_http_url($unsafeUrl) === '', 'An unsafe URL was accepted: ' . $unsafeUrl);
+    securityHardeningCheck(payment_qrcode_url('alipay', $unsafeUrl) === '',
+        'A payment URL with attribute-breaking characters was accepted: ' . $unsafeUrl);
 }
+securityHardeningCheck(payment_qrcode_url('wechat', 'wxp://f2f-fixture') === 'wxp://f2f-fixture',
+    'A valid WeChat payment payload was rejected');
 
 // --- Administrative account scope --------------------------------------------
 

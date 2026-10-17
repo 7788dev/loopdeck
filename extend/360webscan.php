@@ -1,4 +1,5 @@
 <?php
+// 纵深附加层：正则黑名单可被绕过，核心防线是参数化查询与输出转义，不能依赖本文件单独防护。
 webscan_error();
 //引用配置文件
 require_once('webscan_cache.php');

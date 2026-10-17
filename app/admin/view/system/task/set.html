@@ -23,21 +23,21 @@
                         <div class="form-group">
                             <label class="col-sm-3 control-label" for="cronkey">监控文件运行密钥</label>
                             <div class="col-sm-8">
-                                <input type="text" class="form-control" id="cronkey" name="cronkey" placeholder="..." value="{:config('sys.cronkey')}">
+                                <input type="text" class="form-control" id="cronkey" name="cronkey" placeholder="..." value="{:html_escape(config('sys.cronkey'))}">
                                 <p class="help-block text-muted">监控请求的鉴权密钥。容器部署时由环境变量 CRON_KEY 自动生成并写入，修改后两个密钥均可通过验证（便于轮换）。请求请通过 <code>X-Cron-Key</code> 请求头携带密钥，请勿将密钥拼入 URL</p>
                             </div>
                         </div>
                         <div class="form-group">
                             <label class="col-sm-3 control-label" for="interval">每次执行任务数量</label>
                             <div class="col-sm-8">
-                                <input type="text" class="form-control" id="interval" name="interval" placeholder="..." value="{:config('sys.interval')}">
+                                <input type="text" class="form-control" id="interval" name="interval" placeholder="..." value="{:html_escape(config('sys.interval'))}">
                                 <p class="help-block text-muted">每次运行任务数是指在单个系统内，每运行一次监控文件所能够执行的任务数，建议50</p>
                             </div>
                         </div>
                         <div class="form-group">
                             <label class="col-sm-3 control-label" for="reExecute_time">任务补挂间隔时间（秒）</label>
                             <div class="col-sm-8">
-                                <input type="text" class="form-control" id="reExecute_time" name="reExecute_time" placeholder="..." value="{:config('sys.reExecute_time')}">
+                                <input type="text" class="form-control" id="reExecute_time" name="reExecute_time" placeholder="..." value="{:html_escape(config('sys.reExecute_time'))}">
                                 <p class="help-block text-muted">用户申请补挂间隔的冷却时间，建议300</p>
                             </div>
                         </div>

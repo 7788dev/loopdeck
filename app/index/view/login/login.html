@@ -34,12 +34,12 @@
             </div>
         </div>
         <div class="col-sm-5">
-            <form method="post" onsubmit="return false;">
+            <form method="post" id="login-form" onsubmit="ajax_user_login(); return false;">
                 <h4 class="no-margins">登录您的用户中心</h4>
                 <p class="m-t-md">请登录</p>
-                <input type="text" class="form-control uname" id="username" name="username" placeholder="用户名">
-                <input type="password" class="form-control pword" id="password" name="password" placeholder="密码">
-                <button class="btn btn-primary btn-block" onclick="ajax_user_login();" type="submit">登录</button>
+                <input type="text" class="form-control uname" id="username" name="username" placeholder="用户名" autocomplete="username" aria-label="用户名" autofocus>
+                <input type="password" class="form-control pword" id="password" name="password" placeholder="密码" autocomplete="current-password" aria-label="密码">
+                <button class="btn btn-primary btn-block" id="login-submit" type="submit">登录</button>
             </form>
         </div>
     </div>
@@ -56,10 +56,22 @@
 <script src="/static/js/layer.js"></script>
 <script src="/static/js/app.min.js?v={:app_version()}"></script>
 <script>
+    function setLoginBusy(busy) {
+        var button = $('#login-submit');
+        button.prop('disabled', busy).toggleClass('is-loading', busy);
+        button.text(busy ? '登录中' : '登录');
+    }
+
     function ajax_user_login() {
+        if ($('#login-submit').prop('disabled')) return;
+        var username = x.getval('#username', '请输入用户名');
+        if (!username) return;
+        var password = x.getval('#password', '请输入密码');
+        if (!password) return;
+        setLoginBusy(true);
         x.ajax('/index/LoginAjax/login', {
-            username: x.getval('#username'),
-            password: x.getval('#password')
+            username: username,
+            password: password
         }, function (data) {
             if (data.code == 1) {
                 x.notify(data.message, 'success');
@@ -67,8 +79,14 @@
                     window.location.href = "{:url('console/index')}";
                 }, 1000)
             } else {
+                setLoginBusy(false);
+                $('#login-form').addClass('is-shaking');
+                setTimeout(function () { $('#login-form').removeClass('is-shaking'); }, 360);
                 x.notify(data.message, 'warning');
             }
+        }, function () {
+            setLoginBusy(false);
+            x.notify('网络异常，请稍后重试', 'danger');
         });
     }
 </script>

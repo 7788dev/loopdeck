@@ -290,3 +290,89 @@ a:hover .ld-shortcut { border-color: #9ebfd9; background: #f7fafc; }
     .ld-dashboard-heading p { margin-top: 8px; }
     .ld-shortcut, .ld-stat-card { margin-bottom: 12px; }
 }
+
+/* ---------------- 交互细节：轻量过渡与状态反馈 ---------------- */
+.btn {
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease,
+        box-shadow .18s ease, transform .18s ease;
+}
+.btn:not(:disabled):active { transform: translateY(1px); }
+.btn-primary:not(:disabled):hover, .btn-info:not(:disabled):hover {
+    box-shadow: 0 4px 12px rgba(51, 122, 183, .22);
+}
+.btn-success:not(:disabled):hover { box-shadow: 0 4px 12px rgba(39, 134, 93, .2); }
+.btn-danger:not(:disabled):hover { box-shadow: 0 4px 12px rgba(199, 73, 73, .2); }
+.btn.is-loading { pointer-events: none; opacity: .82; }
+.btn.is-loading::after {
+    content: "";
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-left: 8px;
+    vertical-align: -2px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: ld-spin .7s linear infinite;
+}
+
+.signinpanel { animation: ld-fade-up .32s ease-out both; }
+.signinpanel form { box-shadow: 0 18px 42px rgba(15, 35, 53, .18); }
+.signinpanel form.is-shaking { animation: ld-shake .32s ease; }
+
+.ld-shortcut, .ld-stat-card { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+a:hover .ld-shortcut, a:focus-visible .ld-shortcut {
+    transform: translateY(-2px);
+    border-color: #c9dced;
+    box-shadow: 0 10px 24px rgba(15, 35, 53, .08);
+}
+.ld-stat-card:hover { border-color: #c9dced; box-shadow: 0 8px 20px rgba(15, 35, 53, .06); }
+
+.ld-qr-box {
+    padding: 12px;
+    border: 1px dashed #d6e0ea;
+    border-radius: 8px;
+    background: #fbfdff;
+    transition: border-color .18s ease, background-color .18s ease, transform .18s ease;
+}
+.ld-qr-box:hover, .ld-qr-box:focus-visible {
+    border-color: #8ebce0;
+    background: #f4f9fe;
+    transform: translateY(-1px);
+}
+.ld-qr-box img { border-radius: 6px; max-width: 100%; }
+.ld-qr-box.ld-qr-loading { animation: ld-soft-pulse 1.2s ease-in-out infinite; }
+.btn:focus-visible, .ld-qr-box:focus-visible, .menuTab:focus-visible,
+a:focus-visible, .navbar-top-links a:focus-visible {
+    outline: 2px solid #4092c3;
+    outline-offset: 2px;
+}
+
+@keyframes ld-fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ld-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+@keyframes ld-soft-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .55; }
+}
+@keyframes ld-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .signinpanel, .btn, .ld-shortcut, .ld-stat-card, .ld-qr-box {
+        animation: none !important;
+        transition: none !important;
+    }
+    .btn:not(:disabled):active, a:hover .ld-shortcut, .ld-qr-box:hover,
+    .ld-qr-box:focus-visible, .btn.is-loading::after {
+        transform: none !important;
+        animation: none !important;
+    }
+}

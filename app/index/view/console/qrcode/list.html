@@ -49,7 +49,7 @@
                             <a class="btn btn-sm btn-default" data-toggle="modal" data-target="#address" data-address-label="三合一收款地址：" data-address="{:get_Domain()}index/index/qrcode.html?uid={$value.uid}&amp;name={:rawurlencode($v.name)}">
                                 <i class="fa fa-tag"></i> 地址
                             </a>
-                            <a class="btn btn-sm btn-danger" data-user-id="{$user_id}" onclick="ajax_qrcode_delete(this.dataset.userId)">
+                            <a class="btn btn-sm btn-danger" data-user-id="{$user_id}" onclick="ajax_qrcode_delete(this.dataset.userId)" title="删除收款码">
                                 <i class="fa fa-times"></i> 删除
                             </a>
                         </div>
@@ -111,7 +111,7 @@
             } else {
                 x.notify(data.message, 'warning');
             }
-        });
+        }, '删除收款码后，公开收款页将无法访问。确定继续吗？');
     }
 </script>
 {/block}

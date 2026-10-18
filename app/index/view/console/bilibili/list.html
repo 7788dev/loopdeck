@@ -48,7 +48,7 @@
                             </a>
                         </div>
                         <div class="col-xs-4">
-                            <a class="btn btn-sm btn-danger btn-block" data-bilibili-delete="{$value.mid}">
+                            <a class="btn btn-sm btn-danger btn-block" data-bilibili-delete="{$value.mid}" title="删除账号" aria-label="删除账号">
                                 <i class="fa fa-times"></i>
                             </a>
                         </div>
@@ -72,7 +72,7 @@
             } else {
                 x.notify(data.message, 'warning');
             }
-        });
+        }, '删除账号后，该账号将停止自动任务并清理运行状态。确定继续吗？');
     }
 
     $(document).off('click.ldBilibiliDelete').on('click.ldBilibiliDelete', '[data-bilibili-delete]', function () {

@@ -46,19 +46,19 @@
             <div class="ibox float-e-margins">
                 <div class="ibox-title">
                     <h5>扫码添加</h5>
-                    <div class="ibox-tools">
-                        <button type="button" class="btn btn-outline btn-primary btn-xs" onclick="ajax_netease_qrlogin();">扫码完成，点击验证</button>
-                    </div>
                 </div>
                 <div class="ibox-content text-center">
                     <div class="alert alert-info" role="alert">
                         <i class="fa fa-magic"></i>
-                        <p style="margin: 0;" id="qr-alert">点击图片即可获取二维码</p>
+                        <p style="margin: 0;" id="qr-alert" aria-live="polite">点击图片即可获取二维码</p>
                     </div>
-                    <div id="qr-img" key="">
+                    <div id="qr-img" class="ld-qr-box" role="button" tabindex="0" aria-label="点击获取网易云音乐登录二维码" title="点击获取登录二维码" key="">
                         <p style="margin-top: 15px;">
                             <i class="fa fa-camera fa-4x text-muted"></i>
                         </p>
+                    </div>
+                    <div class="m-t-md">
+                        <button type="button" class="btn btn-primary" onclick="ajax_netease_qrlogin();"><i class="fa fa-check"></i> 扫码完成，点击验证</button>
                     </div>
                 </div>
             </div>
@@ -74,14 +74,36 @@
         x.notify('账号密码登录维护中，请使用扫码添加账号', 'warning');
     }
 
-    $('#qr-img').click(function () {
-        x.ajax('/index/ajax/netease/getQrimg',null ,function (data) {
+    var qr_load_pending = false;
+
+    function load_qr() {
+        if (qr_load_pending) return;
+        qr_load_pending = true;
+        var box = $('#qr-img');
+        box.addClass('ld-qr-loading').html('<p style="margin-top: 15px;"><i class="fa fa-spinner fa-spin fa-4x text-muted"></i></p>');
+        $('#qr-alert').text('正在获取二维码');
+        x.ajax('/index/ajax/netease/getQrimg', null, function (data) {
+            qr_load_pending = false;
+            box.removeClass('ld-qr-loading');
             if (data.code == 1) {
-                $('#qr-img').attr('key', data.data.key);
-                $('#qr-img').html('<img src="data:image/png;base64,'+ x.escapeHtml(data.data.qrimg) +'" height="145px;">');
+                box.attr('key', data.data.key).html('<img src="data:image/png;base64,' + x.escapeHtml(data.data.qrimg) + '" height="145px;" alt="网易云音乐登录二维码">');
+                $('#qr-alert').text('请使用网易云音乐 APP 扫码，完成后点击验证');
+                return;
             }
-        })
-        $('#qr-img').attr('role', 'button').attr('tabindex', '0');
+            box.attr('key', '').html('<p style="margin-top: 15px;"><i class="fa fa-camera fa-4x text-muted"></i></p>');
+            $('#qr-alert').text(data.message || '二维码获取失败，点击图片重试');
+        }, function () {
+            qr_load_pending = false;
+            box.removeClass('ld-qr-loading').attr('key', '').html('<p style="margin-top: 15px;"><i class="fa fa-camera fa-4x text-muted"></i></p>');
+            $('#qr-alert').text('二维码获取失败，点击图片重试');
+        });
+    }
+
+    $('#qr-img').on('click', load_qr).on('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            load_qr();
+        }
     });
 
     function ajax_netease_qrlogin() {
@@ -154,10 +176,6 @@
         setTimeout(poll, 1500);
         verify_timer = setInterval(poll, 2000);
     }
-
-    $(function(){
-        $('#qr-img').attr('role', 'button').attr('tabindex', '0');
-    });
 
 </script>
 {/block}

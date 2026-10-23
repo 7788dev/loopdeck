@@ -2,7 +2,7 @@
 
 FROM composer:2.10.2@sha256:629d4ef35e75349d452851637d37a40ac33a09d6ac010139020603d79713d9bf AS composer
 
-FROM serversideup/php:8.2-fpm-nginx-alpine@sha256:57919c0ed10e91318b87c518f4a2e25e98a259086d440955f692b095734c0508 AS php-base
+FROM serversideup/php:8.2-fpm-nginx-alpine-v4.5.3@sha256:34caf4def01b667555cdebce6b7ff4acb997ae81f74e889290ff54af8f0e7e37 AS php-base
 
 ENV TZ=Asia/Shanghai \
     PHP_DATE_TIMEZONE=Asia/Shanghai \

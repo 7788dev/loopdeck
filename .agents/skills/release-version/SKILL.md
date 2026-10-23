@@ -14,9 +14,9 @@ description: Use when releasing or publishing a new LoopDeck version — 发版�
    `for t in tests/*Test.php; do php "$t" >/dev/null 2>&1 || echo "FAIL $t"; done`
    有任何 FAIL 先修复，不进入下一步。
 3. `cat VERSION`，1.2.x 系列按补丁号 +1；`VERSION` 只写版本号一行。
-4. 按[发布提交规则](../../notes/implemented/process/2026-09-25-release-updates-version-and-readme.md)重写 README `## 当前版本`，旧版本块压成一行插到 `## 历史更新` 顶部；最后一条要点写离线回归总数，以及是否修改数据库结构、Compose 服务与环境变量。
+4. 按[发布提交规则](../../notes/implemented/process/2026-09-25-release-updates-version-and-readme.md)同步版本记录：重写 README `## 版本` 的「当前发布」行与要点列表，把 `docs/CHANGELOG.md` 的 `## 未发布` 小节提升为 `## 当前版本` 下的 `### vX.Y.Z（日期）`，旧版本小节压成一行插到 `## 历史更新` 顶部；最后一条要点写离线回归总数，以及是否修改数据库结构、Compose 服务与环境变量。
 5. 再跑一次第 2 步（`SystemUpdaterTest` 会读取 `VERSION`）。
-6. 发版提交只含这两个文件：`git add VERSION README.md && git commit -m "chore: release vX.Y.Z"`（附会话要求的 Co-Authored-By 行）。
+6. 发版提交只含这三个文件：`git add VERSION README.md docs/CHANGELOG.md && git commit -m "chore: release vX.Y.Z"`（附会话要求的 Co-Authored-By 行）。
 7. `git push origin main`。
 8. 找到这次推送触发的构建并等它结束：
    `gh run list --workflow docker-image.yml --branch main --limit 5 --json databaseId,headSha --jq ".[] | select(.headSha==\"$(git rev-parse HEAD)\") | .databaseId"`

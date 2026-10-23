@@ -1,4 +1,4 @@
-# Agent Note: 发布提交必须同时更新 VERSION 与 README 当前版本
+# Agent Note: 发布提交必须同步 VERSION 与版本记录（README、CHANGELOG）
 
 Status: implemented
 
@@ -11,13 +11,14 @@ v1.2.8 发布时只改了 `VERSION` 文件，README 的"当前版本"仍停留�
 
 ## Decision
 
-版本发布在一个提交内同时完成两处更新：
+版本发布在一个提交内同时完成三处更新（2026-10-18 文档重构后「当前版本」「历史更新」章节移至 `docs/CHANGELOG.md`，README 保留 `## 版本` 概要）：
 
 1. 根目录 `VERSION` 升到新版本号；
-2. README"当前版本"整块替换为新版本（日期、亮点、回归测试数、升级影响），
-   旧的当前版本块压缩成一行移入"历史更新"顶部。
+2. README `## 版本` 的「当前发布」行与要点列表替换为新版本（亮点、回归测试数、升级影响）；
+3. `docs/CHANGELOG.md` 把 `## 未发布` 小节提升为 `## 当前版本` 下的
+   `### vX.Y.Z（日期）`，旧的当前版本小节压缩成一行移入「历史更新」顶部。
 
-回滚版本时两处一起回。
+回滚版本时三处一起回。
 
 ## Alternatives considered
 
@@ -28,5 +29,5 @@ v1.2.8 发布时只改了 `VERSION` 文件，README 的"当前版本"仍停留�
 
 ## Consequences
 
-- 发布 = `VERSION` + README 两处同 commit，漏一处即为不完整发布。
+- 发布 = `VERSION` + README + `docs/CHANGELOG.md` 三处同 commit，漏一处即为不完整发布。
 - GH Actions"Read application version"读取的 `VERSION` 与用户文档永远一致。

@@ -71,7 +71,7 @@ For Linux container tests sourced from Windows, transfer committed code with `gi
 
 ## Commit & Pull Request Guidelines
 
-History uses concise Conventional Commit subjects: `feat: add ...`, `fix: prevent ...`, `test: align ...`, and `docs: clarify ...`. Keep commits focused. A release is one commit: bump `VERSION` and rewrite the README `当前版本` section together — the old current-version block moves to the top of `历史更新` as a single line ([decision](.agents/notes/implemented/process/2026-09-25-release-updates-version-and-readme.md)); run releases with the [release-version workflow](.agents/skills/release-version/SKILL.md), which ends only after the GHCR image for the pushed HEAD is verified. Pull requests should explain behavior and risk, link issues, list commands run, and include screenshots for UI changes. Highlight schema, environment, Docker, or scheduler changes.
+History uses concise Conventional Commit subjects: `feat: add ...`, `fix: prevent ...`, `test: align ...`, and `docs: clarify ...`. Keep commits focused. A release is one commit: bump `VERSION`, rewrite the README `## 版本` block, and promote the `docs/CHANGELOG.md` `## 未发布` section to the released version together — the old current-version section moves to the top of `历史更新` as a single line ([decision](.agents/notes/implemented/process/2026-09-25-release-updates-version-and-readme.md)); run releases with the [release-version workflow](.agents/skills/release-version/SKILL.md), which ends only after the GHCR image for the pushed HEAD is verified. Pull requests should explain behavior and risk, link issues, list commands run, and include screenshots for UI changes. Highlight schema, environment, Docker, or scheduler changes.
 
 ## Security & Configuration
 

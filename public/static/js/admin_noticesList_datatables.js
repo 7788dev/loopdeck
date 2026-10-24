@@ -212,7 +212,7 @@ function ajax_add_notice()
         closeBtn: 0,
         shadeClose: true,
         area: ['50%', '50%'],//设置相对于父页面的大小
-        content: '<form id="add-form"><input type="hidden"id="id"name="id"><div class="mb-4"><div id="toolbar-container"></div><div id="editor-container" style="height: 250px;"></div></div></form>',
+        content: '<form id="add-form"><input type="hidden"id="id"name="id"><div class="mb-2"><select id="sort"class="form-select"name="sort"><option value="0"selected>置顶等级：无置顶</option><option value="1">置顶等级：低级置顶</option><option value="2">置顶等级：中级置顶</option><option value="3">置顶等级：高级置顶</option></select></div><div class="mb-4"><div id="toolbar-container"></div><div id="editor-container" style="height: 250px;"></div></div></form>',
         success:function (index, dom) {
             noticeEditor = loadwangEditor();
         },
@@ -222,7 +222,7 @@ function ajax_add_notice()
                 layer.msg('公告内容不能为空');
                 return;
             }
-            x.ajax('/admin/ajax/data/add/notice', {type: 1 ,content: content}, function (data) {
+            x.ajax('/admin/ajax/data/add/notice', {type: 1 ,content: content, sort: $('#sort').val()}, function (data) {
                 if (data.code == 1) {
                     var table = $("#noticesList").DataTable();
                     table.ajax.reload();

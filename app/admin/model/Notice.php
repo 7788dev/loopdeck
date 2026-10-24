@@ -38,10 +38,14 @@ class Notice extends Model
         if (!is_array($data)) {
             return false;
         }
-        // Only update fields owned by the notice form.
-        $data = array_intersect_key($data, array_flip(['type', 'title', 'content', 'alert']));
+        // Only update fields owned by the notice form. `sort` is the pin level
+        // (置顶等级) the list dropdown writes; clamp it instead of trusting the client.
+        $data = array_intersect_key($data, array_flip(['type', 'title', 'content', 'alert', 'sort']));
         if ($data === []) {
             return false;
+        }
+        if (array_key_exists('sort', $data)) {
+            $data['sort'] = max(0, min(3, (int)$data['sort']));
         }
         foreach ($data as $value) {
             if (!is_scalar($value) && $value !== null) {
@@ -66,7 +70,10 @@ class Notice extends Model
         $self = new static();
         $data['zid'] = WEB_ID;
         $data['addtime'] = time();
-        if ($self->field('type,title,content,addtime,zid')->insert($data)) {
+        if (array_key_exists('sort', $data)) {
+            $data['sort'] = max(0, min(3, (int)$data['sort']));
+        }
+        if ($self->field('type,title,content,addtime,zid,sort')->insert($data)) {
             return resultJson(1,'添加成功');
         }
         return resultJson(0,'添加失败');

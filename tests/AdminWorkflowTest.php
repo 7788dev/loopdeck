@@ -9,7 +9,7 @@ use think\facade\Db;
 fixtureTable('tasks', 'id INTEGER PRIMARY KEY, type TEXT, execute_name TEXT, name TEXT, describe TEXT, icon TEXT,
     execute_rate INTEGER, more INTEGER, state INTEGER, vip INTEGER, "order" INTEGER');
 fixtureTable('jobs', 'id INTEGER PRIMARY KEY, uid INTEGER, type TEXT, user_id TEXT, do TEXT, state INTEGER, nextExecute INTEGER');
-fixtureTable('notice', 'id INTEGER PRIMARY KEY AUTOINCREMENT, zid INTEGER, type INTEGER, title TEXT, content TEXT, alert INTEGER, addtime INTEGER');
+fixtureTable('notice', 'id INTEGER PRIMARY KEY AUTOINCREMENT, zid INTEGER, type INTEGER, title TEXT, content TEXT, alert INTEGER, sort INTEGER, addtime INTEGER');
 fixtureTable('accounts', 'id INTEGER PRIMARY KEY, uid INTEGER, zid INTEGER, type TEXT, user_id TEXT');
 fixtureTable('task_logs', 'id INTEGER PRIMARY KEY, type TEXT, user_id TEXT');
 Db::name('tasks')->insert(['id' => 1, 'type' => 'heybox', 'execute_name' => 'sign', 'name' => '签到', 'vip' => 0]);
@@ -22,7 +22,17 @@ fixtureRequest(['id' => 1, 'name' => '每日签到', 'execute_name' => 'unexpect
 $admin->task('set');
 functionalCheck(Db::name('tasks')->value('execute_name') === 'sign', 'Admin copy edit changed executable method');
 functionalCheck(app\admin\model\Notice::add(['type' => 1, 'title' => '测试公告', 'content' => '内容'])->getData()['code'] === 1, 'Notice creation failed');
+functionalCheck((int)Db::name('notice')->where('id', 1)->value('sort') === 0, 'Notice creation did not default the pin level');
+functionalCheck(app\admin\model\Notice::add(['type' => 1, 'content' => '置顶公告', 'sort' => '2'])->getData()['code'] === 1, 'Notice creation with a pin level failed');
+functionalCheck((int)Db::name('notice')->where('id', 2)->value('sort') === 2, 'Notice creation discarded the pin level');
 functionalCheck(app\admin\model\Notice::updateByid(1, ['title' => '已修改']), 'Notice edit failed');
+functionalCheck(app\admin\model\Notice::updateByid(1, ['sort' => '1']), 'Notice pin level edit failed');
+functionalCheck((int)Db::name('notice')->where('id', 1)->value('sort') === 1, 'Notice pin level was not persisted');
+functionalCheck(app\admin\model\Notice::updateByid(1, ['sort' => '99']), 'Out-of-range pin level update errored');
+functionalCheck((int)Db::name('notice')->where('id', 1)->value('sort') === 3, 'Out-of-range pin level escaped the clamp');
+functionalCheck(app\admin\model\Notice::updateByid(1, ['sort' => '-5']), 'Below-range pin level update errored');
+functionalCheck((int)Db::name('notice')->where('id', 1)->value('sort') === 0, 'Below-range pin level escaped the clamp');
+functionalCheck(!app\admin\model\Notice::updateByid(1, ['zid' => 2]), 'Notice edit let a caller move the notice across sites');
 functionalCheck(app\admin\model\Notice::delByid(1), 'Notice delete failed');
 functionalCheck(!app\admin\model\Notice::delByid(1), 'Repeated notice delete succeeded');
 functionalCheck(!app\index\model\Users::adminDelByUid(1), 'Super administrator could be deleted');

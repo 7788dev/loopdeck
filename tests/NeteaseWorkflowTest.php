@@ -54,7 +54,7 @@ final class WorkflowTransport implements TransportInterface
     private function bodyFor(string $url): array
     {
         if (str_contains($url, '/w/nuser/account/get')) {
-            return ['code' => 200, 'profile' => ['userId' => 1]];
+            return ['code' => 200, 'account' => ['id' => 1], 'profile' => ['userId' => 1]];
         }
         if (str_contains($url, '/v1/user/detail/')) {
             return [

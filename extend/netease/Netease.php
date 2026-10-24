@@ -386,9 +386,16 @@ class Netease
     public function login_work()
     {
         $status = $this->decodeBody($this->getInfo($this->cookie));
-        if (($status['code'] ?? 0) === 301) {
+        $code = (int)($status['code'] ?? 0);
+        // An expired MUSIC_U gets HTTP 200 with a null account here (or code 301).
+        // Only those two shapes prove logout; transport failures must not
+        // invalidate a healthy account.
+        if ($code === 301 || $code === 401 || ($code === 200 && !is_array($status['account'] ?? null))) {
             $this->cookiezt = true;
             return $this->makeResult(201, '登录已失效，请重新扫码登录');
+        }
+        if ($code !== 200) {
+            return $this->makeResult(201, '登录状态检查失败');
         }
         return $this->makeResult(200, '登录成功');
     }
@@ -2358,6 +2365,10 @@ class Netease
     protected function musicTaskFailure(array $body, string $label, bool $allowRetry = false): array
     {
         $code = (int)($body['code'] ?? 0);
+        if (in_array($code, [301, 401], true)) {
+            $this->cookiezt = true;
+            return $this->makeResult(201, '登录已失效，请重新扫码登录');
+        }
         $reason = (string)($body['message'] ?? $body['msg'] ?? '接口未返回有效结果');
         return $this->makeResult(201, $label . '失败', [
             'upstream_code' => $code,
@@ -2396,6 +2407,10 @@ class Netease
     public function yunbei_sign()
     {
         $status = $this->decodeBody($this->requestApi('/api/point/signed/get', [], 'weapi'));
+        if (in_array((int)($status['code'] ?? 0), [301, 401], true)) {
+            $this->cookiezt = true;
+            return $this->makeResult(201, '登录已失效，请重新扫码登录');
+        }
         if (!empty($status['data']['signed']) || !empty($status['data']['todaySignedIn'])) {
             return $this->makeResult(200, '云贝今日已签到');
         }
@@ -2970,6 +2985,12 @@ class Netease
         if ((int)($before['code'] ?? 0) !== 200 || !is_array($userLevel)) {
             return $this->makeResult(201, (string)($before['message'] ?? '未检测到有效的黑胶会员'));
         }
+        if (array_key_exists('userId', $userLevel) && (int)$userLevel['userId'] === 0) {
+            // A dead session still gets this endpoint's anonymous level template
+            // (userId 0, vipType -1), so a zero userId means the cookie expired.
+            $this->cookiezt = true;
+            return $this->makeResult(201, '登录已失效，请重新扫码登录');
+        }
         $active = !array_key_exists('normal', $userLevel) || !empty($userLevel['normal']);
         $expireTime = (int)($userLevel['expireTime'] ?? 0);
         if (!$active || ($expireTime > 0 && $expireTime < (int)round(microtime(true) * 1000))) {
@@ -2979,8 +3000,11 @@ class Netease
         $messages = [];
         $success = true;
         $rewardErrors = [];
-        $rewardFailure = static function (string $label, array $response) use (&$messages, &$success, &$rewardErrors): void {
+        $rewardFailure = function (string $label, array $response) use (&$messages, &$success, &$rewardErrors): void {
             $success = false;
+            if (in_array((int)($response['code'] ?? 0), [301, 401], true)) {
+                $this->cookiezt = true;
+            }
             $messages[] = TaskMessage::compose([['label' => $label, 'status' => TaskMessage::FAILED]]);
             $rewardErrors[] = ['stage' => $label, 'code' => (int)($response['code'] ?? 0),
                 'reason' => (string)($response['message'] ?? $response['msg'] ?? '接口未返回有效结果')];

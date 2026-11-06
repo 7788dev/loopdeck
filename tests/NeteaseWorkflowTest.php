@@ -56,6 +56,18 @@ final class WorkflowTransport implements TransportInterface
         if (str_contains($url, '/w/nuser/account/get')) {
             return ['code' => 200, 'account' => ['id' => 1], 'profile' => ['userId' => 1]];
         }
+        if (str_contains($url, '/weapi/user/level')) {
+            return [
+                'code' => 200,
+                'data' => [
+                    'level' => 8,
+                    'nowLoginCount' => 700,
+                    'nextLoginCount' => 703,
+                    'nowPlayCount' => 10000,
+                    'nextPlayCount' => 20000,
+                ],
+            ];
+        }
         if (str_contains($url, '/v1/user/detail/')) {
             return [
                 'code' => 200,
@@ -649,6 +661,10 @@ foreach ($results as $name => $result) {
 workflowCheck(
     str_contains((string)($results['daka_new']['message'] ?? ''), '本次已听歌 1'),
     'Daily 300-song workflow did not use immediate api-enhanced reporting'
+);
+workflowCheck(
+    ($results['login_work']['message'] ?? '') === '登录成功，3天后升级',
+    'The daily-login copy did not report the login days still missing for the next level'
 );
 
 $urls = array_column($transport->requests, 'url');

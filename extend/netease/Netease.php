@@ -397,7 +397,42 @@ class Netease
         if ($code !== 200) {
             return $this->makeResult(201, '登录状态检查失败');
         }
-        return $this->makeResult(200, '登录成功');
+        return $this->makeResult(200, '登录成功' . $this->loginLevelSuffix());
+    }
+
+    /**
+     * Best-effort level progress appended to the daily-login success copy.
+     * The login itself already succeeded, so any failure of this decorative
+     * read (transport exception, non-200, missing fields) falls back to the
+     * plain message and must never downgrade the result or trigger a retry.
+     * Remaining days reuse the console metric: nextLoginCount is the total
+     * login days the next level requires, nowLoginCount the days already
+     * accumulated, so the difference is the login days still missing.
+     */
+    private function loginLevelSuffix(): string
+    {
+        try {
+            $level = $this->decodeBody($this->level());
+        } catch (Throwable) {
+            return '';
+        }
+        if ((int)($level['code'] ?? 0) !== 200 || !is_array($level['data'] ?? null)) {
+            return '';
+        }
+        $loginCounts = [];
+        foreach (['nextLoginCount', 'nowLoginCount'] as $key) {
+            $value = $level['data'][$key] ?? null;
+            if (!is_int($value) && !is_string($value)) {
+                return '';
+            }
+            $count = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+            if ($count === false) {
+                return '';
+            }
+            $loginCounts[$key] = $count;
+        }
+        $days = max(0, $loginCounts['nextLoginCount'] - $loginCounts['nowLoginCount']);
+        return $days > 0 ? '，' . $days . '天后升级' : '';
     }
 
     public function sign()

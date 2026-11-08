@@ -5,7 +5,13 @@
     </div>
     <a href="{:url('/admin/system/index')}">
         <li class="logo hidden-xs">
-            <span class="logo-mini" aria-hidden="true"><i class="fa fa-cube"></i></span><span class="logo-lg">{:html_escape(config('web.webname'))}</span>
+            <span class="logo-mini" aria-hidden="true">
+                <img class="ld-brand-icon" src="/static/media/favicons/favicon-32x32.png?v={:app_version()}" width="32" height="32" alt="">
+            </span>
+            <span class="logo-lg">
+                <img class="ld-brand-icon" src="/static/media/favicons/favicon-32x32.png?v={:app_version()}" width="32" height="32" alt="">
+                {:html_escape(config('web.webname'))}
+            </span>
         </li>
     </a>
     <div class="sidebar-collapse">

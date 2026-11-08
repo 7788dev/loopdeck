@@ -10,6 +10,10 @@ body.signin {
 .signinpanel .signin-info { margin-bottom: 18px; text-align: center; padding: 0; }
 .signinpanel .signin-info > h3, .signinpanel .signin-info > ul { display: none; }
 .signinpanel .logopanel h1 { color: #fff; font-size: 26px; margin: 0 0 12px; }
+.ld-brand-icon { display: inline-block; vertical-align: middle; }
+.signinpanel .logopanel .ld-brand-icon { display: block; margin: 0 auto 12px; }
+.skin-blue .logo-lg .ld-brand-icon { margin-right: 8px; }
+.ld-home .navbar-brand { display: flex; align-items: center; gap: 8px; }
 .signinpanel form { background: #fff; color: #334155; border: 0; border-radius: 6px; padding: 26px; }
 .signinpanel form h4 { font-size: 20px; font-weight: 600; }
 .signinpanel .signup-footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; margin-top: 18px; padding-top: 18px; font-size: 12px; }

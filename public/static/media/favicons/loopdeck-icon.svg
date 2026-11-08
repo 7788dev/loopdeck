@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">LoopDeck</title>
+  <desc id="desc">深蓝圆角方形中的白色 L 与青蓝循环标记</desc>
+  <rect width="256" height="256" rx="56" fill="#101b30"/>
+  <path d="M56 60h34v80a18 18 0 0 0 18 18h24v34h-24a52 52 0 0 1-52-52Z" fill="#f4f8fb"/>
+  <path d="M114 60h32a54 54 0 0 1 54 54v24a54 54 0 0 1-54 54h-2v-34h2a20 20 0 0 0 20-20v-24a20 20 0 0 0-20-20h-32Z" fill="#40cbe8"/>
+</svg>

@@ -75,6 +75,14 @@ $summary['xeapi_prepare'] = [
     'url' => $xeapi['url'],
     'token' => !empty($xeapi['options']['headers']['X-antiCheatToken']),
 ];
+parse_str((string)($xeapi['options']['body'] ?? ''), $xeapiForm);
+$summary['xeapi_prepare']['protocol'] = !empty($xeapiForm['C']) && empty($xeapiForm['B'])
+    ? 'csr'
+    : 'bsr';
+if ($summary['xeapi_prepare']['protocol'] !== 'csr') {
+    fwrite(STDERR, json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL);
+    exit(1);
+}
 
 $shareXeapi = $client->prepare('/api/share/friends/resource', [
     'type' => 'song',
@@ -89,7 +97,15 @@ $summary['share_xeapi_prepare'] = [
     'url' => $shareXeapi['url'],
     'token' => !empty($shareXeapi['options']['headers']['X-antiCheatToken']),
 ];
+parse_str((string)($shareXeapi['options']['body'] ?? ''), $shareXeapiForm);
+$summary['share_xeapi_prepare']['protocol'] = !empty($shareXeapiForm['C']) && empty($shareXeapiForm['B'])
+    ? 'csr'
+    : 'bsr';
 if (!$summary['share_xeapi_prepare']['token']) {
+    fwrite(STDERR, json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL);
+    exit(1);
+}
+if ($summary['share_xeapi_prepare']['protocol'] !== 'csr') {
     fwrite(STDERR, json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL);
     exit(1);
 }

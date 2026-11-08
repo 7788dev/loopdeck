@@ -338,6 +338,7 @@ $sdk = new Client([
         'publicKey' => base64_encode(sodium_crypto_scalarmult_base($peerSecret)),
         'version' => 'workflow-v1',
         'sk' => 'workflow-key',
+        'protocol' => 'bsr',
     ],
     'anti_cheat_token_v3' => 'workflow-token',
 ], $transport);

@@ -7,8 +7,8 @@ use Throwable;
 
 final class Client
 {
-    public const UPSTREAM_VERSION = '4.40.1';
-    public const UPSTREAM_COMMIT = 'f5ce55bcb46e29c8e5350ca796fb1cc9d9914acd';
+    public const UPSTREAM_VERSION = '4.41.1';
+    public const UPSTREAM_COMMIT = '2db6684453297ee86dec0492842f2320b08182d9';
 
     private const NMTID_PROBE_LIMIT = 3;
 
@@ -54,7 +54,7 @@ final class Client
         'api_osx' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     ];
 
-    private static ?array $sharedXeapiPublicKey = null;
+    private static array $sharedXeapiPublicKeys = [];
     private static string $sharedAntiCheatTokenV3 = '';
 
     private TransportInterface $transport;
@@ -71,6 +71,7 @@ final class Client
     private string $anonymousToken = '';
     private string $antiCheatTokenV3 = '';
     private ?array $xeapiPublicKey = null;
+    private string $xeapiProtocol = 'csr';
     private string $xeapiSessionId = '';
     private string $xeapiSessionKey = '';
     private bool $registeringAnonymous = false;
@@ -86,6 +87,8 @@ final class Client
             'api_domain' => 'https://interface.music.163.com',
             'eapi_domain' => 'https://interfacepc.music.163.com',
             'xeapi_domain' => 'https://interface3.music.163.com',
+            'xeapi_protocol' => 'csr',
+            'xeapi_fallback' => true,
             'timeout' => 30.0,
             'connect_timeout' => 15.0,
             'verify' => true,
@@ -97,6 +100,8 @@ final class Client
         ], $config);
         $this->transport = $transport ?? new GuzzleTransport();
         $this->crypto = $crypto ?? new Crypto();
+        $protocol = strtolower((string)$this->config['xeapi_protocol']);
+        $this->xeapiProtocol = in_array($protocol, ['csr', 'bsr', 'auto'], true) ? $protocol : 'csr';
         $this->userId = (string)($session['user_id'] ?? $session['uid'] ?? '');
 
         $csrf = (string)($session['csrf'] ?? $session['__csrf'] ?? '');
@@ -318,6 +323,7 @@ final class Client
             $url = ($domain !== '' ? $domain : $this->config['domain']) . '/api/linux/forward';
         } elseif ($crypto === 'xeapi') {
             $state = $this->ensureXeapiPublicKey();
+            $protocol = (string)($state['protocol'] ?? 'bsr');
             $profile = self::PROFILES['android'];
             $appver = ($cookies['os'] ?? '') === 'android' && !empty($cookies['appver'])
                 ? (string)$cookies['appver']
@@ -356,6 +362,7 @@ final class Client
                 'os' => 'android',
                 'method' => 'POST',
                 'content_type' => 'application/x-www-form-urlencoded;charset=utf-8',
+                'protocol' => $protocol,
             ], $this->xeapiSessionId, $this->xeapiSessionKey);
             $url = ($domain !== '' ? $domain : $this->config['xeapi_domain']) . '/xeapi/' . substr($uri, 5);
         } else {
@@ -736,21 +743,95 @@ final class Client
 
     private function ensureXeapiPublicKey(): array
     {
-        if ($this->xeapiPublicKey !== null && !empty($this->config['xeapi_public_key'])) {
+        $provided = $this->config['xeapi_public_key'] ?? null;
+        if (is_array($provided) && $provided !== []) {
+            $state = $provided;
+            $protocol = strtolower((string)($state['protocol'] ?? ''));
+            if ($protocol === '') {
+                $protocol = 'bsr';
+            }
+            $state['protocol'] = $protocol === 'csr' ? 'csr' : 'bsr';
+            $this->xeapiPublicKey = $state;
+            return $state;
+        }
+
+        $errors = [];
+        foreach ($this->xeapiProtocolCandidates() as $protocol) {
+            $state = $this->xeapiPublicKeyForProtocol($protocol, $errors);
+            if ($state !== null) {
+                $this->xeapiProtocol = $protocol;
+                return $state;
+            }
+        }
+        throw new RuntimeException(
+            'XEAPI public key request failed' . ($errors === [] ? '' : ': ' . implode('; ', $errors))
+        );
+    }
+
+    /** @return array<int,string> */
+    private function xeapiProtocolCandidates(): array
+    {
+        if ($this->xeapiProtocol === 'auto') {
+            return ['csr', 'bsr'];
+        }
+        $candidates = [$this->xeapiProtocol];
+        if ($this->xeapiProtocol === 'csr' && $this->xeapiFallbackEnabled()) {
+            $candidates[] = 'bsr';
+        }
+        return $candidates;
+    }
+
+    private function xeapiFallbackEnabled(): bool
+    {
+        $value = $this->config['xeapi_fallback'] ?? true;
+        if (is_bool($value)) {
+            return $value;
+        }
+        return !in_array(strtolower(trim((string)$value)), ['0', 'false', 'off', 'no'], true);
+    }
+
+    private function xeapiPublicKeyForProtocol(string $protocol, array &$errors): ?array
+    {
+        if ($this->xeapiPublicKey !== null && $this->xeapiStateProtocol($this->xeapiPublicKey) === $protocol) {
             return $this->xeapiPublicKey;
         }
-        if (self::$sharedXeapiPublicKey !== null) {
-            $this->xeapiPublicKey = self::$sharedXeapiPublicKey;
-            return self::$sharedXeapiPublicKey;
+        $shared = self::$sharedXeapiPublicKeys[$protocol] ?? null;
+        if (is_array($shared) && $this->xeapiStateProtocol($shared) === $protocol) {
+            $this->xeapiPublicKey = $shared;
+            return $shared;
         }
-        $cached = $this->xeapiPublicKey ?? $this->readCache('xeapi_public_key.json', true);
+
+        $cached = $this->readCache($this->xeapiCacheName($protocol), true);
+        if (!is_array($cached)) {
+            $cached = [];
+        }
+        if ($cached !== []) {
+            $cached['protocol'] = $protocol;
+        }
+
+        $error = '';
+        $fetched = $this->fetchXeapiPublicKey($protocol, $cached, $error);
+        if ($fetched !== null) {
+            return $fetched;
+        }
+        if ($this->xeapiStateValid($cached)) {
+            $this->xeapiPublicKey = $cached;
+            self::$sharedXeapiPublicKeys[$protocol] = $cached;
+            return $cached;
+        }
+        $errors[] = $protocol . ': ' . ($error !== '' ? $error : 'unavailable');
+        return null;
+    }
+
+    private function fetchXeapiPublicKey(string $protocol, array $cached, string &$error): ?array
+    {
         $nonce = '';
         for ($i = 0; $i < 16; $i++) {
             $nonce .= (string)random_int(0, 9);
         }
         $timestamp = (string)round(microtime(true) * 1000);
         $data = [
-            'appVersion' => '9.1.65',
+            'appVersion' => $protocol === 'csr' ? '9.5.61' : '9.1.65',
             'currentKeyVersion' => (string)($cached['version'] ?? ''),
             'deviceId' => $this->deviceId,
             'nonce' => $nonce,
@@ -762,39 +843,67 @@ final class Client
             'timestamp' => $timestamp,
             'uid' => '',
         ];
-        $response = $this->transport->request('POST', $this->config['api_domain'] . '/api/gorilla/anti/crawler/security/key/get', array_replace($this->baseOptions([]), [
-            'headers' => [
-                'User-Agent' => self::USER_AGENTS['api_android'],
-                'Cookie' => 'deviceId=' . $this->encodeComponent($this->deviceId),
-            ],
-            'form_params' => $data,
-        ]));
+        $url = $this->config['api_domain'] . ($protocol === 'csr'
+            ? '/api/bsr/sk/get'
+            : '/api/gorilla/anti/crawler/security/key/get');
+        try {
+            $response = $this->transport->request('POST', $url, array_replace($this->baseOptions([]), [
+                'headers' => [
+                    'User-Agent' => self::USER_AGENTS['api_android'],
+                    'Cookie' => 'deviceId=' . $this->encodeComponent($this->deviceId),
+                ],
+                'form_params' => $data,
+            ]));
+        } catch (Throwable $exception) {
+            $error = 'transport failed: ' . $exception->getMessage();
+            return null;
+        }
         $body = json_decode((string)($response['body'] ?? ''), true);
-        if (is_array($body) && ($body['code'] ?? 0) === 200 && !empty($body['data']['encryptedData'])) {
-            $signature = (string)($body['data']['signature'] ?? '');
-            $responseTimestamp = (string)($body['data']['timestamp'] ?? '');
-            if ($signature === '' || !hash_equals($this->crypto->xeapiSign($responseTimestamp, $nonce), $signature)) {
-                throw new RuntimeException('XEAPI public key response signature mismatch');
-            }
+        if (!is_array($body) || ($body['code'] ?? 0) !== 200 || empty($body['data']['encryptedData'])) {
+            $error = 'HTTP ' . (int)($response['status'] ?? 0) . ' code '
+                . (is_array($body) ? (string)($body['code'] ?? '?') : 'invalid');
+            return null;
+        }
+        $signature = (string)($body['data']['signature'] ?? '');
+        $responseTimestamp = (string)($body['data']['timestamp'] ?? '');
+        if ($signature === '' || !hash_equals($this->crypto->xeapiSign($responseTimestamp, $nonce), $signature)) {
+            $error = 'response signature mismatch';
+            return null;
+        }
+        try {
             $state = $this->crypto->decryptXeapiPublicKey((string)$body['data']['encryptedData']);
-            if (empty($state['sk']) && !empty($cached['sk'])) {
-                $state['sk'] = $cached['sk'];
-            }
-            if (empty($state['sk']) || empty($state['publicKey']) || empty($state['version'])) {
-                throw new RuntimeException('XEAPI public key response is incomplete');
-            }
-            $state['deviceId'] = $this->deviceId;
-            $this->xeapiPublicKey = $state;
-            self::$sharedXeapiPublicKey = $state;
-            $this->writeCache('xeapi_public_key.json', $state);
-            return $state;
+        } catch (Throwable $exception) {
+            $error = 'response decrypt failed: ' . $exception->getMessage();
+            return null;
         }
-        if (is_array($cached) && !empty($cached['sk']) && !empty($cached['publicKey']) && !empty($cached['version'])) {
-            $this->xeapiPublicKey = $cached;
-            self::$sharedXeapiPublicKey = $cached;
-            return $cached;
+        if (empty($state['sk']) && !empty($cached['sk'])) {
+            $state['sk'] = $cached['sk'];
         }
-        throw new RuntimeException('XEAPI public key request failed');
+        if (!$this->xeapiStateValid($state)) {
+            $error = 'response incomplete';
+            return null;
+        }
+        $state['deviceId'] = $this->deviceId;
+        $state['protocol'] = $protocol;
+        $this->xeapiPublicKey = $state;
+        self::$sharedXeapiPublicKeys[$protocol] = $state;
+        $this->writeCache($this->xeapiCacheName($protocol), $state);
+        return $state;
+    }
+
+    private function xeapiCacheName(string $protocol): string
+    {
+        return $protocol === 'csr' ? 'xeapi_public_key_csr.json' : 'xeapi_public_key.json';
+    }
+
+    private function xeapiStateProtocol(array $state): string
+    {
+        return strtolower((string)($state['protocol'] ?? '')) === 'csr' ? 'csr' : 'bsr';
+    }
+
+    private function xeapiStateValid(array $state): bool
+    {
+        return !empty($state['sk']) && !empty($state['publicKey']) && !empty($state['version']);
     }
 
     private function ensureAntiCheatTokenV3(): string

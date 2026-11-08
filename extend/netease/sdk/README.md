@@ -1,8 +1,8 @@
 # NetEase Cloud Music PHP SDK
 
 This directory contains the project's native PHP implementation of the request
-layer from `NeteaseCloudMusicApiEnhanced/api-enhanced` 4.40.1, commit
-`f5ce55bcb46e29c8e5350ca796fb1cc9d9914acd`.
+layer from `NeteaseCloudMusicApiEnhanced/api-enhanced` 4.41.1, commit
+`2db6684453297ee86dec0492842f2320b08182d9`.
 
 Supported request modes:
 
@@ -10,7 +10,8 @@ Supported request modes:
 - `weapi` (AES-CBC plus RSA)
 - `eapi` (AES-ECB plus request digest)
 - `linuxapi`
-- `xeapi` (X25519, AES-GCM, AES-ECB, session reuse, and encrypted responses)
+- `xeapi` (4.41.1 CSR by default with legacy BSR fallback; X25519, AES-GCM,
+  AES-ECB, session reuse, and encrypted responses)
 - desktop NCBL v3 client logs (`_plv`/`_pld`, ChaCha20, RSA key wrap,
   gzip framing, and verified multipart uploads)
 
@@ -20,11 +21,20 @@ and persistent protocol state. The existing `netease\Netease` class is the
 project-specific compatibility facade and sends all NetEase requests through
 this SDK.
 
+XEAPI uses the upstream 4.41.1 CSR shape by default: the key handshake posts
+to `/api/bsr/sk/get`, form bodies travel as a UTF-8 `content` field, the mask
+rotates raw bytes, and the outer ciphertext is returned as unpadded base64url
+in `C`. A CSR key-handshake failure falls back to the legacy BSR key endpoint
+and BSR request shape before the business request is sent; a business request
+is never replayed across protocols. Set `xeapi_protocol` to `bsr` to force the
+legacy shape, `auto` to try CSR then BSR, or `xeapi_fallback` to `false` to
+surface CSR key failures.
+
 VIP growth coverage in the compatibility facade follows the upstream 4.40.1
-modules: growth summary/details, legacy and v1 task lists, targeted/all reward
-claims, Black Vinyl LeQian sign/detail/history/info, and the Black Vinyl time
-machine. `vip_growth_task()` combines the non-destructive daily actions into the
-project scheduler.
+modules (unchanged in 4.41.1): growth summary/details, legacy and v1 task
+lists, targeted/all reward claims, Black Vinyl LeQian sign/detail/history/info,
+and the Black Vinyl time machine. `vip_growth_task()` combines the
+non-destructive daily actions into the project scheduler.
 
 音乐人任务协议已核对至 api-enhanced 4.40.1 的
 `a8c781fd64faab17fedfd46e0615a2609307f163`（2026-09-12）：周期/阶段任务、

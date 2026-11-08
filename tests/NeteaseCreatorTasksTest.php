@@ -101,6 +101,7 @@ function creatorFixture(array $responses, array $config = []): array
             'publicKey' => base64_encode(sodium_crypto_scalarmult_base($peerSecret)),
             'version' => 'fixture-version',
             'sk' => 'fixture-key',
+            'protocol' => 'bsr',
         ],
         'anti_cheat_token_v3' => 'fixture-token',
     ], $transport, new Crypto(null, static fn(): string => '0123456789abcdef'));

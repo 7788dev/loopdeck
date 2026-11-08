@@ -36,6 +36,88 @@ final class RecordingTransport implements TransportInterface
 }
 
 /**
+ * Answers XEAPI key handshakes with a correctly signed, encrypted key state.
+ * Selected key URLs can fail so the CSR-to-BSR fallback can be exercised.
+ */
+final class XeapiKeyTransport implements TransportInterface
+{
+    public array $requests = [];
+
+    /** @param array<int,string> $failFragments */
+    public function __construct(private array $failFragments = [])
+    {
+    }
+
+    public function request(string $method, string $url, array $options = []): array
+    {
+        $this->requests[] = compact('method', 'url', 'options');
+        foreach ($this->failFragments as $fragment) {
+            if (str_contains($url, $fragment)) {
+                return [
+                    'status' => 500,
+                    'headers' => [],
+                    'body' => '{"code":500}',
+                    'header' => '',
+                    'set_cookie' => [],
+                ];
+            }
+        }
+        if (str_contains($url, '/api/bsr/sk/get')) {
+            return $this->keyResponse('csr', $options);
+        }
+        if (str_contains($url, '/api/gorilla/anti/crawler/security/key/get')) {
+            return $this->keyResponse('bsr', $options);
+        }
+        return [
+            'status' => 200,
+            'headers' => [],
+            'body' => '{"code":200}',
+            'header' => '',
+            'set_cookie' => [],
+        ];
+    }
+
+    private function keyResponse(string $protocol, array $options): array
+    {
+        $form = is_array($options['form_params'] ?? null) ? $options['form_params'] : [];
+        $nonce = (string)($form['nonce'] ?? '');
+        $timestamp = (string)($form['timestamp'] ?? '');
+        $secret = str_repeat($protocol === 'csr' ? "\x55" : "\x66", 32);
+        $state = [
+            'publicKey' => base64_encode(sodium_crypto_scalarmult_base($secret)),
+            'version' => $protocol . '-version',
+            'sk' => $protocol . '-key',
+        ];
+        $encrypted = openssl_encrypt(
+            $this->json($state),
+            'aes-256-ecb',
+            (string)hex2bin('ab1d5a430f6bb04a3f01e81ddd72bd916d5ce591248ac128714806d7f8fb1b84'),
+            OPENSSL_RAW_DATA
+        );
+        return [
+            'status' => 200,
+            'headers' => [],
+            'body' => $this->json([
+                'code' => 200,
+                'data' => [
+                    'encryptedData' => base64_encode((string)$encrypted),
+                    'signature' => (new Crypto())->xeapiSign($timestamp, $nonce),
+                    'timestamp' => $timestamp,
+                ],
+            ]),
+            'header' => '',
+            'set_cookie' => [],
+        ];
+    }
+
+    private function json(array $value): string
+    {
+        $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return $json === false ? '{}' : $json;
+    }
+}
+
+/**
  * Transport probe used to verify that requestMany performs the NMTID
  * handshake before handing the remaining requests to the concurrent pool.
  */
@@ -95,6 +177,24 @@ function decodeFormBody(string $body): array
     return is_array($decoded) ? $decoded : [];
 }
 
+function decodeBase64Url(string $value): string
+{
+    $value = strtr($value, '-_', '+/');
+    $padding = strlen($value) % 4;
+    if ($padding !== 0) {
+        $value .= str_repeat('=', 4 - $padding);
+    }
+    $decoded = base64_decode($value, true);
+    return is_string($decoded) ? $decoded : '';
+}
+
+function resetSharedXeapiKeys(): void
+{
+    $property = (new ReflectionClass(Client::class))->getProperty('sharedXeapiPublicKeys');
+    $property->setAccessible(true);
+    $property->setValue(null, []);
+}
+
 $crypto = new Crypto();
 $eapi = $crypto->eapi('/api/test', ['name' => 'music', 'e_r' => false]);
 $decodedEapi = $crypto->decryptEapiRequest($eapi['params']);
@@ -137,6 +237,7 @@ $publicKeyState = [
     'publicKey' => base64_encode($peerPublic),
     'version' => 'test-v1',
     'sk' => 'server-key',
+    'protocol' => 'bsr',
 ];
 $xeapi = $deterministicCrypto->xeapi('/api/resource/comments/add', [
     'threadId' => 'R_SO_4_1',
@@ -183,6 +284,46 @@ check(($xeapiEnvelope['queryString'] ?? '') === 'e_r=true', 'XEAPI query envelop
 $xeapiBody = [];
 parse_str(base64_decode($xeapiEnvelope['body'], true), $xeapiBody);
 check(($xeapiBody['threadId'] ?? '') === 'R_SO_4_1', 'XEAPI form body is invalid');
+
+// api-enhanced 4.41.1 switched XEAPI from BSR to CSR: the body travels as a
+// UTF-8 `content` field, the mask rotates raw bytes, and the outer ciphertext
+// is returned as unpadded base64url in `C`.
+$csrRandomQueue = [$dynamicKey, $mask, $ephemeralSecret, $iv];
+$csrCrypto = new Crypto(static function (int $length) use (&$csrRandomQueue): string {
+    $value = array_shift($csrRandomQueue);
+    check(is_string($value) && strlen($value) === $length, 'Unexpected CSR random byte request');
+    return $value;
+});
+$csrXeapi = $csrCrypto->xeapi('/api/resource/comments/add', [
+    'threadId' => 'R_SO_4_1',
+    'content' => 'hello',
+    'e_r' => true,
+], $publicKeyState, ['os' => 'android', 'protocol' => 'csr']);
+check(!isset($csrXeapi['B']) && isset($csrXeapi['C']), 'CSR XEAPI must return C instead of B');
+check(
+    preg_match('/^[A-Za-z0-9_-]+$/', $csrXeapi['C']) === 1 && !str_contains($csrXeapi['C'], '='),
+    'CSR XEAPI C field is not unpadded base64url'
+);
+$csrMiddle = openssl_decrypt(decodeBase64Url($csrXeapi['C']), 'aes-128-ecb', $dynamicKey, OPENSSL_RAW_DATA);
+check(is_string($csrMiddle), 'CSR XEAPI C outer layer could not be decrypted');
+$csrMask = substr($csrMiddle, 0, 16);
+$csrRotated = substr($csrMiddle, 16);
+$csrRotation = (ord($csrMask[0]) & 15) % strlen($csrRotated);
+$csrXored = $csrRotation === 0
+    ? $csrRotated
+    : substr($csrRotated, -$csrRotation) . substr($csrRotated, 0, -$csrRotation);
+$csrEncryptedInner = '';
+for ($i = 0, $length = strlen($csrXored); $i < $length; $i++) {
+    $csrEncryptedInner .= $csrXored[$i] ^ $csrMask[$i & 15];
+}
+$csrPlain = openssl_decrypt($csrEncryptedInner, 'aes-256-ecb', $staticKey, OPENSSL_RAW_DATA);
+$csrEnvelope = json_decode((string)$csrPlain, true);
+check(($csrEnvelope['queryString'] ?? '') === 'e_r=true', 'CSR XEAPI query envelope is invalid');
+check(
+    ($csrEnvelope['content'] ?? '') === 'threadId=R_SO_4_1&content=hello',
+    'CSR XEAPI content field does not match URLSearchParams form encoding'
+);
+check(!isset($csrEnvelope['body']), 'CSR XEAPI unexpectedly used the legacy base64 body field');
 
 $transport = new RecordingTransport();
 $client = new Client([
@@ -329,6 +470,177 @@ check($preparedXeapi['url'] === 'https://interface3.music.163.com/xeapi/resource
 check(($preparedXeapi['options']['headers']['X-antiCheatToken'] ?? '') === 'anti-token', 'XEAPI anti-cheat token is missing');
 $preparedXeapiForm = decodeFormBody($preparedXeapi['options']['body']);
 check(isset($preparedXeapiForm['B'], $preparedXeapiForm['S'], $preparedXeapiForm['R']), 'XEAPI form is incomplete');
+
+$csrPublicKeyState = $publicKeyState;
+$csrPublicKeyState['protocol'] = 'csr';
+$csrClient = new Client([
+    'user_id' => 1,
+    'csrf' => 'csrf-value',
+    'music_u' => 'music-u-value',
+], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+    'xeapi_protocol' => 'csr',
+    'xeapi_public_key' => $csrPublicKeyState,
+    'anti_cheat_token_v3' => 'anti-token',
+], new RecordingTransport());
+$preparedCsrXeapi = $csrClient->prepare('/api/resource/comments/add', ['threadId' => 'R_SO_4_1'], 'xeapi', [
+    'check_token' => 'v3',
+    'os' => 'android',
+]);
+$preparedCsrXeapiForm = decodeFormBody($preparedCsrXeapi['options']['body']);
+check(
+    isset($preparedCsrXeapiForm['C'], $preparedCsrXeapiForm['S'], $preparedCsrXeapiForm['R'])
+        && !isset($preparedCsrXeapiForm['B']),
+    'CSR XEAPI prepared form is incomplete'
+);
+
+$businessFailureTransport = new RecordingTransport([[
+    'status' => 500,
+    'body' => '{"code":500}',
+]]);
+$businessFailureClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+    'xeapi_protocol' => 'csr',
+    'xeapi_public_key' => $csrPublicKeyState,
+], $businessFailureTransport);
+$businessFailure = $businessFailureClient->request('/api/resource/comments/add', [
+    'threadId' => 'R_SO_4_1',
+    'content' => 'hello',
+], 'xeapi', ['skip_anonymous' => true]);
+check(count($businessFailureTransport->requests) === 1, 'A failed CSR business request was replayed');
+check(
+    str_contains($businessFailureTransport->requests[0]['url'], '/xeapi/resource/comments/add'),
+    'A CSR business failure used the wrong retry target'
+);
+check(
+    (int)(json_decode($businessFailure['body'], true)['code'] ?? 0) === -1,
+    'A failed CSR business request did not surface as an SDK error'
+);
+
+resetSharedXeapiKeys();
+$csrKeyTransport = new XeapiKeyTransport();
+$csrKeyClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+    'xeapi_protocol' => 'csr',
+], $csrKeyTransport);
+$csrKeyPrepared = $csrKeyClient->prepare('/api/vipnewcenter/app/level/task/list', [], 'xeapi', [
+    'skip_anonymous' => true,
+]);
+check(count($csrKeyTransport->requests) === 1, 'CSR key handshake did not issue exactly one request');
+check(str_contains($csrKeyTransport->requests[0]['url'], '/api/bsr/sk/get'), 'CSR key handshake used the wrong endpoint');
+check(
+    ($csrKeyTransport->requests[0]['options']['form_params']['appVersion'] ?? '') === '9.5.61',
+    'CSR key handshake used the wrong appVersion'
+);
+$csrKeyForm = decodeFormBody($csrKeyPrepared['options']['body']);
+check(
+    isset($csrKeyForm['C'], $csrKeyForm['S'], $csrKeyForm['R']) && !isset($csrKeyForm['B']),
+    'CSR key handshake did not prepare a CSR request'
+);
+
+resetSharedXeapiKeys();
+$fallbackTransport = new XeapiKeyTransport(['/api/bsr/sk/get']);
+$fallbackClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+    'xeapi_protocol' => 'csr',
+], $fallbackTransport);
+$fallbackPrepared = $fallbackClient->prepare('/api/vipnewcenter/app/level/task/list', [], 'xeapi', [
+    'skip_anonymous' => true,
+]);
+check(count($fallbackTransport->requests) === 2, 'CSR failure did not fall back to BSR');
+check(str_contains($fallbackTransport->requests[0]['url'], '/api/bsr/sk/get'), 'CSR fallback did not try CSR first');
+check(
+    str_contains($fallbackTransport->requests[1]['url'], '/api/gorilla/anti/crawler/security/key/get'),
+    'CSR fallback did not use the legacy key endpoint'
+);
+check(
+    ($fallbackTransport->requests[1]['options']['form_params']['appVersion'] ?? '') === '9.1.65',
+    'BSR fallback used the wrong appVersion'
+);
+$fallbackForm = decodeFormBody($fallbackPrepared['options']['body']);
+check(
+    isset($fallbackForm['B'], $fallbackForm['S'], $fallbackForm['R']) && !isset($fallbackForm['C']),
+    'BSR fallback did not prepare a legacy request'
+);
+
+resetSharedXeapiKeys();
+$noFallbackTransport = new XeapiKeyTransport(['/api/bsr/sk/get']);
+$noFallbackClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+    'xeapi_protocol' => 'csr',
+    'xeapi_fallback' => false,
+], $noFallbackTransport);
+$noFallbackThrew = false;
+try {
+    $noFallbackClient->prepare('/api/vipnewcenter/app/level/task/list', [], 'xeapi', [
+        'skip_anonymous' => true,
+    ]);
+} catch (RuntimeException $exception) {
+    $noFallbackThrew = str_contains($exception->getMessage(), 'csr:');
+}
+check($noFallbackThrew, 'Disabled CSR fallback did not surface the CSR key failure');
+check(count($noFallbackTransport->requests) === 1, 'Disabled CSR fallback still contacted the BSR endpoint');
+
+resetSharedXeapiKeys();
+$bsrKeyTransport = new XeapiKeyTransport();
+$bsrKeyClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => '',
+    'xeapi_protocol' => 'bsr',
+], $bsrKeyTransport);
+$bsrKeyPrepared = $bsrKeyClient->prepare('/api/vipnewcenter/app/level/task/list', [], 'xeapi', [
+    'skip_anonymous' => true,
+]);
+check(count($bsrKeyTransport->requests) === 1, 'Explicit BSR mode did not issue exactly one key request');
+check(
+    str_contains($bsrKeyTransport->requests[0]['url'], '/api/gorilla/anti/crawler/security/key/get'),
+    'Explicit BSR mode used the wrong key endpoint'
+);
+check(
+    ($bsrKeyTransport->requests[0]['options']['form_params']['appVersion'] ?? '') === '9.1.65',
+    'Explicit BSR mode used the wrong appVersion'
+);
+$bsrKeyForm = decodeFormBody($bsrKeyPrepared['options']['body']);
+check(
+    isset($bsrKeyForm['B'], $bsrKeyForm['S'], $bsrKeyForm['R']) && !isset($bsrKeyForm['C']),
+    'Explicit BSR mode did not prepare a legacy request'
+);
+
+resetSharedXeapiKeys();
+$xeapiCacheDir = sys_get_temp_dir() . '/loopdeck-xeapi-cache-' . getmypid();
+@mkdir($xeapiCacheDir, 0700, true);
+$cacheCsrClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => $xeapiCacheDir,
+    'xeapi_protocol' => 'csr',
+], new XeapiKeyTransport());
+$cacheCsrClient->prepare('/api/vipnewcenter/app/level/task/list', [], 'xeapi', ['skip_anonymous' => true]);
+check(
+    is_file($xeapiCacheDir . '/xeapi_public_key_csr.json'),
+    'CSR public key was not cached under its own file'
+);
+check(
+    !is_file($xeapiCacheDir . '/xeapi_public_key.json'),
+    'CSR public key overwrote the legacy BSR cache'
+);
+$cacheBsrClient = new Client([], [
+    'auto_anonymous_token' => false,
+    'cache_dir' => $xeapiCacheDir,
+    'xeapi_protocol' => 'bsr',
+], new XeapiKeyTransport());
+$cacheBsrClient->prepare('/api/vipnewcenter/app/level/task/list', [], 'xeapi', ['skip_anonymous' => true]);
+check(
+    is_file($xeapiCacheDir . '/xeapi_public_key.json'),
+    'BSR public key was not cached under the legacy file'
+);
+@unlink($xeapiCacheDir . '/xeapi_public_key_csr.json');
+@unlink($xeapiCacheDir . '/xeapi_public_key.json');
+@rmdir($xeapiCacheDir);
 
 $client->rawRequest('GET', 'https://example.test/resource', ['cookie' => null]);
 check(str_contains($transport->requests[0]['options']['headers']['Cookie'] ?? '', 'MUSIC_U=music-u-value'), 'Raw request with a null cookie did not inherit the session');

@@ -109,6 +109,7 @@ PEM;
         string $sessionId = '',
         string $sessionKey = ''
     ): array {
+        $protocol = strtolower((string)($options['protocol'] ?? 'bsr')) === 'csr' ? 'csr' : 'bsr';
         if (empty($publicKeyState['publicKey']) || empty($publicKeyState['version'])) {
             throw new RuntimeException('XEAPI public key state is incomplete');
         }
@@ -117,15 +118,22 @@ PEM;
         if (!in_array(strlen($dynamicKey), [16, 24, 32], true)) {
             throw new RuntimeException('Invalid XEAPI session key length');
         }
+        $options['protocol'] = $protocol;
         $plain = $this->buildXeapiPlaintext($uri, $data, $options);
         $inner = $this->aesEncrypt($plain, 'aes-256-ecb', $this->xeapiStaticKey());
-        $middle = $this->xeapiMidTransform($inner);
-        $b = $this->aesEncrypt($middle, $this->ecbCipherForKey($dynamicKey), $dynamicKey);
+        $middle = $this->xeapiMidTransform($inner, $protocol);
+        $encrypted = $this->aesEncrypt($middle, $this->ecbCipherForKey($dynamicKey), $dynamicKey);
         $s = $this->xeapiEncryptSession($dynamicKey, $publicKeyState, (string)($options['os'] ?? 'android'));
         $rPlain = (string)$publicKeyState['version'] . '|' . ($sessionKey !== '' ? $sessionId : '');
         $r = $this->aesEncrypt($rPlain, 'aes-256-ecb', $this->xeapiStaticKey());
 
-        return ['B' => base64_encode($b), 'S' => base64_encode($s), 'R' => base64_encode($r)];
+        return [
+            $protocol === 'csr' ? 'C' : 'B' => $protocol === 'csr'
+                ? $this->base64Url($encrypted)
+                : base64_encode($encrypted),
+            'S' => base64_encode($s),
+            'R' => base64_encode($r),
+        ];
     }
 
     public function decryptXeapiResponse(string $body): array
@@ -143,9 +151,11 @@ PEM;
 
     public function buildXeapiPlaintext(string $uri, array $data, array $options = []): string
     {
+        $protocol = strtolower((string)($options['protocol'] ?? 'bsr')) === 'csr' ? 'csr' : 'bsr';
         $fields = [];
         $contentType = (string)($options['content_type'] ?? 'application/x-www-form-urlencoded;charset=utf-8');
-        if (strtolower(strtok($contentType, ';')) !== 'application/x-www-form-urlencoded') {
+        $mediaType = strtolower((string)strtok($contentType, ';'));
+        if ($mediaType !== 'application/x-www-form-urlencoded') {
             $fields['contentType'] = $contentType;
         }
         $method = strtoupper((string)($options['method'] ?? 'POST'));
@@ -157,7 +167,16 @@ PEM;
             $fields['queryString'] = $query;
         }
         unset($data['e_r']);
-        $fields['body'] = base64_encode(self::formEncode($data));
+        $body = self::formEncode($data);
+        if ($protocol === 'csr' && $body !== '' && $mediaType === 'application/x-www-form-urlencoded') {
+            if (preg_match('//u', $body) === 1) {
+                $fields['content'] = $body;
+            } else {
+                $fields['body'] = base64_encode($body);
+            }
+        } else {
+            $fields['body'] = base64_encode($body);
+        }
         $fields['queryString'] = ($fields['queryString'] ?? '') !== ''
             ? $fields['queryString'] . '&e_r=true'
             : 'e_r=true';
@@ -202,7 +221,7 @@ PEM;
         return $public . $iv . $encrypted . $tag;
     }
 
-    private function xeapiMidTransform(string $ciphertext): string
+    private function xeapiMidTransform(string $ciphertext, string $protocol = 'bsr'): string
     {
         $mask = $this->bytes(16);
         $xored = '';
@@ -210,9 +229,18 @@ PEM;
         for ($i = 0; $i < $length; $i++) {
             $xored .= $ciphertext[$i] ^ $mask[$i & 15];
         }
+        if ($protocol === 'csr') {
+            $rotation = strlen($xored) > 0 ? (ord($mask[0]) & 15) % strlen($xored) : 0;
+            return $mask . substr($xored, $rotation) . substr($xored, 0, $rotation);
+        }
         $base64 = base64_encode($xored);
         $rotation = strlen($base64) > 0 ? (ord($mask[0]) & 15) % strlen($base64) : 0;
         return $mask . substr($base64, $rotation) . substr($base64, 0, $rotation);
+    }
+
+    private function base64Url(string $value): string
+    {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
     }
 
     private function aesEncrypt(string $plain, string $cipher, string $key, string $iv = ''): string

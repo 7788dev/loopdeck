@@ -1,0 +1,118 @@
+{
+  "upstream_version": "4.41.1",
+  "upstream_commit": "2db6684453297ee86dec0492842f2320b08182d9",
+  "source": "https://github.com/neteasecloudmusicapienhanced/api-enhanced/blob/2db6684453297ee86dec0492842f2320b08182d9/util/crypto.js",
+  "state": {
+    "publicKey": "e06Qm75//kTEZaIgA31gjuNYl9Me+XLwf3SJLLD3PxM=",
+    "version": "test-v1",
+    "sk": "server-key"
+  },
+  "entropy": {
+    "dynamic_key": "33333333333333333333333333333333",
+    "mask": "6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a",
+    "ephemeral_private": "2222222222222222222222222222222222222222222222222222222222222222",
+    "iv": "444444444444444444444444"
+  },
+  "cases": [
+    {
+      "name": "comment",
+      "uri": "/api/resource/comments/add",
+      "data": {
+        "threadId": "R_SO_4_1",
+        "content": "好听 hello",
+        "e_r": true
+      },
+      "options": {},
+      "expected": {
+        "C": "I8P0OX5UWdO0g4oF6_ST_NSh0i_PuhOUfAp1xAMbXh4BckQZXAMfhkUgya5b70yOuwQVllDk9E57aMcv8Vd7FCzLf6lR9ww76uOChYntQkX7tv-I7aVksbgE8yfqkCR1ieZczwB76Dnf3geSChU0dBOnydrlS3wdJjTYz9Rpf30",
+        "S": "D6poTtKIZ7l/Smot7l34zpdOdrcBjj8iocTPJnhXDyBERERERERERERERESoVXYS9nTuQ67O06EjxNSlkI1oZwGaaRrds8wNx1No0DEQXtBPmRo7zkaf3SqBdfXl7hO5eIJ1qvY2AA==",
+        "R": "ApIu46TLxblPwgbfHj9WoQ=="
+      }
+    },
+    {
+      "name": "empty",
+      "uri": "/api/vipnewcenter/app/level/task/list",
+      "data": {},
+      "options": {},
+      "expected": {
+        "C": "I8P0OX5UWdO0g4oF6_ST_NfiuHOqtQYL0KWHU6_FVozZ4tixctynY7ysnrTy67C0E6fJ2uVLfB0mNNjP1Gl_fQ",
+        "S": "D6poTtKIZ7l/Smot7l34zpdOdrcBjj8iocTPJnhXDyBERERERERERERERESoVXYS9nTuQ67O06EjxNSlkI1oZwGaaRrds8wNx1No0DEQXtBPmRo7zkaf3SqBdfXl7hO5eIJ1qvY2AA==",
+        "R": "ApIu46TLxblPwgbfHj9WoQ=="
+      }
+    },
+    {
+      "name": "empty-er",
+      "uri": "/api/vipnewcenter/app/level/task/list",
+      "data": {
+        "e_r": true
+      },
+      "options": {},
+      "expected": {
+        "C": "I8P0OX5UWdO0g4oF6_ST_NfiuHOqtQYL0KWHU6_FVozZ4tixctynY7ysnrTy67C0E6fJ2uVLfB0mNNjP1Gl_fQ",
+        "S": "D6poTtKIZ7l/Smot7l34zpdOdrcBjj8iocTPJnhXDyBERERERERERERERESoVXYS9nTuQ67O06EjxNSlkI1oZwGaaRrds8wNx1No0DEQXtBPmRo7zkaf3SqBdfXl7hO5eIJ1qvY2AA==",
+        "R": "ApIu46TLxblPwgbfHj9WoQ=="
+      }
+    },
+    {
+      "name": "query-and-method",
+      "uri": "/api/test?offset=2",
+      "data": {
+        "ids": "1,2",
+        "flag": true
+      },
+      "options": {
+        "method": "PUT"
+      },
+      "expected": {
+        "C": "I8P0OX5UWdO0g4oF6_ST_PDThAh3qacCD0Om5hsw6rQjqlZdSOhsSF_wDOx56EeDtYJkh69RBpxiHqHxp-WE5lV4w3qfc0kzK77yzWDdFXn-4jlo43_HkKDRvmZ1au4Los2Ol3gl_kOPsByw1UbLnROnydrlS3wdJjTYz9Rpf30",
+        "S": "D6poTtKIZ7l/Smot7l34zpdOdrcBjj8iocTPJnhXDyBERERERERERERERESoVXYS9nTuQ67O06EjxNSlkI1oZwGaaRrds8wNx1No0DEQXtBPmRo7zkaf3SqBdfXl7hO5eIJ1qvY2AA==",
+        "R": "ApIu46TLxblPwgbfHj9WoQ=="
+      }
+    },
+    {
+      "name": "non-form",
+      "uri": "/api/test",
+      "data": {
+        "hello": "world"
+      },
+      "options": {
+        "contentType": "application/json"
+      },
+      "expected": {
+        "C": "I8P0OX5UWdO0g4oF6_ST_C46FKwLkFntIK_T_E_J-qFNe6oyR9n4G_Tn5F71TAgbkeVSTvhAfE9pSvye6902jmRRGhOweOQnG7wowxn3lsxt-6LUXIjnhSKB-D-ihihr-os8W0zX0ZGTRIES9pSN5ROnydrlS3wdJjTYz9Rpf30",
+        "S": "D6poTtKIZ7l/Smot7l34zpdOdrcBjj8iocTPJnhXDyBERERERERERERERESoVXYS9nTuQ67O06EjxNSlkI1oZwGaaRrds8wNx1No0DEQXtBPmRo7zkaf3SqBdfXl7hO5eIJ1qvY2AA==",
+        "R": "ApIu46TLxblPwgbfHj9WoQ=="
+      }
+    },
+    {
+      "name": "session",
+      "uri": "/api/resource/comments/delete",
+      "data": {
+        "threadId": "R_SO_4_1",
+        "commentId": "2"
+      },
+      "options": {
+        "sessionKey": "0123456789abcdef",
+        "sessionId": "test-session"
+      },
+      "expected": {
+        "C": "Dzzo7waPY16SOXD8WdocLFRE60DS0Z5tNlvwdMHKS1ULCELerc7BNPR2cPvYPchCuZCWuVzgPqBDPlFRha0zs3r51gwTQR6cnEKGQfphlpVYenjAB0Pqd5MZlCB4apArN3Ii4GGpJMWRzZwn6hY-1A",
+        "S": "D6poTtKIZ7l/Smot7l34zpdOdrcBjj8iocTPJnhXDyBERERERERERERERESoa34R9nTyCK3e/e8h6d+2hMV3cRaKaRrds8wNx1No0DEQXtBPmRo7zkafnZdYmU2AABH9eyDpYF/eRQ==",
+        "R": "YTMFDaPcDy45KR9J+CJcwK4wd2X2v89VbAu+tBkJ30I="
+      }
+    },
+    {
+      "name": "form-special",
+      "uri": "/api/resource/comments/add",
+      "data": {
+        "content": "a * ~ ! ( ) + 中文"
+      },
+      "options": {},
+      "expected": {
+        "C": "I8P0OX5UWdO0g4oF6_ST_DtOo2j8F7UHvnwr7iojT0bM9Vd02E--dKTL6SdMPrwZ4Zr8h0ZzqpYc1n3ch50ssDgDdQWwyfMtPETy3rLhYWL7tv-I7aVksbgE8yfqkCR1Mg4ih32njSGMAkh-fPduWBOnydrlS3wdJjTYz9Rpf30",
+        "S": "D6poTtKIZ7l/Smot7l34zpdOdrcBjj8iocTPJnhXDyBERERERERERERERESoVXYS9nTuQ67O06EjxNSlkI1oZwGaaRrds8wNx1No0DEQXtBPmRo7zkaf3SqBdfXl7hO5eIJ1qvY2AA==",
+        "R": "ApIu46TLxblPwgbfHj9WoQ=="
+      }
+    }
+  ]
+}

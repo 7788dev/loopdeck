@@ -168,11 +168,16 @@ PEM;
         }
         unset($data['e_r']);
         $body = self::formEncode($data);
-        if ($protocol === 'csr' && $body !== '' && $mediaType === 'application/x-www-form-urlencoded') {
-            if (preg_match('//u', $body) === 1) {
-                $fields['content'] = $body;
-            } else {
-                $fields['body'] = base64_encode($body);
+        if ($protocol === 'csr') {
+            // Match URLSearchParams: '*' is unescaped and an empty payload
+            // does not create either content or body in the CSR envelope.
+            $body = str_replace('%2A', '*', $body);
+            if ($body !== '') {
+                if ($mediaType === 'application/x-www-form-urlencoded' && preg_match('//u', $body) === 1) {
+                    $fields['content'] = $body;
+                } else {
+                    $fields['body'] = base64_encode($body);
+                }
             }
         } else {
             $fields['body'] = base64_encode($body);

@@ -903,7 +903,23 @@ final class Client
 
     private function xeapiStateValid(array $state): bool
     {
-        return !empty($state['sk']) && !empty($state['publicKey']) && !empty($state['version']);
+        if (empty($state['sk']) || empty($state['publicKey']) || empty($state['version'])
+            || !is_string($state['sk']) || !is_string($state['publicKey'])
+            || (!is_string($state['version']) && !is_int($state['version']))) {
+            return false;
+        }
+        $peer = base64_decode($state['publicKey'], true);
+        if ($peer === false || strlen($peer) !== SODIUM_CRYPTO_SCALARMULT_BYTES) {
+            return false;
+        }
+        try {
+            // Reject low-order points during the handshake so fallback remains
+            // possible before encryption. This probe is never a session key.
+            sodium_crypto_scalarmult(str_repeat("\x01", SODIUM_CRYPTO_SCALARMULT_SCALARBYTES), $peer);
+        } catch (Throwable $exception) {
+            return false;
+        }
+        return true;
     }
 
     private function ensureAntiCheatTokenV3(): string

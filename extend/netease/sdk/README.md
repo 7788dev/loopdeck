@@ -30,6 +30,12 @@ is never replayed across protocols. Set `xeapi_protocol` to `bsr` to force the
 legacy shape, `auto` to try CSR then BSR, or `xeapi_fallback` to `false` to
 surface CSR key failures.
 
+CSR omits `content` and `body` for an empty payload and follows the upstream
+`URLSearchParams` encoding, including unescaped `*`. Fetched and cached keys
+are validated as usable X25519 points before encryption, so malformed keys
+can still use the handshake-only fallback. The regression suite includes
+frozen upstream `C`/`S`/`R` vectors rather than only local round trips.
+
 VIP growth coverage in the compatibility facade follows the upstream 4.40.1
 modules (unchanged in 4.41.1): growth summary/details, legacy and v1 task
 lists, targeted/all reward claims, Black Vinyl LeQian sign/detail/history/info,
@@ -70,6 +76,8 @@ Verification:
 
 ```text
 php tests/NeteaseSdkTest.php
+php tests/NeteaseXeapiProtocolTest.php
+php tests/NeteaseXeapiKeyValidationTest.php
 php tests/NeteaseNcblTest.php
 php tests/NeteaseWorkflowTest.php
 php tests/NeteaseCreatorTasksTest.php
@@ -77,7 +85,11 @@ php tests/NeteaseCreatorLiveSmoke.php
 php tests/NeteaseLiveSmoke.php
 ```
 
-The first four commands are fully offline. `NeteaseCreatorLiveSmoke.php` only
+The first six commands are fully offline. `NeteaseCreatorLiveSmoke.php` only
 reads musician and partner task lists; without an account it verifies login
-challenges, not successful task execution. The last command performs read-only
-protocol checks against NetEase and prepares, but does not send, a comment request.
+challenges, not successful task execution. The last command disables BSR fallback
+and reads a real encrypted CSR task-list response. It prepares comment/share
+requests without sending them. Supplying `NETEASE_MUSIC_U`, `NETEASE_CSRF`, and
+`NETEASE_USER_ID` also verifies the logged-in account through a read-only level
+request; session values never enter its output. Without an account it checks
+anonymous registration with a stable guest-device cache.

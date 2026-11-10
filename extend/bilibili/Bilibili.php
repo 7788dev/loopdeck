@@ -363,8 +363,12 @@ class Bilibili
 
     public function vipExperience(): array
     {
-        if ($this->authenticatedNav() === null) {
+        $nav = $this->authenticatedNav();
+        if ($nav === null) {
             return $this->invalidAccount();
+        }
+        if (isset($nav['level_info']['current_level']) && (int)$nav['level_info']['current_level'] === 0) {
+            return ['code' => 0, 'message' => '大会员每日经验要求账号达到 LV1'];
         }
         $verificationOnly = !empty($this->config['verification_only']);
         $claimSubmitted = !empty($this->config['claim_submitted']);
@@ -377,22 +381,34 @@ class Bilibili
         }
 
         $data = is_array($privilege['data'] ?? null) ? $privilege['data'] : [];
+        if (isset($data['level']) && (int)$data['level'] === 0) {
+            return ['code' => 0, 'message' => '大会员每日经验要求账号达到 LV1'];
+        }
+        if (in_array((int)($data['vip_status'] ?? -1), [2, 3], true)) {
+            return ['code' => 0, 'message' => '大会员权益已冻结或封禁，无法领取经验'];
+        }
+        if (!is_bool($data['is_vip'] ?? null) && !in_array($data['vip_status'] ?? null, [0, 1], true)) {
+            return ['code' => 0, 'message' => '大会员身份状态暂未确认'];
+        }
         $activeVip = !empty($data['is_vip']) || (int)($data['vip_status'] ?? 0) === 1;
         if (!$activeVip) {
             return ['code' => 1, 'message' => '当前账号非大会员，已跳过'];
         }
 
         $dailyBenefit = null;
-        foreach ($data['list'] ?? [] as $benefit) {
+        foreach (is_array($data['list'] ?? null) ? $data['list'] : [] as $benefit) {
             if (is_array($benefit) && (int)($benefit['type'] ?? 0) === 9) {
                 $dailyBenefit = $benefit;
                 break;
             }
         }
-        if ((int)($dailyBenefit['state'] ?? 0) === 1) {
+        if (!in_array($dailyBenefit['state'] ?? null, [0, 1, 2], true)) {
+            return ['code' => 0, 'message' => '大会员每日经验权益暂未确认'];
+        }
+        if ($dailyBenefit['state'] === 1) {
             return ['code' => 1, 'message' => '今日已领取'];
         }
-        if ((int)($dailyBenefit['state'] ?? 0) === 2) {
+        if ($dailyBenefit['state'] === 2) {
             $watch = $this->watchAid();
             if ((int)($watch['code'] ?? 0) !== 1) {
                 return ['code' => 0, 'pending_verification' => !empty($watch['pending_verification']),
@@ -638,7 +654,7 @@ class Bilibili
         ];
     }
 
-    private function invalidAccount(): array
+    protected function invalidAccount(): array
     {
         if ($this->cookiezt) {
             return ['code' => 0, 'message' => '哔哩哔哩登录状态已失效，请重新扫码登录'];

@@ -7,6 +7,7 @@ use app\index\model\Jobs;
 use app\index\model\Tasks;
 use app\index\model\Users;
 use app\index\model\Accounts;
+use app\service\BilibiliExperienceSummary;
 use app\service\BilibiliTaskExecutor;
 use app\service\NeteaseDakaProgress;
 use app\service\UserNotificationSettings;
@@ -116,6 +117,8 @@ class Console
         ];
         $levelInfo = null;
         $infoWarning = '';
+        $bilibili = null;
+        $experienceReads = [];
         try {
             $bilibili = new BilibiliClient(
                 $credentials['mid'],
@@ -137,22 +140,26 @@ class Console
                 return view('common/alert', ['msg' => '登录状态已失效，请重新登录', 'url' => '/index/console/bilibili/add.html']);
             }
             if (($nav['code'] ?? -1) === 0 && !empty($navData['isLogin'])) {
-                $level = is_array($navData['level_info'] ?? null) ? $navData['level_info'] : [];
-                $currentLevel = max(0, (int)($level['current_level'] ?? 0));
-                $currentExp = max(0, (int)($level['current_exp'] ?? 0));
-                $nextExp = max($currentExp, (int)($level['next_exp'] ?? $currentExp));
-                $levelInfo = [
-                    'current_level' => $currentLevel,
-                    'next_level' => min(6, $currentLevel + 1),
-                    'current_exp' => $currentExp,
-                    'remaining_exp' => max(0, $nextExp - $currentExp),
-                    'money' => (string)($navData['money'] ?? '0'),
-                ];
+                $levelInfo = BilibiliExperienceSummary::levelInfo($navData);
+                if ($levelInfo === null) {
+                    $infoWarning = '暂时无法获取完整的等级信息，请稍后刷新';
+                }
             } else {
                 $infoWarning = '暂时无法获取等级信息：' . (string)($nav['message'] ?? '上游服务异常');
             }
         } catch (Throwable $exception) {
             $infoWarning = '暂时无法获取等级信息，请稍后刷新';
+        }
+        if ($bilibili !== null) {
+            // Read each snapshot once. A failed read must not hide the other
+            // components, and viewing this page must never execute or claim a task.
+            foreach (['dailyReward', 'todayCoinExp', 'vipPrivilege'] as $method) {
+                try {
+                    $experienceReads[$method] = $bilibili->sdk()->{$method}();
+                } catch (Throwable $exception) {
+                    $experienceReads[$method] = [];
+                }
+            }
         }
 
         Jobs::refreshJob('bilibili', $mid);
@@ -165,6 +172,16 @@ class Console
         foreach (Jobs::where('type', 'bilibili')->where('user_id', $mid)->where('uid', $uid)->select() as $job) {
             $jobsByTask[(string)$job['do']] = $job;
         }
+        $coinJob = $jobsByTask['coinadd'] ?? null;
+        $coinConfig = $coinJob
+            ? BilibiliTaskExecutor::decodeSerializedArray((string)($coinJob['data'] ?? '')) : [];
+        $experienceSummary = BilibiliExperienceSummary::build(
+            $experienceReads['dailyReward'] ?? [],
+            $experienceReads['todayCoinExp'] ?? [],
+            $experienceReads['vipPrivilege'] ?? [],
+            is_array($coinConfig) ? $coinConfig : [],
+            $coinJob ? (int)$coinJob['state'] : null
+        );
         $taskRows = [];
         foreach (Tasks::getTaskList('bilibili') as $task) {
             $taskName = (string)$task['execute_name'];
@@ -197,6 +214,7 @@ class Console
             'a_data' => $profile,
             'timing' => (string)($account['timing'] ?? ''),
             'level_info' => $levelInfo,
+            'experience_summary' => $experienceSummary,
             'info_warning' => $infoWarning,
             'task_rows' => $taskRows,
         ]);

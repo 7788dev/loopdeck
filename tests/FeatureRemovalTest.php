@@ -225,7 +225,7 @@ foreach ($retiredLiveTasks as $task) {
 }
 removalCheck($factoryCalls === 0, 'Retired live tasks reached upstream adapters');
 removalCheck(app\service\BilibiliTaskExecutor::executableTasks() ===
-    ['manga', 'silver2coin', 'watchaid', 'coinadd', 'dailyexperience', 'vipexperience'],
+    ['manga', 'silver2coin', 'watchaid', 'coinadd', 'dailyexperience', 'vipexperience', 'vippoints'],
     'Retiring live tasks changed the retained task set');
 removalCheck(!str_contains((string)$schema, "'globalroom'"),
     'A fresh installation still seeds the retired global live-room task');

@@ -52,6 +52,7 @@ $expectedTasks = [
     'coinadd',
     'dailyexperience',
     'vipexperience',
+    'vippoints',
 ];
 biliExecutorCheck(BilibiliTaskExecutor::TASKS === $expectedTasks, 'task allowlist changed unexpectedly');
 biliExecutorCheck(!BilibiliTaskExecutor::supports('globalroom'), 'globalroom must never be executable');
@@ -221,5 +222,7 @@ biliExecutorCheck(str_contains((string)$tasksModelSource, "'execute_name' => 'da
 biliExecutorCheck(str_contains((string)$tasksModelSource, "'execute_name' => 'vipexperience'"), 'existing installs are missing the VIP experience task');
 biliExecutorCheck(str_contains((string)$installSql, "'dailyexperience'"), 'fresh installs are missing the daily experience task');
 biliExecutorCheck(str_contains((string)$installSql, "'vipexperience'"), 'fresh installs are missing the VIP experience task');
+biliExecutorCheck(str_contains((string)$tasksModelSource, "'execute_name' => 'vippoints'"), 'existing installs are missing the VIP points task');
+biliExecutorCheck(str_contains((string)$installSql, "'vippoints'"), 'fresh installs are missing the VIP points task');
 
 echo "Bilibili task executor tests passed\n";

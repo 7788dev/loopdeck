@@ -39,6 +39,14 @@ This project transforms the referenced API documentation into a native PHP SDK
 and project-specific workflows. The implementation, naming, validation, cookie
 handling, and tests have been modified for this codebase.
 
+Membership experience and VIP points were independently checked on 2026-11-11
+using REA MCP against the installed desktop client 1.17.9, its captured hosted
+renderer, and the official membership center linked from that renderer. The
+new points adapter is based on observed endpoint fields and state transitions,
+not copied client code. Source identities, protocol boundaries and authorized
+live verification are recorded in
+[the research note](../../../docs/research/bilibili-desktop-2026-11-11.md).
+
 The attribution and license notice must be retained with redistributed copies
 of this SDK. The referenced material may be used only in accordance with CC
 BY-NC 4.0, including its attribution and non-commercial requirements.

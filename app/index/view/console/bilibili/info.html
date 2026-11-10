@@ -5,6 +5,18 @@
     .task-table td {
         white-space: nowrap;
     }
+    #bilibili-experience-summary .table th,
+    #bilibili-experience-summary .table td {
+        white-space: normal;
+    }
+    #bilibili-experience-summary .table th:first-child,
+    #bilibili-experience-summary .table thead th {
+        white-space: nowrap;
+    }
+    #bilibili-experience-summary .row > div {
+        padding-left: 4px;
+        padding-right: 4px;
+    }
     /* 数据库任务图标使用 Codebase 的 si 字体名，若依主题仅加载 Font Awesome 4.7，
        这里用 :before 把用到的 si-* 图标映射为语义相近的 fa 图标（纯样式，无逻辑改动）。 */
     .fa.si:before {
@@ -90,13 +102,13 @@
                         <tr>
                             <td>
                                 <i class="fa fa-star text-muted"></i>
-                                <span><small>当前等级：LV {$level_info.current_level}</small></span>
+                                <span><small>当前等级：{if condition="isset($level_info.current_level)"}LV {$level_info.current_level}{else /}暂不可用{/if}</small></span>
                             </td>
                         </tr>
                         <tr>
                             <td>
                                 <i class="fa fa-money text-muted"></i>
-                                <span><small>硬币数：{$level_info.money} 个</small></span>
+                                <span><small>硬币数：{if condition="isset($level_info.money)"}{$level_info.money} 个{else /}暂不可用{/if}</small></span>
                             </td>
                         </tr>
                         {if condition="$level_info.current_level == 6"}
@@ -105,7 +117,7 @@
                                 <span class="text-muted"><small><b>等级已达满级</b></small></span>
                             </td>
                         </tr>
-                        {else /}
+                        {elseif condition="isset($level_info.next_level)" /}
                         <tr>
                             <td class="text-center">
                                 <span class="text-muted"><small><b>—距升级 LV{$level_info.next_level}—</b></small></span>
@@ -114,14 +126,14 @@
                         <tr>
                             <td>
                                 <i class="fa fa-trophy text-muted"></i>
-                                <span><small>还需 {$level_info.remaining_exp} 经验</small></span>
+                                <span><small>{if condition="isset($level_info.remaining_exp)"}还需 {$level_info.remaining_exp} 经验{else /}升级所需经验暂不可用{/if}</small></span>
                             </td>
                         </tr>
                         {/if}
                         <tr>
                             <td>
                                 <i class="fa fa-check text-muted"></i>
-                                <span><small>当前经验 {$level_info.current_exp}</small></span>
+                                <span><small>当前经验 {if condition="isset($level_info.current_exp)"}{$level_info.current_exp}{else /}暂不可用{/if}</small></span>
                             </td>
                         </tr>
                         </tbody>
@@ -131,6 +143,59 @@
             {/if}
         </div>
         <div class="col-md-8">
+            {if condition="!empty($experience_summary)"}
+            <div class="ibox float-e-margins" id="bilibili-experience-summary">
+                <div class="ibox-title">
+                    <h5><i class="fa fa-line-chart"></i> 今日等级经验</h5>
+                </div>
+                <div class="ibox-content">
+                    <div class="row text-center m-b-md">
+                        <div class="col-xs-4">
+                            <small class="text-muted">基础已确认</small>
+                            <h3>{if condition="isset($experience_summary.basic_confirmed)"}+{$experience_summary.basic_confirmed}{else /}{$experience_summary.basic_placeholder}{/if}</h3>
+                        </div>
+                        <div class="col-xs-4">
+                            <small class="text-muted">大会员已确认</small>
+                            <h3>{if condition="$experience_summary.vip_skipped"}不适用{elseif condition="isset($experience_summary.vip_confirmed)" /}+{$experience_summary.vip_confirmed}{else /}{$experience_summary.vip_placeholder}{/if}</h3>
+                        </div>
+                        <div class="col-xs-4">
+                            <small class="text-muted">合计已确认</small>
+                            <h3 class="text-success">{if condition="isset($experience_summary.confirmed_total)"}+{$experience_summary.confirmed_total}{else /}{$experience_summary.total_placeholder}{/if}</h3>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                            <tr><th>经验来源</th><th>已确认</th><th>状态</th></tr>
+                            </thead>
+                            <tbody>
+                            {foreach $experience_summary.components as $item}
+                            <tr>
+                                <th scope="row">{$item.label}<small class="text-muted" style="display: block; font-weight: normal;">每日上限 {$item.limit}</small></th>
+                                <td>{if condition="isset($item.confirmed_exp)"}{$item.confirmed_exp}{else /}—{/if}</td>
+                                <td>
+                                    {if condition="$item.state eq 'confirmed'"}
+                                    <span class="text-success">{$item.status_text}</span>
+                                    {elseif condition="$item.state eq 'pending'" /}
+                                    <span class="text-warning">{$item.status_text}</span>
+                                    {else /}
+                                    <span class="text-muted">{$item.status_text}</span>
+                                    {/if}
+                                    <small class="text-muted" style="display: block;">{$item.detail}</small>
+                                </td>
+                            </tr>
+                            {/foreach}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted"><small>{$experience_summary.coin_plan}</small></p>
+                    {if condition="$experience_summary.has_unconfirmed"}
+                    <p class="text-warning"><small>仅统计已确认项目，待确认或暂不可用的项目尚未计入。</small></p>
+                    {/if}
+                    <p class="text-muted" style="margin-bottom: 0;"><small>大积分可用于兑换权益，不计入等级经验。刷新本页只读取状态。</small></p>
+                </div>
+            </div>
+            {/if}
             <div class="ibox float-e-margins">
                 <div class="ibox-content">
                     <div class="table-responsive">

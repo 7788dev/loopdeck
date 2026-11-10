@@ -288,6 +288,11 @@ final class Client
     public function vipPrivilege(): array
     {
         return $this->requestJson('GET', $this->api('/x/vip/privilege/my'), [
+            'query' => [
+                'mid' => $this->session->get('DedeUserID'),
+                'platform' => 'Windows',
+                'buvid' => $this->session->get('buvid3'),
+            ],
             'referer' => 'https://account.bilibili.com/account/big/myPackage',
         ]);
     }
@@ -295,11 +300,82 @@ final class Client
     /** @return array<string,mixed> */
     public function claimVipExperience(): array
     {
+        $device = $this->ensureVipDevice();
+        if (($device['code'] ?? -1) !== 0) {
+            return $device;
+        }
         return $this->requestJson('POST', $this->api('/x/vip/experience/add'), [
-            'form_params' => ['csrf' => $this->csrf()],
+            'form_params' => [
+                'mid' => $this->session->get('DedeUserID'),
+                'buvid' => $this->session->get('buvid3'),
+                'csrf' => $this->csrf(),
+            ],
             'origin' => 'https://account.bilibili.com',
             'referer' => 'https://account.bilibili.com/account/big/myPackage',
         ]);
+    }
+
+    /** @return array<string,mixed> */
+    public function vipPointTasks(): array
+    {
+        return $this->requestJson('GET', $this->api('/x/vip_point/task/combine'), [
+            'referer' => 'https://big.bilibili.com/mobile/bigPoint/task',
+        ]);
+    }
+
+    /** @return array<string,mixed> */
+    public function vipPointSignState(): array
+    {
+        return $this->requestJson('GET', $this->api('/x/vip/vip_center/sign_in/three_days_sign'), [
+            'referer' => 'https://big.bilibili.com/mobile/bigPoint',
+        ]);
+    }
+
+    /** exp_value=3 selects the official JSON sign2 flow; other known groups use form sign. */
+    public function vipPointSign(bool $newSign): array
+    {
+        $device = $this->ensureVipDevice();
+        if (($device['code'] ?? -1) !== 0) {
+            return $device + ['request_submitted' => false];
+        }
+        $params = ['csrf' => $this->csrf(), 'buvid' => $this->session->get('buvid3')];
+        if ($newSign) {
+            $params['t'] = (int)round(microtime(true) * 1000);
+        }
+        return $this->requestJson('POST', $this->api('/pgc/activity/score/task/' . ($newSign ? 'sign2' : 'sign')), [
+            $newSign ? 'json' : 'form_params' => $params,
+            'origin' => 'https://big.bilibili.com',
+            'referer' => 'https://big.bilibili.com/mobile/bigPoint',
+        ]);
+    }
+
+    /** Only the three observed, non-purchase completion actions are supported. */
+    public function completeVipPointTask(string $code): array
+    {
+        if (!in_array($code, ['bonus', 'privilege', 'dress-view'], true)) {
+            return ['code' => -1, 'message' => '该积分任务不在支持范围内'];
+        }
+        $device = $this->ensureVipDevice();
+        if (($device['code'] ?? -1) !== 0) {
+            return $device + ['request_submitted' => false];
+        }
+        return $this->requestJson('POST', $this->api('/pgc/activity/score/task/complete/v2'), [
+            'form_params' => [
+                'taskCode' => $code,
+                'csrf' => $this->csrf(),
+                'buvid' => $this->session->get('buvid3'),
+            ],
+            'origin' => 'https://big.bilibili.com',
+            'referer' => 'https://big.bilibili.com/mobile/bigPoint/task',
+        ]);
+    }
+
+    private function ensureVipDevice(): array
+    {
+        if ($this->csrf() === '') {
+            return ['code' => -111, 'message' => '账号凭据缺少 CSRF'];
+        }
+        return $this->session->has('buvid3') ? ['code' => 0] : $this->deviceFingerprint();
     }
 
     /** @return array<string,mixed> */
@@ -420,7 +496,6 @@ final class Client
     }
 
     /** @return array<string,mixed> */
-    /** @return array<string,mixed> */
     public function deviceFingerprint(): array
     {
         $response = $this->requestJson('GET', $this->api('/x/frontend/finger/spi'), [
@@ -513,16 +588,6 @@ final class Client
         ]);
     }
 
-    /** @return array<string,mixed> */
-    /** @return array<string,mixed> */
-    /** @return array<string,mixed> */
-    /** @return array<string,mixed> */
-    /** @return array<string,mixed> */
-    /** @return array<string,mixed> */
-    /** @return array<string,mixed> */
-    /** @return array<string,mixed> */
-    /** @return array<string,mixed> */
-    /** @return array<string,mixed> */
     /** @return array<string,mixed> */
     public function liveSilverToCoinApp(): array
     {

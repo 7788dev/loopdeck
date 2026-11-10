@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\service;
 
 use bilibili\BiliHelper;
+use bilibili\sdk\VipPoints;
 use Closure;
 use Throwable;
 
@@ -18,6 +19,7 @@ final class BilibiliTaskExecutor
         'coinadd',
         'dailyexperience',
         'vipexperience',
+        'vippoints',
     ];
 
     public const OFFLINE_TASKS = [
@@ -115,16 +117,20 @@ final class BilibiliTaskExecutor
         $isToday = is_array($verification) && ($verification['date'] ?? '') === date('Y-m-d', $now);
         $attempt = $isToday
             ? max(0, min(self::MAX_VERIFICATION_ATTEMPTS, (int)($verification['attempt'] ?? 0))) : 0;
-        $canVerify = in_array($task, ['watchaid', 'dailyexperience', 'vipexperience'], true);
+        $canVerify = in_array($task, ['watchaid', 'dailyexperience', 'vipexperience', 'vippoints'], true);
         // Yesterday's submitted claim says nothing about today's benefit, and
         // inheriting it would block today's first claim the same way.
         $claimSubmitted = $isToday && !empty($verification['claim_submitted']);
+        $pointsSubmitted = $isToday ? VipPoints::submittedTasks($verification['points_submitted'] ?? []) : [];
         $config = $this->normalizeConfig($config);
         if ($canVerify && $attempt > 0) {
             $config['verification_only'] = true;
         }
         if ($canVerify) {
             $config['claim_submitted'] = $claimSubmitted;
+        }
+        if ($task === 'vippoints') {
+            $config['points_submitted'] = $pointsSubmitted;
         }
         $config['sid'] = $account['sid'];
 
@@ -153,6 +159,11 @@ final class BilibiliTaskExecutor
                         'attempt' => $attempt + 1,
                         'claim_submitted' => $claimSubmitted || !empty($result['claim_submitted']),
                     ];
+                    if ($task === 'vippoints') {
+                        $response['verification_state']['points_submitted'] = VipPoints::submittedTasks(array_merge(
+                            $pointsSubmitted, VipPoints::submittedTasks($result['points_submitted'] ?? [])
+                        ));
+                    }
                     $response['message'] = TaskMessage::join([$response['message'], '5 分钟后复查到账状态']);
                 } else {
                     $response['message'] = TaskMessage::join([$response['message'], '本轮核验结束，未确认到账']);

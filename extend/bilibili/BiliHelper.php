@@ -6,6 +6,7 @@ namespace bilibili;
 
 use app\service\TaskMessage;
 use bilibili\sdk\Client;
+use bilibili\sdk\VipPoints;
 
 class BiliHelper extends Bilibili
 {
@@ -45,6 +46,21 @@ class BiliHelper extends Bilibili
     public function vipexperience(): array
     {
         return parent::vipExperience();
+    }
+
+    public function vippoints(): array
+    {
+        if ($this->authenticatedNav() === null) {
+            $submitted = VipPoints::submittedTasks($this->config['points_submitted'] ?? []);
+            return $this->invalidAccount() + [
+                'pending_verification' => !$this->cookiezt
+                    && ($submitted !== [] || !empty($this->config['verification_only'])),
+                'points_submitted' => $submitted,
+            ];
+        }
+        $result = (new VipPoints($this->client, $this->config))->run();
+        $this->cookiezt = $this->cookiezt || !empty($result['account_invalid']);
+        return $result;
     }
 
     /**

@@ -53,6 +53,20 @@ class Tasks extends Model
                 'time' => '2026-08-02 00:00:00',
                 'order' => 3,
             ],
+            [
+                'type' => 'bilibili',
+                'name' => '大会员积分任务',
+                'describe' => '积分签到与可领取福利，积分用于兑换权益，不计入等级经验',
+                'icon' => 'si si-present',
+                'execute_name' => 'vippoints',
+                'execute_url' => null,
+                'execute_rate' => '86400',
+                'more' => 0,
+                'state' => 1,
+                'vip' => 0,
+                'time' => '2026-11-11 00:00:00',
+                'order' => 5,
+            ],
         ],
     ];
 

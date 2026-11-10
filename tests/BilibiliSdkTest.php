@@ -313,6 +313,18 @@ $historyRequest = biliRequestByPath($protocolTransport->requests, '/x/v2/history
 biliCheck(($historyRequest['options']['form_params']['csrf'] ?? '') === 'csrf', 'History report is missing CSRF');
 $vipExperienceRequest = biliRequestByPath($protocolTransport->requests, '/x/vip/experience/add');
 biliCheck(($vipExperienceRequest['options']['form_params']['csrf'] ?? '') === 'csrf', 'VIP experience claim is missing CSRF');
+biliCheck(($vipExperienceRequest['options']['form_params']['mid'] ?? '') === '42'
+    && ($vipExperienceRequest['options']['form_params']['buvid'] ?? '') === 'device-id',
+    'VIP experience claim is missing the official account/device fields');
+$vipPrivilegeRequest = biliRequestByPath($protocolTransport->requests, '/x/vip/privilege/my');
+biliCheck(($vipPrivilegeRequest['options']['query'] ?? []) === [
+    'mid' => '42', 'platform' => 'Windows', 'buvid' => 'device-id',
+], 'VIP privilege query does not match the current Windows web client');
+$readOnlyPrivilegeTransport = new BilibiliRecordingTransport();
+(new Client(['DedeUserID' => '42', 'SESSDATA' => 'session', 'bili_jct' => 'csrf'], [], $readOnlyPrivilegeTransport))->vipPrivilege();
+biliCheck(count($readOnlyPrivilegeTransport->requests) === 1
+    && $readOnlyPrivilegeTransport->requests[0]['method'] === 'GET',
+    'A read-only privilege query unexpectedly prepared a device or submitted a claim');
 $mangaRequest = biliRequestByPath($protocolTransport->requests, '/twirp/activity.v1.Activity/ClockIn');
 biliCheck(($mangaRequest['options']['form_params']['platform'] ?? '') === 'android', 'Manga clock-in is missing platform=android');
 $appSilverRequest = biliRequestByPath($protocolTransport->requests, '/AppExchange/silver2coin');

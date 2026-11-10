@@ -324,6 +324,39 @@ $vipExperienceResult = $vipExperience->vipexperience();
 biliWorkflowCheck($vipExperienceResult['code'] === 1, 'VIP experience claim workflow failed');
 biliWorkflowCheck($vipExperienceTransport->called('/x/vip/experience/add'), 'VIP experience claim endpoint was not used');
 
+// The official client only claims an explicitly available type-9 benefit.
+// An absent, malformed or restricted entitlement must not become state=0.
+foreach ([
+    [],
+    ['is_vip' => true, 'list' => []],
+    ['is_vip' => true, 'list' => [['type' => 9]]],
+    ['is_vip' => true, 'list' => [['type' => 9, 'state' => 99]]],
+    ['is_vip' => true, 'list' => [['type' => 9, 'state' => 'unknown']]],
+    ['is_vip' => true, 'level' => 0, 'list' => [['type' => 9, 'state' => 0]]],
+    ['is_vip' => true, 'vip_status' => 2, 'list' => [['type' => 9, 'state' => 0]]],
+    ['is_vip' => true, 'vip_status' => 3, 'list' => [['type' => 9, 'state' => 0]]],
+] as $unavailablePrivilege) {
+    [$unavailableVip, $unavailableVipTransport] = biliWorkflow([
+        '/x/web-interface/nav' => [biliNav()],
+        '/x/vip/privilege/my' => [['code' => 0, 'data' => $unavailablePrivilege]],
+        '/x/vip/experience/add' => [['code' => 0, 'data' => ['is_grant' => true]]],
+    ]);
+    biliWorkflowCheck($unavailableVip->vipexperience()['code'] === 0,
+        'Unknown or restricted VIP benefit was treated as completed');
+    biliWorkflowCheck(!$unavailableVipTransport->called('/x/vip/experience/add'),
+        'Unknown or restricted VIP benefit triggered a claim');
+}
+$levelZeroNav = biliNav();
+$levelZeroNav['data']['level_info'] = ['current_level' => 0];
+[$levelZeroVip, $levelZeroVipTransport] = biliWorkflow([
+    '/x/web-interface/nav' => [$levelZeroNav],
+    '/x/vip/privilege/my' => [['code' => 0, 'data' => ['is_vip' => true, 'list' => [['type' => 9, 'state' => 0]]]]],
+    '/x/vip/experience/add' => [['code' => 0, 'data' => ['is_grant' => true]]],
+]);
+biliWorkflowCheck($levelZeroVip->vipexperience()['code'] === 0
+    && !$levelZeroVipTransport->called('/x/vip/experience/add'),
+    'LV0 account bypassed the official experience-claim restriction');
+
 [$invalidAccount] = biliWorkflow([
     '/x/web-interface/nav' => [['code' => -101, 'message' => '账号未登录']],
 ]);

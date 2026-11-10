@@ -2,8 +2,7 @@
 
 declare(strict_types=1);
 
-require dirname(__DIR__) . '/vendor/autoload.php';
-require_once dirname(__DIR__) . '/app/common.php';
+require __DIR__ . '/FunctionalDatabaseBootstrap.php';
 
 use app\admin\controller\Ajax as AdminAjax;
 use app\admin\controller\System;
@@ -13,6 +12,7 @@ use app\index\controller\Console;
 use app\index\model\Kms;
 use app\service\NotificationSite;
 use think\facade\Config;
+use think\facade\Db;
 use think\facade\Session;
 
 function removalCheck(bool $condition, string $message): void
@@ -24,9 +24,7 @@ function removalCheck(bool $condition, string $message): void
 
 $root = dirname(__DIR__);
 $cache = sys_get_temp_dir() . '/loopdeck-removal-test-' . bin2hex(random_bytes(6)) . '/';
-$app = new think\App($root . '/');
 $app->setRuntimePath($cache);
-$app->initialize();
 set_exception_handler(static function (Throwable $error): void {
     fwrite(STDERR, $error->getMessage() . PHP_EOL);
     exit(1);
@@ -141,7 +139,6 @@ $consoleCommands = file_get_contents($root . '/config/console.php');
 removalCheck(!preg_match('/[\'"]sport[\'"]/i', $consoleCommands), 'Retired sport command remains registered');
 
 define('PJAX', false);
-define('WEB_ID', 1);
 $_SERVER['HTTP_USER_AGENT'] = 'LoopDeck offline test';
 Config::set(['webname' => 'LoopDeck', 'title' => '测试面板', 'user_qq' => '10000'], 'web');
 Config::set(['OrderPlacementMethod' => 1, 'is_alipay' => 1, 'is_wxpay' => 1, 'epay_url' => 'https://pay.example/', 'is_site' => 1, 'reg_free_agent' => 1], 'sys');
@@ -230,8 +227,77 @@ removalCheck(app\service\BilibiliTaskExecutor::executableTasks() ===
 removalCheck(!str_contains((string)$schema, "'globalroom'"),
     'A fresh installation still seeds the retired global live-room task');
 
-// Render the real Bilibili console page: a retired row must stay visible but
-// disabled, and the page must no longer carry any live-room configuration UI.
+// Existing installations retain retired task definitions. Exercise the actual
+// user/admin list queries, including disabled supported tasks and names shared
+// with another platform, before rendering their presentation data.
+fixtureTable('tasks', 'id INTEGER PRIMARY KEY, type TEXT, execute_name TEXT, name TEXT, describe TEXT,
+    icon TEXT, execute_rate INTEGER, execute_url TEXT, more INTEGER, state INTEGER, vip INTEGER, time TEXT, "order" INTEGER');
+$supportedNames = [
+    'manga' => '漫画签到', 'silver2coin' => '银瓜子兑换硬币', 'watchaid' => '每日观看',
+    'coinadd' => '每日投币', 'dailyexperience' => '每日经验任务', 'vipexperience' => '大会员每日经验',
+    'vippoints' => '大会员积分任务',
+];
+foreach ($supportedNames as $taskName => $displayName) {
+    Db::name('tasks')->insert([
+        'type' => 'bilibili', 'execute_name' => $taskName, 'name' => $displayName,
+        'describe' => $taskName === 'dailyexperience'
+            ? '登录、观看、投币经验状态与经验日志核验（分享功能已下架）' : '当前任务说明',
+        'icon' => 'fa-check', 'state' => 1, 'vip' => 0, 'more' => $taskName === 'coinadd' ? 1 : 0,
+        'order' => 1,
+    ]);
+}
+$retiredDefinitionIds = [];
+foreach (app\service\BilibiliTaskExecutor::OFFLINE_TASKS as $taskName => $reason) {
+    $retiredDefinitionIds[] = (int)Db::name('tasks')->insertGetId([
+        'type' => 'bilibili', 'execute_name' => $taskName, 'name' => '旧功能-' . $taskName,
+        'describe' => $reason, 'icon' => 'fa-ban', 'state' => 1, 'vip' => 0, 'more' => 1, 'order' => 0,
+    ]);
+}
+foreach (['douyin', 'iqiyi', 'tieba', 'mihoyo', 'sport', 'heybox'] as $platform) {
+    $retiredDefinitionIds[] = (int)Db::name('tasks')->insertGetId([
+        'type' => $platform, 'execute_name' => 'sign', 'name' => '旧平台-' . $platform,
+        'describe' => '旧任务记录', 'state' => 0, 'vip' => 0, 'more' => 0,
+    ]);
+}
+$sameNameId = (int)Db::name('tasks')->insertGetId([
+    'type' => 'netease', 'execute_name' => 'dailytask', 'name' => '另一平台自定义任务',
+    'state' => 1, 'vip' => 0,
+]);
+$pausedTaskId = (int)Db::name('tasks')->insertGetId([
+    'type' => 'netease', 'execute_name' => 'sign', 'name' => '管理员关闭的有效任务',
+    'state' => 0, 'vip' => 0,
+]);
+$retiredBefore = Db::name('tasks')->whereIn('id', $retiredDefinitionIds)->order('id')->select()->toArray();
+$adminTasks = (new AdminAjax())->task('list')->toArray();
+removalCheck(!str_contains(json_encode($adminTasks, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), '分享功能已下架'),
+    'Opening the admin list before an account page still shows retired share copy');
+$visibleTasks = app\index\model\Tasks::getTaskList('bilibili')->toArray();
+$visibleNames = array_column($visibleTasks, 'execute_name');
+removalCheck(count($visibleNames) === count($supportedNames)
+    && array_diff($visibleNames, array_keys($supportedNames)) === [],
+    'The user task list still exposes retired Bilibili definitions');
+$adminIds = array_column($adminTasks, 'id');
+removalCheck(array_intersect($adminIds, $retiredDefinitionIds) === [],
+    'The admin task list still exposes retired task definitions');
+removalCheck(in_array($sameNameId, $adminIds, true) && in_array($pausedTaskId, $adminIds, true),
+    'Retired task filtering hid a supported platform or an administrator-disabled task');
+foreach ($retiredDefinitionIds as $id) {
+    fixtureRequest(['id' => $id]);
+    removalCheck((new AdminAjax())->task('getInfo') === false,
+        'A stale admin edit entry can still load a retired definition');
+}
+fixtureRequest(['id' => $pausedTaskId]);
+removalCheck((int)(new AdminAjax())->task('getInfo')['id'] === $pausedTaskId,
+    'The admin cannot inspect a supported task it disabled');
+removalCheck(Db::name('tasks')->whereIn('id', $retiredDefinitionIds)->order('id')->select()->toArray() === $retiredBefore,
+    'Hiding retired functionality modified its stored history');
+$taskRows = array_map(static fn(array $task): array => [
+    'execute_name' => $task['execute_name'], 'name' => $task['name'], 'describe' => $task['describe'],
+    'icon' => $task['icon'], 'more' => (bool)$task['more'],
+    'last_execute' => '--', 'job_state' => 1, 'user_id' => '42', 'config_json' => '{}',
+], $visibleTasks);
+
+// Render the real Bilibili page using the same task catalog as the controller.
 $engine = new think\Template(['view_path' => $root . '/app/index/view/',
     'cache_path' => $cache . 'templates/bilibili/']);
 ob_start();
@@ -242,15 +308,7 @@ try {
         'timing' => '09:00',
         'level_info' => [],
         'info_warning' => '',
-        'task_rows' => [
-            ['execute_name' => 'coinadd', 'name' => '每日投币', 'describe' => '投币视频（主站任务）',
-                'icon' => 'si si-badge', 'more' => true, 'offline' => false, 'offline_reason' => '',
-                'last_execute' => '--', 'job_state' => 1, 'user_id' => '42', 'config_json' => '{}'],
-            ['execute_name' => 'globalroom', 'name' => '全局配置', 'describe' => '全局配置',
-                'icon' => 'si si-compass', 'more' => false, 'offline' => true,
-                'offline_reason' => app\service\BilibiliTaskExecutor::offlineReason('globalroom'),
-                'last_execute' => '--', 'job_state' => 0, 'user_id' => '42', 'config_json' => '{}'],
-        ],
+        'task_rows' => $taskRows,
     ]);
     $bilibiliHtml = (string)ob_get_contents();
 } finally {
@@ -261,10 +319,20 @@ removalCheck(!preg_match('/globalRoom|global_room|is_global/u', $bilibiliHtml),
     'Live-room configuration markup remains in the Bilibili console page');
 removalCheck(!str_contains($bilibiliHtml, 'data-execute-name="globalroom"'),
     'The retired live-room row still offers a configuration dialog');
-removalCheck(str_contains($bilibiliHtml, '旧直播任务已停用') && str_contains($bilibiliHtml, '已下架'),
-    'The retired live-room row is no longer explained as disabled');
+removalCheck(!preg_match('/旧功能-|已停用|已下线|已下架|旧平台-/u', $bilibiliHtml),
+    'Retired rows or placeholder explanations remain in the Bilibili page');
+foreach ($supportedNames as $taskName => $displayName) {
+    removalCheck(str_contains($bilibiliHtml, $displayName)
+        && str_contains($bilibiliHtml, 'data-task-toggle="' . $taskName . '"'),
+        'A supported task disappeared from the Bilibili page: ' . $taskName);
+}
 removalCheck(str_contains($bilibiliHtml, 'data-execute-name="coinadd"'),
     'Retiring live tasks removed the configuration dialog of a retained task');
+$previewDirectory = getenv('LOOPDECK_REMOVAL_PREVIEW_DIR');
+if ($previewDirectory && is_dir($previewDirectory)) {
+    file_put_contents($previewDirectory . '/bilibili.html', $bilibiliHtml);
+    file_put_contents($previewDirectory . '/admin-tasks.json', json_encode($adminTasks, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+}
 
 // R2: app/provider.php binds a single exception handler. The never-resolved
 // legacy app\ExceptionHandle class must stay deleted so edits to it cannot

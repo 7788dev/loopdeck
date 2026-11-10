@@ -185,7 +185,6 @@ class Console
         $taskRows = [];
         foreach (Tasks::getTaskList('bilibili') as $task) {
             $taskName = (string)$task['execute_name'];
-            $offlineReason = BilibiliTaskExecutor::offlineReason($taskName);
             $job = $jobsByTask[$taskName] ?? null;
             $config = $job
                 ? BilibiliTaskExecutor::decodeSerializedArray((string)($job['data'] ?? ''))
@@ -195,13 +194,9 @@ class Console
             $taskRows[] = [
                 'execute_name' => $taskName,
                 'name' => (string)$task['name'],
-                'describe' => $offlineReason !== null
-                    ? $offlineReason
-                    : (string)$task['describe'],
+                'describe' => (string)$task['describe'],
                 'icon' => (string)$task['icon'],
                 'more' => !empty($task['more']),
-                'offline' => $offlineReason !== null,
-                'offline_reason' => $offlineReason ?? '',
                 'last_execute' => $lastExecute === false ? '--' : date('m-d H:i', $lastExecute),
                 'job_state' => $job ? (int)$job['state'] : 0,
                 'user_id' => $mid,

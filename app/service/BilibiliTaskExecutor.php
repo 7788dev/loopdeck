@@ -59,9 +59,9 @@ final class BilibiliTaskExecutor
     /**
      * Return task names which are still allowed to reach an adapter.
      *
-     * OFFLINE_TASKS keeps retired names so existing database rows and
-     * the console can show an explicit "已下架" state. All execution queries
-     * must use this filtered list instead of the historical allow-list.
+     * OFFLINE_TASKS keeps retired names to reject historical rows and stale
+     * requests. Execution queries and the task catalog use this supported
+     * list; retired definitions are not displayed in the console.
      *
      * @return list<string>
      */

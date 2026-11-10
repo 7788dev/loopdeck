@@ -48,12 +48,14 @@ functionalCheck(Accounts::getMyAccountNum() === 7, 'Another user consumed this u
 functionalCheck(Accounts::add('bilibili', 'eighth', [])->getData()['code'] === 0, 'Single-platform user exceeded total');
 
 Db::name('users')->where('uid', 2)->update(['quota' => 8]);
-Db::name('tasks')->insert(['type' => 'heybox', 'execute_name' => 'sign', 'state' => 1, 'vip' => 0, 'order' => 1]);
+// A supported platform must actually create a job for this rollback check;
+// retired platform definitions are deliberately excluded from task catalogs.
+Db::name('tasks')->insert(['type' => 'netease', 'execute_name' => 'sign', 'state' => 1, 'vip' => 0, 'order' => 1]);
 Db::execute("CREATE TRIGGER reject_job BEFORE INSERT ON qa_jobs BEGIN SELECT RAISE(FAIL, 'fixture task failure'); END");
-functionalCheck(Accounts::add('heybox', 'failed-job', [])->getData()['code'] === 0, 'Failed job creation reported account success');
+functionalCheck(Accounts::add('netease', 'failed-job', [])->getData()['code'] === 0, 'Failed job creation reported account success');
 functionalCheck(Accounts::getMyAccountNum() === 7, 'Failed job creation consumed an account slot');
 Db::execute('DROP TRIGGER reject_job');
-functionalCheck(Accounts::add('heybox', 'failed-job', [])->getData()['code'] === 1, 'Rolled-back account could not be retried');
+functionalCheck(Accounts::add('netease', 'failed-job', [])->getData()['code'] === 1, 'Rolled-back account could not be retried');
 
 Db::name('users')->where('uid', 2)->update(['quota' => RedemptionPlan::UNLIMITED_ACCOUNTS]);
 Session::set('user.quota', 0);

@@ -152,6 +152,12 @@ Db::name('tasks')->insert(['id' => 1, 'type' => 'bilibili', 'execute_name' => 'c
     'describe' => '投币经验', 'icon' => 'si si-badge', 'state' => 1, 'more' => 1, 'vip' => 0, 'order' => 4]);
 Db::name('jobs')->insert(['id' => 1, 'uid' => 1, 'type' => 'bilibili', 'user_id' => '42', 'do' => 'coinadd',
     'state' => 0, 'nextExecute' => 0, 'data' => serialize($config)]);
+foreach (app\service\BilibiliTaskExecutor::OFFLINE_TASKS as $retiredTask => $reason) {
+    Db::name('tasks')->insert(['type' => 'bilibili', 'execute_name' => $retiredTask, 'name' => '旧功能-' . $retiredTask,
+        'describe' => $reason, 'icon' => 'fa-ban', 'state' => 1, 'more' => 1, 'vip' => 0, 'order' => 0]);
+    Db::name('jobs')->insert(['uid' => 1, 'type' => 'bilibili', 'user_id' => '42', 'do' => $retiredTask,
+        'state' => 1, 'nextExecute' => time(), 'data' => 'retained historical configuration']);
+}
 $sdk = new ExperiencePageSdk();
 ExperiencePageClient::$fixture = $sdk;
 $sdk->responses = [
@@ -160,6 +166,12 @@ $sdk->responses = [
 ];
 $page = (new Console())->bilibili('info', '42');
 $pageVars = $page->getVars();
+experienceCheck(count($pageVars['task_rows']) === 4
+    && array_diff(array_column($pageVars['task_rows'], 'execute_name'), ['coinadd', 'dailyexperience', 'vipexperience', 'vippoints']) === [],
+    'The actual Bilibili controller still exposes retired tasks');
+experienceCheck(Db::name('jobs')->whereIn('do', array_keys(app\service\BilibiliTaskExecutor::OFFLINE_TASKS))
+    ->where('state', 0)->where('nextExecute', 0)->where('data', 'retained historical configuration')->count() === 7,
+    'Hiding retired tasks erased their history or re-enabled their jobs');
 experienceCheck($sdk->calls === ['nav', 'dailyReward', 'todayCoinExp', 'vipPrivilege'],
     'Account page duplicated an upstream read or executed a task');
 experienceCheck($pageVars['experience_summary']['confirmed_total'] === 50

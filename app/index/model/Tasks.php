@@ -3,6 +3,8 @@ declare (strict_types = 1);
 
 namespace app\index\model;
 
+use app\service\BilibiliTaskExecutor;
+use think\db\Query;
 use think\Model;
 
 class Tasks extends Model
@@ -83,12 +85,31 @@ class Tasks extends Model
      */
     public static function getTaskList($type = null)
     {
-        self::ensureBuiltinTasks($type);
-        $self = new static();
-        if ($result = $self->where('type',  '=', $type)->where('state', '=', 1)->order('order asc')->select()) {
+        if ($result = self::visibleQuery((string)$type)->where('state', '=', 1)->order('order asc')->select()) {
             return $result;
         }
         return false;
+    }
+
+    /**
+     * Shared catalog for user and administrator task lists. Retirement is
+     * independent of a supported task's administrator-controlled state.
+     */
+    public static function visibleQuery(?string $type = null): Query
+    {
+        foreach ($type === null ? array_keys(self::BUILTIN_TASKS) : [$type] as $platform) {
+            self::ensureBuiltinTasks($platform);
+        }
+        $query = (new static())
+            ->whereNotIn('type', ['douyin', 'iqiyi', 'tieba', 'mihoyo', 'sport', 'heybox'])
+            ->where(static function (Query $query): void {
+                $query->where('type', '<>', 'bilibili')
+                    ->whereOr(static function (Query $bilibili): void {
+                        $bilibili->where('type', 'bilibili')
+                            ->whereIn('execute_name', BilibiliTaskExecutor::executableTasks());
+                    });
+            });
+        return $type === null ? $query : $query->where('type', '=', $type);
     }
 
     private static function ensureBuiltinTasks($type): void

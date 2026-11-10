@@ -77,7 +77,7 @@ try {
         'state' => 1, 'timing' => '', 'addtime' => '2026-09-28 08:00:00', 'data' => serialize($accountData)];
     $task = ['icon' => 'fa-check', 'name' => '签到', 'describe' => '每日签到', 'more' => true, 'execute_name' => 'sign',
         'config' => '{}', 'config_json' => '{"text":"quoted\'value"}', 'last_execute' => '', 'next_execute' => 0, 'job_state' => 0,
-        'user_id' => '42', 'is_global' => false, 'offline' => false, 'offline_reason' => ''];
+        'user_id' => '42'];
     foreach ([''] as $themePath) {
     $populatedViewPath = $root . '/app/index/view/' . $themePath;
     foreach (['netease', 'bilibili', 'qrcode'] as $platform) {
@@ -92,8 +92,7 @@ try {
                         'progress' => '已确认 144/300 首，正在自动补齐与核验（本轮截止 15:30）']);
                 }
                 if ($platform === 'bilibili') {
-                    $taskRows[] = array_replace($task, ['execute_name' => 'globalroom', 'name' => '旧直播间配置',
-                        'is_global' => true, 'offline' => true, 'offline_reason' => '旧直播任务已停用']);
+                    $taskRows = [array_replace($task, ['execute_name' => 'coinadd', 'name' => '每日投币'])];
                 }
                 $engine->fetch($populatedViewPath . $relative, array_replace($variables, ['list' => [$account], 'task_rows' => $taskRows]));
                 $html = ob_get_contents();
@@ -102,10 +101,10 @@ try {
                         'Listening progress did not render in the actual account page');
                 }
                 if ($platform === 'bilibili' && $page === 'info') {
-                    if (str_contains($html, 'data-execute-name="globalroom"')
-                        || !str_contains($html, 'disabled title="旧直播任务已停用"')) {
-                        throw new RuntimeException('Retired global room configuration remained editable');
-                    }
+                    functionalCheck(!preg_match('/globalroom|旧直播|已停用|已下架/u', $html),
+                        'Retired task presentation remains in the Bilibili page');
+                    functionalCheck(str_contains($html, 'data-execute-name="coinadd"')
+                        && str_contains($html, 'data-task-toggle="coinadd"'), 'Retained task controls disappeared');
                 }
                 $renderedPages['populated/' . $themePath . $relative] = $html;
                 if ($page === 'list' && $platform !== 'qrcode') {

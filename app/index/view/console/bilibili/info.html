@@ -208,23 +208,18 @@
                                     </td>
                                     <td>
                                         <p style="margin-bottom: 5px;"><b>{$v.name}
-                                            {if condition="$v.offline"}
-                                                <span class="label label-default">已下架</span>
-                                            {/if}
-                                            {if condition="$v.more && !$v.offline"}
+                                            {if condition="$v.more"}
                                                 <button type="button" class="btn btn-outline btn-primary btn-sm" style="padding: 1px 5px; margin-left: 5px;" data-config='{$v.config_json}' data-config-action data-execute-name="{$v.execute_name}" data-task-name="{$v.name}"><i class="fa fa-cogs"></i></button>
                                             {/if}
                                         </b></p>
                                         <p class="text-muted" style="margin-bottom: 0;">
-                                            <small>{if condition="$v.offline"}{$v.offline_reason}{else /}{$v.describe}{/if}</small>
+                                            <small>{$v.describe}</small>
                                         </p>
                                     </td>
                                     <td class="hidden-xs"><i class="fa fa-clock-o"></i> {$v.last_execute}</td>
 
                                     <td class="text-center">
-                                        {if condition="$v.offline"}
-                                        <input type="checkbox" disabled title="{$v.offline_reason}">
-                                        {elseif condition="$v.job_state eq 1" /}
+                                        {if condition="$v.job_state eq 1"}
                                         <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" data-task-toggle="{$v.execute_name}" data-user-id="{$v.user_id}" checked>
                                         {else /}
                                         <input type="checkbox" class="ld-switch" role="switch" aria-label="{$v.name}" data-task-toggle="{$v.execute_name}" data-user-id="{$v.user_id}">

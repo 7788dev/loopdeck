@@ -8,13 +8,13 @@ class Tasks extends Model
 {
     public function getAllTask()
     {
-        return $this->order('type', 'asc')
+        return \app\index\model\Tasks::visibleQuery()->order('type', 'asc')
             ->select();
     }
 
     public function getById($id)
     {
-        if ($result = $this->where('id', '=', $id)->find()) {
+        if ($result = \app\index\model\Tasks::visibleQuery()->where('id', '=', $id)->find()) {
             return $result;
         }
         return false;

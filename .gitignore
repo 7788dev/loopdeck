@@ -4,6 +4,7 @@ config/Db.php
 /runtime/
 .security-quarantine/
 public/static/uploads/
+public/_preview/
 
 .idea/
 .vscode/

@@ -163,20 +163,6 @@ class Tasks extends Model
         self::$builtinTasksSynced[$type] = true;
     }
 
-    /**
-     * taskCount
-     * @return false|int
-     * @throws \think\db\exception\DataNotFoundException
-     * @throws \think\db\exception\DbException
-     * @throws \think\db\exception\ModelNotFoundException
-     * @author BadCen
-     */
-    public static function taskCount()
-    {
-        $self = new static();
-        return $self->count('id');
-    }
-
     public static function checkTaskPower($name, $type = '')
     {
         $self = new static();

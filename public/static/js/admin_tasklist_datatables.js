@@ -134,22 +134,3 @@ function ajax_add_task()
         },
     });
 }
-
-function ajax_refresh_task()
-{
-    layer.confirm('你确定刷新所有任务吗?', {
-        btn: ['确定', '取消'],
-        closeBtn: 0,
-    }, function () {
-        x.ajax("/admin/ajax/task/refresh", null, function (data) {
-            if (data.code === 1) {
-                layer.closeAll();
-                var table = $("#admin-taskList").DataTable();
-                table.ajax.reload();
-                x.notify(data.message, 'success');
-            } else {
-                x.notify(data.message, 'warning');
-            }
-        });
-    });
-}

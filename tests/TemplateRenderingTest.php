@@ -350,6 +350,17 @@ try {
 }
 functionalCheck($failures === [], implode("\n", $failures));
 // Optional local browser preview, containing only the inert fixtures above.
+// These snapshots exist purely for eyeballing in a browser. Serve them over HTTP
+// with public/ as the web root: run `composer preview` (i.e.
+// `php -S 127.0.0.1:8090 -t public`) and open
+// http://127.0.0.1:8090/_preview/<file>.html.
+// Never double-click them as file:// URLs: every site-root absolute path
+// `/static/...` then resolves against the drive root and 404s, so the icon
+// font stylesheet (FontAwesome) fails to load and all icons disappear.
+// Chromium also blocks webfonts under file:// via CORS, so rewriting the paths
+// cannot restore the icons either.
+// Do not serve or execute public/_preview/render-alert.php under the web
+// server: it is a one-shot rendering tool that depends on the offline fixtures.
 $previewPath = getenv('LOOPDECK_PREVIEW_DIR');
 if ($previewPath && is_dir($previewPath)) {
     foreach ($renderedPages as $name => $html) {

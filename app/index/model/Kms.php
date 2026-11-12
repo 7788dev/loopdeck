@@ -223,15 +223,4 @@ class Kms extends Model
         }
         return false;
     }
-    
-    public static function AdminDelNotUse()
-    {
-        $self = new static();
-        if ($self->where('useid', '=', 0)->where('zid', '=', WEB_ID)->delete()) {
-            return true;
-        }
-        return false;
-    }
-    
-
 }

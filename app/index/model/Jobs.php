@@ -120,65 +120,6 @@ class Jobs extends Model
     }
 
     /**
-     * addNeteaseJob
-     * @param $data
-     * @return false|int|string
-     * @author BadCen
-     */
-    public static function addNeteaseJob($data)
-    {
-        $self = new static();
-        $tasks = Tasks::getTaskList('netease');
-        $nextExecute = self::nextExecutionForAccount('netease', (string)$data['user_id']);
-        foreach ($tasks as $key => $value) {
-            $result = $self->insert([
-                'uid' => Session::get('user.uid'),
-                'type' => 'netease',
-                'user_id' => $data['user_id'],
-                'do' => $value['execute_name'],
-                'nextExecute' => $nextExecute,
-            ]);
-        }
-        if ($result) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * addBilibiliJob
-     * @param $data
-     * @return bool
-     * @throws DataNotFoundException
-     * @throws DbException
-     * @throws ModelNotFoundException
-     * @author BadCen
-     */
-    public static function addBilibiliJob($data)
-    {
-        $self = new static();
-        $tasks = Tasks::getTaskList('bilibili');
-        $nextExecute = self::nextExecutionForAccount('bilibili', (string)$data['mid']);
-        foreach ($tasks as $key => $value) {
-            $offline = BilibiliTaskExecutor::offlineReason((string)$value['execute_name']) !== null;
-            $result = $self->insert([
-                'uid' => Session::get('user.uid'),
-                'type' => 'bilibili',
-                'user_id' => $data['mid'],
-                'do' => $value['execute_name'],
-                'state' => $offline ? 0 : 1,
-                'nextExecute' => $offline ? 0 : $nextExecute,
-            ]);
-        }
-        if ($result) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    /**
      * updateJob 更新账号后更新任务信息
      * @param $type
      * @return bool
@@ -222,24 +163,6 @@ class Jobs extends Model
         }
         self::disableOfflineBilibiliJobs((string)$type, (string)$user_id, $uid);
         return true;
-    }
-
-    /**
-     * findByUserId
-     * @param $user_id
-     * @return Jobs|array|false|Model|null
-     * @throws DataNotFoundException
-     * @throws DbException
-     * @throws ModelNotFoundException
-     * @author BadCen
-     */
-    public static function findByUserId($type, $user_id)
-    {
-        $self = new static();
-        if ($result = $self->where('user_id', $user_id)->where('type', $type)->where('uid', Session::get('user.uid'))->select()) {
-            return $result;
-        }
-        return false;
     }
 
     /**

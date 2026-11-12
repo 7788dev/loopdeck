@@ -13,9 +13,6 @@
                 <div class="ibox-title">
                     <h5>系统任务列表 <small>如果您还不了解，请勿随意修改参数</small></h5>
                     <div class="ibox-tools">
-<!--            <button type="submit" class="btn btn-sm btn-success" onclick="ajax_refresh_task();">-->
-<!--                <i class="fa fa-refresh"></i> 刷新所有任务-->
-<!--            </button>-->
                         <button type="submit" class="btn btn-sm btn-primary" onclick="ajax_add_task();">
                             <i class="fa fa-plus-circle"></i> 新增
                         </button>
@@ -32,7 +29,5 @@
 {/block}
 {block name="foot"}
 
-<script src="/static/js/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
-<script src="/static/js/plugins/datatables-responsive-bs3/js/responsive.bootstrap.min.js"></script>
 <script src="/static/js/admin_tasklist_datatables.js?v={:app_version()}"></script>
 {/block}

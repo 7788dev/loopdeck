@@ -355,4 +355,39 @@ removalCheck(!str_contains((string)file_get_contents($root . '/app/index/model/U
 removalCheck(!method_exists(app\admin\model\Accounts::class, 'delByUserid'),
     'The unscoped admin account delete helper remains');
 
+// R5: dead scaffolding, the obsolete second webscan copy and unreferenced
+// controller-less helpers must stay deleted so they cannot be revived as an
+// accidental entry point or a second source of truth.
+foreach ([
+    'app/BaseController.php',
+    'app/index/validate/Qrcode.php',
+    'extend/safe/360webscan.php',
+    'extend/safe/webscan_cache.php',
+    'public/static/css/geetest.css',
+    'public/static/css/loopdeck.css',
+    'public/static/js/pages',
+    'public/static/js/plugins/ckeditor5-classic',
+    'public/static/fonts',
+] as $removedPath) {
+    removalCheck(!file_exists($root . '/' . $removedPath), 'Dead code or unreferenced asset remains: ' . $removedPath);
+}
+foreach ([
+    [app\admin\model\Accounts::class, 'getAllAccountList'],
+    [app\admin\model\Jobs::class, 'turnOffTask'],
+    [app\admin\model\Jobs::class, 'delByUserid'],
+    [app\index\model\Jobs::class, 'addNeteaseJob'],
+    [app\index\model\Jobs::class, 'addBilibiliJob'],
+    [app\index\model\Jobs::class, 'findByUserId'],
+    [app\index\model\Captcha::class, 'check_captcha'],
+    [app\index\model\Kms::class, 'AdminDelNotUse'],
+    [app\index\model\Notice::class, 'updateByid'],
+    [app\index\model\TaskLogs::class, 'deleteLogs'],
+    [app\index\model\Tasks::class, 'taskCount'],
+    [app\index\model\Users::class, 'delByUid'],
+    [app\service\UserNotificationSettings::class, 'barkToken'],
+] as [$removedClass, $removedMethod]) {
+    removalCheck(!method_exists($removedClass, $removedMethod),
+        'Dead method remains: ' . $removedClass . '::' . $removedMethod);
+}
+
 echo "Feature removal and retained entitlement view tests passed\n";

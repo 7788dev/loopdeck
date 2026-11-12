@@ -62,20 +62,4 @@ class Captcha extends Model
             'status' => 0,
         ]);
     }
-
-    public static function check_captcha($number, $code)
-    {
-        $self = new static();
-        $where['type'] = 1;
-        $where['send'] = $number;
-        $where['code'] = $code;
-        $row = $self->where($where)->order('id', 'desc')->find();
-        if (!$row) {
-            return resultJson(1, '验证码不正确！');
-        } elseif ($row['time'] < time() - 300 || $row['status'] > 0) {
-            return resultJson(1, '验证码已失效，请重新获取！');
-        }
-    }
-
-
 }

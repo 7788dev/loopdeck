@@ -281,7 +281,6 @@
             content: '<form><div class="row"><div class="col-lg-12"><div class="form-floating mb-4"><select class="form-select"id="add_coin_mode" name="add_coin_mode"aria-label="投币渠道"><option value="random">随机热门</option><option value="fixed">关注列表</option></select><label class="form-label" for="add_coin_mode">投币渠道</label></div><div class="form-floating"><select class="form-select"id="add_coin_num" name="add_coin_num"aria-label="投币个数"><option value="1">1 个视频</option><option value="2">2 个视频</option><option value="3">3 个视频</option><option value="4">4 个视频</option><option value="5">5 个视频</option></select><label class="form-label" for="add_coin_num">投币个数</label><div class="form-text text-muted">每日上限5个视频(需5个硬币)</div></div></div></div></form>',
             success: function (res, index) {
                 config = JSON.parse(config);
-                // console.log(config)
                 if (typeof (config['add_coin_mode']) !== 'undefined') {
                     $("#add_coin_mode").val(config['add_coin_mode']);
                 }

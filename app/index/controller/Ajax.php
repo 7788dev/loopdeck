@@ -1,6 +1,5 @@
 <?php
 
-//decode by http://www.yunlu99.com/
 namespace app\index\controller;
 
 use app\index\model\Accounts;

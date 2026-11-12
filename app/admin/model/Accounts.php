@@ -44,30 +44,6 @@ class Accounts extends Model
         return false;
     }
 
-    public static function getAllAccountList()
-    {
-        $start = (int)input('post.start');
-        $length = (int)input('post.length');
-        $search = (array)(input('post.search') ?? []);
-
-        $self = new static();
-        $query = $self->alias('a');
-        self::applySearchFilters($query, $search);
-
-        $countQuery = (new static())->alias('a');
-        self::applySearchFilters($countQuery, $search);
-        $total = $countQuery->count('id');
-
-        if ($result = $query->order('a.addtime desc')->withoutField('data')->limit($start, $length)->select()) {
-            return [
-                'total' => $total,
-                'page' => input('post.page'),
-                'data' => $result,
-            ];
-        }
-        return false;
-    }
-
     public static function delByid($id, bool $cleanupState = true, ?int $ownerUid = null)
     {
         $account = \think\facade\Db::transaction(static function () use ($id, $ownerUid) {

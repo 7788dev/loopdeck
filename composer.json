@@ -32,9 +32,6 @@
         },
         "classmap": [
             "extend/"
-        ],
-        "exclude-from-classmap": [
-            "extend/safe/360webscan.php"
         ]
     },
     "config": {
@@ -50,6 +47,7 @@
         "post-autoload-dump": [
             "@php think service:discover",
             "@php think vendor:publish"
-        ]
+        ],
+        "preview": "php -S 127.0.0.1:8090 -t public"
     }
 }

@@ -479,16 +479,6 @@ class Users extends Model
         return false;
     }
 
-    public static function delByUid($uid)
-    {
-        $self = new static();
-        if ($result = $self->where('uid', '=', $uid)->delete()) {
-            return $result;
-        } else {
-            return false;
-        }
-    }
-
     /**
      * Keep administrative reads and writes inside the primary installation.
      * Historical ownership values must not grant access to archived accounts.

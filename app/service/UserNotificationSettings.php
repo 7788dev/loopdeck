@@ -180,11 +180,6 @@ final class UserNotificationSettings
         return $today > $now ? $today : (int)strtotime('+1 day', $today);
     }
 
-    public function barkToken(int $uid, int $webId): string
-    {
-        return (string)$this->get($uid, $webId)['bark_token'];
-    }
-
     public function saveBarkToken(int $uid, int $webId, string $token): bool
     {
         $token = BarkClient::normalizeToken($token);

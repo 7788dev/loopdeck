@@ -106,6 +106,9 @@ class Ajax extends Common
                     if (in_array($key, ['site_template', 'index_template', 'login_template'], true)) {
                         return resultJson(0, '模板选择已移除');
                     }
+                    if ($key === 'reg_iplimit') {
+                        return resultJson(0, '注册 IP 限制已移除，请刷新页面后保存');
+                    }
                     $records[] = [$key, $value];
                 }
 

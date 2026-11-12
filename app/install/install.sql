@@ -36,7 +36,6 @@ INSERT INTO `cloud_configs` (`k`, `v`) VALUES
                                            ('reExecute_time', '300'),
                                            ('interval', '50'),
                                            ('reg_close', '0'),
-                                           ('reg_iplimit', '0'),
                                            ('mail_invalid', '0'),
                                            ('bark_enabled', '0'),
                                            ('is_netease_tool', '0'),

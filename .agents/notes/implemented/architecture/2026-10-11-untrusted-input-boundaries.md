@@ -18,7 +18,7 @@ Host 头、富文本 URL 属性、安装器请求标记、WAF 白名单都是外
 - `get_Domain` 只在 Host 为 loopback 或精确命中已注册域名时回显；否则回退到注册域名，两者皆无时落到 `127.0.0.1`。
 - `safe_html` 对 URL 属性先按浏览器方式解码（`html_entity_decode` + 剥离 `\x00-\x20\x7f`）再判 scheme；危险属性整体移除，其余属性原样保留，最终仍经外层转义兜底。
 - 安装器改用 `Request::isAjax(true)`（严格校验 `X-Requested-With` 头）并叠加 `is_cross_origin_request()` 拒绝跨源表单。
-- `webscan_white` 把白名单值锚定到路由路径（`PATH_INFO` → `REQUEST_URI` path → `SCRIPT_NAME`），剥掉遗留 `s=` 前缀后按段边界匹配；`docker/nginx-security.conf` 确认 PATH_INFO 在实际部署中承载真实路由。
+- `webscan_white` 把白名单值锚定到路由路径，剥掉遗留 `s=` 前缀后按段边界匹配；`docker/nginx-security.conf` 确认 PATH_INFO 在实际部署中承载真实路由。后续[请求解析修复](2026-11-12-webscan-request-parsing.md)将兼容参数 `?s=` 的优先级对齐到 ThinkPHP 实际路由，保留路径边界限制。
 
 ## Alternatives considered
 

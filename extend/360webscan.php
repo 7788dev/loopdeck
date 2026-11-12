@@ -2,7 +2,8 @@
 // 纵深附加层：正则黑名单可被绕过，核心防线是参数化查询与输出转义，不能依赖本文件单独防护。
 webscan_error();
 //引用配置文件
-require_once('webscan_cache.php');
+require_once __DIR__ . '/webscan_cache.php';
+require_once __DIR__ . '/webscan_request.php';
 //防护脚本版本号
 define("WEBSCAN_VERSION", '0.1.2.9');
 //防护脚本MD5值
@@ -113,22 +114,18 @@ function webscan_error() {
  *  参数拆分
  */
 function webscan_arr_foreach($arr) {
-  static $str;
-  static $keystr;
   if (!is_array($arr)) {
     return $arr;
   }
+  $str = [];
   foreach ($arr as $key => $val ) {
-    $keystr=$keystr.$key;
     if (is_array($val)) {
-
-      webscan_arr_foreach($val);
+      $str[] = (string)$key . webscan_arr_foreach($val);
     } else {
-
-      $str[] = $val.$keystr;
+      $str[] = (string)$key . (string)$val;
     }
   }
-  return implode($str);
+  return implode('', $str);
 }
 /**
  *  新版文件md5值效验
@@ -145,6 +142,9 @@ function webscan_updateck($ve) {
  *  防护提示页
  */
 function webscan_pape(){
+  http_response_code(403);
+  header('Content-Type: text/html; charset=utf-8');
+  header('Cache-Control: no-store');
   $pape=<<<HTML
 <html>
 <head>
@@ -177,38 +177,30 @@ HTML;
  *  攻击检查拦截
  */
 function webscan_StopAttack($StrFiltKey,$StrFiltValue,$ArrFiltReq,$method) {
-  $StrFiltValue=webscan_arr_foreach($StrFiltValue);
-  if (preg_match("/".$ArrFiltReq."/is",$StrFiltValue)==1){
-    exit(webscan_pape());
-  }
   if (preg_match("/".$ArrFiltReq."/is",$StrFiltKey)==1){
     exit(webscan_pape());
   }
-
+  if (is_array($StrFiltValue)) {
+    foreach ($StrFiltValue as $key => $value) {
+      webscan_StopAttack((string)$key, $value, $ArrFiltReq, $method);
+    }
+  } elseif (preg_match("/".$ArrFiltReq."/is",(string)$StrFiltValue)==1) {
+    exit(webscan_pape());
+  }
 }
 /**
  *  拦截目录白名单
  */
 function webscan_white($webscan_white_name,$webscan_white_url=array()) {
   $url_path=$_SERVER['SCRIPT_NAME'] ?? '';
-  $url_var=$_SERVER['QUERY_STRING'] ?? '';
   if (preg_match("/".$webscan_white_name."/is",$url_path)==1&&!empty($webscan_white_name)) {
     return false;
   }
-  // The application's route path (PATH_INFO under the shipped nginx config,
-  // REQUEST_URI/SCRIPT_NAME under the development server). Whitelisting the
+  // The application's effective route (?s= overrides PATH_INFO, just as in
+  // ThinkPHP). Whitelisting the
   // route prefix instead of a query-string substring stops any request from
   // disabling the firewall by appending whitelisted text to its query string.
-  $route_path=$_SERVER['PATH_INFO'] ?? '';
-  if ($route_path===''||$route_path==='/') {
-    $request_path=parse_url((string)($_SERVER['REQUEST_URI'] ?? ''),PHP_URL_PATH);
-    if (is_string($request_path)&&$request_path!==''&&$request_path!=='/') {
-      $route_path=$request_path;
-    }
-  }
-  if ($route_path===''||$route_path==='/') {
-    $route_path=$url_path;
-  }
+  $route_path=webscan_route_path();
   foreach ($webscan_white_url as $key => $value) {
     if (stristr($url_path,$key)) {
       // Legacy entries carry an `s=` route prefix; strip the marker and match
@@ -246,26 +238,7 @@ function webscan_curl($url , $postdata = array()){
 }
 
 if ($webscan_switch&&webscan_white($webscan_white_directory,$webscan_white_url)) {
-  if ($webscan_get) {
-    foreach($_GET as $key=>$value) {
-      webscan_StopAttack($key,$value,$getfilter,"GET");
-    }
-  }
-  if ($webscan_post) {
-    foreach($_POST as $key=>$value) {
-      webscan_StopAttack($key,$value,$postfilter,"POST");
-    }
-  }
-  if ($webscan_cookie) {
-    foreach($_COOKIE as $key=>$value) {
-      webscan_StopAttack($key,$value,$cookiefilter,"COOKIE");
-    }
-  }
-  if ($webscan_referre) {
-    foreach($webscan_referer as $key=>$value) {
-      webscan_StopAttack($key,$value,$postfilter,"REFERRER");
-    }
-  }
+  webscan_scan_request($getfilter, $postfilter, $cookiefilter);
 }
 
 ?>

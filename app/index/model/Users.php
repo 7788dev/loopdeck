@@ -44,12 +44,8 @@ class Users extends Model
             //验证失败 输出错误信息
             return resultJson(-1, $e->getMessage());
         }
+        // 共享网络和登录 IP 变化不能作为拒绝正常注册的依据。
         $self = new static();
-        if (config('sys.reg_iplimit') == 1) {
-            if ($self->where('login_ip', real_ip())->find()) {
-                return resultJson(-1, 'IP已经注册过账号');
-            }
-        }
         if ($self->where('username', $data['username'])->find()) {
             return resultJson(-1, '用户名已存在');
         } elseif ($self->where('qq', $data['qq'])->find()) {

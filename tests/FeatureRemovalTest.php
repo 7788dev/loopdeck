@@ -77,6 +77,33 @@ foreach (['app/index/view/index/default', 'app/index/view/login/default', 'publi
 }
 $schema = file_get_contents($root . '/app/install/install.sql');
 removalCheck(!str_contains($schema, "'heybox'"), 'Fresh installations still create Heybox tasks');
+removalCheck(!str_contains($schema, "'reg_iplimit'"), 'Fresh installations still seed registration IP restrictions');
+foreach (['0', '1'] as $legacyIpLimit) {
+    fixtureRequest(['reg_iplimit' => $legacyIpLimit]);
+    $removedSetting = (new AdminAjax())->set('config')->getData();
+    removalCheck($removedSetting['code'] === 0 && str_contains($removedSetting['message'], '已移除'),
+        'The retired registration IP setting is still writable');
+}
+
+// Stored legacy settings must not restore the shared-network rejection path.
+Config::set(['reg_iplimit' => '1', 'reg_close' => '0'], 'sys');
+think\Validate::maker(static function ($validator): void {
+    $validator->extend('captcha', static fn($value): bool => $value === 'fixture-captcha');
+});
+$previousServer = $_SERVER;
+try {
+    $_SERVER['REMOTE_ADDR'] = '198.51.100.90';
+    unset($_SERVER['HTTP_X_FORWARDED_FOR']);
+    foreach (['removalnetwork1' => '1234901', 'removalnetwork2' => '1234902'] as $username => $qq) {
+        $registration = app\index\model\Users::reg([
+            'username' => $username, 'password' => 'fixture-password', 'qq' => $qq, 'captcha' => 'fixture-captcha',
+        ])->getData();
+        removalCheck($registration['code'] === 1, 'Legacy settings restored registration IP rejection');
+    }
+} finally {
+    $_SERVER = $previousServer;
+}
+
 removalCheck(!preg_match('/cloud_(?:pays|order)|vip_price_|quota_price_|OrderPlacementMethod|`money`/', $schema),
     'Fresh installation recreates payment schema or settings');
 removalCheck((new System())->data('sites')->getCode() === 404, 'Retired site management page remains reachable');
@@ -202,6 +229,12 @@ foreach ([
             'Payment UI reappeared with legacy settings: ' . $view);
         removalCheck(!preg_match('/直播间|globalroom|global_room/u', $html),
             'Retired live-room configuration reappeared: ' . $view);
+        if ($application === 'admin' && $view === 'system/set/reg') {
+            removalCheck(!str_contains($html, 'reg_iplimit') && !str_contains($html, '>IP限制<'),
+                'Legacy settings restored the registration IP control');
+            removalCheck(str_contains($html, '同一网络下的不同用户可以分别注册'),
+                'Registration settings lost the shared-network explanation');
+        }
         if ($application === 'index') {
             removalCheck(str_contains($html, '/index/console/shop/card'), 'Legacy settings hid redemption');
         }

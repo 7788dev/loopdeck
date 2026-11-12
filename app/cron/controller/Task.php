@@ -14,6 +14,7 @@ use app\service\AutomaticSchedule;
 use app\service\NotificationService;
 use app\service\EpicJobRunner;
 use app\service\BilibiliTaskExecutor;
+use app\service\AnyRouterTaskExecutor;
 use app\service\NeteaseSchedule;
 use app\service\SchemaMaintenance;
 use app\service\SchedulerRetry;
@@ -123,6 +124,7 @@ class Task extends Common
         $taskMap = [
             'netease' => self::NETEASE_TASKS,
             'bilibili' => BilibiliTaskExecutor::executableTasks(),
+            'anyrouter' => ['sign_in'],
             'epic' => ['weeklyGameNotify'],
         ];
         $now = time();
@@ -370,6 +372,7 @@ class Task extends Common
                 $result = match ($type) {
                     'netease' => $this->executeNetease($taskName, $userId, $accountData, $jobConfig),
                     'bilibili' => $this->executeBilibili($taskName, $accountData, $jobConfig),
+                    'anyrouter' => $this->anyRouterExecutor()->execute($taskName, $accountData, $jobConfig),
                 };
             } catch (Throwable $exception) {
                 // When the retry budget is exhausted, retryJob has already
@@ -418,6 +421,9 @@ class Task extends Common
                     $result, $storedJobConfig, $userId, (string)$account['timing']
                 );
             }
+            if ($type === 'anyrouter') {
+                $updates = AnyRouterTaskExecutor::jobUpdates($result, $userId, (string)$account['timing']);
+            }
             Jobs::updateClaimedJob($jobId, $updates);
             $summary[$result['success'] ? 'succeeded' : 'failed']++;
         } catch (Throwable $exception) {
@@ -439,6 +445,7 @@ class Task extends Common
     {
         return ($type === 'netease' && in_array($task, self::NETEASE_TASKS, true))
             || ($type === 'bilibili' && BilibiliTaskExecutor::supports($task))
+            || ($type === 'anyrouter' && $task === 'sign_in')
             || ($type === 'epic' && $task === 'weeklyGameNotify');
     }
 
@@ -490,6 +497,11 @@ class Task extends Common
     protected function bilibiliExecutor(): BilibiliTaskExecutor
     {
         return new BilibiliTaskExecutor();
+    }
+
+    protected function anyRouterExecutor(): AnyRouterTaskExecutor
+    {
+        return new AnyRouterTaskExecutor();
     }
 
     private function user(int $uid)
@@ -738,6 +750,7 @@ class Task extends Common
             $provider = match ($type) {
                 'netease' => '网易云音乐',
                 'bilibili' => '哔哩哔哩',
+                'anyrouter' => 'AnyRouter',
                 default => $type,
             };
             $this->notifications()->sendAccountInvalid($user, $provider, $userId);

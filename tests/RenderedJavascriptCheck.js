@@ -12,6 +12,12 @@ for (const page of ['admin/system/data/kms.html']) {
     if (pages[page]) require('./RedemptionFormInteraction.js')(pages[page]);
 }
 for (const [file, html] of Object.entries(pages)) {
+    const anyrouterScript = html.indexOf('/static/js/anyrouter.js');
+    if (anyrouterScript !== -1) {
+        const jqueryScript = html.indexOf('/static/ruoyi/js/jquery.min.js');
+        assert.ok(jqueryScript !== -1 && jqueryScript < anyrouterScript,
+            `${file}: AnyRouter initializes before jQuery on a full-page load`);
+    }
     for (const match of html.matchAll(/<(?:script|link|img)\b[^>]*\b(?:src|href)=["'](\/static\/[^"']+)["']/gi)) {
         const url = new URL(match[1].replace(/&amp;/g, '&'), 'http://fixture.local');
         assert.ok(fs.existsSync(path.join(__dirname, '../public', decodeURIComponent(url.pathname))),

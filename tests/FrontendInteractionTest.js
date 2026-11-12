@@ -7,6 +7,95 @@ const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
+// Exercise the actual AnyRouter script: proxy switch, secret-field submission and PJAX rebinding.
+{
+    const events = new Map();
+    const state = {mode: 'platform', input: {saved: '0'}, custom: {}, help: {}, requests: [], label: '验证并添加', reloads: 0};
+    const input = {prop(k, v) {state.input[k] = v; return this;}, attr(k) {return k === 'data-proxy-saved' ? state.input.saved : undefined;}};
+    const fieldset = {find(selector) {
+        if (selector.includes(':checked')) return {val() {return state.mode;}};
+        if (selector === '[name="proxy_url"]') return input;
+        const target = selector === '[data-anyrouter-custom]' ? state.custom : state.help;
+        return {prop(k, v) {target[k] = v; return this;}, toggle(visible) {target.visible = visible; return this;}};
+    }};
+    const button = {prop(k, v) {if (v === undefined) return state[k]; state[k] = v; return this;}, text(v) {if (v === undefined) return state.label; state.label = v; return this;},
+        attr() {return '正在验证并保存…';}};
+    const form = {attr() {return 'save';}, serialize() {return 'api_user=42&cookie=fixture' + (state.input.disabled ? '' : '&proxy_url=fixture-proxy');},
+        find() {return button;}};
+    const document = {};
+    const chain = {off() {events.clear(); return this;}, on(event, selector, fn) {events.set(event, fn); return this;}};
+    const $ = object => object === document ? chain
+        : object === '[data-anyrouter-proxy]' ? {each(fn) {fn.call(fieldset);}} : object;
+    $.ajax = options => {
+        state.requests.push(options);
+        const callbacks = {done(fn) {state.done = fn; return this;}, fail(fn) {state.fail = fn; return this;}, always(fn) {state.always = fn; return this;}};
+        return callbacks;
+    };
+    const {context: sharedContext} = environment();
+    vm.runInContext(read('public/static/js/app.min.js'), sharedContext);
+    sharedContext.x.ajax = (url, data, success, fail) => {state.toggle = {url, data, success, fail};};
+    sharedContext.x.notify = () => {};
+    const context = vm.createContext({jQuery: $, document, x: sharedContext.x,
+        layer: {open(options) {state.dialog = options;}, close() {state.closed = true;}},
+        window: {innerWidth: 390, location: {pathname: '/index/console/anyrouter/info/42', reload() {state.reloads++;}}}});
+    const source = read('public/static/js/anyrouter.js');
+    vm.runInContext(source, context);
+    assert.equal(state.custom.hidden, true);
+    assert.equal(state.input.disabled, true);
+    state.mode = 'custom';
+    events.get('change.ldAnyrouter').call({closest() {return fieldset;}});
+    assert.equal(state.custom.hidden, false);
+    assert.equal(state.input.required, true);
+    assert.equal(state.input.disabled, false);
+    state.input.saved = '1';
+    events.get('change.ldAnyrouter').call({closest() {return fieldset;}});
+    assert.equal(state.input.required, false, 'Saved proxy cannot be retained with an empty input');
+    events.get('submit.ldAnyrouter').call(form, {preventDefault() {}});
+    assert.match(state.requests[0].data, /proxy_url/);
+    assert.equal(state.disabled, true);
+    state.always();
+    assert.equal(state.disabled, false);
+    state.mode = 'platform';
+    vm.runInContext(source, context);
+    assert.equal(events.size, 4, 'PJAX rebind duplicated handlers');
+    events.get('submit.ldAnyrouter').call(form, {preventDefault() {}});
+    assert.doesNotMatch(state.requests[1].data, /proxy_url/, 'Platform mode submitted the hidden custom proxy');
+    state.always();
+    const toggle = {checked: true, disabled: false, attr(k) {return k === 'data-anyrouter-toggle' ? 'sign_in' : '42';}};
+    events.get('change.ldAnyrouter.toggle').call(toggle);
+    assert.equal(state.toggle.url, '/index/ajax/anyrouter/toggle');
+    assert.equal(state.toggle.data.user_id, '42');
+    assert.equal(toggle.disabled, true);
+    state.toggle.success({code: 0, message: 'VIP required'});
+    assert.equal(toggle.checked, false, 'Rejected AnyRouter switch did not roll back');
+    assert.equal(toggle.disabled, false);
+    assert.equal(state.reloads, 0, 'Rejected switch reloaded the page');
+    toggle.checked = true;
+    events.get('change.ldAnyrouter.toggle').call(toggle);
+    state.toggle.fail();
+    assert.equal(toggle.checked, false, 'Failed AnyRouter request did not roll back');
+    assert.equal(state.reloads, 0, 'Failed request reloaded the page');
+    toggle.checked = true;
+    events.get('change.ldAnyrouter.toggle').call(toggle);
+    state.toggle.success({code: 1, message: '已启用签到'});
+    assert.equal(toggle.checked, true);
+    assert.equal(state.reloads, 1, 'Enabling AnyRouter did not refresh status and manual-run availability');
+    toggle.checked = false;
+    events.get('change.ldAnyrouter.toggle').call(toggle);
+    state.toggle.success({code: 1, message: '已暂停签到'});
+    assert.equal(toggle.checked, false);
+    assert.equal(state.reloads, 2, 'Pausing AnyRouter did not refresh status and manual-run availability');
+    button.attr = key => ({'data-anyrouter-action': 'timing', 'data-user-id': '42', 'data-timing': '09:00'})[key];
+    events.get('click.ldAnyrouter').call(button);
+    assert.equal(state.dialog.area[0], '358px', 'Timing dialog exceeds mobile viewport');
+    state.dialog.yes(1, {find() {return {val() {assert.equal(state.closed, undefined); return '10:30';}};}});
+    assert.equal(state.requests[2].url, '/index/ajax/anyrouter/timing');
+    assert.equal(state.requests[2].data.timing, '10:30', 'Timing must be read before closing the dialog');
+    events.get('click.ldAnyrouter').call(button);
+    state.dialog.yes(2, {find() {return {val() {return '10:30';}};}});
+    assert.equal(state.requests.length, 3, 'In-flight action was submitted twice');
+}
+
 function scripts(file) {
     return [...read(file).matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
         .map(match => match[1]).join('\n')

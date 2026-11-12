@@ -16,6 +16,7 @@ Route::get('version', 'index/version');
 Route::group('console', function () {
     Route::rule('netease/[:act]/[:user_id]', 'console/netease');
     Route::rule('bilibili/[:act]/[:mid]', 'console/bilibili');
+    Route::rule('anyrouter/[:act]/[:user_id]', 'console/anyrouter');
     Route::rule('user/[:act]', 'console/user');
     Route::rule('shop/[:act]', 'console/shop');
     Route::rule('qrcode/[:act]/[:uid]', 'console/qrcode');
@@ -37,6 +38,7 @@ Route::group('ajax', function () {
     // NetEase has its own clean controller; keep the legacy public URL.
     Route::rule('netease/[:act]', 'netease/handle');
     Route::rule('bilibili/[:act]', 'bilibili/handle');
+    Route::post('anyrouter/[:act]', 'anyrouter/handle');
     Route::rule('epic/act/[:act]', 'ajax/epic');
     Route::rule('qrcode/[:act]', 'ajax/qrcode');
 

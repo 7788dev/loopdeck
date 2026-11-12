@@ -9,6 +9,8 @@ use app\index\model\Users;
 use app\index\model\Accounts;
 use app\service\BilibiliExperienceSummary;
 use app\service\BilibiliTaskExecutor;
+use app\service\AnyRouterAccountInfo;
+use app\service\AnyRouterTaskExecutor;
 use app\service\NeteaseDakaProgress;
 use app\service\UserNotificationSettings;
 use bilibili\Bilibili as BilibiliClient;
@@ -58,6 +60,84 @@ class Console
                 return $this->bilibiliInfo((string)$mid);
                 break;
         }
+    }
+
+    public function anyrouter($act = '', $user_id = '')
+    {
+        $uid = (int)Session::get('user.uid');
+        if ($act === 'list') {
+            $rows = [];
+            foreach (Accounts::getMyList('anyrouter') as $account) {
+                $payload = safe_unserialize_array((string)$account['data']);
+                $profile = AnyRouterAccountInfo::present((array)($payload['profile'] ?? []),
+                    AnyRouterAccountInfo::remark($payload), (string)$account['user_id']);
+                $rows[] = ['user_id' => (string)$account['user_id'], 'state' => (int)$account['state'],
+                    'nickname' => $profile['nickname'], 'avatar' => $profile['avatar'],
+                    'addtime' => (string)$account['addtime'],
+                    'timing' => (string)($account['timing'] ?? '')];
+            }
+            return view('console/anyrouter/list', ['list' => $rows]);
+        }
+        if ($act === 'add') {
+            return view('console/anyrouter/add', ['anyrouter_form' => [
+                'user_id' => '', 'nickname' => '', 'proxy_mode' => 'platform', 'proxy_configured' => false,
+            ]]);
+        }
+        if (!in_array($act, ['info', 'update'], true)) {
+            return response('页面不存在', 404);
+        }
+        $account = Accounts::findByUserId('anyrouter', (string)$user_id);
+        if (!$account) {
+            return view('common/alert', ['msg' => '账号不存在或无权查看', 'url' => '/index/console/anyrouter/list']);
+        }
+        $payload = safe_unserialize_array((string)$account['data']);
+        if ($act === 'update') {
+            return view('console/anyrouter/add', ['anyrouter_form' => [
+                'user_id' => (string)$user_id, 'nickname' => AnyRouterAccountInfo::remark($payload),
+                'proxy_mode' => ($payload['proxy_mode'] ?? '') === 'custom' ? 'custom' : 'platform',
+                'proxy_configured' => !empty($payload['proxy_url']),
+            ]]);
+        }
+        Jobs::refreshJob('anyrouter', (string)$user_id, $uid);
+        $task = Tasks::where('type', 'anyrouter')->where('execute_name', 'sign_in')->find();
+        $job = Jobs::getJobInfo('anyrouter', (string)$user_id, 'sign_in', $uid);
+        $profile = array_intersect_key((array)($payload['profile'] ?? []), array_flip(['nickname', 'username']));
+        $warning = '';
+        if ((int)$account['state'] === 1) {
+            try {
+                // Page visits only read /status and /self. They never submit sign-in or alter credentials.
+                $result = $this->anyRouterExecutor()->validateAccount($payload);
+                if (!empty($result['success'])) {
+                    $profile = $result['profile'];
+                } else {
+                    $warning = '暂时无法获取账号信息：' . (string)($result['reason'] ?? '请稍后刷新');
+                }
+            } catch (Throwable $exception) {
+                $warning = '暂时无法获取账号信息，请稍后刷新';
+            }
+        } else {
+            $warning = '登录状态已失效，请更新账号 Cookie。';
+        }
+        // Pass an explicit public projection: neither cookies nor endpoints enter template variables.
+        return view('console/anyrouter/info', [
+            'anyrouter_info' => AnyRouterAccountInfo::present($profile,
+                AnyRouterAccountInfo::remark($payload), (string)$user_id),
+            'info_warning' => $warning,
+            'anyrouter_proxy_label' => ($payload['proxy_mode'] ?? '') === 'custom' ? '提供代理' : '平台代理',
+            'anyrouter_state' => (int)$account['state'], 'timing' => (string)($account['timing'] ?? ''),
+            'anyrouter_job' => ['enabled' => $job && (int)$job['state'] === 1,
+                'available' => $task && (int)$task['state'] === 1,
+                'name' => $task ? (string)$task['name'] : '每日签到',
+                'description' => $task ? (string)$task['describe'] : '通过代理完成 AnyRouter 签到',
+                'last' => $job && $job['lastExecute'] ? (string)$job['lastExecute'] : '尚未执行',
+                'next' => $job && (int)$job['state'] === 1 && (int)$job['nextExecute'] > 0
+                    ? date('Y-m-d H:i:s', (int)$job['nextExecute']) : ''],
+        ]);
+    }
+
+    protected function anyRouterExecutor(): AnyRouterTaskExecutor
+    {
+        return new AnyRouterTaskExecutor();
     }
 
     private function bilibiliAccountList(): array

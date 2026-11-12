@@ -28,6 +28,10 @@ $variables = [
     'webTitle' => '测试', 'mail' => 'test@example.com', 'users' => [], 'list' => [], 'notice' => [], 'notices' => [],
     'timeCount' => 1, 'userCount' => 1, 'quota_used' => 0, 'user_count' => 1, 'account_count' => 0, 'job_count' => 0, 'execute_count' => 0,
     'accounts' => [], 'daily_limit' => 10, 'task_rows' => [], 'timing' => '', 'signature' => '', 'info_warning' => '', 'info_available' => false, 'level_info' => null,
+    'anyrouter_form' => ['user_id' => '', 'nickname' => '', 'proxy_mode' => 'platform', 'proxy_configured' => false],
+    'anyrouter_info' => app\service\AnyRouterAccountInfo::present([], '', '42'), 'anyrouter_proxy_label' => '平台代理',
+    'anyrouter_state' => 1, 'anyrouter_job' => ['enabled' => false, 'available' => true, 'last' => '尚未执行', 'next' => '',
+        'name' => '每日签到', 'description' => '通过代理完成 AnyRouter 签到'],
     'data' => ['user_id' => '42', 'state' => 1, 'timing' => '', 'uid' => 1],
     'a_data' => ['user_id' => '42', 'mid' => '42', 'nickname' => '测试用户', 'avatar' => ''],
     'details' => ['level_now' => 1, 'level_next' => 2, 'listenSongs' => 0, 'listennum' => 0, 'loginnum' => 0],
@@ -80,7 +84,7 @@ try {
         'user_id' => '42'];
     foreach ([''] as $themePath) {
     $populatedViewPath = $root . '/app/index/view/' . $themePath;
-    foreach (['netease', 'bilibili', 'qrcode'] as $platform) {
+    foreach (['netease', 'bilibili', 'anyrouter', 'qrcode'] as $platform) {
         foreach ($platform === 'qrcode' ? ['list'] : ['list', 'info'] as $page) {
             $relative = 'console/' . $platform . '/' . $page . '.html';
             $engine = new think\Template($templateConfig($populatedViewPath));
@@ -94,7 +98,18 @@ try {
                 if ($platform === 'bilibili') {
                     $taskRows = [array_replace($task, ['execute_name' => 'coinadd', 'name' => '每日投币'])];
                 }
-                $engine->fetch($populatedViewPath . $relative, array_replace($variables, ['list' => [$account], 'task_rows' => $taskRows]));
+                $populated = ['list' => [$account], 'task_rows' => $taskRows];
+                if ($platform === 'anyrouter') {
+                    $populated += ['anyrouter_form' => ['user_id' => '42', 'nickname' => 'AnyRouter 测试账号',
+                        'proxy_mode' => 'custom', 'proxy_configured' => true],
+                        'anyrouter_info' => app\service\AnyRouterAccountInfo::present(['nickname' => '站点昵称', 'username' => 'fixture-user',
+                            'quota' => 62500000.0, 'used_quota' => 1750000.0, 'quota_per_unit' => 500000.0,
+                            'display_in_currency' => true, 'request_count' => 321, 'group' => 'default'], '日常使用', '42'),
+                        'anyrouter_job' => ['enabled' => true, 'available' => true, 'last' => '2026-11-12 09:00:00', 'next' => '2026-11-13 09:00:00',
+                            'name' => '每日签到', 'description' => '通过代理完成 AnyRouter 签到'],
+                        'timing' => '09:00'];
+                }
+                $engine->fetch($populatedViewPath . $relative, array_replace($variables, $populated));
                 $html = ob_get_contents();
                 if ($platform === 'netease' && $page === 'info') {
                     functionalCheck(str_contains($html, '已确认 144/300 首') && str_contains($html, '本轮截止 15:30'),
@@ -105,6 +120,15 @@ try {
                         'Retired task presentation remains in the Bilibili page');
                     functionalCheck(str_contains($html, 'data-execute-name="coinadd"')
                         && str_contains($html, 'data-task-toggle="coinadd"'), 'Retained task controls disappeared');
+                }
+                if ($platform === 'anyrouter' && $page === 'info') {
+                    functionalCheck(str_contains($html, '基本信息') && str_contains($html, '账户信息')
+                        && str_contains($html, '$125.00') && str_contains($html, '$3.50') && str_contains($html, '日常使用')
+                        && str_contains($html, 'fixture-user') && str_contains($html, 'data-anyrouter-toggle="sign_in"')
+                        && str_contains($html, 'task_logs_datatables.js') && str_contains($html, 'data-type="anyrouter"'),
+                        'Unified AnyRouter profile, task switch or shared log table did not render');
+                    functionalCheck(!str_contains($html, 'name="cookie"') && str_contains($html, '/index/console/anyrouter/update/42'),
+                        'Account credentials still replace the task information panel');
                 }
                 $renderedPages['populated/' . $themePath . $relative] = $html;
                 if ($page === 'list' && $platform !== 'qrcode') {
@@ -191,6 +215,22 @@ try {
             functionalCheck(str_contains($html, html_escape($value)), $label . ': value was not HTML-encoded');
         }
     };
+
+    $anyrouterHtml = $render('index', 'console/anyrouter/info.html', array_replace($variables, [
+        'anyrouter_info' => array_replace($variables['anyrouter_info'], ['nickname' => $payload, 'username' => $attributePayload,
+            'cookies' => ['session' => 'private-cookie-value'], 'proxy_url' => 'http://user:private-proxy-password@8.8.8.8:80']),
+    ]));
+    $assertEncoded('AnyRouter remark and username', $anyrouterHtml, [$payload, $attributePayload]);
+    functionalCheck(!str_contains($anyrouterHtml, 'private-cookie-value')
+        && !str_contains($anyrouterHtml, 'private-proxy-password'), 'AnyRouter template exposed stored credentials');
+    $anyrouterUpdate = $render('index', 'console/anyrouter/add.html', array_replace($variables, [
+        'anyrouter_form' => ['user_id' => '42', 'nickname' => $payload, 'proxy_mode' => 'custom', 'proxy_configured' => true,
+            'cookies' => ['session' => 'private-cookie-value'], 'proxy_url' => 'http://user:private-proxy-password@8.8.8.8:80'],
+    ]));
+    $assertEncoded('AnyRouter update remark', $anyrouterUpdate, [$payload]);
+    functionalCheck(str_contains($anyrouterUpdate, '备注名') && str_contains($anyrouterUpdate, '留空保留已保存的代理')
+        && !str_contains($anyrouterUpdate, 'private-cookie-value') && !str_contains($anyrouterUpdate, 'private-proxy-password'),
+        'Account update lost the remark or exposed stored credentials');
 
     $publicQr = $render('index', 'index/qrcode.html', array_replace($variables, [
         'name' => $payload, 'type' => 'qq', 'url' => 'https://pay.example/qr',

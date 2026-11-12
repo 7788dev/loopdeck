@@ -8,7 +8,7 @@ use app\cron\controller\Common;
 
 final class NotificationText
 {
-    private const PROVIDERS = ['netease' => '网易云音乐', 'bilibili' => '哔哩哔哩', 'heybox' => '小黑盒', 'epic' => 'Epic'];
+    private const PROVIDERS = ['netease' => '网易云音乐', 'bilibili' => '哔哩哔哩', 'anyrouter' => 'AnyRouter', 'heybox' => '小黑盒', 'epic' => 'Epic'];
 
     public static function clean(string $text, int $limit = 6000): string
     {

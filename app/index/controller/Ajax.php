@@ -31,6 +31,11 @@ class Ajax extends Common
 		// Compatibility entry for deployments that still expose controller auto-routing.
 		return (new \app\index\controller\Bilibili())->handle($act);
 	}
+
+    public function anyrouter($act = null)
+    {
+        return (new \app\index\controller\Anyrouter())->handle($act);
+    }
 	public function sport($act = null)
 	{
 		// Compatibility guard for deployments that still allow controller auto-routing.

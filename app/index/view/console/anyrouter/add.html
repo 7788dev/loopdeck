@@ -1,0 +1,30 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row"><div class="col-md-6">
+        <div class="ibox float-e-margins">
+            <div class="ibox-title"><h5>{if condition="empty($anyrouter_form.user_id)"}添加账号{else /}更新账号{/if} - AnyRouter</h5></div>
+            <div class="ibox-content">
+                <p class="text-muted">绑定后设置签到时间，系统会通过所选代理自动签到。</p>
+                {include file="console/anyrouter/form" /}
+            </div>
+        </div>
+    </div><div class="col-md-6">
+        <div class="ibox float-e-margins">
+            <div class="ibox-title"><h5>获取账号凭据</h5></div>
+            <div class="ibox-content">
+                <ol>
+                    <li>打开 <a href="https://anyrouter.top" target="_blank" rel="noopener noreferrer">AnyRouter</a> 并登录。</li>
+                    <li>按 F12 打开开发者工具，在“网络”中找到 <code>/api/user/self</code> 请求。</li>
+                    <li>复制请求头中的 <code>Cookie</code> 和 <code>new-api-user</code>，填入上方表单。</li>
+                </ol>
+                <p class="text-muted m-b-none">Cookie 需要包含 session。网站验证所需 Cookie 会由系统自动刷新。</p>
+            </div>
+        </div>
+    </div></div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/anyrouter.js?v={:app_version()}"></script>
+{/block}

@@ -1,0 +1,27 @@
+<form data-anyrouter-form="save" autocomplete="off">
+    <div class="form-group">
+        <label for="anyrouter-name">备注名</label>
+        <input id="anyrouter-name" name="nickname" class="form-control" maxlength="80" value="{$anyrouter_form.nickname|default=''}" placeholder="例如：日常使用、备用账号">
+        <p class="help-block">用于区分账号，留空时使用站点名称或用户名。</p>
+    </div>
+    <div class="form-group">
+        <label for="anyrouter-user">API User</label>
+        <input id="anyrouter-user" name="api_user" class="form-control" inputmode="numeric" pattern="[1-9][0-9]{0,18}" maxlength="19" required value="{$anyrouter_form.user_id|default=''}" {if condition="!empty($anyrouter_form.user_id)"}readonly{/if} placeholder="请求头 new-api-user 的值">
+    </div>
+    <div class="form-group">
+        <label for="anyrouter-cookie">Cookie</label>
+        <input id="anyrouter-cookie" type="password" name="cookie" class="form-control" maxlength="16384" autocomplete="new-password" {if condition="empty($anyrouter_form.user_id)"}required{/if} placeholder="{if condition='!empty($anyrouter_form.user_id)'}留空保留已保存的 Cookie{else /}session=…{/if}">
+    </div>
+    <fieldset class="form-group" data-anyrouter-proxy>
+        <legend style="font-size: 14px; border: 0; margin-bottom: 8px; font-weight: 600;">代理设置</legend>
+        <label class="radio-inline"><input type="radio" name="proxy_mode" value="platform" {if condition="empty($anyrouter_form.proxy_mode) || $anyrouter_form.proxy_mode eq 'platform'"}checked{/if}> 平台代理</label>
+        <label class="radio-inline"><input type="radio" name="proxy_mode" value="custom" {if condition="isset($anyrouter_form.proxy_mode) && $anyrouter_form.proxy_mode eq 'custom'"}checked{/if}> 提供代理</label>
+        <div data-anyrouter-custom {if condition="empty($anyrouter_form.proxy_mode) || $anyrouter_form.proxy_mode neq 'custom'"}hidden{/if} style="margin-top: 12px;">
+            <label for="anyrouter-proxy-url" class="sr-only">你的代理地址</label>
+            <input id="anyrouter-proxy-url" name="proxy_url" type="password" class="form-control" maxlength="2048" autocomplete="new-password" data-proxy-saved="{if condition='!empty($anyrouter_form.proxy_configured)'}1{else /}0{/if}" placeholder="{if condition='!empty($anyrouter_form.proxy_configured)'}留空保留已保存的代理{else /}http://主机:端口 或 socks5://主机:端口{/if}">
+            <p class="help-block">填写服务器可访问的代理，支持 HTTP 和 SOCKS5；需要认证时填写 <code>http://用户名:密码@主机:端口</code>。</p>
+        </div>
+        <p class="help-block" data-anyrouter-platform-help>系统自动选择可用的平台代理。</p>
+    </fieldset>
+    <button class="btn btn-primary" type="submit" data-busy-text="正在验证并保存…">{if condition="empty($anyrouter_form.user_id)"}验证并添加{else /}验证并保存{/if}</button>
+</form>

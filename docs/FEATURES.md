@@ -31,6 +31,18 @@
 - 合伙人每日评分按 [ncmp 上游协议](https://github.com/ACAne0320/ncmp/tree/0517539fa44d226a3b9cf7d6a68683f08aaa2ba3/src/core) 使用 `interface.music.163.com` 获取任务和 WEAPI 加密提交，保留原评分星数设置，评分间隔为 15–20 秒。提交后重新读取任务进度，服务端确认完成才报告成功；临时故障或进度未确认时由调度器稍后复查，已完成作品不会重复评分。
 - 离线回归：`php tests/NeteaseCreatorTasksTest.php`。只读在线检查：`php tests/NeteaseCreatorLiveSmoke.php`，可通过进程环境变量 `NETEASE_MUSIC_U`、`NETEASE_CSRF` 提供会话。该检查仅读取任务；未提供账号时只能验证接口可达，实际执行和入账仍需有音乐人/合伙人资格的账号验证。
 
+## AnyRouter 签到
+
+- 在「VIP 功能 → AnyRouter → 添加账号」填写备注名、Cookie（含 `session`）和请求头 `new-api-user` 的数值。备注名用于区分账号，优先显示在列表和基本信息中；留空时使用站点名称或用户名。支持粘贴 Cookie 字符串或 JSON 对象；不保存账号密码。
+- 代理区域只有「平台代理」和「提供代理」。平台代理自动筛选，无需选择节点；提供代理支持 `http://主机:端口`、`socks5://主机:端口` 和用户名密码认证。普通用户须填写服务器能访问的公网地址；保存后不回显 Cookie 或代理密码，留空保留原值。
+- 账号列表、基本信息、任务开关、挂机时间弹窗和运行日志沿用网易云、哔哩哔哩的布局。Cookie 与代理在「更新账号」中修改，详情页展示真实用户名、余额、累计消耗、请求次数及账号分组；刷新仅查询，不签到。余额按站点返回的额度单位换算，读取失败显示暂不可用，不把旧余额当实时数据。
+- 保存账号仅验证登录，不触发签到。设置每日时间并启用任务后自动运行；「申请补挂」加入统一调度队列，仍遵守任务锁、VIP 权益与冷却时间。
+- 平台代理源来自 [monosans/proxy-list](https://github.com/monosans/proxy-list)，GitHub 访问受限时使用内容镜像。每次使用前显式指定代理访问 `https://anyrouter.top/api/status`，要求 HTTP 200 和有效的状态 JSON，拒绝 HTML 防护页。失败候选会被剔除，下一次从后续候选继续。
+- 协议参考 [millylee/anyrouter-check-in](https://github.com/millylee/anyrouter-check-in)：同一代理 Cookie jar 获取 `acw_tc`、`cdn_sec_tc` 与 `acw_sc__v2` 后验证 `/api/user/self`，再 POST `/api/user/sign_in`。当前 ACW v2 挑战由 PHP 解析并计算，不执行服务器下发的 JavaScript，也不依赖浏览器。未知或持续防护按失败处理。
+- 日志区分已签到、签到完成、Cookie 失效和网络故障。网络故障默认 5 分钟后重试，沿用 `SCHEDULER_MAX_RETRIES` 上限，耗尽后停用任务；HTTP 200、网页中的 success 字样均不代表签到成功。选择自有代理时失败不会自动切换出口。
+- 公共代理有时效性，自动筛选不保证每轮都有可用节点。稳定运行可自行提供代理，或让管理员配置 `ANYROUTER_PLATFORM_PROXY`。AnyRouter 的实际领取间隔由网站决定，已签到只表示上游确认重复，不推算奖励金额。
+- 离线验证：`php tests/AnyRouterClientTest.php`、`php tests/AnyRouterProxyPoolTest.php`、`php tests/AnyRouterWorkflowTest.php`。显式只读在线检查：`php tests/AnyRouterLiveSmoke.php`；检查不读取账号、不提交签到、不输出代理地址。
+
 ## 网易云每日300首说明
 
 **网易云每日300首：已知历史去重与限时补齐**

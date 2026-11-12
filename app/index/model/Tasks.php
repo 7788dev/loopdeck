@@ -10,6 +10,22 @@ use think\Model;
 class Tasks extends Model
 {
     private const BUILTIN_TASKS = [
+        'anyrouter' => [
+            [
+                'type' => 'anyrouter',
+                'name' => '每日签到',
+                'describe' => '通过代理完成 AnyRouter 签到',
+                'icon' => 'fa fa-calendar-check-o',
+                'execute_name' => 'sign_in',
+                'execute_url' => null,
+                'execute_rate' => '86400',
+                'more' => 0,
+                'state' => 1,
+                'vip' => 1,
+                'time' => '2026-11-12 00:00:00',
+                'order' => 1,
+            ],
+        ],
         'netease' => [
             [
                 'type' => 'netease',

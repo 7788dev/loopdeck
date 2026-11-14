@@ -1,0 +1,68 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="system/head" /}{/block}
+{block name="main"}
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="ibox float-e-margins" id="honeypot-panel">
+        <div class="ibox-title">
+            <h5>{$webTitle}</h5>
+            <div class="ibox-tools">
+                <a class="btn btn-default btn-xs" data-pjax href="{:url('/admin/system/honeypot')}">
+                    <i class="fa fa-refresh" aria-hidden="true"></i> 刷新记录
+                </a>
+            </div>
+        </div>
+        <div class="ibox-content">
+            <div class="row">
+                <div class="col-sm-6 col-md-3"><div class="well text-center">
+                    <small class="text-muted">蜜罐状态</small>
+                    <h3>{if condition="$honeypot_enabled"}<span class="text-success">已开启</span>{else /}<span class="text-muted">已关闭</span>{/if}</h3>
+                </div></div>
+                <div class="col-sm-6 col-md-3"><div class="well text-center">
+                    <small class="text-muted">保留样本</small><h3>{if condition="$honeypot.state eq 'busy' || $honeypot.state eq 'unavailable'"}—{else /}{$honeypot.total}{/if}</h3>
+                </div></div>
+                <div class="col-sm-6 col-md-3"><div class="well text-center">
+                    <small class="text-muted">诱饵访问样本</small><h3>{if condition="$honeypot.state eq 'busy' || $honeypot.state eq 'unavailable'"}—{else /}{$honeypot.probes}{/if}</h3>
+                </div></div>
+                <div class="col-sm-6 col-md-3"><div class="well text-center">
+                    <small class="text-muted">攻击拦截样本</small><h3>{if condition="$honeypot.state eq 'busy' || $honeypot.state eq 'unavailable'"}—{else /}{$honeypot.blocked}{/if}</h3>
+                </div></div>
+            </div>
+            <div class="alert alert-info">
+                统计来自限量保留的样本，不代表全部攻击次数。频繁请求会省略记录，旧记录会自动覆盖；拦截仍会执行。
+                诱饵访问只表示访问了假入口，不能单凭这一项认定来源恶意。
+            </div>
+            {if condition="!$honeypot_enabled"}
+            <div class="alert alert-warning">蜜罐已关闭，下方保留历史样本。原有请求防护继续生效。</div>
+            {/if}
+            {if condition="$honeypot.state eq 'busy'"}
+            <div class="alert alert-warning" role="status">记录正在更新，本次未读取，请稍后刷新。</div>
+            {elseif condition="$honeypot.state eq 'unavailable'" /}
+            <div class="alert alert-warning" role="status">记录暂时无法读取，请检查运行目录权限后刷新。请求防护继续生效。</div>
+            {elseif condition="$honeypot.state eq 'partial'" /}
+            <div class="alert alert-warning" role="status">部分记录无法读取，当前仅展示可用样本。</div>
+            {/if}
+            <h4>样本类型</h4>
+            <div class="row">
+                {foreach name="honeypot.counts" item="count" key="type"}
+                <div class="col-sm-6 col-md-3"><p>{$honeypot_types[$type]} <span class="badge">{if condition="$honeypot.state eq 'busy' || $honeypot.state eq 'unavailable'"}—{else /}{$count}{/if}</span></p></div>
+                {/foreach}
+            </div>
+            <h4>最近记录 <small>最多显示 50 条，点击刷新获取最新样本</small></h4>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead><tr><th>时间</th><th>类型</th><th>方法</th><th>入口</th><th>来源 IP</th></tr></thead>
+                    <tbody>
+                        {foreach name="honeypot.recent" item="record"}
+                        <tr>
+                            <td class="text-nowrap">{$record.time}</td><td>{$record.label}</td><td>{$record.method}</td>
+                            <td style="word-break: break-all;">{$record.entry}</td><td style="word-break: break-all;">{$record.ip}</td>
+                        </tr>
+                        {/foreach}
+                        {empty name="honeypot.recent"}<tr><td colspan="5" class="text-center text-muted">暂无可展示的样本</td></tr>{/empty}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}

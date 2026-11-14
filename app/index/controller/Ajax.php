@@ -14,6 +14,7 @@ use app\service\NotificationSite;
 use app\service\EpicSubscription;
 use app\service\BilibiliTaskExecutor;
 use app\service\UserNotificationSettings;
+use app\service\QrcodeUpload;
 use netease\QRcode;
 use think\exception\ValidateException;
 use think\facade\Request;
@@ -56,21 +57,23 @@ class Ajax extends Common
 	public function qrcode($act = null)
 	{
 		if ($act === "uploads") {
-			$file = Request::file("file");
+			try {
+				$file = Request::file("file");
+			} catch (\Throwable $exception) {
+				return resultJson(0, in_array($exception->getCode(), [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)
+					? '图片不能超过 2MB' : '上传失败，请重新选择图片');
+			}
 			$type = (string)Request::post("type", "");
-			if (!$file || !in_array($type, ["alipay", "qq", "wechat"], true)) {
+			if (!$file instanceof \think\File && (int)Request::server('CONTENT_LENGTH', 0) > QrcodeUpload::MAX_BYTES) {
+				return resultJson(0, '图片不能超过 2MB');
+			}
+			if (!$file instanceof \think\File || !in_array($type, ["alipay", "qq", "wechat"], true)) {
 				return resultJson(0, "上传参数错误");
 			}
-			$path = $file->getPathname();
-			if (!is_file($path) || filesize($path) > 2 * 1024 * 1024) {
-				return resultJson(0, "图片不能超过 2MB");
-			}
-			$finfo = new \finfo(FILEINFO_MIME_TYPE);
-			if (!in_array($finfo->file($path), ["image/png", "image/jpeg", "image/webp"], true)) {
-				return resultJson(0, "仅支持 PNG、JPEG 或 WebP 图片");
-			}
 			try {
-				$text = (new \Zxing\QrReader($path))->text();
+				$text = QrcodeUpload::decode($file->getPathname());
+			} catch (\InvalidArgumentException $exception) {
+				return resultJson(0, $exception->getMessage());
 			} catch (\Throwable $exception) {
 				$text = false;
 			}

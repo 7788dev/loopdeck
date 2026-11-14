@@ -189,8 +189,7 @@ function webscan_scan_upload(mixed $temporary, mixed $error, string $filter): vo
     }
     $content = file_get_contents($temporary);
     if (!is_string($content)) {
-        http_response_code(403);
-        exit(webscan_pape());
+        webscan_honeypot_reject('', 'UPLOAD');
     }
     $mime = (new finfo(FILEINFO_MIME_TYPE))->file($temporary);
     $image = in_array($mime, ['image/png', 'image/jpeg', 'image/webp'], true)
@@ -199,8 +198,7 @@ function webscan_scan_upload(mixed $temporary, mixed $error, string $filter): vo
     // image's text/trailer instead; malformed framing receives the full scan.
     $imagePhp = $image ? webscan_image_contains_php($content, $mime) : null;
     if ($imagePhp === true || ($imagePhp === null && webscan_contains_php($content))) {
-        http_response_code(403);
-        exit(webscan_pape());
+        webscan_honeypot_reject('', 'UPLOAD');
     }
     if ($imagePhp === null) {
         webscan_StopAttack('', $content, $filter, 'UPLOAD');

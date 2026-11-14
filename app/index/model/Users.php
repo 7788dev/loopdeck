@@ -194,6 +194,10 @@ class Users extends Model
 
         try {
             $updated = \think\facade\Db::transaction(static function () use ($captcha, $row, $data): bool {
+                // Use the same lock order as user/admin credential changes.
+                if (!Users::where('uid', $row['uid'])->where('mail', $data['mail'])->lock(true)->find()) {
+                    return false;
+                }
                 $burned = (int)(new Captcha())->where('id', $captcha['id'])->where('status', 0)->update(['status' => 1]);
                 if ($burned !== 1) {
                     return false;
@@ -325,18 +329,37 @@ class Users extends Model
             //验证失败 输出错误信息
             return resultJson(-1, $e->getError());
         }
-        $self = new static();
-        $row = $self->where('uid', '=', $uid)->find();
-        if (!self::verifyLoginPassword((string)$data['outpass'], (string)$row['password'])) {
-            return resultJson(-1, '原密码错误');
-        } else {
-            $newPass = self::hashLoginPassword((string)$data['repass']);
-            if (Users::where('uid', '=', Session::get('user.uid'))->update(['password' => $newPass, 'sid' => null])) {
-                Session::delete('user');
-                return resultJson(1, '修改成功，请重新登录');
-            } else {
-                return resultJson(0, '修改失败');
-            }
+        try {
+            $result = \think\facade\Db::transaction(static function () use ($uid, $data): array {
+                $row = Users::where('uid', $uid)->lock(true)->find();
+                if (!$row || !self::verifyLoginPassword((string)$data['outpass'], (string)$row['password'])) {
+                    return ['code' => -1, 'message' => '原密码错误'];
+                }
+                if (Users::where('uid', $uid)->update([
+                    'password' => self::hashLoginPassword((string)$data['repass']), 'sid' => null,
+                ]) !== 1) {
+                    throw new \RuntimeException('Password update failed');
+                }
+                self::revokePasswordResetTokens((string)($row['mail'] ?? ''));
+                return ['code' => 1, 'message' => '修改成功，请重新登录'];
+            });
+        } catch (\Throwable $exception) {
+            return resultJson(0, '修改失败，请稍后重试');
+        }
+        if ($result['code'] === 1) {
+            Session::delete('user');
+        }
+        return resultJson($result['code'], $result['message']);
+    }
+
+    /** Call only inside the transaction holding the affected user row lock. */
+    private static function revokePasswordResetTokens(string $mail): void
+    {
+        if ($mail === '') {
+            return;
+        }
+        if (Captcha::where('type', 2)->where('send', $mail)->where('status', 0)->update(['status' => 1]) === false) {
+            throw new \RuntimeException('Password reset token invalidation failed');
         }
     }
 
@@ -505,12 +528,28 @@ class Users extends Model
         if (!self::adminMayManage($uid) || $data === []) {
             return false;
         }
-        // An out-of-scope uid updates zero rows, which must be reported as a
-        // failure rather than as "saved, nothing changed".
-        if (!self::adminScopedQuery()->where('uid', '=', $uid)->find()) {
+        try {
+            return \think\facade\Db::transaction(static function () use ($uid, $data): bool {
+                $user = self::adminScopedQuery()->where('uid', $uid)->lock(true)->find();
+                if (!$user) {
+                    return false;
+                }
+                if (array_key_exists('password', $data)) {
+                    $data['sid'] = null;
+                }
+                if (self::adminScopedQuery()->where('uid', $uid)->update($data) === false) {
+                    throw new \RuntimeException('User update failed');
+                }
+                if (array_key_exists('password', $data)) {
+                    foreach (array_unique([(string)($user['mail'] ?? ''), (string)($data['mail'] ?? '')]) as $mail) {
+                        self::revokePasswordResetTokens($mail);
+                    }
+                }
+                return true;
+            });
+        } catch (\Throwable $exception) {
             return false;
         }
-        return self::adminScopedQuery()->where('uid', '=', $uid)->update($data) !== false;
     }
 
     public static function adminDelByUid($uid)

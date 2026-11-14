@@ -40,6 +40,9 @@ $variables = [
     'notification_email_available' => false, 'notification_can_epic' => false, 'notification_deliveries' => [],
     'database_auto_configured' => true, 'install_token_required' => false, 'name' => '测试收款人', 'type' => 'wechat', 'url' => 'wxp://fixture',
 ] + (new app\service\SystemUpdater(sys_get_temp_dir() . '/loopdeck-render-no-updater.json'))->status();
+$variables += ['honeypot_enabled' => true, 'honeypot_types' => app\service\HoneypotLog::TYPES,
+    'honeypot' => (new app\service\HoneypotLog($cachePath . 'unused-honeypot'))->snapshot()];
+$variables += (new app\index\controller\Console())->qrcode('create')->getVars();
 $count = 0;
 $failures = [];
 $renderedPages = [];
@@ -65,6 +68,12 @@ try {
                 }
                 if ($module === 'index' && $relative === 'console/epic/weeklyGame.html') {
                     functionalCheck(str_contains($html, '暂未获取到周免活动信息'), 'Empty Epic catalog lost its explanation');
+                }
+                if ($module === 'index' && $relative === 'console/qrcode/create.html') {
+                    functionalCheck(substr_count($html, 'data-max-bytes="' . app\service\QrcodeUpload::MAX_BYTES . '"') === 3,
+                        'QR upload inputs did not receive the server upload limit');
+                    functionalCheck(str_contains($html, '宽高不超过 ' . app\service\QrcodeUpload::MAX_DIMENSION . ' 像素'),
+                        'QR upload dimension feedback did not render');
                 }
                 $renderedPages[$module . '/' . $relative] = $html;
                 $count++;

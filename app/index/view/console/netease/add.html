@@ -74,108 +74,175 @@
         x.notify('账号密码登录维护中，请使用扫码添加账号', 'warning');
     }
 
-    var qr_load_pending = false;
-
-    function load_qr() {
-        if (qr_load_pending) return;
-        qr_load_pending = true;
-        var box = $('#qr-img');
-        box.addClass('ld-qr-loading').html('<p style="margin-top: 15px;"><i class="fa fa-spinner fa-spin fa-4x text-muted"></i></p>');
-        $('#qr-alert').text('正在获取二维码');
-        x.ajax('/index/ajax/netease/getQrimg', null, function (data) {
-            qr_load_pending = false;
-            box.removeClass('ld-qr-loading');
-            if (data.code == 1) {
-                box.attr('key', data.data.key).html('<img src="data:image/png;base64,' + x.escapeHtml(data.data.qrimg) + '" height="145px;" alt="网易云音乐登录二维码">');
-                $('#qr-alert').text('请使用网易云音乐 APP 扫码，完成后点击验证');
-                return;
-            }
-            box.attr('key', '').html('<p style="margin-top: 15px;"><i class="fa fa-camera fa-4x text-muted"></i></p>');
-            $('#qr-alert').text(data.message || '二维码获取失败，点击图片重试');
-        }, function () {
-            qr_load_pending = false;
-            box.removeClass('ld-qr-loading').attr('key', '').html('<p style="margin-top: 15px;"><i class="fa fa-camera fa-4x text-muted"></i></p>');
-            $('#qr-alert').text('二维码获取失败，点击图片重试');
-        });
-    }
-
-    $('#qr-img').on('click', load_qr).on('keydown', function (event) {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            load_qr();
+    (function () {
+        // PJAX may execute this script again before an old callback returns.
+        if (typeof window.loopdeckNeteaseLoginCleanup === 'function') {
+            window.loopdeckNeteaseLoginCleanup();
         }
-    });
-
-    function ajax_netease_qrlogin() {
-        var key = $('#qr-img').attr('key');
-        if (!key) return x.notify('请先获取二维码');
-        x.ajax('/index/ajax/netease/qrLogin', {
-            key: key,
-        }, function (data) {
-            if(data.code == 1) {
-                x.notify(data.message, 'success');
-                setTimeout(function () {
-                    window.location.href = "{:url(\"/index/console/netease/list\")}";
-                }, 1000)
-            } else if (data.code == 8810) {
-                // 风控拦截：弹出二次安全验证二维码，用已登录该账号的APP扫码后轮询验证
-                start_verify_poll(data.data);
-            } else if (data.code == 800) {
-                $('#qr-img').click();
-            } else {
-                x.notify(data.message, 'warning')
-                $('#qr-alert').text(data.message);
-            }
-        })
-    }
-
-    // 8810 风控的二次扫码安全验证：后端返回验证二维码 + verify_unikey，前端轮询 verifyCheck。
-    var verify_timer = null;
-    function start_verify_poll(d) {
-        if (!d || !d.verify_unikey) {
-            x.notify('安全验证信息缺失，请重试', 'warning');
-            return;
-        }
-        var unikey = d.verify_unikey;
-        $('#qr-img').attr('key', '');
-        $('#qr-alert').html('当前网络环境存在风险，请用<strong>已登录该账号</strong>的网易云音乐APP扫描下方验证二维码');
-        if (d.verify_qrimg) {
-            $('#qr-img').html('<img src="data:image/png;base64,' + x.escapeHtml(d.verify_qrimg) + '" height="145px;">');
-        }
-        if (verify_timer) clearInterval(verify_timer);
-        // 记住本次页面的节点：PJAX 跳转后旧定时器发现节点已离开文档就自动停止。
         var $qrImg = $('#qr-img');
-        var poll = function () {
-            if ($qrImg.length === 0 || !document.body.contains($qrImg[0])) {
-                clearInterval(verify_timer);
-                verify_timer = null;
+        var $qrAlert = $('#qr-alert');
+        var disposed = false;
+        var qr_load_pending = false;
+        var login_attempt = null;
+        var verification = null;
+        var redirect_timer = null;
+
+        function active() {
+            return !disposed && $qrImg.length > 0 && document.body.contains($qrImg[0]);
+        }
+
+        function stopVerification() {
+            if (verification) verification.stop();
+        }
+
+        function cleanup() {
+            disposed = true;
+            login_attempt = null;
+            stopVerification();
+            clearTimeout(redirect_timer);
+            if (window.loopdeckNeteaseLoginCleanup === cleanup) {
+                window.loopdeckNeteaseLoginCleanup = null;
+                $(document).off('pjax:beforeReplace.loopdeck-netease-login');
+            }
+            if (window.ajax_netease_qrlogin === ajax_netease_qrlogin) {
+                delete window.ajax_netease_qrlogin;
+            }
+        }
+
+        window.loopdeckNeteaseLoginCleanup = cleanup;
+        $(document).off('pjax:beforeReplace.loopdeck-netease-login')
+            .on('pjax:beforeReplace.loopdeck-netease-login', cleanup);
+
+        function redirectToAccounts() {
+            clearTimeout(redirect_timer);
+            redirect_timer = setTimeout(function () {
+                if (active()) window.location.href = "{:url(\"/index/console/netease/list\")}";
+            }, 1000);
+        }
+
+        function load_qr() {
+            if (!active() || qr_load_pending) return;
+            stopVerification();
+            login_attempt = null;
+            clearTimeout(redirect_timer);
+            qr_load_pending = true;
+            $qrImg.attr('key', '').addClass('ld-qr-loading').html('<p style="margin-top: 15px;"><i class="fa fa-spinner fa-spin fa-4x text-muted"></i></p>');
+            $qrAlert.text('正在获取二维码');
+            x.ajax('/index/ajax/netease/getQrimg', null, function (data) {
+                qr_load_pending = false;
+                if (!active()) return;
+                $qrImg.removeClass('ld-qr-loading');
+                if (data.code == 1) {
+                    $qrImg.attr('key', data.data.key).html('<img src="data:image/png;base64,' + x.escapeHtml(data.data.qrimg) + '" height="145px;" alt="网易云音乐登录二维码">');
+                    $qrAlert.text('请使用网易云音乐 APP 扫码，完成后点击验证');
+                    return;
+                }
+                $qrImg.html('<p style="margin-top: 15px;"><i class="fa fa-camera fa-4x text-muted"></i></p>');
+                $qrAlert.text(data.message || '二维码获取失败，点击图片重试');
+            }, function () {
+                qr_load_pending = false;
+                if (!active()) return;
+                $qrImg.removeClass('ld-qr-loading').html('<p style="margin-top: 15px;"><i class="fa fa-camera fa-4x text-muted"></i></p>');
+                $qrAlert.text('二维码获取失败，点击图片重试');
+            });
+        }
+
+        $qrImg.on('click', load_qr).on('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                load_qr();
+            }
+        });
+
+        function ajax_netease_qrlogin() {
+            if (!active() || login_attempt) return;
+            var key = $qrImg.attr('key');
+            if (!key) return x.notify('请先获取二维码');
+            var attempt = {};
+            login_attempt = attempt;
+            x.ajax('/index/ajax/netease/qrLogin', {key: key}, function (data) {
+                if (login_attempt !== attempt) return;
+                login_attempt = null;
+                if (!active() || $qrImg.attr('key') !== key) return;
+                if (data.code == 1) {
+                    stopVerification();
+                    x.notify(data.message, 'success');
+                    redirectToAccounts();
+                } else if (data.code == 8810) {
+                    start_verify_poll(data.data);
+                } else if (data.code == 800) {
+                    load_qr();
+                } else {
+                    x.notify(data.message, 'warning');
+                    $qrAlert.text(data.message);
+                }
+            }, function () {
+                if (login_attempt !== attempt) return;
+                login_attempt = null;
+                if (active()) x.notify('验证失败，请稍后重试', 'warning');
+            });
+        }
+        window.ajax_netease_qrlogin = ajax_netease_qrlogin;
+
+        // Each verification owns its timeout/request; responses schedule the
+        // next poll so a slow upstream never creates overlapping requests.
+        function start_verify_poll(d) {
+            if (!d || !d.verify_unikey) {
+                x.notify('安全验证信息缺失，请重试', 'warning');
                 return;
             }
-            x.ajax('/index/ajax/netease/verifyCheck', {
-                verify_unikey: unikey,
-            }, function (data) {
-                if (data.code == 1) {
-                    clearInterval(verify_timer);
-                    verify_timer = null;
-                    x.notify(data.message, 'success');
-                    setTimeout(function () {
-                        window.location.href = "{:url(\"/index/console/netease/list\")}";
-                    }, 1000)
-                } else if (data.code == 800) {
-                    clearInterval(verify_timer);
-                    verify_timer = null;
-                    x.notify('验证二维码已过期，请重新获取', 'warning');
-                } else if (data.code == -1) {
-                    // 801等待扫码 / 802已扫描待确认 —— 更新文案继续轮询
-                    $('#qr-alert').text(data.message);
-                } else {
-                    $('#qr-alert').text(data.message);
+            stopVerification();
+            var run = {timer: null, request: null, stopped: false};
+            verification = run;
+            function current() {
+                return !run.stopped && verification === run && active();
+            }
+            run.stop = function () {
+                if (run.stopped) return;
+                run.stopped = true;
+                clearTimeout(run.timer);
+                if (run.request) run.request.abort();
+                run.request = null;
+                if (verification === run) verification = null;
+            };
+            function schedule(delay) {
+                if (current()) run.timer = setTimeout(poll, delay);
+            }
+            function poll() {
+                run.timer = null;
+                if (!current()) {
+                    run.stop();
+                    return;
                 }
-            })
-        };
-        setTimeout(poll, 1500);
-        verify_timer = setInterval(poll, 2000);
-    }
+                run.request = x.ajax('/index/ajax/netease/verifyCheck', {verify_unikey: d.verify_unikey}, function (data) {
+                    run.request = null;
+                    if (!current()) return;
+                    if (data.code == 1) {
+                        run.stop();
+                        x.notify(data.message, 'success');
+                        redirectToAccounts();
+                    } else if (data.code == 800) {
+                        run.stop();
+                        x.notify('验证二维码已过期，请重新获取', 'warning');
+                    } else {
+                        $qrAlert.text(data.message);
+                        schedule(2000);
+                    }
+                }, function () {
+                    run.request = null;
+                    if (!current()) return;
+                    $qrAlert.text('验证状态获取失败，正在重试');
+                    schedule(2000);
+                }, false);
+            }
+            $qrImg.attr('key', '');
+            $qrAlert.html('当前网络环境存在风险，请用<strong>已登录该账号</strong>的网易云音乐APP扫描下方验证二维码');
+            if (d.verify_qrimg) {
+                $qrImg.html('<img src="data:image/png;base64,' + x.escapeHtml(d.verify_qrimg) + '" height="145px;" alt="网易云音乐安全验证二维码">');
+            }
+            schedule(1500);
+        }
+    })();
 
 </script>
 {/block}

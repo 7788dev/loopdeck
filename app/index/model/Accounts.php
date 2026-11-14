@@ -23,7 +23,9 @@ class Accounts extends Model
     private static function saveAccount(string $type, string $userId, array $data, bool $qrcode)
     {
         $uid = (int)Session::get('user.uid');
-        $lockKey = 'account-bind:' . $type . ':' . $userId;
+        // Keep user-controlled identifiers in a fixed pool of 256 shared locks.
+        // Collisions only ask an unrelated concurrent binder to retry.
+        $lockKey = 'account-bind:' . substr(hash('sha256', $type . ':' . $userId), 0, 2);
         $locked = false;
         try {
             $locked = TaskExecutionLock::acquire($lockKey);

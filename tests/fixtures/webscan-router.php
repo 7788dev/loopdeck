@@ -5,22 +5,36 @@ declare(strict_types=1);
 // Disposable HTTP fixture: the firewall runs before framework body parsing,
 // exactly as it does in public/index.php. Never initialize an installed app.
 error_reporting(E_ALL & ~E_DEPRECATED);
-$_SERVER['SCRIPT_NAME'] = '/index.php';
-$_SERVER['SCRIPT_FILENAME'] = dirname(__DIR__, 2) . '/public/index.php';
-require dirname(__DIR__, 2) . '/extend/360webscan.php';
-
-use think\facade\Db;
-
 $temporary = (string)getenv('LOOPDECK_WEBSCAN_TEST_DIRECTORY');
 if ($temporary === '' || !is_dir($temporary)) {
     throw new RuntimeException('The webscan HTTP fixture requires its disposable directory');
 }
+define('LOOPDECK_HONEYPOT_DIRECTORY', $temporary . '/honeypot');
+$_SERVER['SCRIPT_NAME'] = '/index.php';
+$_SERVER['SCRIPT_FILENAME'] = dirname(__DIR__, 2) . '/public/index.php';
+require dirname(__DIR__, 2) . '/extend/360webscan.php';
+file_put_contents($temporary . '/business-entered', 'framework entry reached');
+
+use think\facade\Db;
+
 $fixtureRuntimePath = $temporary . '/runtime/';
 require dirname(__DIR__) . '/FunctionalDatabaseBootstrap.php';
 $app->instance('cache', new think\cache\driver\File($app, ['path' => $temporary . '/cache/']));
 $app->config->set(require dirname(__DIR__, 2) . '/config/route.php', 'route');
 $app->config->set(['default_app' => 'index', 'app_express' => true], 'app');
 $app->config->set(['reg_close' => 0, 'reg_iplimit' => 1, 'reg_free_vip' => 0, 'reg_free_quota' => 0], 'sys');
+$honeypotTest = getenv('LOOPDECK_HONEYPOT_HTTP_TEST') === '1';
+if ($honeypotTest) {
+    define('PJAX', !empty($_SERVER['HTTP_X_PJAX']));
+    $app->config->set(require dirname(__DIR__, 2) . '/config/view.php', 'view');
+    $app->config->set(['webname' => 'LoopDeck', 'title' => '隔离测试'], 'web');
+    $role = $_SERVER['HTTP_X_LOOPDECK_TEST_ROLE'] ?? 'user';
+    if ($role === 'guest') {
+        think\facade\Session::delete('user');
+    } else {
+        Db::name('users')->where('uid', 1)->update(['power' => $role === 'admin' ? 6 : 0, 'nickname' => '测试用户']);
+    }
+}
 think\Validate::maker(static function ($validator): void {
     $validator->extend('captcha', static fn($value): bool => $value === 'fixture-captcha');
 });
@@ -53,9 +67,12 @@ $multiApp = new class($app) extends think\app\MultiApp {
     {
     }
 };
-$app->middleware->add(static function ($request, $next) use ($probe) {
+$app->middleware->add(static function ($request, $next) use ($probe, $honeypotTest) {
     $target = $request->controller() . '/' . strtolower($request->action());
-    if (!in_array($target, ['Index/version', 'LoginAjax/login', 'LoginAjax/reg',
+    if ($honeypotTest && $target === 'System/honeypot') {
+        return (new app\middleware\SiteTemplate())->handle($request, $next);
+    }
+    if (!in_array($target, ['Index/version', 'Index/healthcheck', 'LoginAjax/login', 'LoginAjax/reg',
         'LoginAjax/reset', 'Ajax/qrcode', 'Ajax/user'], true)) {
         return $probe();
     }
@@ -66,7 +83,15 @@ $app->middleware->add(static function ($request, $next) use ($probe) {
     }
     return $next($request);
 }, 'route');
-$response = $multiApp->handle($request, static function ($request) use ($app, $probe) {
+$response = $multiApp->handle($request, static function ($request) use ($app, $probe, $honeypotTest) {
+    if ($honeypotTest && $app->http->getName() === 'cron') {
+        return (new app\middleware\CheckCronAccess())->handle($request, $probe);
+    }
+    if ($honeypotTest && $app->http->getName() === 'admin') {
+        return $app->route->dispatch($request, static function () use ($app): void {
+            require $app->getAppPath() . 'route/app.php';
+        });
+    }
     if ($app->http->getName() !== 'index') {
         return $probe();
     }

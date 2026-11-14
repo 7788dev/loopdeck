@@ -231,12 +231,12 @@ foreach ([
 // --- QR alert injection, admin notice add dialog, users dialog pickers -----
 
 frontEndCheck(
-    substr_count($neteaseAdd, "qr-alert').text(data.message)") === 3
-        && !str_contains($neteaseAdd, "qr-alert').html(data.message)"),
+    substr_count($neteaseAdd, '$qrAlert.text(data.message') === 3
+        && !str_contains($neteaseAdd, '$qrAlert.html(data.message'),
     'The netease QR alert still injects upstream messages as HTML'
 );
 frontEndCheck(
-    str_contains($neteaseAdd, "qr-alert').html('当前网络环境存在风险"),
+    str_contains($neteaseAdd, ".html('当前网络环境存在风险"),
     'The static verify hint lost its trusted markup'
 );
 

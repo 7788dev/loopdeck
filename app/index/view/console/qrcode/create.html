@@ -14,19 +14,20 @@
                             <div class="col-sm-10 col-md-8 col-md-offset-2">
                                 <div class="form-group">
                                     <label class="control-label" for="alipay">支付宝</label>
-                                    <input class="form-control" type="file" id="alipay" name="alipay_file" accept="image/*">
+                                    <input class="form-control" type="file" id="alipay" name="alipay_file" accept="image/png,image/jpeg,image/webp" data-max-bytes="{$qrcode_max_bytes}" aria-describedby="qrcode-upload-help">
                                     <input type="hidden" name="alipay_url" id="alipay_url" value="">
                                 </div>
                                 <div class="form-group">
                                     <label class="control-label" for="qq">QQ</label>
-                                    <input class="form-control" type="file" id="qq" name="qq_file" accept="image/*">
+                                    <input class="form-control" type="file" id="qq" name="qq_file" accept="image/png,image/jpeg,image/webp" data-max-bytes="{$qrcode_max_bytes}" aria-describedby="qrcode-upload-help">
                                     <input type="hidden" name="qq_url" id="qq_url" value="">
                                 </div>
                                 <div class="form-group">
                                     <label class="control-label" for="wechat">微信</label>
-                                    <input class="form-control" type="file" id="wechat" name="wechat_file" accept="image/*">
+                                    <input class="form-control" type="file" id="wechat" name="wechat_file" accept="image/png,image/jpeg,image/webp" data-max-bytes="{$qrcode_max_bytes}" aria-describedby="qrcode-upload-help">
                                     <input type="hidden" name="wechat_url" id="wechat_url" value="">
                                 </div>
+                                <p class="help-block" id="qrcode-upload-help">支持 PNG、JPEG、WebP，每张不超过 2MB，宽高不超过 {$qrcode_max_dimension} 像素。</p>
                                 <div class="form-group">
                                     <label class="control-label" for="name">收款识别码</label>
                                     <input class="form-control" type="text" id="name" name="name" placeholder="用于本站管理和展示收款码的识别码">
@@ -60,6 +61,11 @@
             $('#qrcode').empty();
             if (!input.files.length) return;
             const file = input.files[0];
+            if (file.size > Number(input.getAttribute('data-max-bytes'))) {
+                input.value = '';
+                x.notify('图片不能超过 2MB', 'warning');
+                return;
+            }
             const formData = new FormData();
             formData.append('file', this.files[0]);
             formData.append('type', $(this).attr('id'));

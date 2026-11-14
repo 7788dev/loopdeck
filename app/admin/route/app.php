@@ -11,6 +11,7 @@
 use think\facade\Route;
 
 Route::get('system/update', 'system/update');
+Route::get('system/honeypot', 'system/honeypot');
 //自动更新状态与立即检查 Ajax
 Route::rule('ajax/updater/[:act]', 'ajax/updater');
 

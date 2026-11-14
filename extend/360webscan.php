@@ -4,6 +4,8 @@ webscan_error();
 //引用配置文件
 require_once __DIR__ . '/webscan_cache.php';
 require_once __DIR__ . '/webscan_request.php';
+require_once __DIR__ . '/webscan_honeypot.php';
+webscan_honeypot_route();
 //防护脚本版本号
 define("WEBSCAN_VERSION", '0.1.2.9');
 //防护脚本MD5值
@@ -178,14 +180,14 @@ HTML;
  */
 function webscan_StopAttack($StrFiltKey,$StrFiltValue,$ArrFiltReq,$method) {
   if (preg_match("/".$ArrFiltReq."/is",$StrFiltKey)==1){
-    exit(webscan_pape());
+    webscan_honeypot_reject((string)$StrFiltKey, (string)$method);
   }
   if (is_array($StrFiltValue)) {
     foreach ($StrFiltValue as $key => $value) {
       webscan_StopAttack((string)$key, $value, $ArrFiltReq, $method);
     }
   } elseif (preg_match("/".$ArrFiltReq."/is",(string)$StrFiltValue)==1) {
-    exit(webscan_pape());
+    webscan_honeypot_reject((string)$StrFiltValue, (string)$method);
   }
 }
 /**

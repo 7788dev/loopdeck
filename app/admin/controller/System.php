@@ -10,6 +10,9 @@ use app\index\model\Info;
 use app\index\model\Jobs;
 use app\index\model\Users;
 use app\service\SystemUpdater;
+use app\service\Honeypot;
+use app\service\HoneypotLog;
+use think\facade\Request;
 use think\facade\View;
 
 class System extends Common
@@ -128,6 +131,21 @@ class System extends Common
         View::assign((new SystemUpdater())->status());
         View::assign('webTitle', '自动更新状态');
         return View::fetch('system/update');
+    }
+
+    public function honeypot()
+    {
+        // Guard the auto-routed action too, not just the explicit GET route.
+        if (!Request::isGet()) {
+            return response('请求方法不支持', 405, ['Allow' => 'GET']);
+        }
+        View::assign([
+            'webTitle' => '蜜罐统计',
+            'honeypot_enabled' => Honeypot::enabled(),
+            'honeypot' => (new HoneypotLog())->snapshot(),
+            'honeypot_types' => HoneypotLog::TYPES,
+        ]);
+        return response(View::fetch('system/honeypot'), 200, ['Cache-Control' => 'private, no-store']);
     }
 
 }

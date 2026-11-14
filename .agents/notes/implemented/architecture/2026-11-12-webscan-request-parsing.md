@@ -15,7 +15,7 @@ Status: implemented
 - [请求检查辅助](../../../../extend/webscan_request.php)对齐 ThinkPHP 的 Content-Type 和 `json_decode(..., true)`，递归检查每个字段的键和值，覆盖 Unicode 转义。合法 JSON 内的重复字符串成员也逐个解码检查，防止对象最后值覆盖隐藏前值。
 - GET 查询串与 URL 编码请求体逐对解码并检查每次出现的值，保留应用的最后值与数组语义，不设置 8KB 扫描截断；`php://input` 由防护和框架分别读取，正常业务仍收到完整内容。
 - 上传只读取 `is_uploaded_file()` 确认的 PHP 临时文件，递归覆盖多文件数组。非图片检查完整字节及 PHP 代码标记；[图片结构检查](../../../../extend/webscan_image.php)按 PNG 分块、JPEG 段/扫描区和 WebP RIFF 分块跳过二进制图像数据，只在文本元数据和尾随内容中检查 PHP 标记，不对有效图片套用 SQL 文本规则。结构损坏退回完整扫描；上传业务原有类型、2MB 上限和 Nginx 禁止执行规则继续生效。
-- [360 入口](../../../../extend/360webscan.php)逐叶检查数组，停止跨字段字符串拼接；拦截页面返回 403 和 `Cache-Control: no-store`。
+- [360 入口](../../../../extend/360webscan.php)逐叶检查数组，停止跨字段字符串拼接；原有拦截页面返回 403 和 `Cache-Control: no-store`。后续[蜜罐决策](2026-11-13-lightweight-honeypot.md)仅将已拒绝的部分 SQL 取数请求改为终止业务后的假成功，其他拒绝保持 403。
 - 白名单与凭据例外共同使用实际路由：`?s=` 优先级与框架一致，其余沿用 PATH_INFO/REQUEST_URI/SCRIPT_NAME 回退。凭据例外按框架相同的默认应用、HTML 后缀、`Str::studly` 控制器名称和动作/路径参数语义识别目标，排除其他应用及嵌套控制器；改密按路由 `act` 覆盖 GET `act`、额外命名路径参数覆盖原动作参数的优先级，确认最终操作为 `passWord` 后才豁免。只覆盖明确的登录/注册用户名和密码、重置/改密密码字段，其他字段仍检查。凭据由验证码、输入校验、参数化用户名查询和密码哈希处理，字面 SQL/HTML 文本不能成为执行语句。
 - [HTTP 回归](../../../../tests/WebscanHttpTest.php)通过 PHP 内置服务器发送真实 GET、表单、JSON、chunked 与 multipart 请求，[夹具](../../../../tests/fixtures/webscan-router.php)使用真实多应用、路由和控制器分发，覆盖登录、注册、密码重置、改密与二维码上传。数据库明确绑定内存夹具，禁用已安装应用加载，运行状态与上传保持在系统临时目录；不连接已安装站点或上游服务。
 

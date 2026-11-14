@@ -12,6 +12,7 @@ use app\service\BilibiliTaskExecutor;
 use app\service\AnyRouterAccountInfo;
 use app\service\AnyRouterTaskExecutor;
 use app\service\NeteaseDakaProgress;
+use app\service\QrcodeUpload;
 use app\service\UserNotificationSettings;
 use bilibili\Bilibili as BilibiliClient;
 use think\facade\Session;
@@ -481,7 +482,10 @@ class Console
     {
         switch ($act) {
             case "create" :
-                return view("console/qrcode/create");
+                return view("console/qrcode/create", [
+                    'qrcode_max_bytes' => QrcodeUpload::MAX_BYTES,
+                    'qrcode_max_dimension' => QrcodeUpload::MAX_DIMENSION,
+                ]);
                 break;
             case "list" :
                 return view("console/qrcode/list", ["list" => Accounts::getMyList("qrcode")]);

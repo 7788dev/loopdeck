@@ -7,6 +7,8 @@ const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
+require('./QrUploadAndVerificationTest.js');
+
 // Exercise the actual AnyRouter script: proxy switch, secret-field submission and PJAX rebinding.
 {
     const events = new Map();

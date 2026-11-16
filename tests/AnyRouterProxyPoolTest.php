@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require dirname(__DIR__) . '/vendor/autoload.php';
-require_once dirname(__DIR__) . '/vendor/topthink/framework/src/helper.php';
+require __DIR__ . '/FunctionalDatabaseBootstrap.php';
 
 use app\service\AnyRouterProxyPool;
+use app\service\AnyRouterProxySettings;
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
@@ -22,6 +22,10 @@ function poolCheck(bool $condition, string $message): void
 $directory = sys_get_temp_dir() . '/loopdeck-anyrouter-pool-' . bin2hex(random_bytes(6));
 mkdir($directory);
 $file = $directory . '/pool.json';
+fixtureTable('configs', 'k TEXT PRIMARY KEY, v TEXT');
+$settings = new AnyRouterProxySettings();
+$sources = ['kind' => 'builtin', 'http_sources' => 'https://8.8.8.8/http.txt',
+    'socks5_sources' => 'https://1.1.1.1/socks.txt'];
 $valid = new Response(200, ['Content-Type' => 'application/json'], '{"success":true,"data":{"system_name":"AnyRouter"}}');
 $history = [];
 $stack = HandlerStack::create(new MockHandler([new Response(200, [], '8.8.8.8:80'), new Response(200, [], '1.1.1.1:1080'), $valid, $valid]));
@@ -30,9 +34,12 @@ $pool = new AnyRouterProxyPool(new Client(['handler' => $stack]), $file);
 $previous = getenv('ANYROUTER_PLATFORM_PROXY');
 putenv('ANYROUTER_PLATFORM_PROXY');
 try {
+    $settings->save($sources);
     $pool->connect(['proxy_mode' => 'platform']);
     poolCheck(count($history) === 4, 'Unexpected discovery requests');
-    poolCheck(str_contains((string)$history[0]['request']->getUri(), 'cdn.jsdelivr.net/gh/monosans/proxy-list'), 'Domestic source mirror missing');
+    poolCheck((string)$history[0]['request']->getUri() === $sources['http_sources'], 'Configured source URL was ignored');
+    poolCheck(str_contains(AnyRouterProxySettings::defaults()['sources']['http'][0], 'cdn.jsdelivr.net/gh/monosans/proxy-list'),
+        'Domestic default source mirror missing');
     foreach ($history as $entry) {
         poolCheck(!$entry['request']->hasHeader('Cookie') && !$entry['request']->hasHeader('new-api-user'),
             'Proxy discovery exposed account credentials');
@@ -41,7 +48,8 @@ try {
     poolCheck(count($cache['candidates']) === 2 && count($cache['verified']) > 0, 'Pool did not cache verified candidates');
 
     // A cached entry must be revalidated even before its expiry; HTML is never healthy.
-    file_put_contents($file, json_encode(['candidates' => ['http://8.8.8.8:80', 'socks5h://1.1.1.1:1080'],
+    file_put_contents($file, json_encode(['source_hash' => AnyRouterProxySettings::fingerprint($settings->load()),
+        'candidates' => ['http://8.8.8.8:80', 'socks5h://1.1.1.1:1080'],
         'verified' => ['http://8.8.8.8:80' => time()], 'updated_at' => time(), 'cursor' => 1]));
     $history = [];
     $stack = HandlerStack::create(new MockHandler([new Response(200, [], '<html>success</html>'), $valid, $valid]));
@@ -67,12 +75,15 @@ try {
     $history = [];
     $stack = HandlerStack::create(new MockHandler([$valid]));
     $stack->push(Middleware::history($history));
+    $settings->save(['kind' => 'proxy', 'source' => 'http://127.0.0.1:7890']);
     (new AnyRouterProxyPool(new Client(['handler' => $stack]), $file))->connect([]);
     poolCheck($history[0]['options']['proxy'] === 'http://127.0.0.1:7890', 'Operator local relay was not honored');
 
     // Corrupt/future-dated cache entries cannot inject a private endpoint or suppress refresh.
     putenv('ANYROUTER_PLATFORM_PROXY');
-    file_put_contents($file, json_encode(['candidates' => ['http://127.0.0.1:80'],
+    $settings->save($sources);
+    file_put_contents($file, json_encode(['source_hash' => AnyRouterProxySettings::fingerprint($settings->load()),
+        'candidates' => ['http://127.0.0.1:80'],
         'verified' => ['http://127.0.0.1:80' => time()], 'updated_at' => time() + 3600, 'cursor' => 0]));
     $history = [];
     $stack = HandlerStack::create(new MockHandler([new Response(200, [], '8.8.8.8:80'), new Response(200, [], '1.1.1.1:80'), $valid, $valid]));

@@ -7,12 +7,14 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 require_once dirname(__DIR__) . '/vendor/topthink/framework/src/helper.php';
 
 use app\service\AnyRouterProxyPool;
+use app\service\AnyRouterProxySettings;
 
 $cache = sys_get_temp_dir() . '/loopdeck-anyrouter-smoke-proxies.json';
 $started = microtime(true);
 try {
-    $client = (new AnyRouterProxyPool(null, $cache))->connect(['proxy_mode' => 'platform']);
+    $client = (new AnyRouterProxyPool(null, $cache, AnyRouterProxySettings::defaults(...)))->connect(['proxy_mode' => 'platform']);
     $valid = $client->probeAsync(microtime(true) + 12)->wait();
+    $client->close();
     echo json_encode(['success' => $valid, 'anonymous' => true, 'explicit_proxy' => true,
         'tls_verified' => true, 'api' => '/api/status', 'seconds' => round(microtime(true) - $started, 2)], JSON_UNESCAPED_SLASHES) . PHP_EOL;
     exit($valid ? 0 : 1);

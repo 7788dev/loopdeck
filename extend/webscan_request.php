@@ -75,7 +75,8 @@ function webscan_opaque_post_field(string $key): bool
     }
     [$controller, $action, $argument] = $target;
     if ($key === 'source') {
-        return $controller === 'admin:ajax' && $action === 'set' && $argument === 'agentrouterProxy';
+        return $controller === 'admin:ajax' && $action === 'set'
+            && in_array($argument, ['agentrouterProxy', 'anyrouterProxy'], true);
     }
     if ($controller === 'loginajax') {
         return in_array($action, $key === 'username' ? ['login', 'reg'] : ['login', 'reg', 'reset'], true);

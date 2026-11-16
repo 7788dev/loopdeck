@@ -10,7 +10,7 @@ AnyRouter 在国内服务器直连 TLS 握手失败，开发机的全局代理�
 
 - [客户端](../../../../extend/anyrouter/Client.php)固定目标为 `https://anyrouter.top`，显式设置代理与空 `CURLOPT_NOPROXY`，验证 TLS 且禁用重定向。匿名 `/api/status` 必须返回成功且带站点信息的 JSON，再用同一 Cookie jar / 出口校验 `/api/user/self` 的用户 ID 并提交一次 `/api/user/sign_in`。
 - [WAF 解析](../../../../extend/anyrouter/WafCookie.php)实现已观测的 ACW v2 置换与 XOR，只读请求最多刷新两次。保留响应中的 `acw_tc` / `cdn_sec_tc`，重新计算 `acw_sc__v2`；不复用绑定浏览器旧出口的 WAF Cookie，不执行远程脚本，不在 POST 遇到挑战时重发。
-- [后台代理池](../../../../app/service/AnyRouterProxyPool.php)从公开 GitHub 列表及内容镜像下载，缓存候选、游标与可用项，每轮有时间/并发/候选数上限，账号凭据不参与筛选。用户自有代理独占出口，不自动回退；管理员可用 `ANYROUTER_PLATFORM_PROXY` 指定固定出口。普通用户和公开列表仅允许公网地址，域名解析校验后固定到 IP。
+- [后台代理池](../../../../app/service/AnyRouterProxyPool.php)根据站长选择使用可编辑的公开列表、私有订阅或常规代理，缓存候选、游标与匿名可用项，每轮有时间/并发/候选数上限，账号凭据不参与筛选。来源权限、旧环境兼容与生命周期见[站长代理来源决策](2026-11-17-anyrouter-administrator-proxy-sources.md)。用户自有代理独占出口，不自动回退；普通用户和公开列表仅允许公网地址，域名解析校验后固定到 IP。
 - [执行器](../../../../app/service/AnyRouterTaskExecutor.php)复用统一调度锁、租约结果写入、通知、`TaskMessage` 和持久化重试上限。域名解析暂时失败进入 5 分钟网络重试并累计次数，格式错误或解析到私网地址仍要求修正配置。账号页使用显式公开字段，不向模板传递原始账号数据；凭据为空保留，提供代理切回平台代理时清空旧代理。
 - 账号列表和详情复用网易云/哔哩哔哩的头像卡片、基本信息、任务开关、挂机时间弹窗及全宽日志表；凭据编辑放到更新账号页。备注名与上游名称分别保存，列表/基本信息优先显示备注，未填时使用上游显示名称、用户名或 ID。任务开关复用共享回滚逻辑，保存成功后通过可选回调重载详情，让状态和补挂按钮与服务端一致；拒绝或网络失败仅回滚开关。
 - [账号信息投影](../../../../app/service/AnyRouterAccountInfo.php)只展示经校验的用户名、余额、消耗、请求次数及分组。`/api/status` 的 `quota_per_unit` 和 `display_in_currency` 决定金额换算；设置未知时显示原始额度，读取失败显示暂不可用。刷新详情只查询 `/api/status` 和 `/api/user/self`，不提交签到、不覆盖账号 Cookie，也不缓存整份含 token/邮箱等字段的上游响应。

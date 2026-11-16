@@ -9,6 +9,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
 require('./QrUploadAndVerificationTest.js');
 require('./AgentRouterProxyInteractionTest.js');
+require('./AnyRouterProxyInteractionTest.js');
 
 // Exercise both account scripts: proxy switch, secret-field submission and PJAX rebinding.
 for (const platform of ['anyrouter', 'agentrouter']) {

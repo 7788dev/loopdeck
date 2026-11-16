@@ -36,6 +36,16 @@ for ($day = 0; $day < 7; $day++) {
 automaticScheduleCheck(count(array_unique($offsets)) > 1, 'Bilibili jitter repeated the same offset every day');
 putenv('SCHEDULER_JITTER_SECONDS=0');
 automaticScheduleCheck(AutomaticSchedule::nextExecution('bilibili', '7', '08:30', $now->getTimestamp()) === $bilibiliBase, 'Disabled jitter was ignored');
+foreach (['anyrouter', 'agentrouter'] as $platform) {
+    foreach (['08:30', '23:00'] as $timing) {
+        [$hour, $minute] = array_map('intval', explode(':', $timing));
+        automaticScheduleCheck(AutomaticSchedule::nextExecution($platform, '42', $timing, $now->getTimestamp())
+            === $now->modify('+1 day')->setTime($hour, $minute)->getTimestamp(),
+            'A new platform did not preserve the next-day daily schedule: ' . $platform);
+    }
+    automaticScheduleCheck(AutomaticSchedule::nextExecution($platform, '42', '', $now->getTimestamp()) === null,
+        'A new platform without a saved time was automatically scheduled: ' . $platform);
+}
 putenv($previousJitter === false ? 'SCHEDULER_JITTER_SECONDS' : 'SCHEDULER_JITTER_SECONDS=' . $previousJitter);
 
 $neteaseNext = AutomaticSchedule::nextExecution('netease', '3306177679', '08:30', $now->getTimestamp());

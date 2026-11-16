@@ -1,117 +1,57 @@
 {extend name="common/layout"/}
-{block name="head"} {include file="system/head" /}{/block}
+{block name="head"}{include file="system/head" /}{/block}
 {block name="main"}
 <div class="wrapper wrapper-content animated fadeInUp">
-    <div class="row">
-        <div class="col-lg-12">
-            <div class="ibox float-e-margins">
-                <div class="ibox-title">
-                    <h5>{$webTitle}</h5>
-                </div>
-                <div class="ibox-content">
-                    <p class="help-block text-muted">
-                        容器内的调度器会自动执行以上任务，通常无需额外监控。如需接入外部监控，
-                        请为请求附加 <code>X-Cron-Key</code> 请求头并填写运行密钥；
-                        请勿把密钥拼进 URL，避免密钥落入访问日志。
-                    </p>
-                    <table class="table">
-                        <thead>
-                        <tr>
-                            <th class="text-center" style="width: 50px;"></th>
-                            <th>名称</th>
-                            <th class="hidden-xs">地址</th>
-                            <th class="hidden-xs" style="width: 15%;">频率</th>
-                            <th class="text-center" style="width: 100px;">操作</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <tr>
-                            <th class="text-center" scope="row">1</th>
-                            <td>网易云音乐</td>
-                            <td class="hidden-xs">{:get_Domain()}cron/netease</td>
-                            <td class="hidden-xs">
-                                <span class="label label-warning">1分钟</span>
-                            </td>
-                            <td class="text-center">
-                                <div class="btn-group">
-                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/netease">
-                                        <i class="fa fa-copy"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th class="text-center" scope="row">2</th>
-                            <td>哔哩哔哩</td>
-                            <td class="hidden-xs">{:get_Domain()}cron/bilibili</td>
-                            <td class="hidden-xs">
-                                <span class="label label-warning">1分钟</span>
-                            </td>
-                            <td class="text-center">
-                                <div class="btn-group">
-                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/bilibili">
-                                        <i class="fa fa-copy"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th class="text-center" scope="row">3</th>
-                            <td>Epic周免通知</td>
-                            <td class="hidden-xs">{:get_Domain()}cron/epic</td>
-                            <td class="hidden-xs">
-                                <span class="label label-warning">1分钟</span>
-                            </td>
-                            <td class="text-center">
-                                <div class="btn-group">
-                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/epic">
-                                        <i class="fa fa-copy"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        </tbody>
-                    </table>
-                </div>
+    <div class="ibox float-e-margins">
+        <div class="ibox-title"><h5>{$webTitle}</h5></div>
+        <div class="ibox-content">
+            <p>统一调度覆盖网易云音乐、哔哩哔哩、AnyRouter、AgentRouter 的账号任务，以及 Epic 周免提醒。ANY 和 AG 都有每日定时签到，按账号设置的北京时间执行。</p>
+            <p class="help-block">Docker 调度器默认每分钟自动扫描到期任务，通常无需额外监控。扫描频率不等于签到频率：ANY / AG 账号须设置挂机时间、开启任务并保持本站会员有效；首次保存计划通常从次日开始，当天需要执行可在账号页「申请补挂」。网络故障按任务规则自动重试，达到上限后暂停。</p>
+            <p class="text-muted">如需外部监控，请使用下列地址，并附加 <code>X-Cron-Key</code> 请求头填写运行密钥。复制的地址不包含密钥。</p>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead><tr><th>名称</th><th>地址</th><th>建议频率</th><th>操作</th></tr></thead>
+                    <tbody>
+                    <tr>
+                        <td>统一任务调度（含 ANY / AG 签到）</td>
+                        <td>{:get_Domain()}cron/task</td>
+                        <td><span class="label label-warning">每分钟</span></td>
+                        <td><button type="button" class="btn btn-sm btn-default copy" aria-label="复制统一任务调度地址" data-clipboard-text="{:get_Domain()}cron/task"><i class="fa fa-copy"></i></button></td>
+                    </tr>
+                    <tr>
+                        <td>通知投递与每日总览</td>
+                        <td>{:get_Domain()}cron/notifications</td>
+                        <td><span class="label label-warning">每分钟</span></td>
+                        <td><button type="button" class="btn btn-sm btn-default copy" aria-label="复制通知调度地址" data-clipboard-text="{:get_Domain()}cron/notifications"><i class="fa fa-copy"></i></button></td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
+            <p class="help-block m-b-none">在「用户任务列表」查看任务开关与下次执行时间，在「用户账号」进入相应账号查看运行日志。容器部署还需保持 scheduler 服务运行。</p>
         </div>
     </div>
-    <div class="row">
-        <div class="col-lg-12">
-            <div class="ibox float-e-margins">
-                <div class="ibox-title">
-                    <h5>统一任务调度</h5>
-                </div>
-                <div class="ibox-content">
-                    <table class="table">
-                        <thead>
-                        <tr>
-                            <th class="text-center" style="width: 50px;"></th>
-                            <th>名称</th>
-                            <th class="hidden-xs">地址</th>
-                            <th class="hidden-xs" style="width: 15%;">频率</th>
-                            <th class="text-center" style="width: 100px;">操作</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <tr>
-                            <th class="text-center" scope="row">1</th>
-                            <td>统一调度</td>
-                            <td class="hidden-xs">{:get_Domain()}cron/task</td>
-                            <td class="hidden-xs">
-                                <span class="label label-warning">1分钟</span>
-                            </td>
-                            <td class="text-center">
-                                <div class="btn-group">
-                                    <button type="button" class="btn btn-sm btn-default copy" data-clipboard-text="{:get_Domain()}cron/task">
-                                        <i class="fa fa-copy"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        </tbody>
-                    </table>
-                </div>
+    <div class="ibox float-e-margins">
+        <div class="ibox-title"><h5>原有分平台监控入口</h5></div>
+        <div class="ibox-content">
+            <p class="text-muted">保留给已有的分平台监控使用。使用上方统一调度时无需重复配置这些地址；AnyRouter 和 AgentRouter 由统一调度处理。</p>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead><tr><th>名称</th><th>地址</th><th>建议频率</th><th>操作</th></tr></thead>
+                    <tbody>
+                    <tr>
+                        <td>网易云音乐</td><td>{:get_Domain()}cron/netease</td><td>每分钟</td>
+                        <td><button type="button" class="btn btn-sm btn-default copy" aria-label="复制网易云监控地址" data-clipboard-text="{:get_Domain()}cron/netease"><i class="fa fa-copy"></i></button></td>
+                    </tr>
+                    <tr>
+                        <td>哔哩哔哩</td><td>{:get_Domain()}cron/bilibili</td><td>每分钟</td>
+                        <td><button type="button" class="btn btn-sm btn-default copy" aria-label="复制哔哩哔哩监控地址" data-clipboard-text="{:get_Domain()}cron/bilibili"><i class="fa fa-copy"></i></button></td>
+                    </tr>
+                    <tr>
+                        <td>Epic 周免通知</td><td>{:get_Domain()}cron/epic</td><td>每分钟</td>
+                        <td><button type="button" class="btn btn-sm btn-default copy" aria-label="复制 Epic 监控地址" data-clipboard-text="{:get_Domain()}cron/epic"><i class="fa fa-copy"></i></button></td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

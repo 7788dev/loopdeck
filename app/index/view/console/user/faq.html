@@ -23,6 +23,7 @@
                                         <li><strong>网易云音乐：</strong>每日签到、VIP 成长、每日 300 首，以及音乐人和合伙人任务。</li>
                                         <li><strong>哔哩哔哩：</strong>每日观看、投币、等级经验和大会员积分等任务。</li>
                                         <li><strong>AnyRouter：</strong>绑定账号，通过代理完成每日签到。</li>
+                                        <li><strong>AgentRouter：</strong>绑定用户名和密码，每天重新登录签到、查询余额并退出。</li>
                                         <li><strong>Epic 商城：</strong>查看每周免费游戏，按个人设置接收提醒。</li>
                                         <li><strong>收款码合一：</strong>合并支付宝、微信和 QQ 收款码。</li>
                                     </ul>
@@ -41,6 +42,7 @@
                                         <li><strong>网易云音乐：</strong>使用网易云音乐 APP 扫码，在手机上确认后点击「扫码完成，点击验证」。账号密码登录仍在维护中；若出现安全验证，请按页面提示完成。</li>
                                         <li><strong>哔哩哔哩：</strong>支持 APP 扫码和手机号短信登录。扫码后需在手机上确认，再点击验证；短信登录需按提示完成验证并输入短信验证码。</li>
                                         <li><strong>AnyRouter：</strong>填写 Cookie、API User，并选择代理方式，点击「验证并添加」。具体获取方式见下方 AnyRouter 说明。</li>
+                                        <li><strong>AgentRouter：</strong>填写用户名、密码和备注，选择「平台代理 / 自有代理」，点击「验证并添加」。验证会登录并退出一次，可能完成当天签到。</li>
                                     </ul>
                                     <p>绑定完成后进入「管理账号」，设置挂机时间，并开启需要执行的任务。二维码过期时请重新获取。</p>
                                 </div>
@@ -52,7 +54,7 @@
                             </div>
                             <div id="faq1_q3" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq1_h3" data-parent="#faq1">
                                 <div class="panel-body">
-                                    <p>账号显示登录失效时，网易云和哔哩哔哩可在添加账号页重新登录同一个平台账号；AnyRouter 请在「更新账号」中更新 Cookie。更新后检查任务开关与挂机时间。</p>
+                                    <p>账号显示登录失效时，网易云和哔哩哔哩可在添加账号页重新登录同一个平台账号；AnyRouter 请在「更新账号」中更新 Cookie；AgentRouter 请核对用户名，并更新已变更的密码。更新后检查任务开关与挂机时间。</p>
                                     <p>更新自己已绑定的账号不会重复占用名额。同一个平台账号不能同时绑定到本站的不同用户；提示已存在时，请联系管理员核实归属。</p>
                                     <p>删除不再使用的账号可释放名额，同时会移除对应任务和运行日志，请确认后再操作。</p>
                                 </div>
@@ -154,11 +156,28 @@
                                     <ol>
                                         <li>在浏览器登录 AnyRouter，打开开发者工具的「网络」面板并刷新控制台页面，找到 <code>/api/user/self</code> 等账号接口请求。</li>
                                         <li>从请求头复制包含 <code>session</code> 的 Cookie，以及 <code>new-api-user</code> 的数字值，分别填入「Cookie」和「API User」。可以填写备注名以便区分账号。</li>
-                                        <li>选择「平台代理」让系统自动筛选，或选择「提供代理」填写服务器可访问的公网代理地址，支持 HTTP 和 SOCKS5，也支持用户名密码认证。</li>
+                                        <li>选择「平台代理」使用站长配置的出口：由站长选择内置代理池、站长订阅链接或常规代理。也可选择「提供代理」填写自己服务器可访问的公网 HTTP / SOCKS5 地址，支持用户名密码认证。</li>
                                         <li>点击「验证并添加」，再进入账号详情设置挂机时间并开启「每日签到」。保存账号只验证登录，签到按任务计划执行。</li>
                                     </ol>
-                                    <p>凭据失效时从「更新账号」更换 Cookie；更新表单中 Cookie 或已配置的代理留空，会保留原值。平台代理暂时不可用时可稍后重试，也可以改用自己的代理。</p>
+                                    <p>凭据失效时从「更新账号」更换 Cookie；更新表单中 Cookie 或已配置的代理留空，会保留原值。平台代理来源由站长在「系统设置 → 功能插件设置 → AnyRouter 平台代理」维护，普通用户无需填写站长订阅。平台代理不可用时可联系管理员检查，或改用自己的代理。</p>
                                     <p>「刷新信息」用于查询账号状态；需要补挂时使用「申请补挂」，并在运行日志中查看签到结果。实际领取间隔由 AnyRouter 决定。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel panel-default">
+                            <div class="panel-heading" role="tab" id="faq2_h11">
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq2_q11" aria-expanded="false" aria-controls="faq2_q11">AgentRouter 怎样绑定、配置代理并自动签到？</a>
+                            </div>
+                            <div id="faq2_q11" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h11" data-parent="#faq2">
+                                <div class="panel-body">
+                                    <ol>
+                                        <li>已有 AG 账号可直接填写用户名和密码；尚未注册可前往 <a href="https://agentrouter.org/register?aff=7Oga" target="_blank" rel="noopener noreferrer">注册 AgentRouter</a>。备注可用于区分多个账号。</li>
+                                        <li>选择「平台代理」使用站长配置的订阅或常规代理，或选择「自有代理」填写自己的公网 HTTP / SOCKS5 地址。平台代理仅由站长在「系统设置 → 功能插件设置 → AgentRouter 平台代理」中配置。</li>
+                                        <li>点击「验证并添加」，验证会登录并退出一次。进入账号详情设置每日签到时间，并开启「每日签到」；首次保存通常从次日开始，当天需要执行可「申请补挂」。</li>
+                                    </ol>
+                                    <p><strong>AG 的登录动作本身就是签到。</strong>每天使用新会话登录一次，查询余额后退出登录，下次再重新登录。打开账号详情或更新页只显示已存的信息；最近一次成功签到后会更新余额，未读到的金额显示暂不可用。</p>
+                                    <p>平台代理优先复用最多 3 个曾完成签到的节点，首次不可用保留，连续两个执行日不可用后移除，再尝试后面的节点或重新筛选订阅。不会每天强制随机换节点，站长更换来源后重新筛选。</p>
+                                    <p>更新表单中密码和已配置的代理留空会保留原值。用户名或密码错误时请更新凭据；网络、网站验证或退出未确认会自动重试，达到上限后暂停任务，处理原因后再开启。</p>
                                 </div>
                             </div>
                         </div>
@@ -206,6 +225,7 @@
                                         <li>显示「重试中」或正在核验时，等待自动处理；账号失效时先更新登录，任务已暂停时先处理日志中的原因，再重新开启。</li>
                                         <li>需要重新排队时点击「申请补挂」。补挂受冷却时间限制，正在执行的任务不会重复启动，也不会延长听歌核验期限。</li>
                                     </ol>
+                                    <p>ANY 和 AG 已接入统一调度，按北京时间每天执行。首次保存计划通常从次日开始，并可能有短暂的随机延迟；无需一直打开网页。当天需要运行可「申请补挂」。普通用户无需设置监控地址，站长可在「任务监控列表」确认统一调度入口与部署调度器。</p>
                                     <p>仍未解决时，请向管理员提供平台、任务名称、发生时间和日志中的错误说明。反馈截图请遮住 Cookie、密码及推送凭据。</p>
                                     <p><a target="_blank" rel="noopener noreferrer" href="https://wpa.qq.com/msgrd?v=3&amp;uin={:html_escape(config('web.user_qq'))}&amp;site=qq&amp;menu=yes">联系管理员</a></p>
                                 </div>

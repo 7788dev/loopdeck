@@ -9,6 +9,7 @@ use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Promise\PromiseInterface;
+use Closure;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
@@ -24,6 +25,8 @@ final class Client
     private string $apiUser = '';
     private array $secrets = [];
     private array $site = [];
+    private bool $closed = false;
+    private array $cleanup = [];
 
     public function __construct(private string $proxy, ?ClientInterface $http = null)
     {
@@ -34,6 +37,42 @@ final class Client
         $this->cookies = new CookieJar();
         $parts = parse_url($proxy);
         $this->secrets = [$proxy, rawurldecode($parts['pass'] ?? '')];
+    }
+
+    /** Keep a selected relay and its pool lease alive through authentication and the single sign-in POST. */
+    public function onClose(Closure $cleanup): void
+    {
+        if ($this->closed) {
+            $cleanup();
+        } else {
+            $this->cleanup[] = $cleanup;
+        }
+    }
+
+    public function close(): void
+    {
+        if ($this->closed) {
+            return;
+        }
+        $this->closed = true;
+        $this->cookies->clear();
+        $this->ready = false;
+        $this->apiUser = '';
+        $this->secrets = [];
+        $this->site = [];
+        foreach ($this->cleanup as $cleanup) {
+            try {
+                $cleanup();
+            } catch (Throwable $exception) {
+                // Every owner must still get its cleanup, including the shared lock.
+            }
+        }
+        $this->cleanup = [];
+    }
+
+    public function __destruct()
+    {
+        $this->close();
     }
 
     public static function parseCookies(string $input): array
@@ -73,6 +112,9 @@ final class Client
     /** Read-only probe, with no account credentials attached. */
     public function probeAsync(float $deadline): PromiseInterface
     {
+        if ($this->closed) {
+            throw new RuntimeException('AnyRouter 连接已关闭');
+        }
         return $this->getAsync('/api/status', $deadline)->then(function (ResponseInterface $response): bool {
             $body = self::payload($response);
             $this->ready = $response->getStatusCode() === 200 && ($body['success'] ?? null) === true

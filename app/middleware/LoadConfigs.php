@@ -76,18 +76,25 @@ class LoadConfigs
     {
         $cached = Cache::get('site_settings_primary');
         if (is_array($cached)) {
-            return $cached;
+            return array_filter($cached, static fn($key): bool => !self::privateSetting((string)$key), ARRAY_FILTER_USE_KEY);
         }
 
         $settings = [];
         foreach (Db::name('configs')->select() as $row) {
-            if (str_starts_with(strtolower((string)$row['k']), \app\service\AgentRouterProxySettings::PREFIX)) {
+            if (self::privateSetting((string)$row['k'])) {
                 continue;
             }
             $settings[(string)$row['k']] = $row['v'];
         }
         Cache::tag('site_settings')->set('site_settings_primary', $settings, 60);
         return $settings;
+    }
+
+    private static function privateSetting(string $key): bool
+    {
+        $key = strtolower($key);
+        return str_starts_with($key, \app\service\AgentRouterProxySettings::PREFIX)
+            || str_starts_with($key, \app\service\AnyRouterProxySettings::PREFIX);
     }
 
     /**

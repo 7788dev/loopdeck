@@ -276,8 +276,10 @@ foreach ([
             'Retired navigation reappeared with legacy settings: ' . $view);
         removalCheck(!preg_match('/分站|抖音|\/console\/douyin|\/shop\/(?:agent|site)/u', $html),
             'Retired content or links reappeared with legacy settings: ' . $view);
-        removalCheck(!preg_match('/购买|充值|支付配置|价格设置|余额|\/shop\/(?:vip|quota|money)|\/system\/pay/u', $html),
+        // Platform help may explain upstream balances; site wallets and payment entry points remain retired.
+        removalCheck(!preg_match('/购买|充值|支付配置|价格设置|(?:本站|站内|站点|钱包)余额|\/shop\/(?:vip|quota|money)|\/system\/pay/u', $html),
             'Payment UI reappeared with legacy settings: ' . $view);
+        removalCheck(!str_contains(implode('', $navigation[0]), '余额'), 'A wallet entry reappeared in navigation: ' . $view);
         removalCheck(!preg_match('/直播间|globalroom|global_room/u', $html),
             'Retired live-room configuration reappeared: ' . $view);
         if ($application === 'admin' && $view === 'system/set/reg') {

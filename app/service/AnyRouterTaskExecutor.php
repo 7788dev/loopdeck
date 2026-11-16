@@ -19,12 +19,16 @@ final class AnyRouterTaskExecutor
 
     public function validateAccount(array $account): array
     {
+        $client = null;
         try {
-            return ($this->connector)($account)->authenticate((array)($account['cookies'] ?? []), (string)($account['api_user'] ?? ''));
+            $client = ($this->connector)($account);
+            return $client->authenticate((array)($account['cookies'] ?? []), (string)($account['api_user'] ?? ''));
         } catch (\InvalidArgumentException $exception) {
             return ['success' => false, 'reason' => $exception->getMessage()];
         } catch (\RuntimeException $exception) {
             return ['success' => false, 'reason' => $this->connectionReason($exception)];
+        } finally {
+            $client?->close();
         }
     }
 
@@ -33,6 +37,7 @@ final class AnyRouterTaskExecutor
         if ($task !== 'sign_in') {
             return $this->result(['success' => false, 'reason' => '不支持的 AnyRouter 任务'], $config);
         }
+        $client = null;
         try {
             $client = ($this->connector)($account);
             $auth = $client->authenticate((array)($account['cookies'] ?? []), (string)($account['api_user'] ?? ''));
@@ -41,6 +46,8 @@ final class AnyRouterTaskExecutor
             $outcome = ['success' => false, 'reason' => $exception->getMessage()];
         } catch (Throwable $exception) {
             $outcome = ['success' => false, 'retryable' => true, 'reason' => $this->connectionReason($exception)];
+        } finally {
+            $client?->close();
         }
         return $this->result($outcome, $config);
     }

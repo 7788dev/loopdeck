@@ -89,6 +89,48 @@
 </div>
 <div class="wrapper wrapper-content">
     <div class="ibox float-e-margins">
+        <div class="ibox-title"><h5>AnyRouter 平台代理</h5></div>
+        <div class="ibox-content">
+            <p class="text-muted">供所有选择「平台代理」的 ANY 账号使用，由站长决定代理来源。订阅链接、代理地址和认证只保存在本站，不向普通用户显示。</p>
+            <form data-anyrouter-platform-form autocomplete="off" data-saved-kind="{$anyrouter_proxy.kind|default='builtin'}" data-proxy-saved="{if condition='!empty($anyrouter_proxy.configured)'}1{else /}0{/if}">
+                <div class="row">
+                    <div class="col-md-4 form-group">
+                        <label for="any-platform-kind">平台代理来源</label>
+                        <select id="any-platform-kind" class="form-control" name="kind">
+                            <option value="builtin" {if condition="empty($anyrouter_proxy.kind) || $anyrouter_proxy.kind eq 'builtin'"}selected{/if}>内置代理池（可修改列表地址）</option>
+                            <option value="subscription" {if condition="isset($anyrouter_proxy.kind) && $anyrouter_proxy.kind eq 'subscription'"}selected{/if}>站长订阅链接</option>
+                            <option value="proxy" {if condition="isset($anyrouter_proxy.kind) && $anyrouter_proxy.kind eq 'proxy'"}selected{/if}>站长 HTTP / SOCKS5 代理</option>
+                        </select>
+                    </div>
+                    <div class="col-md-8 form-group" data-anyrouter-secret>
+                        <label for="any-platform-source" data-anyrouter-source-label>订阅链接或代理地址</label>
+                        <input id="any-platform-source" name="source" type="password" class="form-control" maxlength="4096" autocomplete="new-password" placeholder="{if condition='!empty($anyrouter_proxy.configured)'}已配置；保持来源类型并留空可保留原设置{else /}填写站长自己的订阅链接或常规代理地址{/if}">
+                    </div>
+                </div>
+                <div data-anyrouter-builtin>
+                    <div class="row">
+                        <div class="col-md-6 form-group">
+                            <label for="any-http-sources">HTTP 代理池列表地址</label>
+                            <textarea id="any-http-sources" name="http_sources" class="form-control" rows="4" maxlength="16384" data-default-value="{$anyrouter_proxy.default_http_sources|default=''}">{$anyrouter_proxy.http_sources|default=''}</textarea>
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label for="any-socks5-sources">SOCKS5 代理池列表地址</label>
+                            <textarea id="any-socks5-sources" name="socks5_sources" class="form-control" rows="4" maxlength="16384" data-default-value="{$anyrouter_proxy.default_socks5_sources|default=''}">{$anyrouter_proxy.socks5_sources|default=''}</textarea>
+                        </div>
+                    </div>
+                    <p class="help-block">每行填写一个公网 HTTP / HTTPS 列表地址，每种协议最多 8 个，至少保留一个地址。列表内容为一行一个 IP:端口，同一协议按填写顺序尝试，自动筛选可访问 AnyRouter 的节点。</p>
+                    <button type="button" class="btn btn-default m-b-sm" data-restore-anyrouter-sources>恢复项目内置地址</button>
+                </div>
+                <p class="help-block" data-anyrouter-secret>订阅支持 Clash、VMess、VLESS、Trojan、Shadowsocks 和 Hysteria2 节点；常规代理支持 <code>http://用户名:密码@主机:端口</code> 或 <code>socks5://主机:端口</code>。订阅与 AnyRouter 连接均校验证书。</p>
+                <div class="checkbox" data-anyrouter-clear><label><input type="checkbox" name="clear" value="1"> 清除私人代理配置并改用内置代理池</label></div>
+                <button type="submit" class="btn btn-primary" data-busy-text="正在保存…">保存 ANY 平台代理</button>
+                <p class="help-block m-t-sm">保存后，ANY 账号选择「平台代理」时使用此处指定的来源；选择「自有代理」的账号仍使用自己的地址。</p>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="wrapper wrapper-content">
+    <div class="ibox float-e-margins">
         <div class="ibox-title"><h5>AgentRouter 平台代理</h5></div>
         <div class="ibox-content">
             <p class="text-muted">由站长配置，供选择「平台代理」的 AG 账号使用。代理地址、认证和订阅内容仅保存在本站，不向用户显示。</p>
@@ -136,6 +178,7 @@
 </div>
 {/block}
 {block name="foot"}
+<script src="/static/js/anyrouter-admin.js?v={:app_version()}"></script>
 <script src="/static/js/agentrouter-admin.js?v={:app_version()}"></script>
 <script>
     function ajax_edit_config(element) {

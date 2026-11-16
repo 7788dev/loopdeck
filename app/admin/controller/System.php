@@ -41,6 +41,7 @@ class System extends Common
                 View::assign('webTitle', '网站信息设置');
                 return View::fetch('/system/set/info');
             case 'plugin':
+                View::assign('anyrouter_proxy', (new \app\service\AnyRouterProxySettings())->present());
                 View::assign('agentrouter_proxy', (new \app\service\AgentRouterProxySettings())->present());
                 View::assign('webTitle', '功能插件设置');
                 return View::fetch('system/set/plugin');

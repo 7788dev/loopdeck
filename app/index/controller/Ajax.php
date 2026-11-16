@@ -37,6 +37,10 @@ class Ajax extends Common
     {
         return (new \app\index\controller\Anyrouter())->handle($act);
     }
+    public function agentrouter($act = null)
+    {
+        return (new \app\index\controller\Agentrouter())->handle($act);
+    }
 	public function sport($act = null)
 	{
 		// Compatibility guard for deployments that still allow controller auto-routing.

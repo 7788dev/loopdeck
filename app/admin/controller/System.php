@@ -6,9 +6,7 @@ namespace app\admin\controller;
 use app\admin\model\Notice;
 use app\admin\model\Weblist;
 use app\index\controller\Common;
-use app\index\model\Info;
-use app\index\model\Jobs;
-use app\index\model\Users;
+use app\service\SiteStatistics;
 use app\service\SystemUpdater;
 use app\service\Honeypot;
 use app\service\HoneypotLog;
@@ -25,11 +23,12 @@ class System extends Common
 
     public function index()
     {
+        $statistics = SiteStatistics::counters();
         View::assign([
             'webTitle' => '后台管理',
-            'job_count' => Jobs::jobCount(),
-            'execute_count' => Info::executeCount(),
-            'user_count' => Users::userCount(),
+            'job_count' => $statistics['job_count'],
+            'execute_count' => $statistics['execute_count'],
+            'user_count' => $statistics['user_count'],
             'notices' => Notice::getAdminNoticeList(),
         ]);
         return View::fetch('system/index');

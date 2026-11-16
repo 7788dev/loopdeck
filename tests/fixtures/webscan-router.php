@@ -24,6 +24,58 @@ $app->config->set(require dirname(__DIR__, 2) . '/config/route.php', 'route');
 $app->config->set(['default_app' => 'index', 'app_express' => true], 'app');
 $app->config->set(['reg_close' => 0, 'reg_iplimit' => 1, 'reg_free_vip' => 0, 'reg_free_quota' => 0], 'sys');
 $honeypotTest = getenv('LOOPDECK_HONEYPOT_HTTP_TEST') === '1';
+$agentRouterTest = getenv('LOOPDECK_AGENTROUTER_HTTP_TEST') === '1';
+if ($agentRouterTest) {
+    define('PJAX', !empty($_SERVER['HTTP_X_PJAX']));
+    $app->config->set(require dirname(__DIR__, 2) . '/config/view.php', 'view');
+    $app->config->set(['webname' => 'LoopDeck', 'title' => '隔离测试'], 'web');
+    think\facade\View::assign('webTitle', 'AgentRouter');
+    fixtureTable('accounts', 'id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, zid INTEGER DEFAULT 1, type TEXT,
+        user_id TEXT, state INTEGER DEFAULT 1, timing TEXT, cooling INTEGER DEFAULT 0, addtime TEXT, data TEXT');
+    fixtureTable('tasks', 'id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, execute_name TEXT, name TEXT, describe TEXT,
+        icon TEXT, execute_rate INTEGER, execute_url TEXT, more INTEGER, state INTEGER, vip INTEGER, time TEXT, "order" INTEGER');
+    fixtureTable('jobs', 'id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, zid INTEGER DEFAULT 1, type TEXT,
+        user_id TEXT, do TEXT, state INTEGER, nextExecute INTEGER, lastExecute TEXT, data TEXT');
+    fixtureTable('task_logs', 'id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, user_id TEXT, do TEXT, response TEXT, addtime TEXT');
+    Db::name('users')->where('uid', 1)->update(['vip_start' => '2026-01-01', 'vip_end' => '2099-01-01']);
+    think\facade\Session::set('user', Db::name('users')->find(1));
+    foreach (['fixture-user', 'fixture+daily@example.invalid', 'fixture#name', 'fixture%23name', 'fixture%2Bname'] as $username) {
+        app\index\model\Accounts::add('agentrouter', $username, ['username' => $username,
+            'password' => 'fixture-private-password', 'nickname' => 'HTTP 测试账号',
+            'profile' => ['username' => $username, 'quota' => 62500000.0,
+                'quota_per_unit' => 500000.0, 'display_in_currency' => true]]);
+    }
+    $app->bind(app\index\controller\Agentrouter::class, static function () {
+        return new class extends app\index\controller\Agentrouter {
+            protected function executor(): app\service\AgentRouterTaskExecutor
+            {
+                return new app\service\AgentRouterTaskExecutor(static function (): agentrouter\Client {
+                    $stack = GuzzleHttp\HandlerStack::create(static function ($request) {
+                        $path = $request->getUri()->getPath();
+                        $headers = ['Content-Type' => 'application/json'];
+                        if ($path === '/api/status') {
+                            $body = ['success' => true, 'data' => ['system_name' => 'Agent Router']];
+                        } elseif ($path === '/api/user/login') {
+                            $headers['Set-Cookie'] = 'session=fixture-session; Path=/; Secure; HttpOnly';
+                            $body = ['success' => true, 'data' => ['id' => 42, 'checked_in' => true]];
+                        } elseif ($request->getHeaderLine('Cookie') !== 'session=fixture-session') {
+                            return new GuzzleHttp\Promise\FulfilledPromise(new GuzzleHttp\Psr7\Response(401));
+                        } else {
+                            $body = $path === '/api/user/self'
+                                ? ['success' => true, 'data' => ['id' => 42, 'username' => 'fixture-user', 'quota' => 62500000]]
+                                : ['success' => true];
+                        }
+                        return new GuzzleHttp\Promise\FulfilledPromise(
+                            new GuzzleHttp\Psr7\Response(200, $headers, json_encode($body)));
+                    });
+                    $client = new agentrouter\Client(new GuzzleHttp\Client(['handler' => $stack]));
+                    $client->probeAsync(microtime(true) + 5)->wait();
+                    return $client;
+                });
+            }
+        };
+    });
+}
 if ($honeypotTest) {
     define('PJAX', !empty($_SERVER['HTTP_X_PJAX']));
     $app->config->set(require dirname(__DIR__, 2) . '/config/view.php', 'view');
@@ -67,8 +119,11 @@ $multiApp = new class($app) extends think\app\MultiApp {
     {
     }
 };
-$app->middleware->add(static function ($request, $next) use ($probe, $honeypotTest) {
+$app->middleware->add(static function ($request, $next) use ($probe, $honeypotTest, $agentRouterTest) {
     $target = $request->controller() . '/' . strtolower($request->action());
+    if ($agentRouterTest && in_array($target, ['Console/agentrouter', 'Agentrouter/handle', 'Ajax/agentrouter'], true)) {
+        return (new app\middleware\SiteTemplate())->handle($request, $next);
+    }
     if ($honeypotTest && $target === 'System/honeypot') {
         return (new app\middleware\SiteTemplate())->handle($request, $next);
     }

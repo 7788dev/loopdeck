@@ -1,0 +1,30 @@
+{extend name="common/layout"/}
+{block name="head"}{include file="console/head" /}{/block}
+{block name="main"}
+<div class="wrapper wrapper-content animated fadeInUp">
+    <div class="row"><div class="col-md-6">
+        <div class="ibox float-e-margins">
+            <div class="ibox-title"><h5>{if condition="empty($agentrouter_form.user_id)"}添加账号{else /}更新账号{/if} - AgentRouter</h5></div>
+            <div class="ibox-content">
+                <p class="text-muted">绑定后设置签到时间，系统每天会通过服务器直连重新登录签到，并在查询余额后退出登录。</p>
+                {include file="console/agentrouter/form" /}
+            </div>
+        </div>
+    </div><div class="col-md-6">
+        <div class="ibox float-e-margins">
+            <div class="ibox-title"><h5>获取账号凭据</h5></div>
+            <div class="ibox-content">
+                <ol>
+                    <li>打开 <a href="https://ps.air-outer.com" target="_blank" rel="noopener noreferrer">AgentRouter</a> 并注册或登录。</li>
+                    <li>填写登录所用的用户名（或邮箱）和密码。</li>
+                    <li>保存后在账号详情中设置每日签到时间。</li>
+                </ol>
+                <p class="text-muted m-b-none">AgentRouter 的登录动作本身即触发每日签到，系统会自动完成登录和退出。保存验证账号时也会登录并退出一次。</p>
+            </div>
+        </div>
+    </div></div>
+</div>
+{/block}
+{block name="foot"}
+<script src="/static/js/agentrouter.js?v={:app_version()}"></script>
+{/block}

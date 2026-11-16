@@ -2,7 +2,7 @@
 
 namespace app\index\validate;
 
-use think\validate;
+use think\Validate;
 
 class Users extends Validate
 {

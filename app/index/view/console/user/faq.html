@@ -5,65 +5,68 @@
     <div class="row">
         <div class="col-lg-12">
             <h4 class="font-bold">{$webTitle}</h4>
+            <p class="text-muted">从账号绑定到任务结果，按下面的说明完成设置并排查常见问题。</p>
             <div class="ibox float-e-margins">
                 <div class="ibox-title">
-                    <h5>
-                        <strong>1.</strong> 介绍
-                    </h5>
-                    <div class="ibox-tools">
-                        <a href="javascript:;">
-                            <i class="fa fa-question-circle"></i>
-                        </a>
-                    </div>
+                    <h5><strong>1.</strong> 开始使用</h5>
                 </div>
                 <div class="ibox-content">
                     <div class="panel-group" id="faq1" aria-multiselectable="true">
                         <div class="panel panel-default">
                             <div class="panel-heading" role="tab" id="faq1_h1">
-                                <a class="font-bold" data-toggle="collapse" href="#faq1_q1" aria-expanded="true" aria-controls="faq1_q1">{:html_escape(config('web.webname'))} 有什么<span class="text-primary">作用</span></a>
+                                <a class="font-bold" role="button" data-toggle="collapse" href="#faq1_q1" aria-expanded="true" aria-controls="faq1_q1">这里可以做什么？</a>
                             </div>
                             <div id="faq1_q1" class="panel-collapse collapse in" role="tabpanel" aria-labelledby="faq1_h1" data-parent="#faq1">
                                 <div class="panel-body">
-                                    <p>
-                                        网易云音乐 <span class="text-info">每日任务 300首、音乐人、合伙人任务等</span><br>
-                                        哔哩哔哩   <span class="text-info">每日观看视频，投币任务等</span><br>
-                                        Epic     <span class="text-info">Epic商城免费游戏通知</span><br>
-                                        收款码合一     <span class="text-info">zfb，wx，qq收款码聚合</span><br>
-                                        <br>
-                                        <span class="text-danger">具体任务以登录账号后的实际执行为准；如有违规内容请联系站长删除</span>
-                                        </p>
+                                    <p>{:html_escape(config('web.webname'))} 可以集中管理平台账号、设置每日任务，并查看执行进度和结果。</p>
+                                    <ul>
+                                        <li><strong>网易云音乐：</strong>每日签到、VIP 成长、每日 300 首，以及音乐人和合伙人任务。</li>
+                                        <li><strong>哔哩哔哩：</strong>每日观看、投币、等级经验和大会员积分等任务。</li>
+                                        <li><strong>AnyRouter：</strong>绑定账号，通过代理完成每日签到。</li>
+                                        <li><strong>Epic 商城：</strong>查看每周免费游戏，按个人设置接收提醒。</li>
+                                        <li><strong>收款码合一：</strong>合并支付宝、微信和 QQ 收款码。</li>
+                                    </ul>
+                                    <p class="text-muted">可用功能以本站开放的菜单、账号资格和任务列表为准。</p>
                                 </div>
                             </div>
                         </div>
                         <div class="panel panel-default">
                             <div class="panel-heading" role="tab" id="faq1_h2">
-                                <a class="font-bold" data-toggle="collapse" href="#faq1_q2" aria-expanded="true" aria-controls="faq1_q2">如何在 {:html_escape(config('web.webname'))} <span class="text-primary">添加账号</span></a>
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq1_q2" aria-expanded="false" aria-controls="faq1_q2">第一次使用，怎样添加账号？</a>
                             </div>
                             <div id="faq1_q2" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq1_h2" data-parent="#faq1">
                                 <div class="panel-body">
-                                    <p>
-                                        <span class="text-primary">添加账号之前 账号需要拥有配额 若功能为VIP功能则需开启VIP使用</span>
-                                        <br>
-                                        <a class="text-danger" href="{:url('/index/console/shop/card')}">使用兑换码</a>
-                                        <br>
-                                        （1）<span class="text-info">账号密码</span>模式：当前维护中，暂不可用。<br>
-                                        （2）<span class="text-info">二维码</span>模式：此模式安全、方便快捷，只需手机扫一扫二维码即可成功登录。</p>
+                                    <p>先在<a href="{:url('/index/console/shop/card')}">兑换码兑换</a>页面确认会员状态和可用账号总数，再进入对应平台的「添加账号」。</p>
+                                    <ul>
+                                        <li><strong>网易云音乐：</strong>使用网易云音乐 APP 扫码，在手机上确认后点击「扫码完成，点击验证」。账号密码登录仍在维护中；若出现安全验证，请按页面提示完成。</li>
+                                        <li><strong>哔哩哔哩：</strong>支持 APP 扫码和手机号短信登录。扫码后需在手机上确认，再点击验证；短信登录需按提示完成验证并输入短信验证码。</li>
+                                        <li><strong>AnyRouter：</strong>填写 Cookie、API User，并选择代理方式，点击「验证并添加」。具体获取方式见下方 AnyRouter 说明。</li>
+                                    </ul>
+                                    <p>绑定完成后进入「管理账号」，设置挂机时间，并开启需要执行的任务。二维码过期时请重新获取。</p>
                                 </div>
                             </div>
                         </div>
                         <div class="panel panel-default">
                             <div class="panel-heading" role="tab" id="faq1_h3">
-                                <a class="font-bold" data-toggle="collapse" href="#faq1_q3" aria-expanded="true" aria-controls="faq1_q3">管理账号以及账号状态</a>
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq1_q3" aria-expanded="false" aria-controls="faq1_q3">账号失效或不再使用时，如何处理？</a>
                             </div>
                             <div id="faq1_q3" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq1_h3" data-parent="#faq1">
                                 <div class="panel-body">
-                                    <p>
-                                        （1）账号添加后如果账号状态失效，请及时更新状态防止功能不运行<br>
-
-                                        （2）添加一个账号需要一个配额，VIP 功能还需会员权限。配额由管理员设置或注册赠送；不足时请联系管理员分配或获取兑换码，配额永久有效
-                                        <br>
-                                        <a href="{:url('/index/console/shop/card')}">使用兑换码</a>
-                                    </p>
+                                    <p>账号显示登录失效时，网易云和哔哩哔哩可在添加账号页重新登录同一个平台账号；AnyRouter 请在「更新账号」中更新 Cookie。更新后检查任务开关与挂机时间。</p>
+                                    <p>更新自己已绑定的账号不会重复占用名额。同一个平台账号不能同时绑定到本站的不同用户；提示已存在时，请联系管理员核实归属。</p>
+                                    <p>删除不再使用的账号可释放名额，同时会移除对应任务和运行日志，请确认后再操作。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel panel-default">
+                            <div class="panel-heading" role="tab" id="faq1_h4">
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq1_q4" aria-expanded="false" aria-controls="faq1_q4">账号总数、本站 VIP 和兑换码是什么关系？</a>
+                            </div>
+                            <div id="faq1_q4" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq1_h4" data-parent="#faq1">
+                                <div class="panel-body">
+                                    <p><strong>所有平台共用一个账号总数上限。</strong>例如总数为 7 个，可以绑定 2 个哔哩哔哩和 5 个网易云账号，也可以按自己的需要分配；新增收款码记录也会占用名额。</p>
+                                    <p>会员权限和账号额度来自注册赠送、管理员设置或管理员提供的兑换码。一张兑换码可同时开通或延长会员，并设置账号总数；兑换后的实际权益可在<a href="{:url('/index/console/shop/card')}">兑换码兑换</a>页面查看。</p>
+                                    <p>本站 VIP 用于使用本站的 VIP 功能。网易云黑胶 VIP、音乐人或合伙人资格、哔哩哔哩大会员等，仍需对应平台账号自行具备。</p>
                                 </div>
                             </div>
                         </div>
@@ -72,104 +75,166 @@
             </div>
             <div class="ibox float-e-margins">
                 <div class="ibox-title">
-                    <h5>
-                        <strong>2.</strong> {:html_escape(config('web.webname'))} <span class="text-primary">常见问题</span>
-                    </h5>
-                    <div class="ibox-tools">
-                        <a href="javascript:;">
-                            <i class="fa fa-question-circle"></i>
-                        </a>
-                    </div>
+                    <h5><strong>2.</strong> 平台任务与工具</h5>
                 </div>
                 <div class="ibox-content">
                     <div class="panel-group" id="faq2" aria-multiselectable="true">
                         <div class="panel panel-default">
-                            <div class="panel-heading" role="tab" id="faq2_h1">
-                                <a class="font-bold" data-toggle="collapse" href="#faq2_q1" aria-expanded="true" aria-controls="faq2_q1"><span class="text-primary">忘记</span>了密码 / 想修改密码怎么办？</a>
+                            <div class="panel-heading" role="tab" id="faq2_h6">
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq2_q6" aria-expanded="false" aria-controls="faq2_q6">网易云每日 300 首怎样配置，为什么还在核验？</a>
                             </div>
-                            <div id="faq2_q1" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h1" data-parent="#faq2">
+                            <div id="faq2_q6" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h6" data-parent="#faq2">
                                 <div class="panel-body">
-                                    <p>
-                                        1.忘记密码：在登录页/注册页 点击找回密码，填写自己的QQ邮箱，输入验证码后点击找回密码，您的邮箱将会收到一封来自 {:html_escape(config('web.webname'))} 的邮件 点击链接重置密码即可。<br>
-                                        2.修改密码：在个人资料中 输入原密码 以及新密码 即可更改密码 <br>
-                                        <a href="{:url('/index/console/user/profile')}">点我修改</a>
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="panel panel-default">
-                            <div class="panel-heading" role="tab" id="faq2_h2">
-                                <a class="font-bold" data-toggle="collapse" href="#faq2_q2" aria-expanded="true" aria-controls="faq2_q2">为什么功能没有运行?</a>
-                            </div>
-                            <div id="faq2_q2" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h2" data-parent="#faq2">
-                                <div class="panel-body">
-                                    <p>
-                                        请检查账号状态是否失效，之后查看<span class="text-danger">日志</span>以及功能运行时间是否正常，<br>
-                                        若任务没有运行或没有完成 请点击<span class="text-primary">补挂</span>按钮。<br>
-                                        若有疑问 请联系站长反馈<br>
-                                        <a target="_blank" href="https://wpa.qq.com/msgrd?v=3&uin={:html_escape(config('web.user_qq'))}&site=qq&menu=yes">点我联系</a>
-                                    </p>
+                                    <p>在账号详情开启「每日 300 首」，通过任务旁的设置按钮选择歌曲来源。每日目标可设置为 1～300 首，留空按 300 首执行；自定义歌单可填多个歌单 ID，用英文逗号分隔，留空则由系统选择歌曲。</p>
+                                    <p><strong>任务以网易云实际增加的累计听歌数判断完成。</strong>上报后可能需要等待结算，账号详情会显示已确认进度和本轮截止时间，系统会自动补齐与核验。</p>
+                                    <p>从首次执行起，本轮最多持续 <strong>30 分钟</strong>，且不跨自然日。补挂不会重置当天基线或延长本轮时间；达到目标或到期后记录最终结果，运行日志和对应推送只展示最终成功或失败。</p>
+                                    <p>正在核验时请等待页面给出的结果。未达目标时，可查看最终日志中的实际首数和失败原因。</p>
                                 </div>
                             </div>
                         </div>
                         <div class="panel panel-default">
                             <div class="panel-heading" role="tab" id="faq2_h3">
-                                <a class="font-bold" data-toggle="collapse" href="#faq2_q3" aria-expanded="true" aria-controls="faq2_q3">网易云<span class="text-primary">音乐人任务</span>如何配置?</a>
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq2_q3" aria-expanded="false" aria-controls="faq2_q3">网易云音乐人和合伙人任务如何配置？</a>
                             </div>
                             <div id="faq2_q3" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h3" data-parent="#faq2">
                                 <div class="panel-body">
-                                    <p>
-                                        歌曲ID：填写你自己歌曲的ID，用于发布[主创说]，[回复粉丝评论] <br>
-                                        获取歌曲ID：打开自己的歌曲页面 点击歌曲链接分享 <br>
-                                        例如：https://music.163.com/#/song?id=488249475 <哪里都是你> ID 为 488249475<br><br>
-
-                                        粉丝ID：打开粉丝主页 点击分享 复制链接 <br>
-                                        例如：https://music.163.com/#/user/home?id=70436671 <队长> ID为 70436671 <br>
-                                        <span class="text-danger">提醒：如果粉丝也是音乐人 那么链接中的userid为粉丝ID</span>
-                                        <br><br>
-
-                                        私信内容：输入框中填写对粉丝私信的内容 如不填 <span class="text-primary">默认为你好</span>
-                                    </p>
+                                    <p>这两类任务需要平台账号具备相应资格，请先确认在网易云官方工作台可以使用。</p>
+                                    <ul>
+                                        <li><strong>音乐人歌曲 ID：</strong>填写自己的歌曲 ID；留空时系统会尝试查找自己的专辑歌曲。歌曲分享链接中的 <code>song?id=123456</code>，数字部分就是歌曲 ID。</li>
+                                        <li><strong>粉丝 ID：</strong>回复粉丝私信需要填写对方的用户 ID，可从用户主页分享链接中的 <code>id</code> 或 <code>userid</code> 参数获取。不要把音乐人页面的艺人 ID 当成用户 ID。</li>
+                                        <li><strong>私信内容：</strong>可以自行填写，留空使用系统默认祝福语。</li>
+                                        <li><strong>合伙人评分：</strong>在任务设置中填写评分星数，例如 <code>3,4</code> 表示在 3～4 星间选择；允许 1～5 星，默认 2～3 星。</li>
+                                    </ul>
+                                    <p>任务会检查子任务执行情况与奖励领取结果，部分失败会在日志中说明；没有可领取奖励属于正常情况。</p>
                                 </div>
                             </div>
                         </div>
                         <div class="panel panel-default">
                             <div class="panel-heading" role="tab" id="faq2_h4">
-                                <a class="font-bold" data-toggle="collapse" href="#faq2_q4" aria-expanded="true" aria-controls="faq2_q4"><span class="text-primary">网易云小工具</span>如何使用?</a>
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq2_q4" aria-expanded="false" aria-controls="faq2_q4">网易云听歌任务工具如何使用？</a>
                             </div>
                             <div id="faq2_q4" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h4" data-parent="#faq2">
                                 <div class="panel-body">
-                                    <p>
-                                        获取歌曲ID：打开歌曲页面 点击歌曲链接分享 <br>
-                                        例如：https://music.163.com/#/song?id=488249475 <哪里都是你> ID 为 488249475<br><br>
-                                        播放次数：<span class="text-danger">请勿输入过大的次数</span> 否则将会弹出错误 建议 1 ~ 1000 <span class="text-primary">请结合实际测试</span>
-                                        </p>
+                                    <p>本站开放该工具时，可从网易云菜单进入「听歌任务工具」，选择已登录的账号，填写歌曲 ID 和播放次数后提交。</p>
+                                    <p>歌曲 ID 取歌曲分享链接中的数字，例如 <code>song?id=123456</code> 对应 <code>123456</code>。播放次数必须为 1～300 的整数，<strong>单次最多 300 次</strong>；若页面显示每日提交次数限制，还需遵守该限制。</p>
+                                    <p>工具提交的是播放记录，重复播放同一首歌不代表会增加同等数量的累计听歌首数，最终统计以网易云官方数据为准。</p>
                                 </div>
                             </div>
                         </div>
                         <div class="panel panel-default">
                             <div class="panel-heading" role="tab" id="faq2_h5">
-                                <a class="font-bold" data-toggle="collapse" href="#faq2_q5" aria-expanded="true" aria-controls="faq2_q5"><span class="text-primary">哔哩哔哩</span>如何配置?</a>
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq2_q5" aria-expanded="false" aria-controls="faq2_q5">哔哩哔哩投币和等级经验怎么看？</a>
                             </div>
                             <div id="faq2_q5" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h5" data-parent="#faq2">
                                 <div class="panel-body">
-                                    <p>
-                                        每日投币配置：投币渠道 分为两种 随机热门/关注列表 <br>
-                                        投币个数为 1-5 <br>
-                                        <span class="text-danger">提醒：每日上限5个视频(需5个硬币)</span>
-                                    </p>
+                                    <p>在「每日投币」旁的设置按钮中选择「随机热门」或「关注列表」，投币数量可设为 1～5。投币会消耗账号里的真实硬币，请按自己的需要设置。</p>
+                                    <p>已达到投币上限的视频会被跳过，再尝试其他候选。硬币不足、候选视频不足或平台拒绝时，请查看运行日志中的具体原因。</p>
+                                    <p>账号详情的「今日等级经验」分别展示登录、观看、投币和大会员加成，只合计已确认的经验。到账延迟时会自动复查，默认每 5 分钟一次，当天两小时内最多复查 24 次。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel panel-default">
+                            <div class="panel-heading" role="tab" id="faq2_h7">
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq2_q7" aria-expanded="false" aria-controls="faq2_q7">哔哩哔哩大会员积分和等级经验有什么区别？</a>
+                            </div>
+                            <div id="faq2_q7" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h7" data-parent="#faq2">
+                                <div class="panel-body">
+                                    <p><strong>大会员积分用于兑换平台权益，不计入等级经验。</strong>「大会员积分任务」有独立的任务开关，需要账号具备在期的哔哩哔哩大会员资格。</p>
+                                    <p>任务包括积分签到，以及任务中心已开放的福利积分、浏览权益页和浏览装扮商城奖励。部分福利每人限领一次，已完成项目不会每天重复领取；手机专属或消费类任务请按平台提示自行完成。</p>
+                                    <p>结果尚未确认时会继续查询到账状态。遇到明确的风险验证，请先到哔哩哔哩完成验证，再检查任务状态。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel panel-default">
+                            <div class="panel-heading" role="tab" id="faq2_h8">
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq2_q8" aria-expanded="false" aria-controls="faq2_q8">AnyRouter 的 Cookie、API User 和代理怎样填写？</a>
+                            </div>
+                            <div id="faq2_q8" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h8" data-parent="#faq2">
+                                <div class="panel-body">
+                                    <ol>
+                                        <li>在浏览器登录 AnyRouter，打开开发者工具的「网络」面板并刷新控制台页面，找到 <code>/api/user/self</code> 等账号接口请求。</li>
+                                        <li>从请求头复制包含 <code>session</code> 的 Cookie，以及 <code>new-api-user</code> 的数字值，分别填入「Cookie」和「API User」。可以填写备注名以便区分账号。</li>
+                                        <li>选择「平台代理」让系统自动筛选，或选择「提供代理」填写服务器可访问的公网代理地址，支持 HTTP 和 SOCKS5，也支持用户名密码认证。</li>
+                                        <li>点击「验证并添加」，再进入账号详情设置挂机时间并开启「每日签到」。保存账号只验证登录，签到按任务计划执行。</li>
+                                    </ol>
+                                    <p>凭据失效时从「更新账号」更换 Cookie；更新表单中 Cookie 或已配置的代理留空，会保留原值。平台代理暂时不可用时可稍后重试，也可以改用自己的代理。</p>
+                                    <p>「刷新信息」用于查询账号状态；需要补挂时使用「申请补挂」，并在运行日志中查看签到结果。实际领取间隔由 AnyRouter 决定。</p>
                                 </div>
                             </div>
                         </div>
                         <div class="panel panel-default">
                             <div class="panel-heading" role="tab" id="faq2_h9">
-                                <a class="font-bold" data-toggle="collapse" href="#faq2_q9" aria-expanded="true" aria-controls="faq2_q9"><span class="text-primary">Epic商城</span>相关说明</a>
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq2_q9" aria-expanded="false" aria-controls="faq2_q9">Epic 免费游戏如何查看和接收提醒？</a>
                             </div>
                             <div id="faq2_q9" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h9" data-parent="#faq2">
                                 <div class="panel-body">
-                                    <p>
-                                        Epic每周都可以免费领取游戏 我们Epic的功能是输入邮箱提醒通知新的免费游戏上架
-                                    </p>
+                                    <p>在<a href="{:url('/index/console/epic/act/weeklygame')}">Epic 商城</a>查看当前和即将开始的免费活动，点击游戏卡片进入商店。<strong>领取游戏需在 Epic 商店自行完成。</strong></p>
+                                    <p>提醒在<a href="{:url('/index/console/user/profile')}#notifications">个人中心 → 信息推送</a>中设置：开启推送总开关和接收渠道，勾选「Epic 每周免费游戏提醒」，再设置每周五发送时间并保存。该提醒需要本站会员权限。</p>
+                                    <p>可使用 Bark、PushPlus、WxPusher，以及本站已开放的邮件渠道。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel panel-default">
+                            <div class="panel-heading" role="tab" id="faq2_h10">
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq2_q10" aria-expanded="false" aria-controls="faq2_q10">收款码合一支持什么图片？</a>
+                            </div>
+                            <div id="faq2_q10" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h10" data-parent="#faq2">
+                                <div class="panel-body">
+                                    <p>在<a href="{:url('/index/console/qrcode/create')}">生成收款码</a>页面填写收款信息，上传需要合并的支付宝、微信或 QQ 收款二维码，生成后下载保存。</p>
+                                    <p>支持 PNG、JPEG 和 WebP，每张不超过 <strong>2 MB</strong>，宽高分别不超过 <strong>4096 像素</strong>。超出限制时请裁剪或缩小图片后再上传；识别失败时确认二维码完整、清晰且未被遮挡。</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5><strong>3.</strong> 运行与常见问题</h5>
+                </div>
+                <div class="ibox-content">
+                    <div class="panel-group" id="faq3" aria-multiselectable="true">
+                        <div class="panel panel-default">
+                            <div class="panel-heading" role="tab" id="faq2_h2">
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq2_q2" aria-expanded="false" aria-controls="faq2_q2">任务没有运行或没有完成，应该怎样处理？</a>
+                            </div>
+                            <div id="faq2_q2" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h2" data-parent="#faq3">
+                                <div class="panel-body">
+                                    <ol>
+                                        <li>确认平台账号登录正常，并具备任务需要的平台资格；VIP 任务还需本站会员有效。</li>
+                                        <li>进入账号详情，确认已设置挂机时间、目标任务开关已开启，再查看任务进度、下次执行时间和运行日志。</li>
+                                        <li>显示「重试中」或正在核验时，等待自动处理；账号失效时先更新登录，任务已暂停时先处理日志中的原因，再重新开启。</li>
+                                        <li>需要重新排队时点击「申请补挂」。补挂受冷却时间限制，正在执行的任务不会重复启动，也不会延长听歌核验期限。</li>
+                                    </ol>
+                                    <p>仍未解决时，请向管理员提供平台、任务名称、发生时间和日志中的错误说明。反馈截图请遮住 Cookie、密码及推送凭据。</p>
+                                    <p><a target="_blank" rel="noopener noreferrer" href="https://wpa.qq.com/msgrd?v=3&amp;uin={:html_escape(config('web.user_qq'))}&amp;site=qq&amp;menu=yes">联系管理员</a></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel panel-default">
+                            <div class="panel-heading" role="tab" id="faq3_h1">
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq3_q1" aria-expanded="false" aria-controls="faq3_q1">如何开启任务推送，收不到消息时检查什么？</a>
+                            </div>
+                            <div id="faq3_q1" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq3_h1" data-parent="#faq3">
+                                <div class="panel-body">
+                                    <p>进入<a href="{:url('/index/console/user/profile')}#notifications">个人中心 → 信息推送</a>，开启总开关，选择接收渠道并填写凭据，再勾选需要接收的提醒。<strong>先保存设置，再测试对应渠道。</strong></p>
+                                    <ul>
+                                        <li><strong>接收渠道：</strong>Bark 填设备 Key；PushPlus 填用户 Token；WxPusher 填 AppToken 和已订阅用户的 UID。邮件渠道仅在本站配置可用时显示。</li>
+                                        <li><strong>提醒内容：</strong>可分别开启单项成功、最终失败、账号失效、会员到期及每日任务总览。重试中的任务不会重复发送最终失败提醒。</li>
+                                        <li><strong>每日总览：</strong>按北京时间发送，默认 22:00，汇总发送前当天已执行任务的结果；有夜间任务时请把总览时间设在任务之后。</li>
+                                    </ul>
+                                    <p>收不到消息时，依次检查总开关、渠道开关、提醒内容和凭据，再查看「最近投递记录」的状态及错误原因。「渠道已受理」表示推送服务已接收，手机或邮箱是否展示还取决于接收端设置。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel panel-default">
+                            <div class="panel-heading" role="tab" id="faq2_h1">
+                                <a class="font-bold collapsed" role="button" data-toggle="collapse" href="#faq2_q1" aria-expanded="false" aria-controls="faq2_q1">忘记密码或想修改密码怎么办？</a>
+                            </div>
+                            <div id="faq2_q1" class="panel-collapse collapse" role="tabpanel" aria-labelledby="faq2_h1" data-parent="#faq3">
+                                <div class="panel-body">
+                                    <p><strong>忘记密码：</strong>在登录页点击「找回密码」，填写账号当前绑定的邮箱和验证码。注册时默认邮箱是 QQ 邮箱；如果在个人中心改过邮箱，请使用修改后的地址。收到邮件后按链接重置密码，链接过期或已使用时需重新申请。</p>
+                                    <p><strong>修改密码：</strong>进入<a href="{:url('/index/console/user/profile')}">个人中心</a>，填写当前密码、新密码和确认新密码。修改成功后使用新密码重新登录，之前的找回密码链接会失效。</p>
                                 </div>
                             </div>
                         </div>

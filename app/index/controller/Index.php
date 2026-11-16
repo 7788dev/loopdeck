@@ -4,9 +4,9 @@ declare (strict_types=1);
 namespace app\index\controller;
 
 use app\index\model\Accounts;
-use app\index\model\Users;
 use app\index\model\Weblist;
 use app\service\ApplicationVersion;
+use app\service\SiteStatistics;
 use netease\QRcode;
 use think\facade\Request;
 use think\facade\View;
@@ -23,7 +23,7 @@ class Index extends Common
         View::assign([
             'homeBackground' => \app\service\SiteTheme::homeBackground(),
             'timeCount' => Weblist::start_Time(),
-            'userCount' => Users::userCount(),
+            'userCount' => SiteStatistics::counters()['user_count'],
             // The old home page expected a QQ-avatar showcase collection that
             // was never assigned. Keep the section empty after removing QQ.
             'users' => [],

@@ -32,6 +32,10 @@ $variables = [
     'anyrouter_info' => app\service\AnyRouterAccountInfo::present([], '', '42'), 'anyrouter_proxy_label' => '平台代理',
     'anyrouter_state' => 1, 'anyrouter_job' => ['enabled' => false, 'available' => true, 'last' => '尚未执行', 'next' => '',
         'name' => '每日签到', 'description' => '通过代理完成 AnyRouter 签到'],
+    'agentrouter_form' => ['user_id' => '', 'nickname' => '', 'password_configured' => false],
+    'agentrouter_info' => app\service\AgentRouterAccountInfo::present([], '', 'fixture-user'),
+    'agentrouter_state' => 1, 'agentrouter_job' => ['enabled' => false, 'available' => true, 'last' => '尚未执行', 'next' => '',
+        'name' => '每日签到', 'description' => '服务器直连登录即完成 AgentRouter 每日签到'],
     'data' => ['user_id' => '42', 'state' => 1, 'timing' => '', 'uid' => 1],
     'a_data' => ['user_id' => '42', 'mid' => '42', 'nickname' => '测试用户', 'avatar' => ''],
     'details' => ['level_now' => 1, 'level_next' => 2, 'listenSongs' => 0, 'listennum' => 0, 'loginnum' => 0],
@@ -93,7 +97,7 @@ try {
         'user_id' => '42'];
     foreach ([''] as $themePath) {
     $populatedViewPath = $root . '/app/index/view/' . $themePath;
-    foreach (['netease', 'bilibili', 'anyrouter', 'qrcode'] as $platform) {
+    foreach (['netease', 'bilibili', 'anyrouter', 'agentrouter', 'qrcode'] as $platform) {
         foreach ($platform === 'qrcode' ? ['list'] : ['list', 'info'] as $page) {
             $relative = 'console/' . $platform . '/' . $page . '.html';
             $engine = new think\Template($templateConfig($populatedViewPath));
@@ -118,6 +122,16 @@ try {
                             'name' => '每日签到', 'description' => '通过代理完成 AnyRouter 签到'],
                         'timing' => '09:00'];
                 }
+                if ($platform === 'agentrouter') {
+                    $populated += ['agentrouter_form' => ['user_id' => 'fixture-user', 'nickname' => 'AgentRouter 测试账号',
+                        'password_configured' => true],
+                        'agentrouter_info' => app\service\AgentRouterAccountInfo::present(['nickname' => '站点昵称', 'username' => 'fixture-user',
+                            'quota' => 62500000.0, 'used_quota' => 1750000.0, 'quota_per_unit' => 500000.0,
+                            'display_in_currency' => true, 'request_count' => 321, 'group' => 'default'], '日常使用', 'fixture-user'),
+                        'agentrouter_job' => ['enabled' => true, 'available' => true, 'last' => '2026-11-16 09:00:00', 'next' => '2026-11-17 09:00:00',
+                            'name' => '每日签到', 'description' => '服务器直连登录即完成 AgentRouter 每日签到'],
+                        'timing' => '09:00'];
+                }
                 $engine->fetch($populatedViewPath . $relative, array_replace($variables, $populated));
                 $html = ob_get_contents();
                 if ($platform === 'netease' && $page === 'info') {
@@ -138,6 +152,15 @@ try {
                         'Unified AnyRouter profile, task switch or shared log table did not render');
                     functionalCheck(!str_contains($html, 'name="cookie"') && str_contains($html, '/index/console/anyrouter/update/42'),
                         'Account credentials still replace the task information panel');
+                }
+                if ($platform === 'agentrouter' && $page === 'info') {
+                    functionalCheck(str_contains($html, '基本信息') && str_contains($html, '账户信息')
+                        && str_contains($html, '$125.00') && str_contains($html, '$3.50') && str_contains($html, '日常使用')
+                        && str_contains($html, 'fixture-user') && str_contains($html, 'data-agentrouter-toggle="sign_in"')
+                        && str_contains($html, 'task_logs_datatables.js') && str_contains($html, 'data-type="agentrouter"'),
+                        'Unified AgentRouter profile, task switch or shared log table did not render');
+                    functionalCheck(str_contains($html, '/index/console/agentrouter/update/fixture-user')
+                        && str_contains($html, '最近一次签到时记录'), 'AgentRouter read-only balance note or update link missing');
                 }
                 $renderedPages['populated/' . $themePath . $relative] = $html;
                 if ($page === 'list' && $platform !== 'qrcode') {

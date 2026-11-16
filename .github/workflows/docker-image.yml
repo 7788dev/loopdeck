@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - "codex/agentrouter-test-*"
     tags:
       - "v*"
     paths-ignore:

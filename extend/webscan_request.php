@@ -48,13 +48,14 @@ function webscan_auth_target(): array
     $controller = strtolower(strip_tags(str_replace(' ', '', ucwords(str_replace(['-', '_'], ' ', $controller)))));
     $action = strtolower(strip_tags($parts[1] ?? ''));
     $argument = $parts[2] ?? '';
-    if ($controller === 'ajax' && $action === 'user') {
-        // The user route binds [:act]; extra named path parameters can override
-        // it, and Dispatch then merges the route parameters over parsed GET.
-        $parameters = $argument !== '' ? ['act' => $argument] : [];
+    $namedOperation = $controller === 'ajax' && in_array($action, ['user', 'agentrouter'], true);
+    if ($namedOperation || ($controller === 'agentrouter' && $action === 'handle')) {
+        // Named AJAX routes bind [:act]; direct controller URLs bind act/save.
+        // Extra path parameters override both, then Dispatch merges over GET.
+        $parameters = $namedOperation && $argument !== '' ? ['act' => $argument] : [];
         preg_replace_callback('/(\w+)\/([^\/]+)/', static function (array $match) use (&$parameters): void {
             $parameters[$match[1]] = strip_tags($match[2]);
-        }, implode('/', array_slice($parts, 3)));
+        }, implode('/', array_slice($parts, $namedOperation ? 3 : 2)));
         $argument = $parameters['act'] ?? ($_GET['act'] ?? '');
     }
     return [$controller, $action, is_scalar($argument) ? (string)$argument : ''];
@@ -73,6 +74,11 @@ function webscan_opaque_post_field(string $key): bool
     [$controller, $action, $argument] = $target;
     if ($controller === 'loginajax') {
         return in_array($action, $key === 'username' ? ['login', 'reg'] : ['login', 'reg', 'reset'], true);
+    }
+    if (in_array($key, ['username', 'password'], true) && $argument === 'save'
+        && (($controller === 'ajax' && $action === 'agentrouter')
+            || ($controller === 'agentrouter' && $action === 'handle'))) {
+        return true;
     }
     return $key !== 'username' && $controller === 'ajax' && $action === 'user'
         && $argument === 'passWord';

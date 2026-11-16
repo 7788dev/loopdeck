@@ -30,6 +30,50 @@ set_exception_handler(static function (Throwable $error): void {
     exit(1);
 });
 
+// The cancelled GLaDOS/Railgun integration and its experimental resources must
+// leave no auto-routable actions, executable tasks or deployment services.
+removalCheck(!method_exists(Console::class, 'glados') && !method_exists(Ajax::class, 'glados'),
+    'Cancelled GLaDOS controller actions remain auto-routable');
+foreach ([
+    app\index\controller\Glados::class,
+    glados\Client::class,
+    app\service\GladosAccountInfo::class,
+    app\service\GladosProxyPool::class,
+    app\service\GladosTaskExecutor::class,
+    app\service\TaskBrowserClient::class,
+    app\service\TaskProviderRegistry::class,
+    app\service\TaskResourcePool::class,
+    app\service\TaskResourceUnavailable::class,
+    app\service\TaskDeferredResult::class,
+    app\service\FairTaskQueue::class,
+] as $removedClass) {
+    removalCheck(!class_exists($removedClass), 'Cancelled platform or resource class remains: ' . $removedClass);
+}
+foreach (['app/index/view/console/glados', 'extend/glados', 'docker/task-browser',
+    'public/static/js/glados.js', 'docs/TASK-RESOURCE-FRAMEWORK.md'] as $removedPath) {
+    removalCheck(!file_exists($root . '/' . $removedPath), 'Cancelled platform asset remains: ' . $removedPath);
+}
+$schedulerClass = new ReflectionClass(app\cron\controller\Task::class);
+$scheduler = $schedulerClass->newInstanceWithoutConstructor();
+$supportsTask = $schedulerClass->getMethod('supports');
+foreach (['glados', 'railgun'] as $platform) {
+    removalCheck(!$supportsTask->invoke($scheduler, $platform, 'sign_in'),
+        'Cancelled platform remains schedulable: ' . $platform);
+}
+removalCheck($supportsTask->invoke($scheduler, 'anyrouter', 'sign_in'),
+    'Cancelling GLaDOS removed the retained AnyRouter task');
+$builtinTasks = (new ReflectionClass(app\index\model\Tasks::class))->getConstant('BUILTIN_TASKS');
+removalCheck(!isset($builtinTasks['glados']) && !isset($builtinTasks['railgun']),
+    'Cancelled platform remains in the built-in task catalog');
+foreach (['app/index/route/app.php', 'app/cron/route/app.php', 'app/install/install.sql',
+    '.env.example', 'compose.yaml', 'docker/deploy.sh', 'docker/tune-env.sh'] as $sourcePath) {
+    $source = (string)file_get_contents($root . '/' . $sourcePath);
+    removalCheck(!preg_match('/glados|railgun|TASK_BROWSER_|SCHEDULER_RESOURCE_HTTP_SLOTS/i', $source),
+        'Cancelled platform route, seed or configuration remains: ' . $sourcePath);
+}
+removalCheck(!preg_match('/^  browser:/m', (string)file_get_contents($root . '/compose.yaml')),
+    'Cancelled browser service remains in Compose');
+
 foreach (['agent', 'site', 'vip', 'quota', 'money', 'unknown'] as $shop) {
     removalCheck((new Console())->shop($shop)->getCode() === 404, 'Retired shop page remains reachable');
 }
@@ -222,9 +266,16 @@ foreach ([
             ob_end_clean();
         }
         removalCheck($html !== '', 'Remaining page failed to render: ' . $view);
+        removalCheck(!preg_match('/glados|railgun/i', $html),
+            'Cancelled platform reappeared in a rendered page: ' . $view);
         removalCheck(!str_contains($html, '/admin/system/set/template'), 'Template chooser navigation remains');
-        removalCheck(!preg_match('/分站|代理|抖音|\/console\/douyin|\/shop\/(?:agent|site)/u', $html),
+        // AnyRouter documents network proxies; only navigation must exclude the retired reseller label.
+        preg_match_all('/<nav\b[^>]*>.*?<\/nav>/is', $html, $navigation);
+        removalCheck($navigation[0] !== [], 'Navigation is missing from the rendered page: ' . $view);
+        removalCheck(!preg_match('/分站|代理|抖音|\/console\/douyin|\/shop\/(?:agent|site)/u', implode('', $navigation[0])),
             'Retired navigation reappeared with legacy settings: ' . $view);
+        removalCheck(!preg_match('/分站|抖音|\/console\/douyin|\/shop\/(?:agent|site)/u', $html),
+            'Retired content or links reappeared with legacy settings: ' . $view);
         removalCheck(!preg_match('/购买|充值|支付配置|价格设置|余额|\/shop\/(?:vip|quota|money)|\/system\/pay/u', $html),
             'Payment UI reappeared with legacy settings: ' . $view);
         removalCheck(!preg_match('/直播间|globalroom|global_room/u', $html),
@@ -265,6 +316,8 @@ removalCheck(!str_contains((string)$schema, "'globalroom'"),
 // with another platform, before rendering their presentation data.
 fixtureTable('tasks', 'id INTEGER PRIMARY KEY, type TEXT, execute_name TEXT, name TEXT, describe TEXT,
     icon TEXT, execute_rate INTEGER, execute_url TEXT, more INTEGER, state INTEGER, vip INTEGER, time TEXT, "order" INTEGER');
+removalCheck(app\index\model\Tasks::getTaskList('glados')->toArray() === [],
+    'Querying the cancelled platform recreated its task definitions');
 $supportedNames = [
     'manga' => '漫画签到', 'silver2coin' => '银瓜子兑换硬币', 'watchaid' => '每日观看',
     'coinadd' => '每日投币', 'dailyexperience' => '每日经验任务', 'vipexperience' => '大会员每日经验',

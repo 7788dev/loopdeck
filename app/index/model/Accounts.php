@@ -43,7 +43,7 @@ class Accounts extends Model
                     ->where('zid', WEB_ID)->where('uid', '<>', $uid)->find()) {
                     return resultJson(0, '收款识别码已被使用，请更换识别码');
                 }
-                if (in_array($type, ['netease', 'bilibili', 'anyrouter'], true)
+                if (in_array($type, ['netease', 'bilibili', 'anyrouter', 'agentrouter'], true)
                     && static::where('type', $type)->where('user_id', $userId)->where('uid', '<>', $uid)->find()) {
                     return resultJson(0, '系统已存在该账号，无法继续添加');
                 }

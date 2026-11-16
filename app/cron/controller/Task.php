@@ -15,6 +15,7 @@ use app\service\NotificationService;
 use app\service\EpicJobRunner;
 use app\service\BilibiliTaskExecutor;
 use app\service\AnyRouterTaskExecutor;
+use app\service\AgentRouterTaskExecutor;
 use app\service\NeteaseSchedule;
 use app\service\SchemaMaintenance;
 use app\service\SchedulerRetry;
@@ -125,6 +126,7 @@ class Task extends Common
             'netease' => self::NETEASE_TASKS,
             'bilibili' => BilibiliTaskExecutor::executableTasks(),
             'anyrouter' => ['sign_in'],
+            'agentrouter' => ['sign_in'],
             'epic' => ['weeklyGameNotify'],
         ];
         $now = time();
@@ -373,6 +375,7 @@ class Task extends Common
                     'netease' => $this->executeNetease($taskName, $userId, $accountData, $jobConfig),
                     'bilibili' => $this->executeBilibili($taskName, $accountData, $jobConfig),
                     'anyrouter' => $this->anyRouterExecutor()->execute($taskName, $accountData, $jobConfig),
+                    'agentrouter' => $this->agentRouterExecutor()->execute($taskName, $accountData, $jobConfig),
                 };
             } catch (Throwable $exception) {
                 // When the retry budget is exhausted, retryJob has already
@@ -424,6 +427,12 @@ class Task extends Common
             if ($type === 'anyrouter') {
                 $updates = AnyRouterTaskExecutor::jobUpdates($result, $userId, (string)$account['timing']);
             }
+            if ($type === 'agentrouter') {
+                $updates = AgentRouterTaskExecutor::jobUpdates($result, $userId, (string)$account['timing']);
+                if (is_array($result['profile'] ?? null)) {
+                    $this->storeAgentRouterProfile($type, $uid, $userId, $result['profile']);
+                }
+            }
             Jobs::updateClaimedJob($jobId, $updates);
             $summary[$result['success'] ? 'succeeded' : 'failed']++;
         } catch (Throwable $exception) {
@@ -446,6 +455,7 @@ class Task extends Common
         return ($type === 'netease' && in_array($task, self::NETEASE_TASKS, true))
             || ($type === 'bilibili' && BilibiliTaskExecutor::supports($task))
             || ($type === 'anyrouter' && $task === 'sign_in')
+            || ($type === 'agentrouter' && $task === 'sign_in')
             || ($type === 'epic' && $task === 'weeklyGameNotify');
     }
 
@@ -502,6 +512,35 @@ class Task extends Common
     protected function anyRouterExecutor(): AnyRouterTaskExecutor
     {
         return new AnyRouterTaskExecutor();
+    }
+
+    protected function agentRouterExecutor(): AgentRouterTaskExecutor
+    {
+        return new AgentRouterTaskExecutor();
+    }
+
+    /**
+     * Persist the balance captured by a successful login so the read-only
+     * account page can show it without logging in again (login is the check-in).
+     * Re-read the freshest payload and merge only the profile, never credentials.
+     */
+    private function storeAgentRouterProfile(string $type, int $uid, string $userId, array $profile): void
+    {
+        try {
+            $account = Accounts::where('type', $type)->where('uid', $uid)->where('user_id', $userId)->find();
+            if (!$account) {
+                return;
+            }
+            $payload = $this->decodeArray((string)$account['data']);
+            if ($payload === null) {
+                return;
+            }
+            $payload['profile'] = $profile;
+            Accounts::where('type', $type)->where('uid', $uid)->where('user_id', $userId)
+                ->update(['data' => serialize($payload)]);
+        } catch (Throwable $exception) {
+            // A display refresh must never affect the completed check-in.
+        }
     }
 
     private function user(int $uid)
@@ -751,6 +790,7 @@ class Task extends Common
                 'netease' => '网易云音乐',
                 'bilibili' => '哔哩哔哩',
                 'anyrouter' => 'AnyRouter',
+                'agentrouter' => 'AgentRouter',
                 default => $type,
             };
             $this->notifications()->sendAccountInvalid($user, $provider, $userId);

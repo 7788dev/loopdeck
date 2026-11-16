@@ -13,6 +13,7 @@ use app\service\AnyRouterAccountInfo;
 use app\service\AnyRouterTaskExecutor;
 use app\service\NeteaseDakaProgress;
 use app\service\QrcodeUpload;
+use app\service\SiteStatistics;
 use app\service\UserNotificationSettings;
 use bilibili\Bilibili as BilibiliClient;
 use think\facade\Session;
@@ -27,13 +28,14 @@ class Console
 
     public function index()
     {
+        $statistics = SiteStatistics::counters();
         return view("console/index", [
             "notice" => \app\index\model\Notice::getNoticeList(),
             "quota_used" => Accounts::getMyAccountNum(),
-            "user_count" => \app\index\model\Users::userCount(),
-            "account_count" => Accounts::accountCount(),
-            "job_count" => Jobs::jobCount(),
-            "execute_count" => \app\index\model\Info::executeCount()
+            "user_count" => $statistics['user_count'],
+            "account_count" => $statistics['account_count'],
+            "job_count" => $statistics['job_count'],
+            "execute_count" => $statistics['execute_count']
         ]);
     }
 
@@ -139,6 +141,71 @@ class Console
     protected function anyRouterExecutor(): AnyRouterTaskExecutor
     {
         return new AnyRouterTaskExecutor();
+    }
+
+    public function agentrouter($act = '', $user_id = '')
+    {
+        $uid = (int)Session::get('user.uid');
+        if ($act === 'list') {
+            $rows = [];
+            foreach (Accounts::getMyList('agentrouter') as $account) {
+                $payload = safe_unserialize_array((string)$account['data']);
+                $profile = \app\service\AgentRouterAccountInfo::present((array)($payload['profile'] ?? []),
+                    \app\service\AgentRouterAccountInfo::remark($payload), (string)$account['user_id']);
+                $rows[] = ['user_id' => (string)$account['user_id'], 'state' => (int)$account['state'],
+                    'nickname' => $profile['nickname'], 'avatar' => $profile['avatar'],
+                    'addtime' => (string)$account['addtime'],
+                    'timing' => (string)($account['timing'] ?? '')];
+            }
+            return view('console/agentrouter/list', ['list' => $rows]);
+        }
+        if ($act === 'add') {
+            return view('console/agentrouter/add', ['agentrouter_form' => [
+                'user_id' => '', 'nickname' => '', 'password_configured' => false,
+            ]]);
+        }
+        if (!in_array($act, ['info', 'update'], true)) {
+            return response('页面不存在', 404);
+        }
+        // Matched path segments retain URL escapes; GET and ?s= values have
+        // already been decoded by PHP. Decode only the former, exactly once.
+        $request = request();
+        $query = [];
+        parse_str((string)$request->server('QUERY_STRING', ''), $query);
+        if ($request->route('user_id', null) !== null && !array_key_exists('s', $query)) {
+            $user_id = rawurldecode((string)$user_id);
+        }
+        $account = Accounts::findByUserId('agentrouter', (string)$user_id);
+        if (!$account) {
+            return view('common/alert', ['msg' => '账号不存在或无权查看', 'url' => '/index/console/agentrouter/list']);
+        }
+        $payload = safe_unserialize_array((string)$account['data']);
+        if ($act === 'update') {
+            return view('console/agentrouter/add', ['agentrouter_form' => [
+                'user_id' => (string)$user_id, 'nickname' => \app\service\AgentRouterAccountInfo::remark($payload),
+                'password_configured' => !empty($payload['password']),
+            ]]);
+        }
+        Jobs::refreshJob('agentrouter', (string)$user_id, $uid);
+        $task = Tasks::where('type', 'agentrouter')->where('execute_name', 'sign_in')->find();
+        $job = Jobs::getJobInfo('agentrouter', (string)$user_id, 'sign_in', $uid);
+        // The login POST is the check-in itself, so a page visit must never log in.
+        // Show the profile captured by the last scheduled run instead.
+        $profile = (array)($payload['profile'] ?? []);
+        $warning = (int)$account['state'] === 1 ? '' : '登录状态已失效，请更新账号用户名和密码。';
+        return view('console/agentrouter/info', [
+            'agentrouter_info' => \app\service\AgentRouterAccountInfo::present($profile,
+                \app\service\AgentRouterAccountInfo::remark($payload), (string)$user_id),
+            'info_warning' => $warning,
+            'agentrouter_state' => (int)$account['state'], 'timing' => (string)($account['timing'] ?? ''),
+            'agentrouter_job' => ['enabled' => $job && (int)$job['state'] === 1,
+                'available' => $task && (int)$task['state'] === 1,
+                'name' => $task ? (string)$task['name'] : '每日签到',
+                'description' => $task ? (string)$task['describe'] : '登录即完成 AgentRouter 每日签到',
+                'last' => $job && $job['lastExecute'] ? (string)$job['lastExecute'] : '尚未执行',
+                'next' => $job && (int)$job['state'] === 1 && (int)$job['nextExecute'] > 0
+                    ? date('Y-m-d H:i:s', (int)$job['nextExecute']) : ''],
+        ]);
     }
 
     private function bilibiliAccountList(): array

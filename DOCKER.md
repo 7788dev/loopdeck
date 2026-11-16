@@ -4,6 +4,8 @@
 
 GitHub Actions 会在 `main` 分支或 `v*` 标签更新时，分别在 GitHub 原生 x86 与 Arm runner 上并行构建 `linux/amd64` 与 `linux/arm64` 镜像（不使用 QEMU 模拟），再合并为多架构镜像发布到 `ghcr.io/7788dev/loopdeck`。本地和生产服务器不需要构建镜像。
 
+`codex/agentrouter-test-*` 分支也会构建并发布测试镜像，仅使用分支标签和提交 SHA 标签，例如 `codex-agentrouter-test-20261116`。测试分支不更新 `latest` 或正式版本号标签；测试部署使用独立 Compose 项目、目录、端口与数据卷，关闭自动更新，验收后只清理该测试项目的资源。
+
 PHP 依赖由根目录的 `composer.json` 声明、由 `composer.lock` 精确锁定。镜像构建会在独立阶段执行 `composer validate`、`composer install --no-dev`、`composer audit` 和全部离线回归测试；`vendor/` 不进入 Git，也不会从开发机复制进镜像。
 
 AnyRouter 的平台代理默认自动筛选公开列表，无需安装浏览器或代理守护进程。可在 `.env` 设置 `ANYROUTER_PLATFORM_PROXY` 为固定 HTTP / SOCKS5 代理（如 `http://代理主机:端口`），由 Compose 传给应用。宿主机代理地址需要能从容器访问，容器中的 `127.0.0.1` 指向容器自身。未配置固定出口时，代理源与已验证候选缓存在应用运行目录；列表下载支持 GitHub 原站与内容镜像，账号 Cookie 仅发送给通过 TLS 验证的 AnyRouter。

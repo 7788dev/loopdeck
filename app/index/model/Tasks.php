@@ -26,6 +26,22 @@ class Tasks extends Model
                 'order' => 1,
             ],
         ],
+        'agentrouter' => [
+            [
+                'type' => 'agentrouter',
+                'name' => '每日签到',
+                'describe' => '服务器直连登录即完成 AgentRouter 每日签到',
+                'icon' => 'fa fa-sign-in',
+                'execute_name' => 'sign_in',
+                'execute_url' => null,
+                'execute_rate' => '86400',
+                'more' => 0,
+                'state' => 1,
+                'vip' => 1,
+                'time' => '2026-11-16 00:00:00',
+                'order' => 1,
+            ],
+        ],
         'netease' => [
             [
                 'type' => 'netease',
@@ -135,11 +151,17 @@ class Tasks extends Model
             return;
         }
 
+        $existing = [];
+        $rows = (new static())
+            ->where('type', '=', $type)
+            ->whereIn('execute_name', array_column(self::BUILTIN_TASKS[$type], 'execute_name'))
+            ->select();
+        foreach ($rows as $row) {
+            $existing[(string)$row['execute_name']] = $row;
+        }
+
         foreach (self::BUILTIN_TASKS[$type] as $task) {
-            $exists = (new static())
-                ->where('type', '=', $task['type'])
-                ->where('execute_name', '=', $task['execute_name'])
-                ->find();
+            $exists = $existing[$task['execute_name']] ?? null;
             if ($exists) {
                 // Existing installations already have these rows, so an
                 // insert-only sync would leave the retired-share wording

@@ -10,9 +10,13 @@ Status: implemented
 
 2026-09-24 提交 `3e3a841` 落地:amd64 与 arm64 在各自的原生 runner 上并行构建,按平台分别缓存,以 digest 推送,最后由独立任务合并出打标签的 manifest list。
 
+`codex/agentrouter-test-*` 分支复用同一构建流程，并只发布由分支名与提交 SHA 生成的标签。`latest` 与 `VERSION` 的版本号标签仍只在默认分支发布；测试分支保留当前 `VERSION`，使生产更新器继续读取 `main` 的正式版本。
+
 ## Alternatives considered
 
 **单 runner + QEMU 交叉构建。** 输因:无需额外 runner 配置,但缓存失效时 arm64 的扩展编译超过十分钟;原生 runner 让每平台命中自己的缓存,墙钟时间稳定。
+
+**测试分支覆盖正式标签。** 输因:已有部署会拉取未经线上验收的镜像。复用构建步骤但隔离标签，可在独立容器中验证后再发布默认分支。
 
 ## Consequences
 

@@ -5,8 +5,18 @@ const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const source = fs.readFileSync(path.join(__dirname, '../public/static/js/agentrouter-admin.js'), 'utf8');
+const jquery = fs.readFileSync(path.join(__dirname, '../public/static/ruoyi/js/jquery.min.js'), 'utf8');
+const serializeMethod = jquery.match(/\bserialize:(function\(\)\{[\s\S]+?\}),serializeArray:function/);
+assert.ok(serializeMethod, 'The page serializer must be exercised instead of assuming standard jQuery behavior');
 const state = {saved: '0', savedKind: 'subscription', kind: 'subscription', clear: false,
     input: {}, label: '保存平台代理', requests: [], reloads: 0};
+const serializerJquery = selector => selector === 'input[type=radio],input[type=checkbox]'
+    ? [{name: 'clear'}] : {length: state.clear ? 1 : 0};
+serializerJquery.each = (items, fn) => items.forEach((item, index) => fn.call(item, index, item));
+const serialize = vm.runInNewContext('(' + serializeMethod[1] + ')', {
+    $: serializerJquery,
+    ke: {param: rows => new URLSearchParams(rows.map(row => [row.name, row.value])).toString()}
+});
 const events = new Map();
 const document = {};
 const button = {
@@ -22,8 +32,12 @@ const form = {
         if (selector === '[name="source"]') return {prop(key, value) {state.input[key] = value; return this;}};
         return button;
     },
-    serialize() { return 'kind=' + state.kind + (state.clear ? '&clear=1' : '')
-        + (state.input.disabled ? '' : '&source=fixture-private-source'); }
+    serializeArray() {
+        return [{name: 'kind', value: state.kind}, {name: 'origin', value: 'https://agentrouter.org'}]
+            .concat(state.clear ? [{name: 'clear', value: '1'}] : [])
+            .concat(state.input.disabled ? [] : [{name: 'source', value: 'fixture-private-source'}]);
+    },
+    serialize() { return serialize.call(this); }
 };
 const chain = {off() {events.clear(); return this;}, on(event, selector, handler) {events.set(event, handler); return this;}};
 const $ = item => item === document ? chain
@@ -64,6 +78,8 @@ assert.equal(events.size, 2, 'PJAX attached multiple settings handlers');
 assert.equal(state.input.disabled, false);
 events.get('submit.ldAgentrouterAdmin').call(form, {preventDefault() {}});
 assert.match(state.requests[1].data, /source=fixture-private-source/);
+assert.equal(new URLSearchParams(state.requests[1].data).get('clear'), '',
+    'The real page sends an empty unchecked clear field; the save regression must retain that case');
 state.done({code: 1, message: '已保存'});
 state.always();
 assert.equal(state.reloads, 1, 'Saved settings and node records did not refresh');

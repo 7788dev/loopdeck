@@ -12,6 +12,8 @@ Status: implemented
 
 [模板渲染](../../../../tests/TemplateRenderingTest.php)执行模板并检查生成的脚本；[前端交互测试](../../../../tests/FrontendInteractionTest.js)执行提交函数、关闭弹窗和失败回退。Node 和 SQLite 扩展仅安装在 Docker dependencies 测试阶段。
 
+表单测试必须执行页面加载的 jQuery 序列化实现，并将实际请求体送到框架入口。项目随 RuoYi 加载的 `serialize()` 会为未勾选的复选框补空字段；AG 后台曾因测试模拟成“省略字段”，漏掉真实 `clear=` 被服务拒绝的问题。该场景由 [AG 前端交互](../../../../tests/AgentRouterProxyInteractionTest.js)执行实际序列化函数、[HTTP 回归](../../../../tests/AgentRouterHttpTest.php)校验实际空值请求，以及独立浏览器复现共同确认，保存、空值保留、清除和清除后再保存都要可用。
+
 ## Alternatives considered
 
 **只加源码字符串断言。** 无法证明值流向正确，已漏过本次多处可用性缺陷。

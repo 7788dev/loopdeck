@@ -125,6 +125,15 @@ try {
     $check($plugin['status'] === 200 && str_contains($plugin['body'], 'data-agentrouter-platform-form')
         && !str_contains($plugin['body'], 'fixture-platform-secret') && !str_contains($plugin['body'], '127.0.0.1'),
         'Administrator proxy settings did not render or exposed the saved endpoint');
+    // The shipped jQuery serialize() emits clear= for the unchecked checkbox.
+    // Both saving a subscription and keeping an existing source must accept it.
+    foreach ([['subscription', 'https://subscription.example.invalid/list?token=fixture-private-subscription'], ['proxy', '']] as [$kind, $source]) {
+        $saved = $request('/admin/ajax/set/agentrouterProxy', http_build_query([
+            'kind' => $kind, 'source' => $source, 'origin' => 'https://agentrouter.org', 'clear' => '',
+        ]), 'application/x-www-form-urlencoded', 'admin');
+        $check($saved['status'] === 200 && ($saved['json']['code'] ?? 0) === 1,
+            'Unchecked administrator clear checkbox rejected the subscription save: ' . ($saved['json']['message'] ?? 'no response'));
+    }
     $proxyCredentials = ['username' => 'fixture-user', 'password' => 'ordinary', 'proxy_mode' => 'custom',
         'proxy_url' => 'http://proxy-user:Blue-sleep(3)-password@8.8.8.8:8080'];
     foreach (['application/x-www-form-urlencoded', 'application/json'] as $type) {

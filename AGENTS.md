@@ -72,6 +72,8 @@ The full suite also needs Node and `pdo_sqlite`: run `node tests/FrontendInterac
 
 Offline maintenance tests must not initialize the installed application before running database writes; bind the in-memory fixture explicitly ([regression](.agents/notes/implemented/testing/2026-10-12-schema-test-isolation.md)).
 
+Form-save regressions must exercise the page's shipped jQuery serializer and compare real HTTP bodies with backend validation: its `serialize()` emits empty values for unchecked radio/checkbox controls ([regression](.agents/notes/implemented/testing/2026-09-28-runtime-usability-regressions.md)).
+
 Every feature removal must be pinned by "no longer reachable" assertions in `tests/FeatureRemovalTest.php`, landed in the same commit as the deletion ([decision](.agents/notes/implemented/testing/2026-09-15-feature-removal-pinned-by-test.md)).
 
 `DockerDeploymentTest.php` executes deployment scripts against a stub Docker CLI in a temporary directory. On Windows, set `LOOPDECK_TEST_SHELL` to Git for Windows `bin/sh.exe`; Linux uses `sh` from `PATH`.

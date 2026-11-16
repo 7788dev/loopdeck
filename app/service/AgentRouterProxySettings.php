@@ -30,7 +30,12 @@ final class AgentRouterProxySettings
                 throw new InvalidArgumentException('AgentRouter 代理配置格式无效');
             }
         }
-        if (!in_array($input['clear'] ?? '0', ['0', '1', 0, 1], true)) {
+        // The shipped jQuery serialize() submits an empty value for unchecked checkboxes.
+        $clear = $input['clear'] ?? '0';
+        if ($clear === '') {
+            $clear = '0';
+        }
+        if (!in_array($clear, ['0', '1', 0, 1], true)) {
             throw new InvalidArgumentException('代理清除选项无效');
         }
         if (!TaskExecutionLock::acquire(self::LOCK)) {
@@ -42,7 +47,7 @@ final class AgentRouterProxySettings
             if (!in_array($origin, [Client::ORIGIN, 'https://agentrouter.org'], true)) {
                 throw new InvalidArgumentException('请选择 AgentRouter 官方域名');
             }
-            if ((string)($input['clear'] ?? '0') === '1') {
+            if ((string)$clear === '1') {
                 $next = ['kind' => '', 'source' => '', 'origin' => $origin];
             } else {
                 $kind = (string)($input['kind'] ?? '');

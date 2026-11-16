@@ -21,6 +21,21 @@ functionalCheck($settings->load()['source'] === $secret && $settings->present()[
 fixtureRequest(['kind' => 'proxy', 'source' => '', 'origin' => 'https://agentrouter.org']);
 functionalCheck($ajax->set('agentrouterProxy')->getData()['code'] === 1 && $settings->load()['source'] === $secret,
     'Admin blank save erased the configured source');
+$nodeState = ['source_hash' => AgentRouterProxySettings::fingerprint($settings->load()), 'verified' => [], 'cursor' => 3];
+$settings->storeState($nodeState);
+foreach (['', '0', 0] as $clear) {
+    fixtureRequest(['kind' => 'proxy', 'source' => '', 'clear' => $clear]);
+    functionalCheck($ajax->set('agentrouterProxy')->getData()['code'] === 1
+        && $settings->load()['source'] === $secret
+        && $settings->state(AgentRouterProxySettings::fingerprint($settings->load()))['cursor'] === 3,
+        'An unchecked clear flag erased the saved source or node selection state');
+}
+foreach (['on', '2', 2, true, false, ['1']] as $clear) {
+    fixtureRequest(['kind' => 'proxy', 'source' => $secret, 'clear' => $clear]);
+    functionalCheck($ajax->set('agentrouterProxy')->getData()['code'] === 0
+        && $settings->load()['source'] === $secret,
+        'An invalid clear flag changed existing proxy settings');
+}
 foreach ([AgentRouterProxySettings::SETTINGS_KEY, strtoupper(AgentRouterProxySettings::SETTINGS_KEY),
     AgentRouterProxySettings::STATE_KEY] as $key) {
     fixtureRequest([$key => 'forged-state']);

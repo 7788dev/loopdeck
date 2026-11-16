@@ -45,13 +45,14 @@
 
 ## AgentRouter 签到
 
-- 在「VIP 功能 → AgentRouter → 添加账号」填写备注名、登录用户名（或邮箱）和密码。备注名用于区分账号，优先显示在列表和基本信息中；留空时使用站点名称或用户名。密码仅用于登录，保存后不回显，更新时留空保留原值。
-- 平台默认使用 `https://ps.air-outer.com`（AgentRouter 面向中国大陆的备用域名，与 agentrouter.org 功能一致）。服务器默认直连，受网络限制时管理员可配置固定代理出口，并选择官方主域名 `https://agentrouter.org`；同一次签到的登录、余额查询和退出始终使用相同出口。
+- 在「VIP 功能 → AgentRouter → 添加账号」填写备注名、登录用户名（或邮箱）和密码，选择「平台代理」或「自有代理」。备注名用于区分账号，优先显示在列表和基本信息中；留空时使用站点名称或用户名。密码和自有代理保存后不回显，更新时留空保留原值。[AG 注册入口](https://agentrouter.org/register?aff=7Oga)。
+- 站长在「系统设置 → 功能插件设置 → AgentRouter 平台代理」配置自己的订阅链接或 HTTP / SOCKS5 代理，并选择官方域名。平台不会使用公共免费代理列表；未配置时需联系站长或填写自有代理。订阅由 Docker 镜像自动转换，地址与认证不会向用户显示。
+- 数据库最多记住 3 个成功节点，优先复用第一条；首次失败保留，下一执行日仍不可用则删除，依次尝试后面的节点。没有可用记录时从订阅重新筛选，新成功节点加入记录。不会按天强制随机换节点，修改来源会清空旧记录。同一次签到的登录、余额查询和退出始终使用相同出口。
 - AgentRouter 的登录动作本身即触发每日签到。系统每天使用新会话登录一次，携带登录 Cookie 查询余额，再退出登录并清理会话，下一天重新登录。`checked_in=true` 表示本次新签到，false 表示今日已签到。
 - 账号详情页与更新页只读，不会登录（登录即签到，避免在调度之外触发签到）。详情页展示最近一次签到成功时记录的用户名、余额、累计消耗、请求次数及账号分组；余额按站点额度单位（500000 额度 = 1 美元）换算，读取失败显示暂不可用。调度成功后自动写回最新余额。
 - 保存账号时会登录验证并退出一次（可能提前完成当日签到）。设置每日时间并启用任务后自动运行；「申请补挂」加入统一调度队列，仍遵守任务锁、VIP 权益与冷却时间。
 - 日志区分已签到、签到完成、凭据失效和网络故障。用户名或密码错误会停用账号并提示更新凭据；网络、网站验证故障或退出登录未确认时默认 5 分钟后重试，沿用 `SCHEDULER_MAX_RETRIES` 上限，耗尽后停用任务。余额查询失败不会推翻已确认的签到结果。HTTP 200 或网页中的 success 字样均不代表签到成功。
-- 离线验证：`php tests/AgentRouterClientTest.php`、`php tests/AgentRouterWorkflowTest.php`、`php tests/AgentRouterSessionTest.php`、`php tests/AgentRouterHttpTest.php`。
+- 离线验证：`php tests/AgentRouterClientTest.php`、`php tests/AgentRouterWorkflowTest.php`、`php tests/AgentRouterSessionTest.php`、`php tests/AgentRouterHttpTest.php`、`php tests/AgentRouterPlatformProxyTest.php`、`php tests/AgentRouterProxySettingsTest.php`、`php tests/AgentRouterSubscriptionTest.php`；Linux 镜像还实际启动并清理代理进程运行 `AgentRouterRelayTest.php`。
 
 ## 网易云每日300首说明
 

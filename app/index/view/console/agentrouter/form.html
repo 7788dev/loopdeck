@@ -13,5 +13,16 @@
         <input id="agentrouter-password" type="password" name="password" class="form-control" maxlength="2048" autocomplete="new-password" {if condition="empty($agentrouter_form.user_id)"}required{/if} placeholder="{if condition='!empty($agentrouter_form.password_configured)'}留空保留已保存的密码{else /}AgentRouter 登录密码{/if}">
         <p class="help-block">系统每天重新登录完成签到，密码仅用于登录，不会回显。</p>
     </div>
+    <fieldset class="form-group" data-agentrouter-proxy>
+        <legend style="font-size: 14px; border: 0; margin-bottom: 8px; font-weight: 600;">代理设置</legend>
+        <label class="radio-inline"><input type="radio" name="proxy_mode" value="platform" {if condition="empty($agentrouter_form.proxy_mode) || $agentrouter_form.proxy_mode eq 'platform'"}checked{/if}> 平台代理</label>
+        <label class="radio-inline"><input type="radio" name="proxy_mode" value="custom" {if condition="isset($agentrouter_form.proxy_mode) && $agentrouter_form.proxy_mode eq 'custom'"}checked{/if}> 自有代理</label>
+        <div data-agentrouter-custom {if condition="empty($agentrouter_form.proxy_mode) || $agentrouter_form.proxy_mode neq 'custom'"}hidden{/if} style="margin-top: 12px;">
+            <label for="agentrouter-proxy-url" class="sr-only">你的代理地址</label>
+            <input id="agentrouter-proxy-url" name="proxy_url" type="password" class="form-control" maxlength="2048" autocomplete="new-password" data-proxy-saved="{if condition='!empty($agentrouter_form.proxy_configured)'}1{else /}0{/if}" placeholder="{if condition='!empty($agentrouter_form.proxy_configured)'}留空保留已保存的代理{else /}http://主机:端口 或 socks5://主机:端口{/if}">
+            <p class="help-block">支持服务器可访问的 HTTP 和 SOCKS5 代理。需要认证时填写 <code>http://用户名:密码@主机:端口</code>，保存后不会回显。</p>
+        </div>
+        <p class="help-block" data-agentrouter-platform-help>使用站长配置的平台代理，系统优先复用已成功的节点，失效时自动筛选其他节点。</p>
+    </fieldset>
     <button class="btn btn-primary" type="submit" data-busy-text="正在验证并保存…">{if condition="empty($agentrouter_form.user_id)"}验证并添加{else /}验证并保存{/if}</button>
 </form>

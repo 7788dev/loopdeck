@@ -81,6 +81,9 @@ class LoadConfigs
 
         $settings = [];
         foreach (Db::name('configs')->select() as $row) {
+            if (str_starts_with(strtolower((string)$row['k']), \app\service\AgentRouterProxySettings::PREFIX)) {
+                continue;
+            }
             $settings[(string)$row['k']] = $row['v'];
         }
         Cache::tag('site_settings')->set('site_settings_primary', $settings, 60);

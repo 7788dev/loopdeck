@@ -14,8 +14,8 @@ Status: implemented
 - **登录即签到**：每次执行恰好一个 `POST /api/user/login`（JSON `{username,password}`），随后用同会话 Cookie 与 `New-API-User` 请求只读 `GET /api/user/self` 查余额；存在 `access_token` 时才附 `Authorization`。`checked_in=true` 是「新签到」，false 是「今日已签到」。绝不虚构独立签到接口，绝不重放登录 POST。
 - **每日独立会话**：Client 使用内存 Cookie jar，每次登录前清空旧会话；确认登录成功后，无论余额读取成功与否，都在 `finally` 中发送一次 `GET /api/user/logout`，随后清空 Cookie 与用户 ID。退出会改变会话，不经过只读 WAF 重试循环；退出未确认时按有界重试处理，不能标记整个登录/退出流程完成。余额读取失败仍保留已确认签到，下一次执行始终重新登录。
 - **余额来源**：登录响应可携带额度、已用额度和请求数的零占位值，实测余额接口被网站验证阻断时会暴露该问题。这三项指标仅使用成功的 `/self` 响应；请求失败或缺少指标时显示「暂不可用」，不能从登录响应补零。成功查询确认的零值仍正常显示，身份字段可继续来自登录响应。
-- **固定出口**：`AgentRouterConnection` 从部署环境读取 `AGENTROUTER_PROXY`，默认留空直连；固定 HTTP / SOCKS5 代理由管理员配置，主机只解析一次，Client 将代理与域名保存为只读属性。匿名 `/api/status` 预检、登录、余额和退出使用同一出口；不自动筛选代理，不在执行中切换或回落直连。请求显式设置 `proxy`、`CURLOPT_PROXY` 和 `CURLOPT_NOPROXY`，击败宿主 `ALL_PROXY`/`NO_PROXY`；直连 bypass 为 `*`，代理 bypass 为空。TLS 校验开启、禁跟随跳转、响应体上限 1 MiB。
-- **官方域名与部署边界**：`AGENTROUTER_ORIGIN` 仅接受 `https://ps.air-outer.com`（默认）和 `https://agentrouter.org`，不能把凭据发送给任意地址。代理配置仅来自部署环境，不增加账号页面代理字段。订阅在服务器通过独立代理服务转换为 HTTP / SOCKS5 地址，内容不进入仓库、页面或错误日志；基础镜像和 Compose 不内置订阅解析器或新增代理服务。
+- **固定会话出口**：匿名预检后，Client 将代理与官方域名保存为只读属性，登录、余额和退出使用同一出口。请求显式覆盖宿主代理与 bypass，TLS 校验开启、禁跟随跳转、响应体上限 1 MiB。站长配置位置、账号平台代理/自有选择、订阅转换与节点记录已由[私有代理决策](2026-11-16-agentrouter-private-proxy-preferences.md)替代早期部署环境方案。
+- **官方域名**：仅接受 `https://ps.air-outer.com`（默认）和 `https://agentrouter.org`，不能把凭据发送给任意地址；注册网址使用用户指定的 AFF 链接。
 - **详情页只读**：因为登录就是签到，账号详情页/更新页**绝不登录**，只展示上次调度成功时写回的资料（`Task::storeAgentRouterProfile` 在成功后重新读取最新账号 payload、仅合并 `profile` 再写回，保留凭据）。余额文案注明「最近一次签到时记录」。保存账号是用户显式动作，验证时登录一次（可能提前完成当日签到）是可接受的。
 - 凭据（用户名/密码）序列化存于账号 `data`，不回显；错误信息经 `message()` 脱敏（密码、access_token、URL、控制字符）。`/self` 的敏感字段（password、access_token、email）不进入 profile。
 - 账号页面和 AJAX 操作通过显式路由分发；用户名在链接中编码，路径参数只解码一次，PHP 已解析的 GET 与 `?s=` 参数不重复解码，保留字面 `%`。防火墙仅对有效 `save` 操作的顶层 `username/password` 按凭据处理，备注、嵌套值及其他字段继续检查，不能因合法密码含 `sleep(3)` 而拒绝保存。
@@ -26,8 +26,8 @@ Status: implemented
 
 - 复用 AnyRouter 平台改域名：鉴权模型（Cookie vs 用户名密码）与签到触发方式不同，强行复用会污染 AnyRouter 的代理/WAF 逻辑，输在耦合。
 - 坚持直连：目标服务器被交互验证与连接重置阻断，无法满足真实签到验收；用户已授权固定代理，原禁止代理约定不再适用。
-- 自动公开代理池或账号自定义代理：固定的部署出口已经满足需求，减少账号配置与匿名筛选状态；不扩展 AnyRouter 专属代理池，也不在登录后更换出口。
-- 直接把订阅 URL 当 HTTP / SOCKS5 地址：订阅返回的是节点配置，不能用于 HTTP CONNECT；在服务器独立转换，避免基础镜像增加代理运行时和订阅凭据。
+- 自动公开代理池：AG 仅使用站长配置的来源，不扩展 AnyRouter 的公开列表；代理选择的后续变更见私有代理决策。
+- 直接把订阅 URL 当 HTTP / SOCKS5 地址：订阅返回的是节点配置，不能用于 HTTP CONNECT；由受限本地代理运行时转换，节点数据与认证留在站点私有数据中。
 - 详情页实时登录取余额：登录即签到，会在调度之外触发签到并违反「页面访问只读」原则，输在副作用。
 - 调用独立 `/api/user/sign_in`：AgentRouter 无此接口（AnyRouter 才有），虚构接口会失败，输在不存在的协议。
 - 仅依靠可选 `access_token` 读取余额：原脚本接受仅返回用户 ID 与会话 Cookie 的登录响应，缺少 Cookie 会使成功签到后的余额请求被判未登录。
@@ -40,7 +40,7 @@ Status: implemented
 
 - 新增 `tests/AgentRouterClientTest.php`（离线伪 HTTP：单次 POST、直连隔离、凭据脱敏、结果分类、重试上限）与 `tests/AgentRouterWorkflowTest.php`（fixture 全流程：保存登录、详情页只读不改凭据、调度写回余额、租户隔离、配额、控件、失效/VIP/删除）。`TemplateRenderingTest` 纳入 agentrouter 列表/详情渲染。
 - `tests/AgentRouterSessionTest.php` 在执行请求的 HTTP handler 中校验 Cookie、用户 ID、重新登录与退出顺序，以及余额/退出失败后的会话清理；`tests/AgentRouterHttpTest.php` 通过真实隔离 HTTP 与框架分发验证账号页面、邮箱和特殊用户名、合法表单/JSON 密码及凭据豁免边界。两项测试均先复现失败，再重放验证修复。
-- `tests/AgentRouterProxyTest.php` 先复现代理参数被忽略，再验证固定出口、宿主代理与 bypass 隔离、官方域名限制、WAF 不重放 POST、保存/调度两入口一致、部署错误有界重试与连接后配置快照。Compose 传递两个可选环境变量，不改变默认直连行为。
+- `tests/AgentRouterProxyTest.php` 验证固定出口、宿主代理与 bypass 隔离、官方域名限制、WAF 不重放 POST、保存/调度两入口一致与连接后配置快照。原有 AG 环境变量与默认直连已撤销，由后台私有配置及账号选择替代。
 - 详情页余额最多滞后到下次签到；这是「页面不触发签到」的必然取舍。
 - `storeAgentRouterProfile` 是展示型写回：重新读取最新 payload 仅合并 profile，best-effort，不影响已完成的签到，也不覆盖凭据。
 - 安装种子新增 tasks id 24；`Tasks::BUILTIN_TASKS` 含 agentrouter，老安装通过目录同步自动获得该任务。

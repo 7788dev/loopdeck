@@ -25,6 +25,7 @@ $app->config->set(['default_app' => 'index', 'app_express' => true], 'app');
 $app->config->set(['reg_close' => 0, 'reg_iplimit' => 1, 'reg_free_vip' => 0, 'reg_free_quota' => 0], 'sys');
 $honeypotTest = getenv('LOOPDECK_HONEYPOT_HTTP_TEST') === '1';
 $agentRouterTest = getenv('LOOPDECK_AGENTROUTER_HTTP_TEST') === '1';
+$agentRouterAdminTest = getenv('LOOPDECK_AGENTROUTER_ADMIN_HTTP_TEST') === '1';
 if ($agentRouterTest) {
     define('PJAX', !empty($_SERVER['HTTP_X_PJAX']));
     $app->config->set(require dirname(__DIR__, 2) . '/config/view.php', 'view');
@@ -87,6 +88,20 @@ if ($honeypotTest) {
         Db::name('users')->where('uid', 1)->update(['power' => $role === 'admin' ? 6 : 0, 'nickname' => '测试用户']);
     }
 }
+if ($agentRouterAdminTest) {
+    if (!defined('PJAX')) define('PJAX', !empty($_SERVER['HTTP_X_PJAX']));
+    $app->config->set(require dirname(__DIR__, 2) . '/config/view.php', 'view');
+    $app->config->set(['webname' => 'LoopDeck', 'title' => '隔离测试'], 'web');
+    fixtureTable('configs', 'k TEXT PRIMARY KEY, v TEXT');
+    (new app\service\AgentRouterProxySettings())->save(['kind' => 'proxy',
+        'source' => 'http://fixture-user:fixture-platform-secret@127.0.0.1:8080']);
+    $role = $_SERVER['HTTP_X_LOOPDECK_TEST_ROLE'] ?? 'user';
+    if ($role === 'guest') {
+        think\facade\Session::delete('user');
+    } else {
+        Db::name('users')->where('uid', 1)->update(['power' => $role === 'admin' ? 6 : 0, 'nickname' => '测试用户']);
+    }
+}
 think\Validate::maker(static function ($validator): void {
     $validator->extend('captcha', static fn($value): bool => $value === 'fixture-captcha');
 });
@@ -119,12 +134,15 @@ $multiApp = new class($app) extends think\app\MultiApp {
     {
     }
 };
-$app->middleware->add(static function ($request, $next) use ($probe, $honeypotTest, $agentRouterTest) {
+$app->middleware->add(static function ($request, $next) use ($app, $probe, $honeypotTest, $agentRouterTest, $agentRouterAdminTest) {
     $target = $request->controller() . '/' . strtolower($request->action());
     if ($agentRouterTest && in_array($target, ['Console/agentrouter', 'Agentrouter/handle', 'Ajax/agentrouter'], true)) {
         return (new app\middleware\SiteTemplate())->handle($request, $next);
     }
     if ($honeypotTest && $target === 'System/honeypot') {
+        return (new app\middleware\SiteTemplate())->handle($request, $next);
+    }
+    if ($agentRouterAdminTest && $app->http->getName() === 'admin' && in_array($target, ['System/set', 'Ajax/set'], true)) {
         return (new app\middleware\SiteTemplate())->handle($request, $next);
     }
     if (!in_array($target, ['Index/version', 'Index/healthcheck', 'LoginAjax/login', 'LoginAjax/reg',
@@ -138,11 +156,11 @@ $app->middleware->add(static function ($request, $next) use ($probe, $honeypotTe
     }
     return $next($request);
 }, 'route');
-$response = $multiApp->handle($request, static function ($request) use ($app, $probe, $honeypotTest) {
+$response = $multiApp->handle($request, static function ($request) use ($app, $probe, $honeypotTest, $agentRouterAdminTest) {
     if ($honeypotTest && $app->http->getName() === 'cron') {
         return (new app\middleware\CheckCronAccess())->handle($request, $probe);
     }
-    if ($honeypotTest && $app->http->getName() === 'admin') {
+    if (($honeypotTest || $agentRouterAdminTest) && $app->http->getName() === 'admin') {
         return $app->route->dispatch($request, static function () use ($app): void {
             require $app->getAppPath() . 'route/app.php';
         });

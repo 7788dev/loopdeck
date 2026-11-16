@@ -1,6 +1,15 @@
 (function ($) {
     'use strict';
 
+    function syncProxy(fieldset) {
+        var root = $(fieldset);
+        var custom = root.find('[name="proxy_mode"]:checked').val() === 'custom';
+        var input = root.find('[name="proxy_url"]');
+        root.find('[data-agentrouter-custom]').prop('hidden', !custom);
+        root.find('[data-agentrouter-platform-help]').prop('hidden', custom).toggle(!custom);
+        input.prop('disabled', !custom).prop('required', custom && input.attr('data-proxy-saved') !== '1');
+    }
+
     function send(action, data, button) {
         if (button.prop('disabled')) return;
         var label = button.text();
@@ -34,6 +43,9 @@
     }
 
     $(document).off('.ldAgentrouter')
+        .on('change.ldAgentrouter', '[data-agentrouter-proxy] [name="proxy_mode"]', function () {
+            syncProxy($(this).closest('[data-agentrouter-proxy]'));
+        })
         .on('submit.ldAgentrouter', '[data-agentrouter-form]', function (event) {
             event.preventDefault();
             var form = $(this);
@@ -58,4 +70,5 @@
             }
             send(action, {user_id: userId}, button);
         });
+    $('[data-agentrouter-proxy]').each(function () { syncProxy(this); });
 })(jQuery);

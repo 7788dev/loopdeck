@@ -87,8 +87,56 @@
         </div>
     </div>
 </div>
+<div class="wrapper wrapper-content">
+    <div class="ibox float-e-margins">
+        <div class="ibox-title"><h5>AgentRouter 平台代理</h5></div>
+        <div class="ibox-content">
+            <p class="text-muted">由站长配置，供选择「平台代理」的 AG 账号使用。代理地址、认证和订阅内容仅保存在本站，不向用户显示。</p>
+            <form data-agentrouter-platform-form autocomplete="off" data-saved-kind="{$agentrouter_proxy.kind|default='subscription'}" data-proxy-saved="{if condition='!empty($agentrouter_proxy.configured)'}1{else /}0{/if}">
+                <div class="row">
+                    <div class="col-md-3 form-group">
+                        <label for="ag-platform-kind">代理来源</label>
+                        <select id="ag-platform-kind" class="form-control" name="kind">
+                            <option value="subscription" {if condition="empty($agentrouter_proxy.kind) || $agentrouter_proxy.kind eq 'subscription'"}selected{/if}>订阅链接</option>
+                            <option value="proxy" {if condition="isset($agentrouter_proxy.kind) && $agentrouter_proxy.kind eq 'proxy'"}selected{/if}>HTTP / SOCKS5 代理</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 form-group">
+                        <label for="ag-platform-source">订阅链接或代理地址</label>
+                        <input id="ag-platform-source" name="source" type="password" class="form-control" maxlength="4096" autocomplete="new-password" placeholder="{if condition='!empty($agentrouter_proxy.configured)'}已配置；留空保留原设置{else /}填写站长自己的订阅链接或常规代理地址{/if}">
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label for="ag-platform-origin">AgentRouter 域名</label>
+                        <select id="ag-platform-origin" class="form-control" name="origin">
+                            <option value="https://ps.air-outer.com" {if condition="empty($agentrouter_proxy.origin_main)"}selected{/if}>ps.air-outer.com</option>
+                            <option value="https://agentrouter.org" {if condition="!empty($agentrouter_proxy.origin_main)"}selected{/if}>agentrouter.org</option>
+                        </select>
+                    </div>
+                </div>
+                <p class="help-block">订阅支持 Clash、VMess、VLESS、Trojan、Shadowsocks 和 Hysteria2 节点；常规代理支持 <code>http://用户名:密码@主机:端口</code> 或 <code>socks5://主机:端口</code>。订阅与 AG 连接均校验证书。</p>
+                <div class="checkbox"><label><input type="checkbox" name="clear" value="1"> 清除平台代理及节点记录</label></div>
+                <button type="submit" class="btn btn-primary" data-busy-text="正在保存…">保存平台代理</button>
+            </form>
+            <hr>
+            <p class="text-muted">最多记录 3 个成功节点，按顺序优先复用。首次失败保留记录，连续两天不可用后移除；没有可用记录时重新筛选订阅。订阅或代理设置变更后清空旧记录。</p>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead><tr><th>优先顺序</th><th>成功节点</th><th>最近成功时间</th><th>连续失败天数</th></tr></thead>
+                    <tbody>
+                    {if condition="!empty($agentrouter_proxy.nodes)"}
+                    {foreach name="agentrouter_proxy.nodes" item="node"}
+                    <tr><td>{$node.position}</td><td>{$node.name}</td><td>{$node.last_success}</td><td>{$node.failures}</td></tr>
+                    {/foreach}
+                    {else /}<tr><td colspan="4" class="text-muted">暂无成功记录，首次签到时自动筛选。</td></tr>{/if}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
 {/block}
 {block name="foot"}
+<script src="/static/js/agentrouter-admin.js?v={:app_version()}"></script>
 <script>
     function ajax_edit_config(element) {
         var key = $(element).prop('name');

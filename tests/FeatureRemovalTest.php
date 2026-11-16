@@ -476,4 +476,10 @@ foreach ([
         'Dead method remains: ' . $removedClass . '::' . $removedMethod);
 }
 
+foreach (['compose.yaml', '.env.example', 'app/service/AgentRouterConnection.php'] as $agConfigurationPath) {
+    $source = (string)file_get_contents($root . '/' . $agConfigurationPath);
+    removalCheck(!str_contains($source, 'AGENTROUTER_PROXY') && !str_contains($source, 'AGENTROUTER_ORIGIN'),
+        'AgentRouter shared environment configuration remains reachable: ' . $agConfigurationPath);
+}
+
 echo "Feature removal and retained entitlement view tests passed\n";

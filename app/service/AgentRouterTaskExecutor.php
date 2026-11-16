@@ -86,11 +86,8 @@ final class AgentRouterTaskExecutor
     private function connectionReason(Throwable $exception): string
     {
         // Do not forward HTTP client exceptions: they can contain the account password.
-        if ($exception::class === \RuntimeException::class && in_array($exception->getMessage(), [
-            '暂时无法访问 AgentRouter，请稍后重试',
-            'AgentRouter 连接配置无效，请管理员检查代理和域名',
-            'AgentRouter 代理暂时无法解析，请稍后重试',
-        ], true)) {
+        if ($exception::class === \RuntimeException::class
+            && in_array($exception->getMessage(), AgentRouterConnection::CONNECTION_MESSAGES, true)) {
             return $exception->getMessage();
         }
         return '连接 AgentRouter 失败，请稍后重试';

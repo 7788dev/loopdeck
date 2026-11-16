@@ -162,6 +162,7 @@ class Console
         if ($act === 'add') {
             return view('console/agentrouter/add', ['agentrouter_form' => [
                 'user_id' => '', 'nickname' => '', 'password_configured' => false,
+                'proxy_mode' => 'platform', 'proxy_configured' => false,
             ]]);
         }
         if (!in_array($act, ['info', 'update'], true)) {
@@ -184,6 +185,8 @@ class Console
             return view('console/agentrouter/add', ['agentrouter_form' => [
                 'user_id' => (string)$user_id, 'nickname' => \app\service\AgentRouterAccountInfo::remark($payload),
                 'password_configured' => !empty($payload['password']),
+                'proxy_mode' => $payload['proxy_mode'] ?? 'platform',
+                'proxy_configured' => !empty($payload['proxy_url']),
             ]]);
         }
         Jobs::refreshJob('agentrouter', (string)$user_id, $uid);
@@ -198,6 +201,7 @@ class Console
                 \app\service\AgentRouterAccountInfo::remark($payload), (string)$user_id),
             'info_warning' => $warning,
             'agentrouter_state' => (int)$account['state'], 'timing' => (string)($account['timing'] ?? ''),
+            'agentrouter_proxy_label' => ($payload['proxy_mode'] ?? '') === 'custom' ? '自有代理' : '平台代理',
             'agentrouter_job' => ['enabled' => $job && (int)$job['state'] === 1,
                 'available' => $task && (int)$task['state'] === 1,
                 'name' => $task ? (string)$task['name'] : '每日签到',

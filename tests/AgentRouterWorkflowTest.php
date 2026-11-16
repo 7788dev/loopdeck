@@ -65,7 +65,8 @@ $controller = new class(new AgentRouterTaskExecutor(static fn() => $client)) ext
     public function __construct(private AgentRouterTaskExecutor $fixture) {}
     protected function executor(): AgentRouterTaskExecutor { return $this->fixture; }
 };
-fixtureRequest(['username' => 'fixture-user', 'password' => 'fixture-private-password', 'nickname' => '我的测试账号']);
+fixtureRequest(['username' => 'fixture-user', 'password' => 'fixture-private-password', 'nickname' => '我的测试账号',
+    'proxy_mode' => 'custom', 'proxy_url' => 'http://fixture-user:fixture-proxy-secret@8.8.8.8:8080']);
 $response = $controller->handle('save')->getData();
 functionalCheck($response['code'] === 1, 'Account bind failed: ' . $response['message']);
 $saved = Db::name('accounts')->where('type', 'agentrouter')->find();
@@ -77,12 +78,15 @@ functionalCheck(!str_contains(json_encode($response), 'fixture-private'), 'Bind 
 $payload = safe_unserialize_array((string)$saved['data']);
 functionalCheck($payload['password'] === 'fixture-private-password' && $payload['profile']['username'] === 'account-from-api',
     'Stored payload lost credentials or the captured profile');
+functionalCheck($payload['proxy_mode'] === 'custom' && str_contains($payload['proxy_url'], 'fixture-proxy-secret'),
+    'Saving an AG account ignored its selected proxy');
 
 // The account page is read-only: it shows the stored profile and never logs in.
 $console = new app\index\controller\Console();
 $beforeView = Db::name('accounts')->find($saved['id']);
 $view = $console->agentrouter('info', 'fixture-user');
-functionalCheck(!str_contains(serialize($view->getVars()), 'fixture-private') && !str_contains(serialize($view->getVars()), 'never-save'),
+functionalCheck(!str_contains(serialize($view->getVars()), 'fixture-private') && !str_contains(serialize($view->getVars()), 'never-save')
+    && !str_contains(serialize($view->getVars()), 'fixture-proxy-secret') && $view->getVars()['agentrouter_proxy_label'] === '自有代理',
     'Controller projection exposed credentials');
 functionalCheck($view->getVars()['agentrouter_info']['nickname'] === '我的测试账号'
     && $view->getVars()['agentrouter_info']['username'] === 'account-from-api'
@@ -91,7 +95,10 @@ functionalCheck(Db::name('accounts')->find($saved['id']) === $beforeView, 'Read-
 $update = $console->agentrouter('update', 'fixture-user');
 functionalCheck(!str_contains(serialize($update->getVars()), 'fixture-private')
     && $update->getVars()['agentrouter_form']['nickname'] === '我的测试账号'
-    && $update->getVars()['agentrouter_form']['password_configured'] === true, 'Update form lost the remark or credential state');
+    && $update->getVars()['agentrouter_form']['password_configured'] === true
+    && $update->getVars()['agentrouter_form']['proxy_configured'] === true
+    && $update->getVars()['agentrouter_form']['proxy_mode'] === 'custom'
+    && !str_contains(serialize($update->getVars()), 'fixture-proxy-secret'), 'Update form lost the remark or credential state');
 $listing = $console->agentrouter('list')->getVars();
 functionalCheck($listing['list'][0]['nickname'] === '我的测试账号', 'Account list replaced the remark with an upstream name');
 fixtureRequest(['user_id' => 'fixture-user']);
@@ -140,6 +147,8 @@ fixtureRequest(['username' => 'fixture-user', 'password' => '', 'nickname' => ''
 functionalCheck($controller->handle('save')->getData()['code'] === 1, 'Blank password did not retain existing credentials');
 $payload = safe_unserialize_array(Db::name('accounts')->value('data'));
 functionalCheck($payload['password'] === 'fixture-private-password', 'Blank password erased the stored credential');
+functionalCheck($payload['proxy_mode'] === 'custom' && str_contains($payload['proxy_url'], 'fixture-proxy-secret'),
+    'A blank account update erased its saved proxy');
 
 // Exercise actual scheduler selection, claim, result write, profile refresh, log prefix and release.
 fixtureRequest(['user_id' => 'fixture-user']);

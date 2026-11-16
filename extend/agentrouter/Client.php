@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace agentrouter;
 
 use anyrouter\ProxyEndpoint;
+use Closure;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
@@ -33,6 +34,7 @@ final class Client
     private string $apiUser = '';
     private array $secrets = [];
     private array $site = [];
+    private ?Closure $completion = null;
 
     public function __construct(?ClientInterface $http = null, string $proxy = '', string $origin = self::ORIGIN)
     {
@@ -85,10 +87,16 @@ final class Client
     public function login(string $username, string $password): array
     {
         if (!$this->ready) {
+            $this->close();
             throw new RuntimeException('尚未通过 AgentRouter 连通性验证');
         }
-        $username = self::normalizeUsername($username);
-        $password = self::normalizePassword($password);
+        try {
+            $username = self::normalizeUsername($username);
+            $password = self::normalizePassword($password);
+        } catch (Throwable $exception) {
+            $this->close();
+            throw $exception;
+        }
         $this->cookies->clear();
         $this->apiUser = '';
         $this->loggedIn = false;
@@ -97,7 +105,7 @@ final class Client
         try {
             $result = $this->loginAndReadProfile($username, $password);
         } catch (Throwable $exception) {
-            $result = $this->failure('登录响应未确认，请稍后重试', false, true);
+            $result = $this->failure('登录响应未确认，请稍后重试', false, true, true);
         } finally {
             if ($this->loggedIn) {
                 $loggedOut = $this->logout();
@@ -108,9 +116,34 @@ final class Client
             $this->loggedIn = false;
         }
         if ($result['success'] && !$loggedOut) {
-            return $this->failure('登录已完成，但退出登录未确认，请稍后重试', false, true);
+            $result = $this->failure('登录已完成，但退出登录未确认，请稍后重试', false, true, true);
         }
+        $this->close($result);
         return $result;
+    }
+
+    public function onCompletion(Closure $completion): void
+    {
+        $this->completion = $completion;
+    }
+
+    /** Cache bookkeeping and relay cleanup never submit another upstream request. */
+    public function close(?array $result = null): void
+    {
+        $completion = $this->completion;
+        $this->completion = null;
+        if ($completion !== null) {
+            try {
+                $completion($result);
+            } catch (Throwable $exception) {
+                // A display/cache write failure cannot turn a confirmed check-in into a replay.
+            }
+        }
+    }
+
+    public function __destruct()
+    {
+        $this->close();
     }
 
     private function loginAndReadProfile(string $username, string $password): array
@@ -119,7 +152,7 @@ final class Client
             $this->options(microtime(true) + 15) + ['json' => ['username' => $username, 'password' => $password]]);
         $text = (string)$response->getBody();
         if (stripos($text, 'aliyun_waf') !== false) {
-            return $this->failure('网站验证未通过，请稍后重试', false, true);
+            return $this->failure('网站验证未通过，请稍后重试', false, true, true);
         }
         $body = self::payload($response);
         $status = $response->getStatusCode();
@@ -128,13 +161,16 @@ final class Client
             return $this->failure('用户名或密码错误，请更新账号凭据', true, false);
         }
         if ($body === null) {
-            return $this->failure('网站验证未通过，请稍后重试', false, true);
+            return $this->failure('网站验证未通过，请稍后重试', false, true, true);
         }
         if ($status !== 200) {
-            return $this->failure('AgentRouter 暂时无法访问（HTTP ' . $status . '）', false, $status === 403 || $status === 429 || $status >= 500);
+            $networkFailure = $status === 403 || $status === 429 || $status >= 500;
+            return $this->failure('AgentRouter 暂时无法访问（HTTP ' . $status . '）', false, $networkFailure, $networkFailure);
         }
         if (($body['success'] ?? null) !== true || !is_array($body['data'] ?? null)) {
-            return $this->failure($this->message($body), false, true);
+            $message = $this->message($body);
+            return $this->failure($message, false, true,
+                preg_match('/429|频繁|防火墙|人机|验证|rate.?limit|too many/iu', $message) === 1);
         }
         $this->loggedIn = true;
         $data = $body['data'];
@@ -248,9 +284,10 @@ final class Client
         return $message !== '' ? mb_substr($message, 0, 180) : '网站未返回有效的签到结果';
     }
 
-    private function failure(string $reason, bool $invalid, bool $retryable): array
+    private function failure(string $reason, bool $invalid, bool $retryable, bool $proxyFailure = false): array
     {
-        return ['success' => false, 'account_invalid' => $invalid, 'retryable' => $retryable, 'reason' => $reason];
+        return ['success' => false, 'account_invalid' => $invalid, 'retryable' => $retryable,
+            'proxy_failure' => $proxyFailure, 'reason' => $reason];
     }
 
     private static function number($value): ?float

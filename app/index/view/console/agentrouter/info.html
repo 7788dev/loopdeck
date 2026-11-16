@@ -22,6 +22,7 @@
                         {else /}<span class="text-success">运行中</span>{/if}
                     </b>
                     <div><small class="text-muted">账号：{$agentrouter_info.user_id}</small></div>
+                    <div><small class="text-muted">代理：{$agentrouter_proxy_label|default='平台代理'}</small></div>
                     <hr>
                     <div style="margin-top: 5px;"><small class="text-muted">
                         挂机时间：<span class="text-success">{if condition="$timing neq ''"}{$timing}{else /}未设置{/if}</span>

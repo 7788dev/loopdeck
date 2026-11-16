@@ -16,6 +16,7 @@
         "ext-pdo_mysql": "*",
         "guzzlehttp/guzzle": "^7.15",
         "phpmailer/phpmailer": "^7.1.1",
+        "symfony/yaml": "^6.4",
         "topthink/framework": "^8.1.4",
         "topthink/think-captcha": "^3.0.11",
         "topthink/think-multi-app": "^1.1.1",

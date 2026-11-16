@@ -15,6 +15,7 @@ use app\index\controller\Common;
 use app\index\model\Kms;
 use app\index\model\Users;
 use app\service\BilibiliTaskExecutor;
+use app\service\AgentRouterProxySettings;
 use app\service\SystemUpdater;
 use PHPMailer\PHPMailer\PHPMailer;
 use think\exception\ValidateException;
@@ -49,6 +50,19 @@ class Ajax extends Common
     public function set($act = null)
     {
         switch ($act) {
+            case 'agentrouterProxy':
+                if (!Request::isPost()) {
+                    return response('Method Not Allowed', 405);
+                }
+                try {
+                    $settings = new AgentRouterProxySettings();
+                    $settings->save(Request::post());
+                    return resultJson(1, 'AgentRouter 平台代理已保存', $settings->present());
+                } catch (\InvalidArgumentException $exception) {
+                    return resultJson(0, $exception->getMessage());
+                } catch (\Throwable $exception) {
+                    return resultJson(0, '代理保存失败，请确认任务空闲后重试');
+                }
             case 'info':
                 $data = Request::post();
                 if (Weblist::updateByWebid(1, $data)) {
@@ -75,6 +89,9 @@ class Ajax extends Common
 
                 $records = [];
                 foreach ($data as $key => $value) {
+                    if (is_string($key) && str_starts_with(strtolower($key), AgentRouterProxySettings::PREFIX)) {
+                        return resultJson(0, '请通过 AgentRouter 平台代理设置保存');
+                    }
                     if (!is_string($key)
                         || preg_match('/\A[A-Za-z0-9_.-]{1,255}\z/', $key) !== 1
                         || (!is_scalar($value) && $value !== null)

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\index\controller;
 
 use agentrouter\Client;
+use anyrouter\ProxyEndpoint;
 use app\index\model\Accounts;
 use app\index\model\Jobs;
 use app\index\model\TaskLogs;
@@ -118,7 +119,16 @@ class Agentrouter
                 $password = (string)$previous['password'];
             }
             $password = Client::normalizePassword($password);
-            $payload = ['username' => $id, 'password' => $password];
+            $mode = (string)Request::post('proxy_mode', $previous['proxy_mode'] ?? 'platform');
+            if (!in_array($mode, ['platform', 'custom'], true)) {
+                return resultJson(0, '请选择平台代理或自有代理');
+            }
+            $proxy = trim((string)Request::post('proxy_url', ''));
+            if ($mode === 'custom' && $proxy === '' && ($previous['proxy_mode'] ?? '') === 'custom') {
+                $proxy = (string)($previous['proxy_url'] ?? '');
+            }
+            $payload = ['username' => $id, 'password' => $password, 'proxy_mode' => $mode,
+                'proxy_url' => $mode === 'custom' ? ProxyEndpoint::normalize($proxy) : ''];
             $name = trim((string)Request::post('nickname', (string)($previous['remark'] ?? $previous['nickname'] ?? '')));
             if (mb_strlen($name) > 80 || preg_match('/[\x00-\x1f\x7f]/', $name)) {
                 return resultJson(0, '账号备注不能超过 80 个字符');

@@ -2,16 +2,19 @@
 
 declare(strict_types=1);
 
-require dirname(__DIR__) . '/vendor/autoload.php';
+require __DIR__ . '/FunctionalDatabaseBootstrap.php';
 
 use agentrouter\Client;
 use app\service\AgentRouterConnection;
 use app\service\AgentRouterTaskExecutor;
+use app\service\AgentRouterProxySettings;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+
+fixtureTable('configs', 'k TEXT PRIMARY KEY, v TEXT');
 
 function agentProxyCheck(bool $condition, string $message): void
 {
@@ -102,9 +105,11 @@ try {
         }
     }
 
-    // Both scheduler and explicit account validation use the same deployment configuration.
-    putenv('AGENTROUTER_PROXY=http://relay-user:relay-password@127.0.0.1:8080');
-    putenv('AGENTROUTER_ORIGIN=' . $origin);
+    // Both scheduler and explicit account validation use the private administrator settings.
+    $settings = new AgentRouterProxySettings();
+    $settings->save(['kind' => 'proxy', 'source' => 'http://relay-user:relay-password@127.0.0.1:8080', 'origin' => $origin]);
+    putenv('AGENTROUTER_PROXY=http://ignored-personal-relay:8080');
+    putenv('AGENTROUTER_ORIGIN=' . Client::ORIGIN);
     $history = [];
     $connection = new AgentRouterConnection(agentProxyHttp([
         $status, $login, $self, $logout, $status, $login, $self, $logout,
@@ -118,37 +123,32 @@ try {
             && $entry['options']['curl'][CURLOPT_NOPROXY] === '', 'Operator-configured local relay was lost');
     }
 
-    // Invalid/unavailable proxy configuration stays on the bounded retry path without leaking credentials.
+    // Invalid account proxy input never leaks credentials or disables an otherwise valid account.
     $history = [];
-    putenv('AGENTROUTER_PROXY=http://relay-user:relay-password@bad-host:invalid');
     $connection = new AgentRouterConnection(agentProxyHttp([], $history));
-    $result = (new AgentRouterTaskExecutor($connection->connect(...)))->execute('sign_in', $account);
-    agentProxyCheck(!$result['success'] && $result['retry_after_seconds'] === 300 && !$result['account_invalid']
+    $badAccount = $account + ['proxy_mode' => 'custom', 'proxy_url' => 'http://relay-user:relay-password@bad-host:invalid'];
+    $result = (new AgentRouterTaskExecutor($connection->connect(...)))->execute('sign_in', $badAccount);
+    agentProxyCheck(!$result['success'] && $result['retry_after_seconds'] === 0 && !$result['account_invalid']
         && $history === [] && !str_contains($result['message'], 'relay-password'),
-        'Malformed deployment configuration leaked a secret, disabled an account or sent a login');
-    putenv('AGENTROUTER_PROXY=' . $proxy);
+        'Malformed account proxy leaked a secret, disabled an account or sent a login');
     $history = [];
     $connection = new AgentRouterConnection(agentProxyHttp([
         new Response(200, [], '<html>verification required</html>'),
     ], $history));
-    $result = (new AgentRouterTaskExecutor($connection->connect(...)))->execute('sign_in', $account);
+    $result = (new AgentRouterTaskExecutor($connection->connect(...)))->execute('sign_in',
+        $account + ['proxy_mode' => 'custom', 'proxy_url' => 'http://relay-user:relay-password@8.8.8.8:8080']);
     agentProxyCheck(!$result['success'] && $result['retry_after_seconds'] === 300 && count($history) === 1
         && $history[0]['request']->getMethod() === 'GET', 'Failed proxy preflight sent a login or switched exits');
 
-    // Empty configuration preserves explicit direct access even when the host has a proxy.
-    putenv('AGENTROUTER_PROXY=');
-    putenv('AGENTROUTER_ORIGIN=');
+    // Empty platform configuration requires the operator's input instead of falling back to an environment relay.
+    $settings->save(['clear' => '1']);
     $history = [];
-    $client = (new AgentRouterConnection(agentProxyHttp([$status, $login, $self, $logout], $history)))->connect([]);
     putenv('AGENTROUTER_PROXY=' . $proxy);
     putenv('AGENTROUTER_ORIGIN=' . $origin);
-    agentProxyCheck($client->login('fixture-user', 'fixture-password')['success'], 'Default direct connection failed');
-    foreach ($history as $entry) {
-        agentProxyCheck($entry['options']['proxy'] === '' && $entry['options']['curl'][CURLOPT_PROXY] === ''
-            && $entry['options']['curl'][CURLOPT_NOPROXY] === '*'
-            && $entry['request']->getUri()->getHost() === 'ps.air-outer.com',
-            'A connected session inherited a host proxy or followed a later configuration change');
-    }
+    $connection = new AgentRouterConnection(agentProxyHttp([], $history));
+    $result = (new AgentRouterTaskExecutor($connection->connect(...)))->execute('sign_in', $account);
+    agentProxyCheck(!$result['success'] && $history === [] && str_contains($result['message'], '站长尚未配置'),
+        'An unconfigured platform secretly used the inherited personal relay');
 } finally {
     foreach ($saved as $name => $value) {
         putenv($value === false ? $name : $name . '=' . $value);

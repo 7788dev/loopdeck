@@ -2,6 +2,8 @@
 
 FROM composer:2.10.2@sha256:629d4ef35e75349d452851637d37a40ac33a09d6ac010139020603d79713d9bf AS composer
 
+FROM metacubex/mihomo@sha256:4c2495d705f152897a58eac410350f243835fd01ce2fe44949a571faa824d532 AS agentrouter-relay
+
 FROM serversideup/php:8.2-fpm-nginx-alpine-v4.5.3@sha256:34caf4def01b667555cdebce6b7ff4acb997ae81f74e889290ff54af8f0e7e37 AS php-base
 
 ENV TZ=Asia/Shanghai \
@@ -42,6 +44,7 @@ ENV COMPOSER_ALLOW_SUPERUSER=1 \
 WORKDIR /app
 
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
+COPY --from=agentrouter-relay --chmod=0755 /mihomo /usr/local/bin/loopdeck-mihomo
 COPY composer.json composer.lock ./
 
 RUN --mount=type=cache,target=/tmp/composer/cache \
@@ -78,6 +81,7 @@ WORKDIR /var/www/html
 
 COPY --chown=82:82 . /var/www/html
 COPY --from=dependencies --chown=82:82 /app/vendor /var/www/html/vendor
+COPY --from=agentrouter-relay --chown=root:root --chmod=0755 /mihomo /usr/local/bin/loopdeck-mihomo
 # Operational commands are not web assets. Remove the copies brought in by
 # the broad application COPY before installing their private runtime paths.
 RUN rm -f /var/www/html/docker/auto-updater.php /var/www/html/docker/auto-updater.sh /var/www/html/docker/database-info.php \

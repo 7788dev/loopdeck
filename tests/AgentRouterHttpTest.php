@@ -18,15 +18,17 @@ $command = array_merge([PHP_BINARY], PHP_OS_FAMILY === 'Windows' ? ['-d', 'exten
     ['-S', $address, $root . '/tests/fixtures/webscan-router.php']);
 $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['file', $temporary . '/server.log', 'a'],
     2 => ['file', $temporary . '/server.log', 'a']], $pipes, $temporary,
-    array_replace(getenv(), ['LOOPDECK_WEBSCAN_TEST_DIRECTORY' => $temporary, 'LOOPDECK_AGENTROUTER_HTTP_TEST' => '1']));
+    array_replace(getenv(), ['LOOPDECK_WEBSCAN_TEST_DIRECTORY' => $temporary, 'LOOPDECK_AGENTROUTER_HTTP_TEST' => '1',
+        'LOOPDECK_AGENTROUTER_ADMIN_HTTP_TEST' => '1']));
 if (!is_resource($process)) {
     throw new RuntimeException('Cannot start the disposable AgentRouter HTTP fixture');
 }
 fclose($pipes[0]);
-$request = static function (string $path, ?string $body = null, string $type = 'application/x-www-form-urlencoded') use ($base): array {
+$request = static function (string $path, ?string $body = null, string $type = 'application/x-www-form-urlencoded', string $role = 'user') use ($base): array {
     $curl = curl_init($base . $path);
     curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10, CURLOPT_PROXY => '',
-        CURLOPT_HTTPHEADER => ['Content-Type: ' . $type, 'X-Requested-With: XMLHttpRequest', 'Origin: ' . $base, 'Expect:']]);
+        CURLOPT_HTTPHEADER => ['Content-Type: ' . $type, 'X-Requested-With: XMLHttpRequest', 'Origin: ' . $base,
+            'X-LoopDeck-Test-Role: ' . $role, 'Expect:']]);
     if ($body !== null) {
         curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body]);
     }
@@ -118,6 +120,42 @@ try {
         $blocked = $request($path, json_encode($body), 'application/json');
         $check($blocked['status'] === 403 && str_contains($blocked['body'], '输入内容存在危险字符'),
             'The credential exemption leaked to an unrelated route, operation or field: ' . $path);
+    }
+    $plugin = $request('/admin/system/set/plugin', null, 'application/x-www-form-urlencoded', 'admin');
+    $check($plugin['status'] === 200 && str_contains($plugin['body'], 'data-agentrouter-platform-form')
+        && !str_contains($plugin['body'], 'fixture-platform-secret') && !str_contains($plugin['body'], '127.0.0.1'),
+        'Administrator proxy settings did not render or exposed the saved endpoint');
+    $proxyCredentials = ['username' => 'fixture-user', 'password' => 'ordinary', 'proxy_mode' => 'custom',
+        'proxy_url' => 'http://proxy-user:Blue-sleep(3)-password@8.8.8.8:8080'];
+    foreach (['application/x-www-form-urlencoded', 'application/json'] as $type) {
+        $body = $type === 'application/json' ? json_encode($proxyCredentials) : http_build_query($proxyCredentials);
+        $saved = $request('/index/ajax/agentrouter/save', $body, $type);
+        $check($saved['status'] === 200 && ($saved['json']['code'] ?? 0) === 1,
+            'An AG account proxy credential was rejected by generic body rules');
+        foreach (['/admin/ajax/set/agentrouterProxy', '/index.php?s=/admin/ajax/set/agentrouterProxy',
+            '/admin/ajax/set/config/act/agentrouterProxy'] as $path) {
+            $input = ['kind' => 'proxy', 'source' => $proxyCredentials['proxy_url']];
+            $body = $type === 'application/json' ? json_encode($input) : http_build_query($input);
+            $saved = $request($path, $body, $type, 'admin');
+            $check($saved['status'] === 200 && ($saved['json']['code'] ?? 0) === 1
+                && !str_contains($saved['body'], 'Blue-sleep(3)-password'),
+                'Valid administrator proxy credentials or effective route binding failed: ' . $path);
+        }
+    }
+    foreach (['guest', 'user'] as $role) {
+        $denied = $request('/admin/system/set/plugin', null, 'application/x-www-form-urlencoded', $role);
+        $check(!str_contains($denied['body'], 'data-agentrouter-platform-form'), 'A non-admin could view platform configuration');
+        $denied = $request('/admin/ajax/set/agentrouterProxy', http_build_query(['kind' => 'proxy',
+            'source' => 'http://8.8.8.8:8080']), 'application/x-www-form-urlencoded', $role);
+        $check(($denied['json']['code'] ?? 0) !== 1, 'A non-admin could save platform configuration');
+    }
+    foreach ([['/admin/ajax/set/config', ['source' => 'sleep(3)']],
+        ['/admin/ajax/set/agentrouterProxy', ['kind' => 'proxy', 'source' => ['sleep(3)']]],
+        ['/admin/ajax/set/agentrouterProxy', ['kind' => 'proxy', 'source' => 'http://8.8.8.8:8080', 'extra' => 'sleep(3)']],
+        ['/index/ajax/agentrouter/timing', $proxyCredentials],
+        ['/index/ajax/agentrouter/save', ['username' => 'fixture-user', 'password' => 'ordinary', 'proxy_url' => ['sleep(3)']]]] as [$path, $body]) {
+        $blocked = $request($path, json_encode($body), 'application/json', 'admin');
+        $check($blocked['status'] === 403, 'Proxy credential exemption leaked to another route or nested field');
     }
     if ($failures !== []) {
         throw new RuntimeException(implode(PHP_EOL, $failures));

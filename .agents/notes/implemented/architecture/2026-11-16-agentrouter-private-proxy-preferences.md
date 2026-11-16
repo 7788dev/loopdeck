@@ -10,6 +10,7 @@ Status: implemented
 
 - [AgentRouterProxySettings](../../../../app/service/AgentRouterProxySettings.php) 在既有 `configs` 表保存两个 `agentrouter_private.*` JSON 记录，分别持有来源/官方域名与节点状态。共享 `sys` 加载忽略该前缀；普通配置写入拒绝该前缀（含大小写变体）。后台仅投影是否配置、类型、官方域名和节点名称/顺序/成功时间/失败天数，秘密输入留空保留，明确清除或更换来源时删除节点状态。没有数据库结构变更。
 - 用户 AG 账号保存 `proxy_mode=platform/custom`；自有代理仅接受公网 HTTP/SOCKS5，与 AnyRouter 的选择方式一致。AnyRouter 现有代理池保持原行为。未配置平台来源明确失败，不使用原 AG 环境变量、默认直连或公开免费列表。
+- 防护将有效 AG 保存操作的顶层 `proxy_url` 和管理员代理保存操作的顶层 `source` 作为凭据数据，URL 仍由业务严格验证。有效 `?s=`、控制器别名和路径覆盖按实际路由判断；其他操作、备注、额外字段及嵌套输入仍检查，普通用户仍经过管理员权限中间件。
 - [AgentRouterConnection](../../../../app/service/AgentRouterConnection.php) 先按已成功记录顺序匿名预检，再从站长订阅的旋转游标继续筛选。最多保存三个已完成登录及退出的节点，新记录加入尾部，满额淘汰尾部；已有成功记录不因日期更换而调序。失败首次保留并冷却十分钟，两个不同执行日失败后移除；同日重试不重复计数，恢复成功清零。来源指纹包含官方域名，配置改变不复用旧证明。
 - 一个安装级 `TaskExecutionLock` 覆盖平台主管选择、会话和状态写回，后台保存使用同一锁；不持有数据库事务跨网络。登录前可换候选，登录后的网络/WAF/429 标记失败并由统一调度的下一次有界重试切换，当前执行从不重放 POST。凭据错误不惩罚节点，余额读取失败仍保留已确认的签到。
 - [AgentRouterSubscription](../../../../app/service/AgentRouterSubscription.php) 使用锁定 Symfony YAML 6.4 安全解析 Clash、JSON 与普通/Base64 节点 URI，最多 1 MiB、200 个节点，每个节点最多 8 KiB。只保留协议白名单和受限传输字段，丢弃订阅规则、监听、远程提供器、脚本及本地文件路径。公共订阅与节点解析并固定 DNS 地址，TLS/SNI 和 WebSocket Host 保留，禁随重定向；只允许明确后台常规代理使用内网地址。

@@ -26,7 +26,8 @@ function webscan_auth_target(): array
     $first = explode('/', $route, 2)[0];
     // MultiApp removes an explicit application name before route parsing.
     $application = strpos($first, '.') ? strstr($first, '.', true) : $first;
-    if ($application === 'index') {
+    $administrator = $application === 'admin';
+    if ($application === 'index' || $administrator) {
         $route = explode('/', $route, 2)[1] ?? '';
     } elseif (is_dir(__DIR__ . '/../app/' . $application)) {
         return [];
@@ -48,7 +49,8 @@ function webscan_auth_target(): array
     $controller = strtolower(strip_tags(str_replace(' ', '', ucwords(str_replace(['-', '_'], ' ', $controller)))));
     $action = strtolower(strip_tags($parts[1] ?? ''));
     $argument = $parts[2] ?? '';
-    $namedOperation = $controller === 'ajax' && in_array($action, ['user', 'agentrouter'], true);
+    $namedOperation = $controller === 'ajax' && ($administrator ? $action === 'set'
+        : in_array($action, ['user', 'agentrouter'], true));
     if ($namedOperation || ($controller === 'agentrouter' && $action === 'handle')) {
         // Named AJAX routes bind [:act]; direct controller URLs bind act/save.
         // Extra path parameters override both, then Dispatch merges over GET.
@@ -58,13 +60,13 @@ function webscan_auth_target(): array
         }, implode('/', array_slice($parts, $namedOperation ? 3 : 2)));
         $argument = $parameters['act'] ?? ($_GET['act'] ?? '');
     }
-    return [$controller, $action, is_scalar($argument) ? (string)$argument : ''];
+    return [($administrator ? 'admin:' : '') . $controller, $action, is_scalar($argument) ? (string)$argument : ''];
 }
 
 /** Credentials are opaque data only on their audited authentication targets. */
 function webscan_opaque_post_field(string $key): bool
 {
-    if (!in_array($key, ['username', 'password', 'repass', 'outpass'], true)) {
+    if (!in_array($key, ['username', 'password', 'repass', 'outpass', 'proxy_url', 'source'], true)) {
         return false;
     }
     $target = webscan_auth_target();
@@ -72,15 +74,18 @@ function webscan_opaque_post_field(string $key): bool
         return false;
     }
     [$controller, $action, $argument] = $target;
+    if ($key === 'source') {
+        return $controller === 'admin:ajax' && $action === 'set' && $argument === 'agentrouterProxy';
+    }
     if ($controller === 'loginajax') {
         return in_array($action, $key === 'username' ? ['login', 'reg'] : ['login', 'reg', 'reset'], true);
     }
-    if (in_array($key, ['username', 'password'], true) && $argument === 'save'
+    if (in_array($key, ['username', 'password', 'proxy_url'], true) && $argument === 'save'
         && (($controller === 'ajax' && $action === 'agentrouter')
             || ($controller === 'agentrouter' && $action === 'handle'))) {
         return true;
     }
-    return $key !== 'username' && $controller === 'ajax' && $action === 'user'
+    return in_array($key, ['password', 'repass', 'outpass'], true) && $controller === 'ajax' && $action === 'user'
         && $argument === 'passWord';
 }
 

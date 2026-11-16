@@ -11,7 +11,7 @@
     <div class="form-group">
         <label for="agentrouter-password">密码</label>
         <input id="agentrouter-password" type="password" name="password" class="form-control" maxlength="2048" autocomplete="new-password" {if condition="empty($agentrouter_form.user_id)"}required{/if} placeholder="{if condition='!empty($agentrouter_form.password_configured)'}留空保留已保存的密码{else /}AgentRouter 登录密码{/if}">
-        <p class="help-block">系统通过服务器直连登录完成签到，密码仅用于登录，不会回显。</p>
+        <p class="help-block">系统每天重新登录完成签到，密码仅用于登录，不会回显。</p>
     </div>
     <button class="btn btn-primary" type="submit" data-busy-text="正在验证并保存…">{if condition="empty($agentrouter_form.user_id)"}验证并添加{else /}验证并保存{/if}</button>
 </form>

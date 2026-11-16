@@ -6,7 +6,7 @@
         <div class="ibox float-e-margins">
             <div class="ibox-title"><h5>{if condition="empty($agentrouter_form.user_id)"}添加账号{else /}更新账号{/if} - AgentRouter</h5></div>
             <div class="ibox-content">
-                <p class="text-muted">绑定后设置签到时间，系统每天会通过服务器直连重新登录签到，并在查询余额后退出登录。</p>
+                <p class="text-muted">绑定后设置签到时间，系统每天会重新登录签到，并在查询余额后退出登录。</p>
                 {include file="console/agentrouter/form" /}
             </div>
         </div>

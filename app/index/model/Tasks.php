@@ -30,7 +30,7 @@ class Tasks extends Model
             [
                 'type' => 'agentrouter',
                 'name' => '每日签到',
-                'describe' => '服务器直连登录即完成 AgentRouter 每日签到',
+                'describe' => '重新登录并退出完成 AgentRouter 每日签到',
                 'icon' => 'fa fa-sign-in',
                 'execute_name' => 'sign_in',
                 'execute_url' => null,

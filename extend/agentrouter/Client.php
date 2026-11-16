@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace agentrouter;
 
+use anyrouter\ProxyEndpoint;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
@@ -17,7 +18,7 @@ use Throwable;
  * AgentRouter speaks the new-api protocol. The daily check-in is triggered by
  * the login POST itself, so exactly one POST is sent per execution and the
  * balance is read in that session before logging out. Every execution creates
- * a fresh session. The site is reached directly; no proxy is involved.
+ * a fresh session. An explicitly configured proxy stays fixed for that session.
  */
 final class Client
 {
@@ -25,14 +26,22 @@ final class Client
     public const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36';
     private ClientInterface $http;
     private CookieJar $cookies;
+    private readonly string $proxy;
+    private readonly string $origin;
     private bool $loggedIn = false;
     private bool $ready = false;
     private string $apiUser = '';
     private array $secrets = [];
     private array $site = [];
 
-    public function __construct(?ClientInterface $http = null)
+    public function __construct(?ClientInterface $http = null, string $proxy = '', string $origin = self::ORIGIN)
     {
+        $this->proxy = trim($proxy) === '' ? '' : ProxyEndpoint::normalize($proxy, false);
+        $origin = rtrim(trim($origin), '/');
+        if (!in_array($origin, [self::ORIGIN, 'https://agentrouter.org'], true)) {
+            throw new InvalidArgumentException('AgentRouter 域名必须是官方 HTTPS 地址');
+        }
+        $this->origin = $origin;
         $this->http = $http ?? new HttpClient();
         $this->cookies = new CookieJar();
     }
@@ -83,7 +92,7 @@ final class Client
         $this->cookies->clear();
         $this->apiUser = '';
         $this->loggedIn = false;
-        $this->secrets = [$password];
+        $this->secrets = [$password, $this->proxy];
         $loggedOut = true;
         try {
             $result = $this->loginAndReadProfile($username, $password);
@@ -106,7 +115,7 @@ final class Client
 
     private function loginAndReadProfile(string $username, string $password): array
     {
-        $response = $this->http->request('POST', self::ORIGIN . '/api/user/login',
+        $response = $this->http->request('POST', $this->origin . '/api/user/login',
             $this->options(microtime(true) + 15) + ['json' => ['username' => $username, 'password' => $password]]);
         $text = (string)$response->getBody();
         if (stripos($text, 'aliyun_waf') !== false) {
@@ -148,7 +157,7 @@ final class Client
         try {
             $headers = $this->apiUser !== '' ? ['new-api-user' => $this->apiUser] : [];
             // Logout changes the session: send it once, without the read-only WAF retry loop.
-            $response = $this->http->request('GET', self::ORIGIN . '/api/user/logout',
+            $response = $this->http->request('GET', $this->origin . '/api/user/logout',
                 $this->options(microtime(true) + 15, $headers));
             $body = self::payload($response);
             return $response->getStatusCode() === 200 && ($body['success'] ?? null) === true;
@@ -189,7 +198,7 @@ final class Client
 
     private function getAsync(string $path, float $deadline, int $attempt = 0, array $extraHeaders = []): PromiseInterface
     {
-        return $this->http->requestAsync('GET', self::ORIGIN . $path, $this->options($deadline, $extraHeaders))->then(
+        return $this->http->requestAsync('GET', $this->origin . $path, $this->options($deadline, $extraHeaders))->then(
             function (ResponseInterface $response) use ($path, $deadline, $attempt, $extraHeaders) {
                 $body = (string)$response->getBody();
                 if (stripos($body, 'aliyun_waf') !== false && $attempt < 2 && microtime(true) < $deadline) {
@@ -204,11 +213,11 @@ final class Client
     {
         $remaining = max(0.05, $deadline - microtime(true));
         $headers = ['User-Agent' => self::USER_AGENT, 'Accept' => 'application/json',
-            'Content-Type' => 'application/json', 'Origin' => self::ORIGIN, 'Referer' => self::ORIGIN . '/console',
+            'Content-Type' => 'application/json', 'Origin' => $this->origin, 'Referer' => $this->origin . '/console',
             'X-Requested-With' => 'XMLHttpRequest'] + $extraHeaders;
         return ['headers' => $headers, 'cookies' => $this->cookies,
-            // Direct connection: explicitly defeat ALL_PROXY / NO_PROXY on the host.
-            'proxy' => '', 'curl' => [CURLOPT_PROXY => '', CURLOPT_NOPROXY => '*'],
+            // Snapshot one explicit exit, overriding both host proxies and bypass lists.
+            'proxy' => $this->proxy, 'curl' => [CURLOPT_PROXY => $this->proxy, CURLOPT_NOPROXY => $this->proxy === '' ? '*' : ''],
             'verify' => true, 'http_errors' => false, 'allow_redirects' => false,
             'connect_timeout' => min(2.5, $remaining), 'timeout' => min(8.0, $remaining),
             'progress' => static function ($total, $downloaded): void {

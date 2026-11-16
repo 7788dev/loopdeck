@@ -35,7 +35,7 @@ $variables = [
     'agentrouter_form' => ['user_id' => '', 'nickname' => '', 'password_configured' => false],
     'agentrouter_info' => app\service\AgentRouterAccountInfo::present([], '', 'fixture-user'),
     'agentrouter_state' => 1, 'agentrouter_job' => ['enabled' => false, 'available' => true, 'last' => '尚未执行', 'next' => '',
-        'name' => '每日签到', 'description' => '服务器直连登录即完成 AgentRouter 每日签到'],
+        'name' => '每日签到', 'description' => '重新登录并退出完成 AgentRouter 每日签到'],
     'data' => ['user_id' => '42', 'state' => 1, 'timing' => '', 'uid' => 1],
     'a_data' => ['user_id' => '42', 'mid' => '42', 'nickname' => '测试用户', 'avatar' => ''],
     'details' => ['level_now' => 1, 'level_next' => 2, 'listenSongs' => 0, 'listennum' => 0, 'loginnum' => 0],
@@ -129,7 +129,7 @@ try {
                             'quota' => 62500000.0, 'used_quota' => 1750000.0, 'quota_per_unit' => 500000.0,
                             'display_in_currency' => true, 'request_count' => 321, 'group' => 'default'], '日常使用', 'fixture-user'),
                         'agentrouter_job' => ['enabled' => true, 'available' => true, 'last' => '2026-11-16 09:00:00', 'next' => '2026-11-17 09:00:00',
-                            'name' => '每日签到', 'description' => '服务器直连登录即完成 AgentRouter 每日签到'],
+                            'name' => '每日签到', 'description' => '重新登录并退出完成 AgentRouter 每日签到'],
                         'timing' => '09:00'];
                 }
                 $engine->fetch($populatedViewPath . $relative, array_replace($variables, $populated));

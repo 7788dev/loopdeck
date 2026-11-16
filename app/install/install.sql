@@ -121,7 +121,7 @@ INSERT INTO `cloud_tasks` (`id`, `type`, `name`, `describe`, `icon`, `execute_na
                                                                                                                                                                  (21, 'bilibili', '大会员每日经验', '按官方协议领取大会员每日经验，非大会员安全跳过', 'si si-diamond', 'vipexperience', NULL, '86400', 0, 1, 0, '2026-08-02 00:00:00', 3),
                                                                                                                                                                  (22, 'bilibili', '大会员积分任务', '积分签到与可领取福利，积分用于兑换权益，不计入等级经验', 'si si-present', 'vippoints', NULL, '86400', 0, 1, 0, '2026-11-11 00:00:00', 5),
                                                                                                                                                                  (23, 'anyrouter', '每日签到', '通过代理完成 AnyRouter 签到', 'fa fa-calendar-check-o', 'sign_in', NULL, '86400', 0, 1, 1, '2026-11-12 00:00:00', 1),
-                                                                                                                                                                 (24, 'agentrouter', '每日签到', '服务器直连登录即完成 AgentRouter 每日签到', 'fa fa-sign-in', 'sign_in', NULL, '86400', 0, 1, 1, '2026-11-16 00:00:00', 1);
+                                                                                                                                                                 (24, 'agentrouter', '每日签到', '重新登录并退出完成 AgentRouter 每日签到', 'fa fa-sign-in', 'sign_in', NULL, '86400', 0, 1, 1, '2026-11-16 00:00:00', 1);
 
 CREATE TABLE `cloud_task_logs` (
                                    `id` int(11) NOT NULL,

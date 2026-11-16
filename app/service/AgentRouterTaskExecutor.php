@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace app\service;
 
-use agentrouter\Client;
 use Closure;
 use Throwable;
 
@@ -14,13 +13,7 @@ final class AgentRouterTaskExecutor
 
     public function __construct(?Closure $connector = null)
     {
-        $this->connector = $connector ?? static function (array $account): Client {
-            $client = new Client();
-            if (!$client->probeAsync(microtime(true) + 12)->wait()) {
-                throw new \RuntimeException('暂时无法访问 AgentRouter，请稍后重试');
-            }
-            return $client;
-        };
+        $this->connector = $connector ?? (new AgentRouterConnection())->connect(...);
     }
 
     public function validateAccount(array $account): array
@@ -93,8 +86,11 @@ final class AgentRouterTaskExecutor
     private function connectionReason(Throwable $exception): string
     {
         // Do not forward HTTP client exceptions: they can contain the account password.
-        if ($exception::class === \RuntimeException::class
-            && $exception->getMessage() === '暂时无法访问 AgentRouter，请稍后重试') {
+        if ($exception::class === \RuntimeException::class && in_array($exception->getMessage(), [
+            '暂时无法访问 AgentRouter，请稍后重试',
+            'AgentRouter 连接配置无效，请管理员检查代理和域名',
+            'AgentRouter 代理暂时无法解析，请稍后重试',
+        ], true)) {
             return $exception->getMessage();
         }
         return '连接 AgentRouter 失败，请稍后重试';

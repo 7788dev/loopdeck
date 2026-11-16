@@ -10,6 +10,8 @@ PHP 依赖由根目录的 `composer.json` 声明、由 `composer.lock` 精确锁
 
 AnyRouter 的平台代理默认自动筛选公开列表，无需安装浏览器或代理守护进程。可在 `.env` 设置 `ANYROUTER_PLATFORM_PROXY` 为固定 HTTP / SOCKS5 代理（如 `http://代理主机:端口`），由 Compose 传给应用。宿主机代理地址需要能从容器访问，容器中的 `127.0.0.1` 指向容器自身。未配置固定出口时，代理源与已验证候选缓存在应用运行目录；列表下载支持 GitHub 原站与内容镜像，账号 Cookie 仅发送给通过 TLS 验证的 AnyRouter。
 
+AgentRouter 默认直连，受网络限制时可在 `.env` 设置 `AGENTROUTER_PROXY` 为固定 HTTP / SOCKS5 出口。`AGENTROUTER_ORIGIN` 默认是 `https://ps.air-outer.com`，也可使用官方主域名 `https://agentrouter.org`，其他域名会被拒绝。代理必须能从应用容器访问；订阅链接需要先通过独立代理服务转换为 HTTP / SOCKS5 地址，不能直接填入该变量。每次执行先匿名检查连通性，再沿用相同出口完成一次登录、余额查询和退出；网络失败走有界重试，不在同一次执行里更换出口或重放登录。TLS 校验始终开启，代理认证和订阅内容只保存在服务器，不能提交到 Git。
+
 ## 首次启动
 
 需要 Docker Engine 和 **Docker Compose 2.20.0 或更新版本**。完整安装步骤、外部 MySQL 配置和 Agent 验收要求见 [部署指南](docs/DEPLOYMENT.md)。

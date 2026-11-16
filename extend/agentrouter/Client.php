@@ -169,7 +169,8 @@ final class Client
     /** Read-only balance/profile lookup using the login session and user id. */
     private function fetchProfile(array $loginData, string $username, string $accessToken): array
     {
-        $data = $loginData;
+        // Login can contain zero placeholders; metrics require a confirmed /self read.
+        $data = array_replace($loginData, ['quota' => null, 'used_quota' => null, 'request_count' => null]);
         try {
             $headers = ['new-api-user' => $this->apiUser];
             if ($accessToken !== '') {
@@ -178,10 +179,10 @@ final class Client
             $response = $this->getAsync('/api/user/self', microtime(true) + 15, 0, $headers)->wait();
             $body = self::payload($response);
             if ($response->getStatusCode() === 200 && ($body['success'] ?? null) === true && is_array($body['data'] ?? null)) {
-                $data = array_replace($loginData, $body['data']);
+                $data = array_replace($data, $body['data']);
             }
         } catch (Throwable $exception) {
-            // The check-in already succeeded; keep whatever the login response provided.
+            // The check-in already succeeded; retain identity and leave unread metrics unknown.
         }
         $name = self::profileText($data['display_name'] ?? '') ?: (self::profileText($data['username'] ?? '') ?: $username);
         $unit = self::number($this->site['quota_per_unit'] ?? null);

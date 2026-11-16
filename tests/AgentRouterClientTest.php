@@ -94,6 +94,39 @@ $partial = $client->login($credentials['username'], $credentials['password']);
 agentCheck($partial['success'] && ($partial['profile']['quota'] ?? null) === null,
     'Balance failure revoked the check-in or invented a balance');
 
+// Live login responses contain zero placeholders even for a funded account.
+// Only a confirmed /self response can supply balance and usage metrics.
+$placeholderLogin = agentJson(['success' => true, 'data' => ['id' => 42, 'checked_in' => true,
+    'quota' => 0, 'used_quota' => 0, 'request_count' => 0]])
+    ->withHeader('Set-Cookie', 'session=fixture-session; Path=/; Secure; HttpOnly');
+foreach ([
+    [new Response(500, [], 'down')],
+    array_fill(0, 3, new Response(200, [], '<html>aliyun_waf block</html>')),
+    [agentJson(['success' => true, 'data' => ['id' => 42]])],
+] as $failedBalance) {
+    $history = [];
+    $client = agentClient(array_merge([$probe, $placeholderLogin], $failedBalance), $history);
+    $client->probeAsync(microtime(true) + 5)->wait();
+    $result = $client->login($credentials['username'], $credentials['password']);
+    $card = AgentRouterAccountInfo::present($result['profile'], '', 'fixture-user');
+    agentCheck($result['success'] && $result['profile']['quota'] === null
+        && $result['profile']['used_quota'] === null && $result['profile']['request_count'] === null
+        && $card['balance'] === '暂不可用' && $card['used'] === '暂不可用' && $card['requests'] === '暂不可用',
+        'Unconfirmed balance lookup displayed login placeholders as real zero metrics');
+    agentCheck(count(array_filter($history, static fn($entry) => $entry['request']->getMethod() === 'POST')) === 1
+        && end($history)['request']->getUri()->getPath() === '/api/user/logout',
+        'Display-only balance failure replayed the login or skipped logout');
+}
+
+$history = [];
+$client = agentClient([$probe, $placeholderLogin, agentJson(['success' => true,
+    'data' => ['id' => 42, 'quota' => 0, 'used_quota' => 0, 'request_count' => 0]])], $history);
+$client->probeAsync(microtime(true) + 5)->wait();
+$result = $client->login($credentials['username'], $credentials['password']);
+$card = AgentRouterAccountInfo::present($result['profile'], '', 'fixture-user');
+agentCheck($card['balance'] === '$0.00' && $card['used'] === '$0.00' && $card['requests'] === '0',
+    'Confirmed zero metrics must remain usable');
+
 // Result classification through the executor.
 foreach ([
     [agentJson(['success' => false, 'message' => '用户名或密码错误']), false, true, false],

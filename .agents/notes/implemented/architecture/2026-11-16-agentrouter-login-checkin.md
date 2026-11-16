@@ -13,6 +13,7 @@ Status: implemented
 - 新增独立平台 `agentrouter`，镜像 AnyRouter 的账号/任务/调度/通知/配额机制，但 SDK 与服务层独立（`extend/agentrouter/Client.php`、`app/service/AgentRouter{TaskExecutor,AccountInfo}.php`）。
 - **登录即签到**：每次执行恰好一个 `POST /api/user/login`（JSON `{username,password}`），随后用同会话 Cookie 与 `New-API-User` 请求只读 `GET /api/user/self` 查余额；存在 `access_token` 时才附 `Authorization`。`checked_in=true` 是「新签到」，false 是「今日已签到」。绝不虚构独立签到接口，绝不重放登录 POST。
 - **每日独立会话**：Client 使用内存 Cookie jar，每次登录前清空旧会话；确认登录成功后，无论余额读取成功与否，都在 `finally` 中发送一次 `GET /api/user/logout`，随后清空 Cookie 与用户 ID。退出会改变会话，不经过只读 WAF 重试循环；退出未确认时按有界重试处理，不能标记整个登录/退出流程完成。余额读取失败仍保留已确认签到，下一次执行始终重新登录。
+- **余额来源**：登录响应可携带额度、已用额度和请求数的零占位值，实测余额接口被网站验证阻断时会暴露该问题。这三项指标仅使用成功的 `/self` 响应；请求失败或缺少指标时显示「暂不可用」，不能从登录响应补零。成功查询确认的零值仍正常显示，身份字段可继续来自登录响应。
 - **固定出口**：`AgentRouterConnection` 从部署环境读取 `AGENTROUTER_PROXY`，默认留空直连；固定 HTTP / SOCKS5 代理由管理员配置，主机只解析一次，Client 将代理与域名保存为只读属性。匿名 `/api/status` 预检、登录、余额和退出使用同一出口；不自动筛选代理，不在执行中切换或回落直连。请求显式设置 `proxy`、`CURLOPT_PROXY` 和 `CURLOPT_NOPROXY`，击败宿主 `ALL_PROXY`/`NO_PROXY`；直连 bypass 为 `*`，代理 bypass 为空。TLS 校验开启、禁跟随跳转、响应体上限 1 MiB。
 - **官方域名与部署边界**：`AGENTROUTER_ORIGIN` 仅接受 `https://ps.air-outer.com`（默认）和 `https://agentrouter.org`，不能把凭据发送给任意地址。代理配置仅来自部署环境，不增加账号页面代理字段。订阅在服务器通过独立代理服务转换为 HTTP / SOCKS5 地址，内容不进入仓库、页面或错误日志；基础镜像和 Compose 不内置订阅解析器或新增代理服务。
 - **详情页只读**：因为登录就是签到，账号详情页/更新页**绝不登录**，只展示上次调度成功时写回的资料（`Task::storeAgentRouterProfile` 在成功后重新读取最新账号 payload、仅合并 `profile` 再写回，保留凭据）。余额文案注明「最近一次签到时记录」。保存账号是用户显式动作，验证时登录一次（可能提前完成当日签到）是可接受的。
@@ -30,6 +31,7 @@ Status: implemented
 - 详情页实时登录取余额：登录即签到，会在调度之外触发签到并违反「页面访问只读」原则，输在副作用。
 - 调用独立 `/api/user/sign_in`：AgentRouter 无此接口（AnyRouter 才有），虚构接口会失败，输在不存在的协议。
 - 仅依靠可选 `access_token` 读取余额：原脚本接受仅返回用户 ID 与会话 Cookie 的登录响应，缺少 Cookie 会使成功签到后的余额请求被判未登录。
+- 余额读取失败时回退到登录响应的指标：登录可返回零占位值，未确认的余额会被误报为 `$0.00`；仅保留身份与已确认签到，把指标标为未知。
 - 复用昨天的会话或只清本地 Cookie：无法完成用户要求的登录/退出流程；成功登录后须主动退出，退出未确认不能假报整个流程完成。
 - 退出失败时重放登录 POST 或无限重试：重复提交每日签到且无法收敛，退出只尝试一次，后续沿用统一有界调度重试。
 - 调度成功后不写回余额：详情页将无法展示任何余额（又不能登录），输在可用性。

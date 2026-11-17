@@ -42,7 +42,7 @@
 - 日志区分已签到、签到完成、Cookie 失效和网络故障。网络故障默认 5 分钟后重试，沿用 `SCHEDULER_MAX_RETRIES` 上限，耗尽后停用任务；HTTP 200、网页中的 success 字样均不代表签到成功。选择自有代理时失败不会自动切换出口。
 - 站长在「系统设置 → 功能插件设置 → AnyRouter 平台代理」选择内置代理池、自己的订阅链接或常规 HTTP / SOCKS5 代理。内置列表地址分别按 HTTP / SOCKS5 展示，每行一个，可以修改、更新和恢复。订阅支持 Clash 与常见节点格式，镜像复用已有的短期转发组件，认证和签到使用同一出口，结束后清理。普通用户仍选择「平台代理 / 提供代理」，平台代理采用站长选择的来源；私人订阅和认证不向普通用户显示。
 - 公共代理有时效性，自动筛选不保证每轮都有可用节点。来源变更后重新筛选，指定订阅或常规代理失败不会回退到公开池。旧 `ANYROUTER_PLATFORM_PROXY` 仅兼容后台尚未保存配置的部署，保存后以后台为准。AnyRouter 的实际领取间隔由网站决定，已签到只表示上游确认重复，不推算奖励金额。
-- ANY 和 AG 的每日计划由 `/cron/task` 统一调度，Docker 默认每分钟扫描到期任务。首次设置通常从次日开始，按北京时间与当天稳定的随机延迟执行；当天需要运行可「申请补挂」。不开网页也会执行，前提是调度器运行、时间已保存、任务已开启且本站会员有效。后台「任务监控列表」同时说明统一任务与通知投递入口。
+- ANY 和 AG 的每日计划由 `/cron/task` 统一调度，Docker 默认每分钟扫描到期任务，按北京时间与当天稳定的随机延迟执行。AG 首次计划当天生效，时间已过则立即排队，执行后按次日计划运行；ANY 首次设置通常从次日开始，当天需要运行可「申请补挂」。不开网页也会执行，前提是调度器运行、时间已保存、任务已开启且本站会员有效。后台「任务监控列表」同时说明统一任务与通知投递入口。
 - 离线验证：`php tests/AnyRouterClientTest.php`、`php tests/AnyRouterProxyPoolTest.php`、`php tests/AnyRouterProxySettingsTest.php`、`php tests/AnyRouterPlatformProxyTest.php`、`php tests/AnyRouterHttpTest.php`、`php tests/AnyRouterWorkflowTest.php`。显式只读在线检查：`php tests/AnyRouterLiveSmoke.php`；检查默认内置池，不读取账号或站长私有配置，不提交签到，不输出代理地址。
 
 ## AgentRouter 签到

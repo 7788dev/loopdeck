@@ -106,6 +106,12 @@ final class TaskMessage
         return implode('，', $fragments);
     }
 
+    /** Amount granted by a newly confirmed check-in, independent of account balance changes. */
+    public static function checkInReward(float $amountUsd): string
+    {
+        return '本次签到获得 $' . number_format($amountUsd, 2, '.', ',') . ' 额度';
+    }
+
     /**
      * 独立子任务结果之间的拼接（网易云云贝/VIP 成长这类聚合任务）。
      *

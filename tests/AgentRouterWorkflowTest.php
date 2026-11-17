@@ -171,7 +171,9 @@ $summary = array_fill_keys(['attempted', 'succeeded', 'failed', 'disabled', 'inv
 $run->invokeArgs($scheduler, [$selected[0], &$summary]);
 functionalCheck($summary['succeeded'] === 1, 'Scheduled check-in did not complete');
 functionalCheck(Db::name('jobs')->value('nextExecute') > time() + 3600, 'Successful run did not advance schedule');
-functionalCheck(str_starts_with(Db::name('task_logs')->value('response'), '[成功] 签到已完成'), 'Task log helper prefix lost');
+$expectedDetail = '本次签到获得 $25.00 额度';
+functionalCheck(Db::name('task_logs')->value('response') === '[成功] ' . $expectedDetail,
+    'Scheduler log lost its success prefix or omitted the sign-in reward');
 $refreshed = safe_unserialize_array((string)Db::name('accounts')->value('data'));
 functionalCheck(($refreshed['profile']['quota'] ?? null) === 75000000.0 && $refreshed['password'] === 'fixture-private-password',
     'Scheduler did not refresh the stored balance or clobbered credentials');
@@ -181,6 +183,8 @@ functionalCheck(count($logs) === 1 && isset($logs[0]['id'], $logs[0]['do'], $log
     'Shared log table is missing account task fields');
 functionalCheck(count($notificationStore->tasks) === 1 && reset($notificationStore->tasks)['status'] === '成功',
     'Check-in did not reach notification overview');
+functionalCheck(reset($notificationStore->tasks)['message'] === $expectedDetail,
+    'Notification overview did not receive the same sign-in reward as the task log');
 functionalCheck(TaskExecutionLock::acquire($lock), 'Scheduler leaked task execution lock');
 TaskExecutionLock::release($lock);
 

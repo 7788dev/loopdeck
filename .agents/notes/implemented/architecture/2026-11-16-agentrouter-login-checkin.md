@@ -14,6 +14,7 @@ Status: implemented
 - **登录即签到**：每次执行恰好一个 `POST /api/user/login`（JSON `{username,password}`），随后用同会话 Cookie 与 `New-API-User` 请求只读 `GET /api/user/self` 查余额；存在 `access_token` 时才附 `Authorization`。`checked_in=true` 是「新签到」，false 是「今日已签到」。绝不虚构独立签到接口，绝不重放登录 POST。
 - **每日独立会话**：Client 使用内存 Cookie jar，每次登录前清空旧会话；确认登录成功后，无论余额读取成功与否，都在 `finally` 中发送一次 `GET /api/user/logout`，随后清空 Cookie 与用户 ID。退出会改变会话，不经过只读 WAF 重试循环；退出未确认时按有界重试处理，不能标记整个登录/退出流程完成。余额读取失败仍保留已确认签到，下一次执行始终重新登录。
 - **余额来源**：登录响应可携带额度、已用额度和请求数的零占位值，实测余额接口被网站验证阻断时会暴露该问题。这三项指标仅使用成功的 `/self` 响应；请求失败或缺少指标时显示「暂不可用」，不能从登录响应补零。成功查询确认的零值仍正常显示，身份字段可继续来自登录响应。
+- **奖励日志**：2026-11-17 再次匿名读取官方 `/api/status`，FAQ 明确「每天签到得＄25」。成功完成登录/退出且 `checked_in=true` 时，执行器按这条站点规则通过 `TaskMessage::checkInReward()` 输出「本次签到获得 $25.00 额度」；今日已签到保留原提示，失败/重试不报获得额度。奖励不从余额差额推算，也不填入未知余额；站点奖励规则变化时须同步更新执行器的 `DAILY_REWARD_USD`。
 - **固定会话出口**：匿名预检后，Client 将代理与官方域名保存为只读属性，登录、余额和退出使用同一出口。请求显式覆盖宿主代理与 bypass，TLS 校验开启、禁跟随跳转、响应体上限 1 MiB。站长配置位置、账号平台代理/自有选择、订阅转换与节点记录已由[私有代理决策](2026-11-16-agentrouter-private-proxy-preferences.md)替代早期部署环境方案。
 - **官方域名**：仅接受 `https://ps.air-outer.com`（默认）和 `https://agentrouter.org`，不能把凭据发送给任意地址；注册网址使用用户指定的 AFF 链接。
 - **详情页只读**：因为登录就是签到，账号详情页/更新页**绝不登录**，只展示上次调度成功时写回的资料（`Task::storeAgentRouterProfile` 在成功后重新读取最新账号 payload、仅合并 `profile` 再写回，保留凭据）。余额文案注明「最近一次签到时记录」。保存账号是用户显式动作，验证时登录一次（可能提前完成当日签到）是可接受的。
@@ -33,6 +34,7 @@ Status: implemented
 - 调用独立 `/api/user/sign_in`：AgentRouter 无此接口（AnyRouter 才有），虚构接口会失败，输在不存在的协议。
 - 仅依靠可选 `access_token` 读取余额：原脚本接受仅返回用户 ID 与会话 Cookie 的登录响应，缺少 Cookie 会使成功签到后的余额请求被判未登录。
 - 余额读取失败时回退到登录响应的指标：登录可返回零占位值，未确认的余额会被误报为 `$0.00`；仅保留身份与已确认签到，把指标标为未知。
+- 把两次余额记录之差当成签到奖励：期间可能有消耗、邀请赠额或官方发放，且首次没有旧余额，不能准确归因；签到日志使用官方每日奖励规则和本次新签到确认，余额仍独立保存。
 - 复用昨天的会话或只清本地 Cookie：无法完成用户要求的登录/退出流程；成功登录后须主动退出，退出未确认不能假报整个流程完成。
 - 退出失败时重放登录 POST 或无限重试：重复提交每日签到且无法收敛，退出只尝试一次，后续沿用统一有界调度重试。
 - 调度成功后不写回余额：详情页将无法展示任何余额（又不能登录），输在可用性。
@@ -41,6 +43,7 @@ Status: implemented
 
 - 新增 `tests/AgentRouterClientTest.php`（离线伪 HTTP：单次 POST、直连隔离、凭据脱敏、结果分类、重试上限）与 `tests/AgentRouterWorkflowTest.php`（fixture 全流程：保存登录、详情页只读不改凭据、调度写回余额、租户隔离、配额、控件、失效/VIP/删除）。`TemplateRenderingTest` 纳入 agentrouter 列表/详情渲染。
 - `tests/AgentRouterSessionTest.php` 在执行请求的 HTTP handler 中校验 Cookie、用户 ID、重新登录与退出顺序，以及余额/退出失败后的会话清理；`tests/AgentRouterHttpTest.php` 通过真实隔离 HTTP 与框架分发验证账号页面、邮箱和特殊用户名、合法表单/JSON 密码及凭据豁免边界。两项测试均先复现失败，再重放验证修复。
+- `tests/AgentRouterRewardLogTest.php` 用真实 SDK 与伪 HTTP 验证新签到奖励、重复签到、余额消耗/其他赠额、余额未知与失败路径，确认不增加请求、不把奖励填成余额；`AgentRouterWorkflowTest` 验证调度日志与通知使用同一奖励文案。
 - `tests/AgentRouterProxyTest.php` 验证固定出口、宿主代理与 bypass 隔离、官方域名限制、WAF 不重放 POST、保存/调度两入口一致与连接后配置快照。原有 AG 环境变量与默认直连已撤销，由后台私有配置及账号选择替代。
 - 详情页余额最多滞后到下次签到；这是「页面不触发签到」的必然取舍。
 - `storeAgentRouterProfile` 是展示型写回：重新读取最新 payload 仅合并 profile，best-effort，不影响已完成的签到，也不覆盖凭据。

@@ -10,6 +10,9 @@ use Throwable;
 
 final class AgentRouterTaskExecutor
 {
+    /** AgentRouter's public FAQ specifies a $25 daily grant; balance differences are not rewards. */
+    private const DAILY_REWARD_USD = 25.0;
+
     private Closure $connector;
 
     public function __construct(?Closure $connector = null)
@@ -56,9 +59,9 @@ final class AgentRouterTaskExecutor
             $retry = !$exhausted;
             $data = $retryData ?? $data;
         }
-        $message = TaskMessage::compose([['label' => '签到', 'status' => $success
-            ? (!empty($outcome['already']) ? TaskMessage::ALREADY : TaskMessage::DONE) : TaskMessage::FAILED,
-            'retry' => $retry]]);
+        $status = $success ? (!empty($outcome['already']) ? TaskMessage::ALREADY : TaskMessage::DONE) : TaskMessage::FAILED;
+        $message = TaskMessage::compose([['label' => '签到', 'status' => $status, 'retry' => $retry,
+            'text' => $status === TaskMessage::DONE ? TaskMessage::checkInReward(self::DAILY_REWARD_USD) : null]]);
         if (!$success) {
             $message = TaskMessage::join([$message, (string)($outcome['reason'] ?? '网站未返回有效结果'),
                 $exhausted ? SchedulerRetry::finalMessage(SchedulerRetry::attemptsIn($config) + 1) : '']);

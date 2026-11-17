@@ -54,7 +54,8 @@
 - 账号详情页与更新页只读，不会登录（登录即签到，避免在调度之外触发签到）。详情页展示最近一次签到成功时记录的用户名、余额、累计消耗、请求次数及账号分组；余额按站点额度单位（500000 额度 = 1 美元）换算，读取失败显示暂不可用。调度成功后自动写回最新余额。
 - 保存账号时会登录验证并退出一次（可能提前完成当日签到）。设置每日时间并启用任务后自动运行；「申请补挂」加入统一调度队列，仍遵守任务锁、VIP 权益与冷却时间。
 - 日志区分已签到、签到完成、凭据失效和网络故障。用户名或密码错误会停用账号并提示更新凭据；网络、网站验证故障或退出登录未确认时默认 5 分钟后重试，沿用 `SCHEDULER_MAX_RETRIES` 上限，耗尽后停用任务。余额查询失败不会推翻已确认的签到结果。HTTP 200 或网页中的 success 字样均不代表签到成功。
-- 离线验证：`php tests/AgentRouterClientTest.php`、`php tests/AgentRouterWorkflowTest.php`、`php tests/AgentRouterSessionTest.php`、`php tests/AgentRouterHttpTest.php`、`php tests/AgentRouterPlatformProxyTest.php`、`php tests/AgentRouterProxySettingsTest.php`、`php tests/AgentRouterSubscriptionTest.php`；Linux 镜像还实际启动并清理代理进程运行 `AgentRouterRelayTest.php`。
+- 新签到成功时，日志和通知显示「本次签到获得 $25.00 额度」，金额依据 AG 官方 FAQ 当前的每日奖励规则；重复签到显示「今日已签到」，失败或退出未确认不报获得额度。签到奖励与余额分别处理，不用余额差额推算奖励，余额查询失败仍将余额标为未知。
+- 离线验证：`php tests/AgentRouterClientTest.php`、`php tests/AgentRouterWorkflowTest.php`、`php tests/AgentRouterRewardLogTest.php`、`php tests/AgentRouterSessionTest.php`、`php tests/AgentRouterHttpTest.php`、`php tests/AgentRouterPlatformProxyTest.php`、`php tests/AgentRouterProxySettingsTest.php`、`php tests/AgentRouterSubscriptionTest.php`；Linux 镜像还实际启动并清理代理进程运行 `AgentRouterRelayTest.php`。
 
 ## 网易云每日300首说明
 

@@ -29,6 +29,7 @@
                         <a href="javascript:void(0)" data-agentrouter-action="timing" data-timing="{$timing}">设置</a>
                     </small></div>
                     <div style="margin-top: 5px;"><small class="text-muted">未设置挂机时间时，系统不会自动执行任务。</small></div>
+                    <div style="margin-top: 5px;"><small class="text-muted">首次计划当天生效，设定时间已过则立即排队。</small></div>
                     <button type="button" class="btn btn-sm btn-primary" style="margin-top: 10px;" data-agentrouter-action="retry" {if condition="empty($timing) || empty($agentrouter_job.enabled) || empty($agentrouter_job.available) || $agentrouter_state neq 1"}disabled{/if}><i class="fa fa-bolt"></i>申请补挂</button>
                 </div>
             </div>

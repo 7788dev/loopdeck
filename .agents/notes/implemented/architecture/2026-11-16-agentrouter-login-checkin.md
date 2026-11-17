@@ -21,6 +21,7 @@ Status: implemented
 - 账号页面和 AJAX 操作通过显式路由分发；用户名在链接中编码，路径参数只解码一次，PHP 已解析的 GET 与 `?s=` 参数不重复解码，保留字面 `%`。防火墙仅对有效 `save` 操作的顶层 `username/password` 按凭据处理，备注、嵌套值及其他字段继续检查，不能因合法密码含 `sleep(3)` 而拒绝保存。
 - WAF：响应含 `aliyun_waf` 判为可重试，不实现交互验证码求解。凭据错误（401 或「用户名或密码错误」等）判 `account_invalid`，停用账号；网络/WAF/5xx 与无效的部署代理配置走有界重试。HTTP 异常和代理认证内容不转发给用户。
 - 任务 `sign_in` 为 VIP 功能，纳入既有「VIP 功能」导航组；接入统一调度的 `TaskExecutionLock`、claim/release、`SchedulerRetry` 上限与跨平台账号配额、256 锁池绑定。
+- 首次计划与恢复入口的日期规则见[首次计划决策](2026-11-17-agentrouter-first-day-schedule.md)，签到协议和成功后的每日循环保持上述约束。
 
 ## Alternatives considered
 

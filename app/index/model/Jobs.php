@@ -3,6 +3,7 @@ declare (strict_types=1);
 
 namespace app\index\model;
 
+use app\service\AgentRouterTaskExecutor;
 use app\service\AutomaticSchedule;
 use app\service\BilibiliTaskExecutor;
 use app\service\SchedulerRetry;
@@ -466,6 +467,15 @@ class Jobs extends Model
             ->where('user_id', $userId)
             ->where('uid', $uid)
             ->value('timing');
+
+        if ($type === 'agentrouter') {
+            $job = self::getJobInfo($type, $userId, 'sign_in', $uid);
+            return AgentRouterTaskExecutor::nextConfiguredExecution(
+                $userId,
+                is_string($timing) ? $timing : null,
+                $job ? $job->toArray() : []
+            );
+        }
 
         return AutomaticSchedule::nextExecution(
             $type,

@@ -41,7 +41,7 @@ foreach (['anyrouter', 'agentrouter'] as $platform) {
         [$hour, $minute] = array_map('intval', explode(':', $timing));
         automaticScheduleCheck(AutomaticSchedule::nextExecution($platform, '42', $timing, $now->getTimestamp())
             === $now->modify('+1 day')->setTime($hour, $minute)->getTimestamp(),
-            'A new platform did not preserve the next-day daily schedule: ' . $platform);
+            'A recurring platform task did not preserve the next-day daily schedule: ' . $platform);
     }
     automaticScheduleCheck(AutomaticSchedule::nextExecution($platform, '42', '', $now->getTimestamp()) === null,
         'A new platform without a saved time was automatically scheduled: ' . $platform);

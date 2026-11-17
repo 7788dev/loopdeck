@@ -67,7 +67,7 @@ class Agentrouter
                 if ($timing !== '' && !AutomaticSchedule::isConfigured($timing)) {
                     return resultJson(0, '请输入有效时间，格式为 HH:MM');
                 }
-                $next = AutomaticSchedule::nextExecution('agentrouter', $userId, $timing) ?? 0;
+                $next = AgentRouterTaskExecutor::nextConfiguredExecution($userId, $timing, $job->toArray(), $this->scheduleNow());
                 Db::transaction(static function () use ($account, $job, $timing, $next): void {
                     $account->save(['timing' => $timing !== '' ? $timing : null]);
                     $job->save(['nextExecute' => $next]);
@@ -88,7 +88,7 @@ class Agentrouter
             }
             if ($act === 'toggle') {
                 $job->save(['state' => $enabling ? 1 : 0, 'nextExecute' => $enabling
-                    ? (AutomaticSchedule::nextExecution('agentrouter', $userId, (string)$account['timing']) ?? 0) : 0]);
+                    ? AgentRouterTaskExecutor::nextConfiguredExecution($userId, (string)$account['timing'], $job->toArray(), $this->scheduleNow()) : 0]);
                 return resultJson(1, $enabling ? '已启用签到' : '已暂停签到');
             }
             if (!AutomaticSchedule::isConfigured((string)$account['timing'])) {
@@ -182,5 +182,10 @@ class Agentrouter
     protected function executor(): AgentRouterTaskExecutor
     {
         return new AgentRouterTaskExecutor();
+    }
+
+    protected function scheduleNow(): int
+    {
+        return time();
     }
 }

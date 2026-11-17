@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\service;
 
 use Closure;
+use DateTimeImmutable;
 use Throwable;
 
 final class AgentRouterTaskExecutor
@@ -65,6 +66,36 @@ final class AgentRouterTaskExecutor
         return ['success' => $success, 'account_invalid' => $invalid, 'message' => $message,
             'retry_after_seconds' => $retry ? 300 : 0, 'retry_exhausted' => $exhausted, 'job_data' => $data,
             'profile' => $outcome['profile'] ?? null];
+    }
+
+    /** Configure the first run for today without replaying a completed run or resetting a retry. */
+    public static function nextConfiguredExecution(string $userId, ?string $timing, array $job, ?int $now = null): int
+    {
+        $timing = AutomaticSchedule::normalize($timing);
+        if ($timing === null) {
+            return 0;
+        }
+        $now ??= time();
+        $pending = (int)($job['nextExecute'] ?? 0);
+        $data = safe_unserialize_array((string)($job['data'] ?? ''));
+        if ($pending > 0 && SchedulerRetry::attemptsIn($data) > 0) {
+            return $pending;
+        }
+        if (!empty($job['lastExecute']) || SchedulerRetry::attemptsIn($data) > 0) {
+            return AutomaticSchedule::nextExecution('agentrouter', $userId, $timing, $now) ?? 0;
+        }
+
+        $date = (new DateTimeImmutable('now'))->setTimestamp($now);
+        [$hour, $minute] = array_map('intval', explode(':', $timing));
+        $today = $date->setTime($hour, $minute);
+        $identity = 'agentrouter:' . $userId;
+        $previous = $today->modify('-1 day');
+        $previousSlot = $previous->getTimestamp() + AutomaticSchedule::dailyJitter($identity, $previous->format('Y-m-d'));
+        // A first slot near midnight can still belong to yesterday's saved plan.
+        if ($pending === $previousSlot && date('Y-m-d', $pending) === $date->format('Y-m-d')) {
+            return max($now, $pending);
+        }
+        return max($now, $today->getTimestamp() + AutomaticSchedule::dailyJitter($identity, $today->format('Y-m-d')));
     }
 
     public static function jobUpdates(array $result, string $userId, string $timing, ?int $now = null): array

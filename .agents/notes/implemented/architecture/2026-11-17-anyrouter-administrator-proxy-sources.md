@@ -14,7 +14,7 @@ ANY 的 HTTP / SOCKS5 列表地址固定在代码中，站长无法更新失效�
 - 公共候选与最多 3 个匿名可用的订阅节点保存在 `0600` 运行时缓存，缓存携带活动来源指纹，更换来源不会复用旧节点或游标。订阅记录与 AG 的已完成签到记录不同：ANY 缓存只证明匿名预检，不宣称奖励已领取。失败扫描保留游标，限制节点数与总时长。
 - 选择与保存共用安装级平台代理锁。[客户端](../../../../extend/anyrouter/Client.php)持有 relay 与锁直到[执行器](../../../../app/service/AnyRouterTaskExecutor.php)完成账号读取或单次签到，在 `finally` 关闭；未使用客户端和异常路径也能清理。匿名探测、WAF Cookie、身份读取与签到保持同一出口，沿用[原协议约束](2026-11-12-anyrouter-proxy-checkin.md)。
 - 为旧部署保留一次兼容：后台尚未保存 ANY 设置时，非空 `ANYROUTER_PLATFORM_PROXY` 显示为常规代理；首次后台保存后以数据库选择为准，不存在隐含环境覆盖。
-- [任务监控](../../../../app/admin/view/system/set/cron.html)展示真实统一任务和通知入口，说明 ANY / AG 由 `/cron/task` 调度，不编造单独的平台路由。[帮助中心](../../../../app/index/view/console/user/faq.html)明确首次计划通常次日开始、同日补挂、AG 登录即签到及平台来源由站长维护。
+- [任务监控](../../../../app/admin/view/system/set/cron.html)展示真实统一任务和通知入口，说明 ANY / AG 由 `/cron/task` 调度，不编造单独的平台路由。[帮助中心](../../../../app/index/view/console/user/faq.html)说明同日补挂、AG 登录即签到及平台来源由站长维护；AG 首次日期规则见[首次计划决策](2026-11-17-agentrouter-first-day-schedule.md)。
 
 ## Alternatives considered
 

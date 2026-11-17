@@ -122,8 +122,9 @@ Db::name('users')->where('uid', 1)->update(['quota' => 1]);
 functionalCheck(Accounts::add('agentrouter', 'other-user', [])->getData()['code'] === 0, 'AgentRouter bypassed shared account quota');
 
 fixtureRequest(['user_id' => 'fixture-user', 'timing' => '09:30']);
+$configuredAt = time();
 functionalCheck($controller->handle('timing')->getData()['code'] === 1, 'Saving timing failed');
-functionalCheck(Db::name('jobs')->value('nextExecute') > time(), 'Timing did not schedule execution');
+functionalCheck(Db::name('jobs')->value('nextExecute') >= $configuredAt, 'Timing did not schedule execution');
 $lock = 'job:' . $job['id'];
 TaskExecutionLock::acquire($lock);
 try {
